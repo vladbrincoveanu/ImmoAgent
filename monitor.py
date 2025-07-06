@@ -19,16 +19,40 @@ logging.basicConfig(
     ]
 )
 
+def load_config():
+    config_paths = ['config.json', 'immo-scouter/config.default.json']
+    
+    for config_path in config_paths:
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                logging.info(f"Loaded config from {config_path}")
+                return config
+            except Exception as e:
+                logging.error(f"Error loading {config_path}: {e}")
+                continue
+    
+    logging.error("No config file found!")
+    return {}
+
 class RealTimeMonitor:
     def __init__(self, alert_url: str, check_interval_minutes: int = 5):
         self.alert_url = alert_url
         self.check_interval = check_interval_minutes * 60  # Convert to seconds
         
-        # Load Telegram configuration
-        telegram_config = self.load_telegram_config()
+        # Load configuration
+        config = load_config()
         
         # Create scraper with Telegram support
-        self.scraper = WillhabenScraper(telegram_config=telegram_config)
+        self.scraper = WillhabenScraper(
+            telegram_config={
+                'enabled': True,
+                'bot_token': config.get('telegram_bot_token'),
+                'chat_id': config.get('telegram_chat_id')
+            },
+            mongo_uri=config.get('mongodb_uri')
+        )
         self.seen_listings: Set[str] = set()
         self.load_seen_listings()
         
@@ -50,21 +74,6 @@ class RealTimeMonitor:
             'last_check': None,
             'start_time': datetime.now()
         }
-
-    def load_telegram_config(self):
-        """Load Telegram configuration from file"""
-        try:
-            with open('telegram_config.json', 'r') as f:
-                config = json.load(f)
-                if config.get('enabled'):
-                    logging.info("Telegram notifications enabled")
-                return config
-        except FileNotFoundError:
-            logging.info("telegram_config.json not found - Telegram notifications disabled")
-            return {"enabled": False}
-        except json.JSONDecodeError:
-            logging.error("Invalid telegram_config.json - Telegram notifications disabled")
-            return {"enabled": False}
 
     def load_seen_listings(self):
         """Load previously seen listings from file"""
@@ -149,55 +158,38 @@ class RealTimeMonitor:
         try:
             logging.info(f"🔍 Checking for new listings... (Check #{self.stats['total_checks'] + 1})")
             
-            # Get all listings from the search agent page
+            # Get only new listings that haven't been processed yet
+            # The scraper will handle MongoDB deduplication and only return truly new ones
             all_listings = self.scraper.scrape_search_agent_page(self.alert_url)
             
             if not all_listings:
-                logging.warning("No listings found on the search page")
+                logging.info("No new matching listings found")
                 return []
             
-            logging.info(f"Found {len(all_listings)} total listings")
+            logging.info(f"Found {len(all_listings)} new matching listings")
             
-            new_matching_listings = []
+            # All listings returned are already new and matching criteria
+            new_matching_listings = all_listings
             
-            for listing in all_listings:
+            for listing in new_matching_listings:
                 listing_url = listing.get('url', '')
+                self.stats['matching_listings'] += 1
                 
-                # Check if this is a new listing
-                if listing_url not in self.seen_listings:
-                    self.seen_listings.add(listing_url)
-                    self.stats['total_listings_found'] += 1
-                    
-                    logging.info(f"🆕 New listing found: {listing_url}")
-                    
-                    # Check if it matches criteria
-                    if self.scraper.meets_criteria(listing):
-                        self.stats['matching_listings'] += 1
-                        new_matching_listings.append(listing)
-                        
-                        logging.info(f"✅ MATCHING LISTING FOUND!")
-                        logging.info(f"   URL: {listing_url}")
-                        logging.info(f"   Price: €{listing.get('price_total', 'N/A'):,}")
-                        logging.info(f"   Area: {listing.get('area_m2', 'N/A')}m²")
-                        logging.info(f"   U-Bahn: {listing.get('ubahn_walk_minutes', 'N/A')} min")
-                        
-                        # Send notifications
-                        self.send_desktop_notification(listing)
-                        self.send_email_notification(listing)
-                        
-                        # Save to special file for matches
-                        self.save_matching_listing(listing)
-                    else:
-                        logging.info(f"❌ Listing does not match criteria: {listing_url}")
-                else:
-                    logging.debug(f"Already seen listing: {listing_url}")
+                logging.info(f"✅ NEW MATCHING LISTING FOUND!")
+                logging.info(f"   URL: {listing_url}")
+                logging.info(f"   Price: €{listing.get('price_total', 'N/A'):,}")
+                logging.info(f"   Area: {listing.get('area_m2', 'N/A')}m²")
+                logging.info(f"   U-Bahn: {listing.get('ubahn_walk_minutes', 'N/A')} min")
+                
+                # Send notifications (Telegram already sent by scraper)
+                self.send_desktop_notification(listing)
+                self.send_email_notification(listing)
+                
+                # Save to special file for matches
+                self.save_matching_listing(listing)
             
             self.stats['total_checks'] += 1
             self.stats['last_check'] = datetime.now()
-            
-            # Save seen listings periodically
-            if self.stats['total_checks'] % 10 == 0:  # Every 10 checks
-                self.save_seen_listings()
             
             return new_matching_listings
             

@@ -73,16 +73,28 @@ def test_bot_connection(bot_token, chat_id):
 
 def save_config(bot_token, chat_id):
     """Save the Telegram configuration"""
-    config = {
-        "enabled": True,
-        "bot_token": bot_token,
-        "chat_id": chat_id
-    }
+    # Load existing config or create new
+    config_paths = ['config.json', 'immo-scouter/config.default.json']
+    config = {}
+    
+    for config_path in config_paths:
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                break
+            except Exception as e:
+                print(f"Error loading {config_path}: {e}")
+                continue
+    
+    # Update with new Telegram credentials
+    config['telegram_bot_token'] = bot_token
+    config['telegram_chat_id'] = chat_id
     
     try:
-        with open('telegram_config.json', 'w') as f:
+        with open('config.json', 'w') as f:
             json.dump(config, f, indent=4)
-        print("✅ Configuration saved to telegram_config.json")
+        print("✅ Configuration saved to config.json")
         return True
     except Exception as e:
         print(f"❌ Error saving configuration: {e}")
@@ -132,7 +144,7 @@ def main():
             print("   python monitor.py")
             print()
             print("📋 To disable Telegram notifications:")
-            print("   Edit telegram_config.json and set 'enabled' to false")
+            print("   Edit config.json and set 'telegram_enabled' to false")
         else:
             print("❌ Failed to save configuration")
     else:

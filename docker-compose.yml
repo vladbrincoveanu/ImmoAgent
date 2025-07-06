@@ -8,6 +8,8 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_DATABASE: immo
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
     volumes:
       - mongo_data:/data/db
 
@@ -20,7 +22,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - OLLAMA_MODELS=llama3:instruct
+      - OLLAMA_MODELS=qwen2.5-coder:7b
 
 volumes:
   mongo_data:

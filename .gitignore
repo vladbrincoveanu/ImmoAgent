@@ -1,0 +1,102 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Local data
+*.sqlite3
+*.db
+*.log
+*.pid
+*.csv
+*.tsv
+*.bak
+*.swp
+*.swo
+*.tmp
+*.orig
+*.out
+*.json
+
+# MongoDB and Ollama volumes
+mongo_data/
+ollama_data/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# Secrets
+.env
+.env.*
+*.secret
+*.key
+*.pem
+telegram_config.json
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Ignore filtered and matches files
+filtered_listings.json
+matches_*.json
+seen_listings.json 

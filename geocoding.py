@@ -88,6 +88,7 @@ class ViennaGeocoder:
                 Coordinates(48.1967, 16.3100),  # Penzing
                 Coordinates(48.2000, 16.3050),  # Braunschweiggasse
                 Coordinates(48.2033, 16.3000),  # Hütteldorfer Straße
+                Coordinates(48.2100, 16.3200),  # Ottakring
             ],
             '1150': [  # Rudolfsheim
                 Coordinates(48.1967, 16.3400),  # Westbahnhof

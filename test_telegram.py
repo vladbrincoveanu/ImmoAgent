@@ -5,6 +5,7 @@ Test script for Telegram bot debugging
 
 import requests
 import json
+import os
 
 def test_bot_info(bot_token):
     """Test if bot token is valid"""
@@ -72,58 +73,64 @@ def test_send_message(bot_token, chat_id, message="Test message"):
 
 def main():
     # Load config
-    try:
-        with open('telegram_config.json', 'r') as f:
-            config = json.load(f)
+    config_paths = ['config.json', 'immo-scouter/config.default.json']
+    config = None
+    
+    for config_path in config_paths:
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                break
+            except Exception as e:
+                print(f"Error loading {config_path}: {e}")
+                continue
+    
+    if not config:
+        print("❌ No config file found!")
+        return
         
-        bot_token = config.get('bot_token')
-        chat_id = config.get('chat_id')
-        
-        print(f"Bot token: {bot_token}")
-        print(f"Chat ID: {chat_id}")
-        print()
-        
-        # Test bot token
-        print("1. Testing bot token...")
-        if not test_bot_info(bot_token):
-            print("❌ Invalid bot token!")
-            return
-        
-        print("✅ Bot token is valid!")
-        print()
-        
-        # Test getting updates
-        print("2. Getting recent updates...")
-        chat_ids = test_get_updates(bot_token)
-        
-        if chat_ids:
-            print(f"✅ Found {len(chat_ids)} chat(s)")
-            if chat_id not in chat_ids:
-                print(f"⚠️  Your chat ID ({chat_id}) not found in recent updates")
-                print(f"Available chat IDs: {chat_ids}")
-                print("Try sending a message to your bot first!")
-        else:
-            print("⚠️  No recent updates found")
+    bot_token = config.get('telegram_bot_token')
+    chat_id = config.get('telegram_chat_id')
+    
+    print(f"Bot token: {bot_token}")
+    print(f"Chat ID: {chat_id}")
+    print()
+    
+    # Test bot token
+    print("1. Testing bot token...")
+    if not test_bot_info(bot_token):
+        print("❌ Invalid bot token!")
+        return
+    
+    print("✅ Bot token is valid!")
+    print()
+    
+    # Test getting updates
+    print("2. Getting recent updates...")
+    chat_ids = test_get_updates(bot_token)
+    
+    if chat_ids:
+        print(f"✅ Found {len(chat_ids)} chat(s)")
+        if chat_id not in chat_ids:
+            print(f"⚠️  Your chat ID ({chat_id}) not found in recent updates")
+            print(f"Available chat IDs: {chat_ids}")
             print("Try sending a message to your bot first!")
-        print()
-        
-        # Test sending message
-        print("3. Testing message sending...")
-        if test_send_message(bot_token, chat_id, "🧪 Property Monitor Bot Test\n\nThis is a test message to verify the connection."):
-            print("✅ Message sent successfully!")
-        else:
-            print("❌ Failed to send message")
-            print("\nTroubleshooting:")
-            print("1. Make sure you've sent a message to your bot first")
-            print("2. Check if the chat ID is correct")
-            print("3. Make sure the bot hasn't been blocked")
-        
-    except FileNotFoundError:
-        print("❌ telegram_config.json not found!")
-    except json.JSONDecodeError:
-        print("❌ Invalid telegram_config.json!")
-    except Exception as e:
-        print(f"❌ Error: {e}")
+    else:
+        print("⚠️  No recent updates found")
+        print("Try sending a message to your bot first!")
+    print()
+    
+    # Test sending message
+    print("3. Testing message sending...")
+    if test_send_message(bot_token, chat_id, "🧪 Property Monitor Bot Test\n\nThis is a test message to verify the connection."):
+        print("✅ Message sent successfully!")
+    else:
+        print("❌ Failed to send message")
+        print("\nTroubleshooting:")
+        print("1. Make sure you've sent a message to your bot first")
+        print("2. Check if the chat ID is correct")
+        print("3. Make sure the bot hasn't been blocked")
 
 if __name__ == "__main__":
     main() 

@@ -56,29 +56,51 @@ class TelegramBot:
         ubahn_minutes = listing.get('ubahn_walk_minutes', 'N/A')
         year_built = listing.get('year_built', 'N/A')
         monatsrate = listing.get('monatsrate', 'N/A')
+        calculated_monatsrate = listing.get('calculated_monatsrate', 'N/A')
+        betriebskosten = listing.get('betriebskosten', 'N/A')
+        total_monthly_cost = listing.get('total_monthly_cost', 'N/A')
         address = listing.get('address', 'N/A')
         url = listing.get('url', 'N/A')
         
         # Format price values
-        price_formatted = f"€{price_total:,}" if isinstance(price_total, int) else str(price_total)
+        price_formatted = f"€{price_total:,}" if isinstance(price_total, (int, float)) else str(price_total)
         price_per_m2_formatted = f"€{price_per_m2:,}" if isinstance(price_per_m2, (int, float)) else str(price_per_m2)
-        monatsrate_formatted = f"€{monatsrate:,}" if isinstance(monatsrate, (int, float)) else str(monatsrate)
         
+        # Format monthly costs
+        monatsrate_formatted = f"€{monatsrate:,}" if isinstance(monatsrate, (int, float)) else str(monatsrate)
+        calculated_rate_formatted = f"€{calculated_monatsrate:,}" if isinstance(calculated_monatsrate, (int, float)) else str(calculated_monatsrate)
+        betriebskosten_formatted = f"€{betriebskosten:,}" if isinstance(betriebskosten, (int, float)) else str(betriebskosten)
+        total_cost_formatted = f"€{total_monthly_cost:,}" if isinstance(total_monthly_cost, (int, float)) else str(total_monthly_cost)
+        
+        # Build the message
         message = f"""
-            🏠 <b>NEW PROPERTY MATCH FOUND!</b>
+🏠 <b>NEW PROPERTY MATCH FOUND!</b>
 
-            📍 <b>Location:</b> {bezirk} - {address}
-            💰 <b>Price:</b> {price_formatted}
-            📐 <b>Area:</b> {area_m2}m²
-            💸 <b>Price per m²:</b> {price_per_m2_formatted}
-            🛏️ <b>Rooms:</b> {rooms}
-            🚇 <b>U-Bahn:</b> {ubahn_minutes} min walk
-            🏗️ <b>Year Built:</b> {year_built}
-            💳 <b>Monthly Rate:</b> {monatsrate_formatted}
+📍 <b>Location:</b> {bezirk} - {address}
+💰 <b>Price:</b> {price_formatted}
+📐 <b>Area:</b> {area_m2}m²
+💸 <b>Price per m²:</b> {price_per_m2_formatted}
+🛏️ <b>Rooms:</b> {rooms}
+🚇 <b>U-Bahn:</b> {ubahn_minutes} min walk
+🏗️ <b>Year Built:</b> {year_built}
 
-            🔗 <a href="{url}">View Listing</a>
+💳 <b>MONTHLY COSTS:</b>"""
+        
+        # Add mortgage information
+        if calculated_monatsrate != 'N/A':
+            message += f"\n🧮 <b>Calculated Rate:</b> {calculated_rate_formatted}"
+        if monatsrate != 'N/A':
+            message += f"\n💳 <b>Listed Rate:</b> {monatsrate_formatted}"
+        if betriebskosten != 'N/A':
+            message += f"\n🏢 <b>Betriebskosten:</b> {betriebskosten_formatted}"
+        if total_monthly_cost != 'N/A':
+            message += f"\n💰 <b>Total Monthly:</b> {total_cost_formatted}"
+        
+        message += f"""
 
-            🎉 <i>This property matches your criteria!</i>
+🔗 <a href="{url}">View Listing</a>
+
+🎉 <i>This property matches your criteria!</i>
         """
         
         return message.strip()
