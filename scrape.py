@@ -3,7 +3,7 @@ import json
 import time
 import re
 import math
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from ollama_analyzer import StructuredAnalyzer
@@ -144,17 +144,12 @@ class WillhabenScraper:
             )
             # If config is provided, use it to initialize everything
             self.criteria = config.get('criteria', {})
-            if not self.criteria:
-                # Fallback: load from criteria.json if not present in config
-                try:
-                    with open('immo-scouter/criteria.json', 'r') as f:
-                        self.criteria = json.load(f)
-                        print(f"📋 Loaded criteria from criteria.json: {len(self.criteria)} rules")
-                except Exception as e:
-                    print(f"❌ Error loading criteria.json: {e}")
-                    self.criteria = {}
+            if self.criteria:
+                print(f"📋 Loaded criteria from config: {len(self.criteria)} rules")
             else:
-                print(f"📋 Loaded criteria: {len(self.criteria)} rules")
+                print(f"⚠️  No criteria found in config.json. Filtering will be disabled.")
+                self.criteria = {}
+            
             print(f"🧠 Structured analyzer available: {'✅' if self.structured_analyzer.is_available() else '❌'}")
             
             # Initialize Telegram bot if config provided
@@ -261,7 +256,7 @@ class WillhabenScraper:
         try:
             # Find the __NEXT_DATA__ script tag
             script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
-            if script_tag and script_tag.string: # type: ignore
+            if script_tag and script_tag.string:  # type: ignore
                 # Parse the JSON data
                 json_data = json.loads(str(script_tag.string))
             else:
@@ -1149,11 +1144,11 @@ class WillhabenScraper:
         
         return district_times.get(bezirk, 15)
 
-    def get_amenities(self, bezirk: str, address: str) -> tuple[List[Dict], Optional[int]]:
+    def get_amenities(self, bezirk: str, address: str) -> Tuple[List[Dict], Optional[int]]:
         """Get nearby amenities and calculate school proximity using real distance calculations"""
         coords = self.geocoder.geocode_address(address)
-        amenities = []
-        school_walk_minutes = None
+        amenities: List[Dict] = []
+        school_walk_minutes: Optional[int] = None
         
         if coords:
             print(f"📍 Geocoded address: {address} -> {coords.lat:.4f}, {coords.lon:.4f}")

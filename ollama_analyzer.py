@@ -703,71 +703,27 @@ class StructuredAnalyzer:
     Structured analyzer using Outlines with aggressive lightweight fallback
     """
     def __init__(self, model_name: str = "microsoft/DialoGPT-medium", outlines_wait_timeout: float = 0.5, **kwargs):
-        # Try Outlines first, fallback to lightweight
-        self.outlines_analyzer = OutlinesAnalyzer(model_name=model_name)
+        # Use lightweight analyzer for all operations for speed and reliability
         self.lightweight_analyzer = LightweightAnalyzer()
         self.outlines_wait_timeout = outlines_wait_timeout
         
     def is_available(self) -> bool:
-        """Check if any analyzer is available"""
-        return self.outlines_analyzer.is_available() or self.lightweight_analyzer.is_available()
-    
-    def _wait_for_outlines(self, timeout: float) -> bool:
-        """Wait up to timeout seconds for Outlines to become available"""
-        import time
-        start = time.time()
-        while time.time() - start < timeout:
-            if self.outlines_analyzer.is_available():
-                return True
-            time.sleep(0.1)
-        return False
-    
-    def _safe_outlines_analysis(self, method_name: str, *args, **kwargs):
-        """Safely call Outlines analysis with timeout"""
-        try:
-            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-            
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                if method_name == 'analyze_listing_content':
-                    future = executor.submit(self.outlines_analyzer.analyze_listing_content, *args, **kwargs)
-                else:
-                    future = executor.submit(self.outlines_analyzer.analyze_listing, *args, **kwargs)
-                
-                return future.result(timeout=3.0)  # 3 second timeout for analysis
-                
-        except FutureTimeoutError:
-            logger.warning(f"⚠️ Outlines {method_name} timed out after 3s, falling back to lightweight")
-            raise TimeoutError(f"Outlines {method_name} timed out")
-        except Exception as e:
-            logger.warning(f"⚠️ Outlines {method_name} failed: {e}, falling back to lightweight")
-            raise
+        """Check if lightweight analyzer is available (always true)"""
+        return self.lightweight_analyzer.is_available()
     
     def analyze_listing_content(self, listing_data: Dict, raw_html: str) -> Dict:
-        """Analyze listing content with lightweight analyzer only for speed"""
-        # Skip Outlines entirely and use lightweight analyzer for maximum speed
+        """Analyze listing content with lightweight analyzer for speed"""
         logger.info("⚡ Using lightweight analyzer for speed...")
         return self.lightweight_analyzer.analyze_listing_content(listing_data, raw_html)
     
     def analyze_listing(self, listing_data: Dict) -> Dict:
-        """Analyze listing with lightweight analyzer only for speed"""
-        # Skip Outlines entirely and use lightweight analyzer for maximum speed
+        """Analyze listing with lightweight analyzer for speed"""
         logger.info("⚡ Using lightweight analyzer for speed...")
         return self.lightweight_analyzer.analyze_listing(listing_data)
     
     def _create_default_result(self) -> Dict:
         """Create default result when analysis fails"""
-        return {
-            "year_built": None,
-            "floor": None,
-            "condition": None,
-            "heating": None,
-            "parking": None,
-            "monatsrate": None,
-            "own_funds": None,
-            "betriebskosten": None,
-            "interest_rate": None,
-            "confidence": 0.0
-        }
+        return self.lightweight_analyzer._create_default_result()
 
 # Backward compatibility - simplified
 class OllamaAnalyzer:

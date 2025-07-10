@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scrape import WillhabenScraper
 from telegram_bot import TelegramBot
 import unittest
+from helpers import load_config
 
 class TestIntegrationAccuracy(unittest.TestCase):
     def test_single_listing_accuracy(self):
@@ -200,24 +201,6 @@ class TestIntegrationAccuracy(unittest.TestCase):
         
         print("\n⚠️  Energy data extraction needs to be implemented in scraper")
         return True
-
-def load_config():
-    """Load configuration from config files"""
-    config_paths = ['config.json', 'config.default.json']
-    
-    for config_path in config_paths:
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                print(f"✅ Loaded config from {config_path}")
-                return config
-            except Exception as e:
-                print(f"❌ Error loading {config_path}: {e}")
-                continue
-    
-    print("❌ No config file found!")
-    return {}
 
 def get_expected_data() -> Dict[str, Any]:
     """Get expected data for the test listing"""

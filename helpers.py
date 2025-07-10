@@ -4,6 +4,67 @@ import math
 from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass
 
+_config: Optional[Dict] = None
+_project_root: Optional[str] = None
+
+def get_project_root() -> str:
+    """Finds the project root by looking for a sentinel file (e.g., README.md)."""
+    global _project_root
+    if _project_root:
+        return _project_root
+
+    path = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if os.path.exists(os.path.join(path, 'README.md')):
+            _project_root = path
+            return path
+        parent_path = os.path.dirname(path)
+        if parent_path == path:
+            # We've reached the root of the filesystem
+            # As a fallback, assume the parent of the current file's directory is the root
+            return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = parent_path
+
+def load_config() -> Dict:
+    """Loads configuration from config.json at the project root."""
+    global _config
+    if _config is not None:
+        return _config
+
+    try:
+        project_root = get_project_root()
+        config_path = os.path.join(project_root, 'config.json')
+
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                loaded_json = json.load(f)
+                if isinstance(loaded_json, dict):
+                    _config = loaded_json
+                    print(f"✅ Loaded config from {config_path}")
+                    return _config
+        else:
+            print(f"❌ Could not find config.json at {config_path}")
+
+    except Exception as e:
+        print(f"❌ Error loading config.json: {e}")
+
+    # Fallback for old structure or errors
+    print("⚠️  config.json not found in project root, trying legacy paths...")
+    legacy_paths = ['config.json', 'immo-scouter/config.json']
+    for path in legacy_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    loaded_json = json.load(f)
+                    if isinstance(loaded_json, dict):
+                        _config = loaded_json
+                        print(f"✅ Loaded config from legacy path: {path}")
+                        return _config
+            except Exception:
+                continue
+
+    raise FileNotFoundError("❌ No config file found!")
+
 
 @dataclass
 class Coordinates:
@@ -81,8 +142,8 @@ class DataLoader:
     @staticmethod
     def get_data_path(filename: str) -> str:
         """Get the full path to a data file"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(current_dir, 'data', filename)
+        project_root = get_project_root()
+        return os.path.join(project_root, 'data', filename)
     
     @staticmethod
     def load_ubahn_stations() -> Dict[str, List[UBahnStation]]:
@@ -181,16 +242,17 @@ class UBahnProximityCalculator:
     
     def calculate_ubahn_proximity(self, address: str, district: Optional[str]) -> Optional[int]:
         """Calculate walking distance to nearest U-Bahn station"""
+        final_district = district if district else "1010"
         if not address or not district:
-            return ViennaDistrictHelper.get_default_ubahn_time(district or "1010")
+            return ViennaDistrictHelper.get_default_ubahn_time(final_district)
         
         # Check for transport keywords in address
         if any(keyword in address.lower() for keyword in ['bahnhof', 'station', 'metro', 'u-bahn']):
             return 3  # Very close to transport
         
-        return ViennaDistrictHelper.get_default_ubahn_time(district)
+        return ViennaDistrictHelper.get_default_ubahn_time(final_district)
     
-    def find_nearest_station(self, coords: Coordinates, district: str = None) -> Optional[Tuple[UBahnStation, float]]:
+    def find_nearest_station(self, coords: Coordinates, district: Optional[str] = None) -> Optional[Tuple[UBahnStation, float]]:
         """Find the nearest U-Bahn station to given coordinates"""
         if not coords:
             return None
@@ -221,7 +283,8 @@ class UBahnProximityCalculator:
 def calculate_ubahn_proximity(address: str, district: Optional[str]) -> Optional[int]:
     """Legacy function for backward compatibility"""
     calculator = UBahnProximityCalculator()
-    return calculator.calculate_ubahn_proximity(address, district or "1010")
+    final_district = district if district else "1010"
+    return calculator.calculate_ubahn_proximity(address, final_district)
 
 
 def get_default_ubahn_time(district: str) -> int:

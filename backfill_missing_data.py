@@ -12,23 +12,7 @@ from mongodb_handler import MongoDBHandler
 from ollama_analyzer import StructuredAnalyzer, OllamaAnalyzer
 import requests
 from bs4 import BeautifulSoup
-
-def load_config():
-    """Load configuration from config files"""
-    config_paths = ['config.json', 'immo-scouter/config.default.json']
-    
-    for config_path in config_paths:
-        try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                print(f"✅ Loaded config from {config_path}")
-                return config
-        except Exception as e:
-            print(f"❌ Error loading {config_path}: {e}")
-            continue
-    
-    print("❌ No config file found!")
-    return {}
+from helpers import load_config
 
 def get_listings_with_nulls(mongo: MongoDBHandler) -> List[Dict]:
     """Get listings that have null values in key fields"""

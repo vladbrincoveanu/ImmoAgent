@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Set
 from scrape import WillhabenScraper
 from mongodb_handler import MongoDBHandler
 from telegram_bot import TelegramBot
-from helpers import format_currency, format_walking_time, ViennaDistrictHelper
+from helpers import format_currency, format_walking_time, ViennaDistrictHelper, load_config
 import hashlib
 
 # Set up logging
@@ -298,24 +298,6 @@ Monitor has stopped. Please check logs."""
                     self.telegram_bot.send_message(error_message)
                 except Exception as telegram_error:
                     logging.error(f"❌ Failed to send error notification: {telegram_error}")
-
-def load_config():
-    """Load configuration from config.json"""
-    config_paths = ['config.json', 'immo-scouter/config.json']
-    
-    for config_path in config_paths:
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                logging.info(f"✅ Loaded config from {config_path}")
-                return config
-            except Exception as e:
-                logging.error(f"❌ Error loading {config_path}: {e}")
-                continue
-    
-    logging.error("❌ No config file found!")
-    return {}
 
 def test_system_components(config):
     """Test all system components before starting monitor"""

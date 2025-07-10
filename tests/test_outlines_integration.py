@@ -11,6 +11,13 @@ from ollama_analyzer import OllamaAnalyzer, RealEstateData, OUTLINES_AVAILABLE
 import json
 import unittest
 
+try:
+    import outlines # type: ignore
+    import transformers # type: ignore
+except ImportError:
+    outlines = None
+    transformers = None
+
 class TestOutlinesIntegration(unittest.TestCase):
     def test_outlines_integration(self):
         """Test Outlines integration with sample real estate data"""
@@ -77,17 +84,14 @@ class TestOutlinesIntegration(unittest.TestCase):
 
     def test_outlines_direct(self):
         """Test Outlines directly if available"""
-        if not OUTLINES_AVAILABLE:
-            print("\n⚠️  Outlines not available - skipping direct test")
+        if not OUTLINES_AVAILABLE or not outlines or not transformers:
+            print("=" * 60)
+            print("⚠️ Outlines not available, skipping direct test.")
+            print("💡 To enable, run: pip install outlines transformers torch accelerate")
+            print("=" * 60)
             return
-        
-        print("\n" + "=" * 60)
-        print("🚀 TESTING OUTLINES DIRECTLY")
-        print("=" * 60)
-        
+
         try:
-            import outlines
-            from transformers import AutoModelForCausalLM, AutoTokenizer
             
             # Initialize client using correct API
             print("🔧 Initializing Outlines client...")

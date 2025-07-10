@@ -5,8 +5,9 @@ from scrape import WillhabenScraper
 from ollama_analyzer import StructuredAnalyzer
 from mongodb_handler import MongoDBHandler
 from telegram_bot import TelegramBot
-from helpers import format_currency, format_walking_time, ViennaDistrictHelper
+from helpers import format_currency, format_walking_time, ViennaDistrictHelper, load_config
 import logging
+import pymongo # for bson
 
 # Set up logging
 logging.basicConfig(
@@ -18,29 +19,10 @@ logging.basicConfig(
     ]
 )
 
-def load_config():
-    """Load configuration from config.json or config.default.json"""
-    config_paths = ['config.json', 'immo-scouter/config.default.json']
-    
-    for config_path in config_paths:
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                logging.info(f"✅ Loaded config from {config_path}")
-                return config
-            except Exception as e:
-                logging.error(f"❌ Error loading {config_path}: {e}")
-                continue
-    
-    logging.error("❌ No config file found!")
-    return {}
-
 def json_serializable(obj):
     """Convert MongoDB ObjectId to string for JSON serialization"""
     try:
-        from bson import ObjectId
-        if isinstance(obj, ObjectId):
+        if isinstance(obj, pymongo.mongo_client.ObjectId):
             return str(obj)
     except ImportError:
         pass  # bson not available, skip ObjectId conversion
