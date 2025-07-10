@@ -47,63 +47,48 @@ class TelegramBot:
             return False
     
     def _format_property_message(self, listing: Dict) -> str:
-        """Format property listing as HTML message"""
-        bezirk = listing.get('bezirk', 'N/A')
-        price_total = listing.get('price_total', 'N/A')
-        area_m2 = listing.get('area_m2', 'N/A')
-        price_per_m2 = listing.get('price_per_m2', 'N/A')
-        rooms = listing.get('rooms', 'N/A')
-        ubahn_minutes = listing.get('ubahn_walk_minutes', 'N/A')
-        year_built = listing.get('year_built', 'N/A')
-        monatsrate = listing.get('monatsrate', 'N/A')
-        calculated_monatsrate = listing.get('calculated_monatsrate', 'N/A')
-        betriebskosten = listing.get('betriebskosten', 'N/A')
-        total_monthly_cost = listing.get('total_monthly_cost', 'N/A')
+        """Format property listing as concise HTML message"""
+        def safe_format(value, prefix="€"):
+            """Safely format values that might be None"""
+            if value is None:
+                return "N/A"
+            if isinstance(value, (int, float)):
+                return f"{prefix}{value:,.0f}"
+            return str(value)
+        
+        # Create a concise message with essential info only
+        bezirk = listing.get('bezirk', 'Wien')
         address = listing.get('address', 'N/A')
-        url = listing.get('url', 'N/A')
+        price = safe_format(listing.get('price_total'))
         
-        # Format price values
-        price_formatted = f"€{price_total:,}" if isinstance(price_total, (int, float)) else str(price_total)
-        price_per_m2_formatted = f"€{price_per_m2:,}" if isinstance(price_per_m2, (int, float)) else str(price_per_m2)
-        
-        # Format monthly costs
-        monatsrate_formatted = f"€{monatsrate:,}" if isinstance(monatsrate, (int, float)) else str(monatsrate)
-        calculated_rate_formatted = f"€{calculated_monatsrate:,}" if isinstance(calculated_monatsrate, (int, float)) else str(calculated_monatsrate)
-        betriebskosten_formatted = f"€{betriebskosten:,}" if isinstance(betriebskosten, (int, float)) else str(betriebskosten)
-        total_cost_formatted = f"€{total_monthly_cost:,}" if isinstance(total_monthly_cost, (int, float)) else str(total_monthly_cost)
-        
-        # Build the message
-        message = f"""
-🏠 <b>NEW PROPERTY MATCH FOUND!</b>
+        # New mortgage info
+        monthly_rate = safe_format(listing.get('calculated_monatsrate'))
+        mortgage_details = listing.get('mortgage_details', '')
 
-📍 <b>Location:</b> {bezirk} - {address}
-💰 <b>Price:</b> {price_formatted}
-📐 <b>Area:</b> {area_m2}m²
-💸 <b>Price per m²:</b> {price_per_m2_formatted}
-🛏️ <b>Rooms:</b> {rooms}
-🚇 <b>U-Bahn:</b> {ubahn_minutes} min walk
-🏗️ <b>Year Built:</b> {year_built}
-
-💳 <b>MONTHLY COSTS:</b>"""
+        area = listing.get('area_m2', 'N/A')
+        price_per_m2 = safe_format(listing.get('price_per_m2'))
+        rooms = listing.get('rooms', 'N/A')
+        ubahn_min = listing.get('ubahn_walk_minutes', 'N/A')
+        school_min = listing.get('school_walk_minutes', 'N/A')
+        year_built = listing.get('year_built', 'N/A')
+        condition = listing.get('condition', 'N/A')
+        energy_class = listing.get('energy_class', 'N/A')
+        url = listing.get('url', '')
         
-        # Add mortgage information
-        if calculated_monatsrate != 'N/A':
-            message += f"\n🧮 <b>Calculated Rate:</b> {calculated_rate_formatted}"
-        if monatsrate != 'N/A':
-            message += f"\n💳 <b>Listed Rate:</b> {monatsrate_formatted}"
-        if betriebskosten != 'N/A':
-            message += f"\n🏢 <b>Betriebskosten:</b> {betriebskosten_formatted}"
-        if total_monthly_cost != 'N/A':
-            message += f"\n💰 <b>Total Monthly:</b> {total_cost_formatted}"
-        
-        message += f"""
+        message = f"""🏠 <b>{bezirk}</b> - {price}
+💳 Rate: {monthly_rate} {mortgage_details}
+📍 {address}
+📐 {area}m² - {price_per_m2}/m²
+🛏️ {rooms} Zimmer
+🚇 U-Bahn: {ubahn_min} min
+🏫 Schule: {school_min} min
+🏗️ Baujahr: {year_built}
+🛠️ Zustand: {condition}
+⚡ Energieklasse: {energy_class}
 
-🔗 <a href="{url}">View Listing</a>
-
-🎉 <i>This property matches your criteria!</i>
-        """
+🔗 <a href='{url}'>Zur Anzeige</a>"""
         
-        return message.strip()
+        return message
     
     def test_connection(self) -> bool:
         """Test if the bot can send messages"""

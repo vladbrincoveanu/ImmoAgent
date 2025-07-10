@@ -3,7 +3,7 @@ import json
 import time
 import re
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from ollama_analyzer import StructuredAnalyzer
@@ -11,6 +11,7 @@ from mongodb_handler import MongoDBHandler
 from telegram_bot import TelegramBot
 from geocoding import ViennaGeocoder
 import logging
+from helpers import calculate_ubahn_proximity, format_currency
 
 @dataclass
 class Amenity:
@@ -125,7 +126,7 @@ class MortgageCalculator:
         }
 
 class WillhabenScraper:
-    def __init__(self, config: Dict = None, criteria_path: str = "criteria.json", telegram_config: Optional[Dict] = None, mongo_uri: str = None):
+    def __init__(self, config: Optional[Dict] = None, criteria_path: str = "criteria.json", telegram_config: Optional[Dict] = None, mongo_uri: Optional[str] = None):
         self.session = requests.Session()
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -136,24 +137,38 @@ class WillhabenScraper:
         
         # Handle config parameter
         if config:
-            # If config is provided, use it to initialize everything
-            self.criteria = config.get('criteria', {})
-            # Initialize Telegram bot if config provided
-            self.telegram_bot = None
-            if config.get('telegram', {}).get('bot_token') and config.get('telegram', {}).get('chat_id'):
-                self.telegram_bot = TelegramBot(
-                    config['telegram']['bot_token'],
-                    config['telegram']['chat_id']
-                )
-            
-            # Initialize MongoDB handler
-            self.mongo = MongoDBHandler(uri=config.get('mongodb', {}).get('uri'))
-            
-            # Initialize Structured analyzer with config
+            # Initialize Structured analyzer with config FIRST
             self.structured_analyzer = StructuredAnalyzer(
                 api_key=config.get('openai_api_key'),
                 model=config.get('openai_model', 'gpt-4o-mini')
             )
+            # If config is provided, use it to initialize everything
+            self.criteria = config.get('criteria', {})
+            if not self.criteria:
+                # Fallback: load from criteria.json if not present in config
+                try:
+                    with open('immo-scouter/criteria.json', 'r') as f:
+                        self.criteria = json.load(f)
+                        print(f"📋 Loaded criteria from criteria.json: {len(self.criteria)} rules")
+                except Exception as e:
+                    print(f"❌ Error loading criteria.json: {e}")
+                    self.criteria = {}
+            else:
+                print(f"📋 Loaded criteria: {len(self.criteria)} rules")
+            print(f"🧠 Structured analyzer available: {'✅' if self.structured_analyzer.is_available() else '❌'}")
+            
+            # Initialize Telegram bot if config provided
+            self.telegram_bot = None
+            if config.get('telegram_bot_token') and config.get('telegram_chat_id'):
+                self.telegram_bot = TelegramBot(
+                    config['telegram_bot_token'],
+                    config['telegram_chat_id']
+                )
+            
+            # Initialize MongoDB handler
+            mongo_uri = config.get('mongodb_uri') or "mongodb://localhost:27017/"
+            self.mongo = MongoDBHandler(uri=mongo_uri)
+            
         else:
             # Legacy initialization
             self.criteria = self.load_criteria(criteria_path)
@@ -167,6 +182,7 @@ class WillhabenScraper:
                 )
             
             # Initialize MongoDB handler
+            mongo_uri = mongo_uri or "mongodb://localhost:27017/"
             self.mongo = MongoDBHandler(uri=mongo_uri)
             
             # Initialize Structured analyzer with defaults
@@ -199,7 +215,7 @@ class WillhabenScraper:
             links = soup.select(selector)
             for link in links:
                 href = link.get('href')
-                if href and '/iad/immobilien/' in href:
+                if href and isinstance(href, str) and '/iad/immobilien/' in href:
                     if href.startswith('/'):
                         href = f"https://www.willhaben.at{href}"
                     urls.append(href)
@@ -214,18 +230,94 @@ class WillhabenScraper:
         
         return unique_urls
 
-    def scrape_single_listing(self, url: str) -> Optional[Dict]:
-        """Scrape a single listing page"""
+    def extract_special_features(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract special features"""
         try:
-            response = self.session.get(url, timeout=15)
-            response.raise_for_status()
+            # Look for special features in the listing
+            feature_selectors = [
+                '[data-testid*="feature"]',
+                '.feature-list',
+                '.amenities'
+            ]
             
+            for selector in feature_selectors:
+                elements = soup.select(selector)
+                if elements:
+                    features = []
+                    for element in elements:
+                        text = element.get_text(strip=True)
+                        if text:
+                            features.append(text)
+                    if features:
+                        return ', '.join(features)
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting special features: {e}")
+            return None
+
+    def extract_from_json_data(self, soup: BeautifulSoup) -> Dict[str, Any]:
+        """Extract data from the JSON structure in the HTML"""
+        try:
+            # Find the __NEXT_DATA__ script tag
+            script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
+            if script_tag and script_tag.string: # type: ignore
+                # Parse the JSON data
+                json_data = json.loads(str(script_tag.string))
+            else:
+                return {}
+            
+            # Navigate to the attributes
+            attributes = json_data.get('props', {}).get('pageProps', {}).get('advertDetails', {}).get('attributes', {}).get('attribute', [])
+            
+            extracted_data = {}
+            
+            # Extract address from LOCATION/ADDRESS_2
+            for attr in attributes:
+                name = attr.get('name', '')
+                values = attr.get('values', [])
+                if values:
+                    value = values[0]
+                    
+                    if name == 'LOCATION/ADDRESS_2':
+                        extracted_data['address'] = value
+                    elif 'Heizungsart:' in value:
+                        heating_match = re.search(r'Heizungsart:\s*([^<\n]+)', value)
+                        if heating_match:
+                            extracted_data['heating_type'] = heating_match.group(1).strip()
+                    elif 'Wesentliche Energieträger:' in value:
+                        carrier_match = re.search(r'Wesentliche Energieträger:\s*([^<\n]+)', value)
+                        if carrier_match:
+                            extracted_data['energy_carrier'] = carrier_match.group(1).strip()
+                    elif 'Verfügbar ab:' in value:
+                        available_match = re.search(r'Verfügbar ab:\s*([^<\n]+)', value)
+                        if available_match:
+                            extracted_data['available_from'] = available_match.group(1).strip()
+            
+            return extracted_data
+            
+        except Exception as e:
+            print(f"Error extracting from JSON data: {e}")
+            return {}
+
+    def scrape_single_listing(self, url: str) -> Dict[str, Any]:
+        """Scrape a single listing"""
+        try:
+            print("🌐 Scraping listing...")
+            
+            # Get the HTML content
+            response = self.session.get(url)
+            response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Extract basic information
+            # Extract JSON data first to get structured information
+            json_data = self.extract_from_json_data(soup)
+            
+            # Initialize listing data with JSON data
             listing_data = {
                 'url': url,
                 'bezirk': self.extract_bezirk(soup),
+                'address': json_data.get('address') or self.extract_address(soup),
                 'price_total': self.extract_price(soup),
                 'area_m2': self.extract_area(soup),
                 'rooms': self.extract_rooms(soup),
@@ -234,11 +326,15 @@ class WillhabenScraper:
                 'condition': self.extract_condition(soup),
                 'heating': self.extract_heating(soup),
                 'parking': self.extract_parking(soup),
-                'address': self.extract_address(soup),
-                'special_comment': self.extract_special_comment(soup),
-                'monatsrate': self.extract_monatsrate(soup),
-                'own_funds': self.extract_own_funds(soup),
-                'betriebskosten': self.extract_betriebskosten(soup),  # NEW FIELD
+                'betriebskosten': self.extract_betriebskosten(soup),
+                'energy_class': self.extract_energy_class(soup),
+                'hwb_value': self.extract_hwb_value(soup),
+                'heating_type': self.clean_heating_type(json_data.get('heating_type')) or self.extract_heating_type(soup),
+                'energy_carrier': json_data.get('energy_carrier') or self.extract_energy_carrier(soup),
+                'available_from': json_data.get('available_from') or self.extract_available_from(soup),
+                'special_features': self.extract_special_features(soup),
+                'monatsrate': None,  # Set if available in listing
+                'own_funds': None,   # Set if available in listing
             }
             
             # Calculate derived fields
@@ -246,47 +342,79 @@ class WillhabenScraper:
                 listing_data['price_per_m2'] = round(listing_data['price_total'] / listing_data['area_m2'], 2)
             else:
                 listing_data['price_per_m2'] = None
-            
-            # Calculate manual monthly rate if price available
-            if listing_data['price_total']:
-                listing_data['calculated_monatsrate'] = self.calculate_manual_monthly_rate(
-                    listing_data['price_total'],
-                    listing_data.get('own_funds'),
-                    soup
-                )
+
+            # Get amenities and calculate walk times
+            if listing_data['address']:
+                # Use the new real distance calculation methods
+                ubahn_walk_minutes = self.get_real_ubahn_walk_minutes(listing_data['address'])
+                
+                # Calculate school walking time with proper error handling
+                coords = self.geocoder.geocode_address(listing_data['address'])
+                if coords:
+                    school_walk_minutes = self.geocoder.get_walking_distance_to_nearest_school(coords)
+                else:
+                    school_walk_minutes = None
+                
+                # Set reasonable values instead of -1
+                listing_data['school_walk_minutes'] = school_walk_minutes if school_walk_minutes is not None else None
+                listing_data['ubahn_walk_minutes'] = ubahn_walk_minutes if ubahn_walk_minutes is not None else None
             else:
-                listing_data['calculated_monatsrate'] = None
-            
-            # Calculate total monthly costs
-            listing_data['total_monthly_cost'] = self.calculate_total_monthly_cost(
-                listing_data.get('calculated_monatsrate') or listing_data.get('monatsrate'),
-                listing_data.get('betriebskosten')
-            )
-            
-            # Calculate U-Bahn distance
-            listing_data['ubahn_walk_minutes'] = self.calculate_ubahn_distance(
-                listing_data['bezirk'], 
-                listing_data['address']
-            )
-            
-            # Get amenities
-            listing_data['amenities'] = self.get_amenities(listing_data['bezirk'], listing_data['address'])
-            
-            # Use Structured Analyzer to fill missing fields if available
-            if self.structured_analyzer.is_available():
-                print("🧠 Analyzing content with Structured Analyzer...")
+                listing_data['school_walk_minutes'] = None
+                listing_data['ubahn_walk_minutes'] = None
+
+            # Calculate mortgage if price is available
+            if listing_data['price_total']:
+                down_payment = self.criteria.get("down_payment_min")
+                interest_rate = self.criteria.get("interest_rate_max")
+                loan_years = 30
+
+                if down_payment and interest_rate and listing_data['price_total'] > down_payment:
+                    loan_amount = self.mortgage_calc.calculate_loan_amount(listing_data['price_total'], down_payment)
+                    
+                    if loan_amount > 0:
+                        monthly_payment = self.mortgage_calc.calculate_monthly_payment(
+                            loan_amount, interest_rate, loan_years, include_fees=True
+                        )
+                        listing_data['calculated_monatsrate'] = monthly_payment
+                        listing_data['mortgage_details'] = f"({format_currency(down_payment)} DP, {interest_rate}% Zins, {loan_years} Jahre)"
+
+                # Calculate total monthly cost by adding betriebskosten
+                listing_data['total_monthly_cost'] = listing_data.get('calculated_monatsrate')
+                if listing_data.get('betriebskosten') and listing_data.get('total_monthly_cost'):
+                    listing_data['total_monthly_cost'] += listing_data['betriebskosten']
+
+
+            # Analyze content if available
+            if self.structured_analyzer:
                 try:
-                    listing_data = self.structured_analyzer.analyze_listing_content(
-                        listing_data, response.text
-                    )
+                    listing_data = self.structured_analyzer.analyze_listing_content(listing_data, response.text)
                 except Exception as e:
-                    print(f"⚠️  Structured analysis failed: {e}")
-            
+                    print(f"❌ Analysis failed: {e}")
+
             return listing_data
-            
+
         except Exception as e:
-            print(f"Error scraping {url}: {e}")
+            print(f"❌ Error scraping listing: {e}")
+            return {}
+    
+    def clean_heating_type(self, heating_type: Optional[str]) -> Optional[str]:
+        """Clean heating type to extract the base type"""
+        if not heating_type:
             return None
+        
+        # Extract base heating type (e.g., "Gas" from "Gasheizung")
+        if 'gas' in heating_type.lower():
+            return 'Gas'
+        elif 'öl' in heating_type.lower() or 'oil' in heating_type.lower():
+            return 'Öl'
+        elif 'fernwärme' in heating_type.lower():
+            return 'Fernwärme'
+        elif 'elektro' in heating_type.lower():
+            return 'Elektro'
+        elif 'wärmepumpe' in heating_type.lower():
+            return 'Wärmepumpe'
+        else:
+            return heating_type.strip()
 
     def calculate_manual_monthly_rate(self, purchase_price: float, down_payment: Optional[float], soup: BeautifulSoup) -> Optional[float]:
         """
@@ -358,7 +486,7 @@ class WillhabenScraper:
             elem = soup.select_one(selector)
             if elem:
                 value = elem.get('value') or elem.get_text()
-                if value:
+                if value and isinstance(value, str):
                     match = re.search(r'([\d.,]+)', value)
                     if match:
                         try:
@@ -404,72 +532,22 @@ class WillhabenScraper:
     def extract_betriebskosten(self, soup: BeautifulSoup) -> Optional[float]:
         """Extract Betriebskosten (operating costs)"""
         try:
-            # Try multiple selectors for operating costs
-            selectors = [
-                '[data-testid*="betriebskosten"]',
-                '[data-testid*="operating"]',
-                '[data-testid*="maintenance"]',
-                '.betriebskosten',
-                '.operating-costs'
-            ]
-            
-            for selector in selectors:
-                elements = soup.select(selector)
-                if elements:
-                    for element in elements:
-                        text = element.get_text(strip=True)
-                        # Look for cost patterns
-                        cost_match = re.search(r'€\s*([\d.,]+)', text)
-                        if cost_match:
-                            cost_str = cost_match.group(1).replace('.', '').replace(',', '.')
-                            try:
-                                cost = float(cost_str)
-                                if 10 <= cost <= 1000:  # Reasonable range for monthly operating costs
-                                    return cost
-                            except ValueError:
-                                continue
-            
-            # Fallback 1: search for any text containing "Betriebskosten"
-            betriebskosten_texts = soup.find_all(string=re.compile(r'[Bb]etriebskosten', re.IGNORECASE))
-            for text in betriebskosten_texts:
-                # Look in the parent element for cost information
-                parent = text.parent
-                if parent:
-                    parent_text = parent.get_text()
-                    cost_match = re.search(r'€\s*([\d.,]+)', parent_text)
-                    if cost_match:
-                        cost_str = cost_match.group(1).replace('.', '').replace(',', '.')
-                        try:
-                            cost = float(cost_str)
-                            if 10 <= cost <= 1000:  # Reasonable range
-                                return cost
-                        except ValueError:
-                            continue
-            
-            # Fallback 2: search for "Nebenkosten" patterns
-            nebenkosten_texts = soup.find_all(string=re.compile(r'[Nn]ebenkosten', re.IGNORECASE))
-            for text in nebenkosten_texts:
-                # Look in the parent element for cost information
-                parent = text.parent
-                if parent:
-                    parent_text = parent.get_text()
-                    cost_match = re.search(r'€\s*([\d.,]+)', parent_text)
-                    if cost_match:
-                        cost_str = cost_match.group(1).replace('.', '').replace(',', '.')
-                        try:
-                            cost = float(cost_str)
-                            if 10 <= cost <= 1000:  # Reasonable range
-                                return cost
-                        except ValueError:
-                            continue
-            
-            # Fallback 3: search entire document for common patterns
+            # Enhanced patterns for better extraction
             all_text = soup.get_text()
+            
+            # Multiple patterns for operating costs
             operating_cost_patterns = [
-                r'[Bb]etriebskosten[:\s]*€\s*([\d.,]+)',
-                r'[Nn]ebenkosten[:\s]*€\s*([\d.,]+)',
-                r'[Nn]ebenkosten\s+monatlich[:\s]*€\s*([\d.,]+)',
+                r'[Bb]etriebskosten[:\s]*EUR\s*([\d.,]+)',  # "Betriebskosten: EUR 162,86"
+                r'[Bb]etriebskosten[:\s]*€\s*([\d.,]+)',   # "Betriebskosten: €162,86"
+                r'[Bb]etriebskosten[:\s]*([\d.,]+)\s*EUR', # "Betriebskosten 162,86 EUR"
+                r'[Bb]etriebskosten[:\s]*([\d.,]+)\s*€',   # "Betriebskosten 162,86 €"
+                r'[Nn]ebenkosten[:\s]*EUR\s*([\d.,]+)',    # "Nebenkosten: EUR 162,86"
+                r'[Nn]ebenkosten[:\s]*€\s*([\d.,]+)',      # "Nebenkosten: €162,86"
+                r'[Nn]ebenkosten[:\s]*([\d.,]+)\s*EUR',    # "Nebenkosten 162,86 EUR"
+                r'[Nn]ebenkosten[:\s]*([\d.,]+)\s*€',      # "Nebenkosten 162,86 €"
+                r'[Oo]perating\s+costs[:\s]*EUR\s*([\d.,]+)',
                 r'[Oo]perating\s+costs[:\s]*€\s*([\d.,]+)',
+                r'[Mm]aintenance[:\s]*EUR\s*([\d.,]+)',
                 r'[Mm]aintenance[:\s]*€\s*([\d.,]+)'
             ]
             
@@ -479,10 +557,35 @@ class WillhabenScraper:
                     cost_str = match.group(1).replace('.', '').replace(',', '.')
                     try:
                         cost = float(cost_str)
-                        if 10 <= cost <= 1000:  # Reasonable range
+                        if 10 <= cost <= 1000:  # Reasonable range for monthly operating costs
                             return cost
                     except ValueError:
                         continue
+            
+            # Try selectors as fallback
+            selectors = [
+                '[data-testid*="betriebskosten"]',
+                '[data-testid*="operating"]',
+                '[data-testid*="maintenance"]',
+                '.betriebskosten',
+                '.operating-costs',
+                '.maintenance-costs'
+            ]
+            
+            for selector in selectors:
+                elements = soup.select(selector)
+                if elements:
+                    for element in elements:
+                        text = element.get_text(strip=True)
+                        cost_match = re.search(r'([\d.,]+)', text)
+                        if cost_match:
+                            cost_str = cost_match.group(1).replace('.', '').replace(',', '.')
+                            try:
+                                cost = float(cost_str)
+                                if 10 <= cost <= 1000:
+                                    return cost
+                            except ValueError:
+                                continue
             
             return None
         except Exception as e:
@@ -549,7 +652,7 @@ class WillhabenScraper:
                             try:
                                 price = float(price_str)
                                 if price > 1000:  # Reasonable minimum price
-                                    return price
+                                    return int(price)  # Convert to int
                             except ValueError:
                                 continue
             
@@ -562,7 +665,7 @@ class WillhabenScraper:
                     try:
                         price = float(price_str)
                         if price > 1000:  # Reasonable minimum price
-                            return price
+                            return int(price)  # Convert to int
                     except ValueError:
                         continue
                         
@@ -681,44 +784,78 @@ class WillhabenScraper:
 
     def extract_floor(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract floor information"""
-        selectors = [
-            '[data-testid="attribute-floor"]',
-            '.floor-value'
-        ]
-        
-        for selector in selectors:
-            elem = soup.select_one(selector)
-            if elem:
-                return elem.get_text().strip()
-        
-        return None
+        try:
+            all_text = soup.get_text()
+            
+            # Enhanced floor patterns
+            floor_patterns = [
+                r'[Hh]ochparterre',  # "Hochparterre"
+                r'[Ee]rdgeschoss',  # "Erdgeschoss"
+                r'[Dd]achgeschoss',  # "Dachgeschoss"
+                r'(\d+)\.?\s*[Ss]tock',  # "3. Stock"
+                r'(\d+)\.?\s*[Ee]tage',  # "3. Etage"
+                r'[Ss]tock[:\s]*(\d+)',  # "Stock: 3"
+                r'[Ee]tage[:\s]*(\d+)',  # "Etage: 3"
+                r'[Ff]loor[:\s]*(\d+)',  # "Floor: 3"
+            ]
+            
+            for pattern in floor_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    if pattern in [r'[Hh]ochparterre', r'[Ee]rdgeschoss', r'[Dd]achgeschoss']:
+                        return match.group(0)  # Return the full match
+                    else:
+                        floor_num = match.group(1)
+                        return f"{floor_num}. Stock"
+            
+            # Try selectors as fallback
+            selectors = [
+                '[data-testid="attribute-floor"]',
+                '.floor-value',
+                '.floor-info'
+            ]
+            
+            for selector in selectors:
+                elem = soup.select_one(selector)
+                if elem:
+                    return elem.get_text().strip()
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting floor: {e}")
+            return None
 
     def extract_condition(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract property condition"""
-        selectors = [
-            '[data-testid="attribute-condition"]',
-            '.condition-value'
+        """Extract property condition with more specific patterns"""
+        condition_patterns = [
+            r"Zustand: (\w+)",
+            r"Zustand:\s*([\w\s-]+)",
+            (r"Sanierungsbedürftig", "Sanierungsbedürftig"),
+            (r"Neuwertig", "Neuwertig"),
+            (r"Erstbezug", "Erstbezug")
         ]
-        
-        for selector in selectors:
-            elem = soup.select_one(selector)
-            if elem:
-                return elem.get_text().strip()
-        
+        text_content = soup.get_text()
+        for pattern, value in condition_patterns:
+            match = re.search(pattern, text_content, re.IGNORECASE)
+            if match:
+                return value if value else match.group(1).strip()
         return None
 
     def extract_heating(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract heating type"""
-        selectors = [
-            '[data-testid="attribute-heating"]',
-            '.heating-value'
+        """Extract heating type with more specific patterns"""
+        heating_patterns = [
+            r"Heizung: (\w+)",
+            r"Heizungsart:\s*([\w\s-]+)",
+            (r"Etagenheizung", "Etagenheizung"),
+            (r"Fußbodenheizung", "Fußbodenheizung"),
+            (r"Fernwärme", "Fernwärme"),
+            (r"Gasheizung", "Gas")
         ]
-        
-        for selector in selectors:
-            elem = soup.select_one(selector)
-            if elem:
-                return elem.get_text().strip()
-        
+        text_content = soup.get_text()
+        for pattern, value in heating_patterns:
+            match = re.search(pattern, text_content, re.IGNORECASE)
+            if match:
+                return value if value else match.group(1).strip()
         return None
 
     def extract_parking(self, soup: BeautifulSoup) -> Optional[str]:
@@ -736,19 +873,50 @@ class WillhabenScraper:
         return None
 
     def extract_address(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract full address"""
-        selectors = [
-            '[data-testid="object-location-address"]',
-            '.address-line',
-            '.location-address'
-        ]
-        
-        for selector in selectors:
-            elem = soup.select_one(selector)
-            if elem:
-                return elem.get_text().strip()
-        
-        return None
+        """Extract full street address"""
+        try:
+            # First try to get address from JSON data
+            json_data = self.extract_from_json_data(soup)
+            if json_data.get('address'):
+                return json_data['address']
+            
+            # Try multiple selectors for address
+            address_selectors = [
+                '[data-testid="object-location-address"]',
+                '.address-line',
+                '.location-address',
+                '.object-location',
+                '.property-address',
+                '[data-testid*="address"]',
+                '.address-info'
+            ]
+            
+            for selector in address_selectors:
+                elem = soup.select_one(selector)
+                if elem:
+                    address_text = elem.get_text(strip=True)
+                    if address_text and len(address_text) > 5:  # Basic validation
+                        return address_text
+            
+            # Try to extract from breadcrumbs or location info
+            breadcrumbs = soup.select('.breadcrumb a, [data-testid*="breadcrumb"] a')
+            for breadcrumb in breadcrumbs:
+                text = breadcrumb.get_text(strip=True)
+                if 'Wien' in text and ('Bezirk' in text or 'Döbling' in text):
+                    return text
+            
+            # Look for Vienna district patterns in the text
+            all_text = soup.get_text()
+            vienna_pattern = r'Wien,?\s*\d{4}\s*[^,\n]*(?:Bezirk|Döbling|Leopoldstadt|Landstraße|Wieden|Margareten|Mariahilf|Neubau|Josefstadt|Alsergrund|Favoriten|Simmering|Meidling|Hietzing|Penzing|Rudolfsheim|Ottakring|Hernals|Währing|Floridsdorf|Brigittenau|Donaustadt|Liesing)[^,\n]*'
+            match = re.search(vienna_pattern, all_text, re.IGNORECASE)
+            if match:
+                return match.group().strip()
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error extracting address: {e}")
+            return None
 
     def extract_special_comment(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract special comments or conditions"""
@@ -807,6 +975,165 @@ class WillhabenScraper:
         
         return None
 
+    def extract_energy_class(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract energy class (e.g., A, B, C, D, E, F, G)"""
+        try:
+            all_text = soup.get_text()
+            
+            # Patterns for energy class
+            energy_patterns = [
+                r'[Kk]lasse[:\s]*([A-G])',  # "Klasse D"
+                r'[Ee]nergieklasse[:\s]*([A-G])',  # "Energieklasse D"
+                r'[Ee]nergy\s+class[:\s]*([A-G])',  # "Energy class D"
+                r'[Ee]nergieausweis[:\s]*([A-G])',  # "Energieausweis D"
+            ]
+            
+            for pattern in energy_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    energy_class = match.group(1).upper()
+                    if energy_class in ['A', 'B', 'C', 'D', 'E', 'F', 'G']:
+                        return energy_class
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting energy class: {e}")
+            return None
+
+    def extract_hwb_value(self, soup: BeautifulSoup) -> Optional[float]:
+        """Extract HWB (Heizwärmebedarf) value in kWh/m²/year"""
+        try:
+            all_text = soup.get_text()
+            
+            # Patterns for HWB value
+            hwb_patterns = [
+                r'HWB[:\s]*([\d.,]+)\s*kWh/qm/a',  # "HWB 111,7 kWh/qm/a"
+                r'HWB[:\s]*([\d.,]+)\s*kWh/m²/a',  # "HWB 111,7 kWh/m²/a"
+                r'HWB[:\s]*([\d.,]+)\s*kWh/m²/Jahr',  # "HWB 111,7 kWh/m²/Jahr"
+                r'[Hh]eizwärmebedarf[:\s]*([\d.,]+)\s*kWh',  # "Heizwärmebedarf 111,7 kWh"
+                r'[Hh]eating\s+demand[:\s]*([\d.,]+)\s*kWh',  # "Heating demand 111,7 kWh"
+            ]
+            
+            for pattern in hwb_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    hwb_str = match.group(1).replace(',', '.')
+                    try:
+                        hwb_value = float(hwb_str)
+                        if 0 <= hwb_value <= 1000:  # Reasonable range
+                            return hwb_value
+                    except ValueError:
+                        continue
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting HWB value: {e}")
+            return None
+
+    def extract_heating_type(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract detailed heating type information"""
+        try:
+            all_text = soup.get_text()
+            
+            # Enhanced heating patterns with better boundaries and more comprehensive matching
+            heating_patterns = [
+                r'[Hh]eizungsart[:\s]*([^,\n\r]+?)(?=\s*[,\n\r]|$)',  # "Heizungsart: Gasheizung"
+                r'[Hh]eizung[:\s]*([^,\n\r]+?)(?=\s*[,\n\r]|$)',  # "Heizung: Etagenheizung"
+                r'[Hh]eating\s+type[:\s]*([^,\n\r]+?)(?=\s*[,\n\r]|$)',  # "Heating type: Gas"
+                r'\b[Gg]asheizung\b',  # "Gasheizung"
+                r'\b[Gg]as\s*[Hh]eizung\b',  # "Gas Heizung"
+                r'\b[Ee]tagenheizung\b',  # "Etagenheizung"
+                r'\b[Zz]entralheizung\b',  # "Zentralheizung"
+                r'\b[Ff]ernwärme\b',  # "Fernwärme"
+                r'\b[Oo]lheizung\b',  # "Ölheizung"
+                r'\b[Ww]ärmepumpe\b',  # "Wärmepumpe"
+                r'\b[Ff]ußbodenheizung\b',  # "Fußbodenheizung"
+                r'\b[Gg]as\b',  # "Gas" (fallback)
+            ]
+            
+            for pattern in heating_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    heating_type = match.group(1).strip() if match.groups() else match.group(0)
+                    # Clean up the heating type
+                    heating_type = re.sub(r'[:\s]+$', '', heating_type)
+                    if heating_type and len(heating_type) > 2 and len(heating_type) < 50:  # Reasonable length
+                        # Normalize common variations
+                        heating_type_lower = heating_type.lower()
+                        if 'gas' in heating_type_lower:
+                            return "Gas"
+                        elif 'etagen' in heating_type_lower:
+                            return "Etagenheizung"
+                        elif 'zentral' in heating_type_lower:
+                            return "Zentralheizung"
+                        elif 'fernwärme' in heating_type_lower:
+                            return "Fernwärme"
+                        else:
+                            return heating_type
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting heating type: {e}")
+            return None
+
+    def extract_energy_carrier(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract energy carrier (e.g., Gas, Oil, Electricity)"""
+        try:
+            all_text = soup.get_text()
+            
+            # Patterns for energy carrier with better boundaries and more comprehensive matching
+            carrier_patterns = [
+                r'[Ww]esentliche\s+Energieträger[:\s]*([^,\n\r]+?)(?=\s*[,\n\r]|$)',  # "Wesentliche Energieträger: Gas"
+                r'[Ee]nergieträger[:\s]*([^,\n\r]+?)(?=\s*[,\n\r]|$)',  # "Energieträger: Gas"
+                r'[Ee]nergy\s+carrier[:\s]*([^,\n\r]+?)(?=\s*[,\n\r]|$)',  # "Energy carrier: Gas"
+                r'\b[Gg]as\b',  # "Gas"
+                r'\b[Oo]l\b',  # "Öl"
+                r'\b[Ee]lektrizität\b',  # "Elektrizität"
+                r'\b[Ee]lectricity\b',  # "Electricity"
+                r'\b[Ff]ernwärme\b',  # "Fernwärme"
+                r'\b[Dd]istrict\s+heating\b',  # "District heating"
+                r'\b[Ww]ärmepumpe\b',  # "Wärmepumpe"
+            ]
+            
+            for pattern in carrier_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    carrier = match.group(1).strip() if match.groups() else match.group(0)
+                    # Clean up the carrier
+                    carrier = re.sub(r'[:\s]+$', '', carrier)
+                    if carrier and len(carrier) > 1 and len(carrier) < 30:  # Reasonable length
+                        # Normalize common variations
+                        carrier_lower = carrier.lower()
+                        if 'gas' in carrier_lower:
+                            return "Gas"
+                        elif 'öl' in carrier_lower or 'oil' in carrier_lower:
+                            return "Öl"
+                        elif 'elektrizität' in carrier_lower or 'electricity' in carrier_lower:
+                            return "Elektrizität"
+                        elif 'fernwärme' in carrier_lower:
+                            return "Fernwärme"
+                        else:
+                            return carrier
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting energy carrier: {e}")
+            return None
+
+    def extract_available_from(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract availability with a less greedy pattern"""
+        available_patterns = [
+            r"Verfügbar ab: (\w+)",
+            r"Verfügbar ab sofort",
+            r"Beziehbar ab: (\w+)"
+        ]
+        text_content = soup.get_text()
+        for pattern in available_patterns:
+            match = re.search(pattern, text_content, re.IGNORECASE)
+            if match:
+                return match.group(1).strip() if len(match.groups()) > 0 else "sofort"
+        return None
+
     def calculate_ubahn_distance(self, bezirk: str, address: str) -> Optional[int]:
         """Calculate U-Bahn walking distance"""
         if not bezirk:
@@ -822,10 +1149,38 @@ class WillhabenScraper:
         
         return district_times.get(bezirk, 15)
 
-    def get_amenities(self, bezirk: str, address: str) -> List[Dict]:
-        """Get nearby amenities"""
-        # For now, return empty list - can be enhanced with geocoding
-        return []
+    def get_amenities(self, bezirk: str, address: str) -> tuple[List[Dict], Optional[int]]:
+        """Get nearby amenities and calculate school proximity using real distance calculations"""
+        coords = self.geocoder.geocode_address(address)
+        amenities = []
+        school_walk_minutes = None
+        
+        if coords:
+            print(f"📍 Geocoded address: {address} -> {coords.lat:.4f}, {coords.lon:.4f}")
+            
+            # Calculate actual walking time to nearest school using Vienna schools data
+            school_walk_minutes = self.geocoder.get_walking_distance_to_nearest_school(coords)
+            
+            # Optionally, you can still get other amenities using Overpass API
+            # For now, we focus on schools as requested
+            
+        else:
+            print(f"❌ Could not geocode address: {address}")
+            
+        return amenities, school_walk_minutes
+
+    def get_real_ubahn_walk_minutes(self, address: str) -> Optional[int]:
+        """Calculate real walking minutes to nearest U-Bahn station"""
+        if not address:
+            return None
+            
+        coords = self.geocoder.geocode_address(address)
+        if coords:
+            print(f"📍 Geocoded address for U-Bahn: {address} -> {coords.lat:.4f}, {coords.lon:.4f}")
+            return self.geocoder.get_walking_distance_to_nearest_ubahn(coords)
+        else:
+            print(f"❌ Could not geocode address for U-Bahn calculation: {address}")
+            return None
 
     def scrape_search_agent_page(self, alert_url: str, max_pages: int = 3) -> List[Dict]:
         """Scrape search agent page and return matching listings"""
@@ -900,34 +1255,37 @@ class WillhabenScraper:
                     # Ensure all data is JSON serializable
                     listing_data = self._ensure_serializable(listing_data)
                     
-                    # Save to MongoDB (all listings, not just matching ones)
-                    listing_data['sent_to_telegram'] = False
-                    listing_data['processed_at'] = time.time()
-                    
-                    if self.mongo.insert_listing(listing_data):
-                        print(f"💾 Saved to MongoDB: {url}")
-                    else:
-                        print(f"⚠️  Already exists in MongoDB: {url}")
-                    
-                    # Check if it meets criteria
-                    if self.meets_criteria(listing_data):
-                        print(f"✅ MATCHES CRITERIA: {url}")
-                        all_listings.append(listing_data)
+                    if isinstance(listing_data, dict):
+                        # Save to MongoDB (all listings, not just matching ones)
+                        listing_data['sent_to_telegram'] = False
+                        listing_data['processed_at'] = time.time()
                         
-                        # Send to Telegram if bot is available
-                        if self.telegram_bot:
-                            try:
-                                success = self.telegram_bot.send_property_notification(listing_data)
-                                if success:
-                                    self.mongo.mark_sent(url)
-                                    print(f"📱 Telegram notification sent")
-                                else:
-                                    print(f"❌ Failed to send Telegram notification")
-                            except Exception as e:
-                                print(f"⚠️  Telegram error: {e}")
+                        if self.mongo.insert_listing(listing_data):
+                            print(f"💾 Saved to MongoDB: {url}")
+                        else:
+                            print(f"⚠️  Already exists in MongoDB: {url}")
+                        
+                        # Check if it meets criteria
+                        if self.meets_criteria(listing_data):
+                            print(f"✅ MATCHES CRITERIA: {url}")
+                            all_listings.append(listing_data)
+                            
+                            # Send to Telegram if bot is available
+                            if self.telegram_bot:
+                                try:
+                                    success = self.telegram_bot.send_property_notification(listing_data)
+                                    if success:
+                                        self.mongo.mark_sent(url)
+                                        print(f"📱 Telegram notification sent")
+                                    else:
+                                        print(f"❌ Failed to send Telegram notification")
+                                except Exception as e:
+                                    print(f"⚠️  Telegram error: {e}")
+                        else:
+                            print(f"❌ Does not match criteria: {url}")
                     else:
-                        print(f"❌ Does not match criteria: {url}")
-                
+                        print(f"❌ Does not match criteria because data is not a dict: {url}")
+
                 # Check if there are more pages
                 next_page_selectors = [
                     '.pagination .next',
@@ -1005,7 +1363,7 @@ class WillhabenScraper:
                 '1120': 10, '1130': 15, '1140': 12, '1150': 8, '1160': 10,
                 '1190': 15, '1210': 12, '1220': 18
             }
-            ubahn_minutes = district_ubahn_times.get(listing_data.get('bezirk'), 15)
+            ubahn_minutes = district_ubahn_times.get(listing_data.get('bezirk') or '', 15)
             print(f"  🚇 U-Bahn (fallback): {ubahn_minutes} min walk (max {max_ubahn})")
         else:
             print(f"  🚇 U-Bahn: {ubahn_minutes} min walk (max {max_ubahn})")
@@ -1052,16 +1410,79 @@ class WillhabenScraper:
         print(f"  ✅ Availability: {special_comment[:50] if special_comment else 'No issues'} → {'✓ PASS' if availability_ok else '✗ FAIL'}")
         criteria_checks.append(("Availability", availability_ok))
 
-        # Construction year
+        # Construction year - MANDATORY
         year_built = listing_data.get("year_built")
         year_min = c.get("year_built_min")
         if year_built is None:
-            year_ok = True  # Allow missing year
-            print(f"  🏗️  Year Built: Missing (min {year_min}) → ✓ PASS (optional)")
+            year_ok = False  # FAIL if missing year - this is mandatory
+            print(f"  🏗️  Year Built: Missing (min {year_min}) → ✗ FAIL (mandatory)")
         else:
             year_ok = year_built >= year_min
             print(f"  🏗️  Year Built: {year_built} (min {year_min}) → {'✓ PASS' if year_ok else '✗ FAIL'}")
         criteria_checks.append(("Construction year", year_ok))
+
+        # School proximity (NEW)
+        school_max = c.get("school_max_minutes")
+        school_minutes = listing_data.get("school_walk_minutes")
+        if school_max is not None:
+            if school_minutes is None:
+                school_ok = False
+                print(f"  🏫 School: Missing (max {school_max}) → ✗ FAIL")
+            else:
+                school_ok = school_minutes <= school_max
+                print(f"  🏫 School: {school_minutes} min walk (max {school_max}) → {'✓ PASS' if school_ok else '✗ FAIL'}")
+            criteria_checks.append((f"School proximity (max {school_max})", school_ok))
+
+        # Down payment (Eigenkapital)
+        down_payment_min = c.get("down_payment_min")
+        own_funds = listing_data.get("own_funds")
+        if down_payment_min is not None:
+            if own_funds is None:
+                down_ok = False
+                print(f"  💸 Down payment: Missing (min {down_payment_min}) → ✗ FAIL")
+            else:
+                down_ok = own_funds >= down_payment_min
+                print(f"  💸 Down payment: €{own_funds} (min {down_payment_min}) → {'✓ PASS' if down_ok else '✗ FAIL'}")
+            criteria_checks.append((f"Down payment (min {down_payment_min})", down_ok))
+        # Interest rate
+        interest_rate_max = c.get("interest_rate_max")
+        interest_rate = listing_data.get("interest_rate")
+        if interest_rate_max is not None:
+            if interest_rate is None:
+                ir_ok = False
+                print(f"  📈 Interest rate: Missing (max {interest_rate_max}) → ✗ FAIL")
+            else:
+                ir_ok = interest_rate <= interest_rate_max
+                print(f"  📈 Interest rate: {interest_rate}% (max {interest_rate_max}) → {'✓ PASS' if ir_ok else '✗ FAIL'}")
+            criteria_checks.append((f"Interest rate (max {interest_rate_max})", ir_ok))
+
+        # Energy class (NEW)
+        energy_class_min = c.get("energy_class_min")
+        energy_class = listing_data.get("energy_class")
+        if energy_class_min is not None:
+            if energy_class is None:
+                energy_ok = True  # Allow missing energy class
+                print(f"  ⚡ Energy class: Missing (min {energy_class_min}) → ✓ PASS (optional)")
+            else:
+                # Convert energy classes to numbers for comparison (A=1, B=2, ..., G=7)
+                energy_values = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7}
+                energy_min_value = energy_values.get(energy_class_min, 7)
+                energy_actual_value = energy_values.get(energy_class, 7)
+                energy_ok = energy_actual_value <= energy_min_value  # Lower is better
+                print(f"  ⚡ Energy class: {energy_class} (min {energy_class_min}) → {'✓ PASS' if energy_ok else '✗ FAIL'}")
+            criteria_checks.append((f"Energy class (min {energy_class_min})", energy_ok))
+
+        # HWB value (NEW)
+        hwb_max = c.get("hwb_max")
+        hwb_value = listing_data.get("hwb_value")
+        if hwb_max is not None:
+            if hwb_value is None:
+                hwb_ok = True  # Allow missing HWB value
+                print(f"  🌡️ HWB value: Missing (max {hwb_max}) → ✓ PASS (optional)")
+            else:
+                hwb_ok = hwb_value <= hwb_max
+                print(f"  🌡️ HWB value: {hwb_value} kWh/m²/Jahr (max {hwb_max}) → {'✓ PASS' if hwb_ok else '✗ FAIL'}")
+            criteria_checks.append((f"HWB value (max {hwb_max})", hwb_ok))
 
         # Calculate overall result
         passed_criteria = sum(1 for _, passed in criteria_checks if passed)
