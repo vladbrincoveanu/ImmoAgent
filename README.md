@@ -114,7 +114,13 @@ Here's a glimpse of the Immo-Scouter interface, showcasing property listings wit
 
 ![Immo-Scouter Property Listings Grid](images/properties_grid.png)
 
-*The interface displays a grid of property cards with AI-generated scores, pricing information, and key metrics like area, rooms, energy efficiency, and infrastructure details.*
+The interface displays a grid of property cards with:
+- **AI-generated scores** (55, 54, 53, etc.) in green badges
+- **Price information** in Euros (€207,000, €348,900, etc.)
+- **Key metrics**: area, rooms, price/m², energy class, monthly costs
+- **Infrastructure details**: U-Bahn distance, school distance, HWB values
+- **Source indicators**: willhaben, immo_kurier, derstandard
+- **Clean, professional design** with easy-to-read property cards
 
 ## 🚀 Usage
 
