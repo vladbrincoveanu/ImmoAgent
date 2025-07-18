@@ -108,6 +108,14 @@ Create a `config.json` file in the root directory:
   - `rooms_min`: Minimum number of rooms
   - `districts`: Allowed Vienna districts (4-digit codes)
 
+## 📸 Screenshots
+
+Here's a glimpse of the Immo-Scouter interface, showcasing property listings with their scores and details:
+
+![Immo-Scouter Property Listings Grid](images/properties_grid.png)
+
+*The interface displays a grid of property cards with AI-generated scores, pricing information, and key metrics like area, rooms, energy efficiency, and infrastructure details.*
+
 ## 🚀 Usage
 
 ### Run All Sources
