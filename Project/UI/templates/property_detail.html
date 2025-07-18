@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}{{ property.address or 'Property Details' }} - home.ai{% endblock %}
+
+{% block content %}
+<!-- Back Button -->
+<div class="mb-6">
+    <a href="{{ url_for('index') }}" class="inline-flex items-center text-primary-600 hover:text-primary-700 font-medium">
+        <i class="fas fa-arrow-left mr-2"></i>
+        Back to Properties
+    </a>
+</div>
+
+<!-- Property Header -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+    <div class="relative h-64 bg-gradient-to-br from-primary-100 to-primary-200 rounded-t-lg overflow-hidden">
+        {% if property.minio_image_path %}
+            <img src="/images/{{ property.minio_image_path }}" alt="{{ property.address or 'Property' }}" 
+                 class="w-full h-full object-cover" 
+                 loading="lazy"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                <div class="text-center">
+                    <i class="fas fa-home text-6xl text-primary-600 mb-4"></i>
+                    <h1 class="text-2xl font-bold text-primary-800">{{ property.bezirk or 'N/A' }}</h1>
+                </div>
+            </div>
+        {% elif property.local_image_path %}
+            <img src="{{ property.local_image_path }}" alt="{{ property.address or 'Property' }}" 
+                 class="w-full h-full object-cover" 
+                 loading="lazy"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                <div class="text-center">
+                    <i class="fas fa-home text-6xl text-primary-600 mb-4"></i>
+                    <h1 class="text-2xl font-bold text-primary-800">{{ property.bezirk or 'N/A' }}</h1>
+                </div>
+            </div>
+        {% elif property.image_url %}
+            <img src="{{ property.image_url }}" alt="{{ property.address or 'Property' }}" 
+                 class="w-full h-full object-cover" 
+                 loading="lazy"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                <div class="text-center">
+                    <i class="fas fa-home text-6xl text-primary-600 mb-4"></i>
+                    <h1 class="text-2xl font-bold text-primary-800">{{ property.bezirk or 'N/A' }}</h1>
+                </div>
+            </div>
+        {% else %}
+            <div class="absolute inset-0 flex items-center justify-center">
+                <div class="text-center">
+                    <i class="fas fa-home text-6xl text-primary-600 mb-4"></i>
+                    <h1 class="text-2xl font-bold text-primary-800">{{ property.bezirk or 'N/A' }}</h1>
+                </div>
+            </div>
+        {% endif %}
+        
+        <!-- Price Badge -->
+        <div class="absolute top-6 right-6 bg-white rounded-full px-6 py-3 shadow-lg">
+            <span class="text-xl font-bold text-gray-900">{{ "€{:,.0f}".format(property.price_total) if property.price_total else 'N/A' }}</span>
+        </div>
+    </div>
+    
+    <div class="p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ property.address or 'N/A' }}</h1>
+        <p class="text-gray-600 mb-4">
+            {{ property.bezirk or 'N/A' }} • {{ "{:.0f}m²".format(property.area_m2) if property.area_m2 else 'N/A' }} • {{ property.rooms or 'N/A' }} rooms
+            {% if property.source %}
+            • 
+            {% if property.source == 'willhaben' %}
+            <span class="inline-flex items-center bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                <i class="fas fa-home mr-1"></i>Willhaben
+            </span>
+            {% elif property.source == 'immo_kurier' %}
+            <span class="inline-flex items-center bg-green-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                <i class="fas fa-newspaper mr-1"></i>Immo Kurier
+            </span>
+            {% else %}
+            <span class="inline-flex items-center bg-gray-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                <i class="fas fa-globe mr-1"></i>{{ property.source }}
+            </span>
+            {% endif %}
+            {% endif %}
+        </p>
+        
+        <!-- Action Buttons -->
+        <div class="flex space-x-4">
+            <a href="{{ property.url }}" target="_blank" 
+               class="bg-primary-600 text-white px-6 py-3 rounded-md font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                <i class="fas fa-external-link-alt mr-2"></i>View Original Listing
+            </a>
+            <button onclick="window.history.back()" 
+                    class="bg-gray-100 text-gray-700 px-6 py-3 rounded-md font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                <i class="fas fa-arrow-left mr-2"></i>Go Back
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Property Details Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Main Details -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Key Information -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-info-circle mr-2 text-primary-600"></i>Key Information
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Price:</span>
+                        <span class="font-semibold text-gray-900">{{ "€{:,.0f}".format(property.price_total) if property.price_total else 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Area:</span>
+                        <span class="font-semibold text-gray-900">{{ "{:.0f}m²".format(property.area_m2) if property.area_m2 else 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Price per m²:</span>
+                        <span class="font-semibold text-gray-900">{{ "€{:,.0f}".format(property.price_per_m2) if property.price_per_m2 else 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Rooms:</span>
+                        <span class="font-semibold text-gray-900">{{ property.rooms or 'N/A' }}</span>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Year Built:</span>
+                        <span class="font-semibold text-gray-900">{{ property.year_built or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Floor:</span>
+                        <span class="font-semibold text-gray-900">{{ property.floor or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Condition:</span>
+                        <span class="font-semibold text-gray-900">{{ property.condition or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">
+                            Energy Class:
+                            <i class="fas fa-info-circle ml-1 text-blue-500 cursor-help" 
+                               title="Energy efficiency class calculated from HWB and fGEE values. The system uses the most restrictive (worse) of the two classifications to ensure accurate energy performance assessment."></i>
+                        </span>
+                        <span class="font-semibold text-gray-900">{{ property.energy_class or 'N/A' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Financial Information -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-euro-sign mr-2 text-green-600"></i>Financial Details
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Monthly Rate:</span>
+                        <span class="font-semibold text-gray-900">{{ "€{:,.0f}".format(property.calculated_monatsrate) if property.calculated_monatsrate else 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Operating Costs:</span>
+                        <span class="font-semibold text-gray-900">
+                            {% if property.betriebskosten is not none %}
+                                €{{ "{:.0f}".format(property.betriebskosten) }}
+                                {% if property.betriebskosten_estimated %}
+                                    <span class="text-xs text-orange-600 ml-1">(estimated)</span>
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Own Funds Required:</span>
+                        <span class="font-semibold text-gray-900">
+                            {% if property.own_funds %}
+                                {{ "€{:,.0f}".format(property.own_funds) }}
+                            {% elif property.price_total %}
+                                {{ "€{:,.0f}".format(property.price_total * 0.2) }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    {% if property.mortgage_details %}
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">Mortgage Details:</h3>
+                        <p class="text-sm text-gray-600">{{ property.mortgage_details }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if property.total_monthly_cost %}
+                    <div class="bg-primary-50 rounded-lg p-4">
+                        <h3 class="text-sm font-medium text-primary-700 mb-1">Total Monthly Cost:</h3>
+                        <p class="text-lg font-bold text-primary-900">{{ "€{:,.0f}".format(property.total_monthly_cost) }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if property.betriebskosten_breakdown %}
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <h3 class="text-sm font-medium text-blue-700 mb-2">Operating Costs Breakdown:</h3>
+                        <div class="space-y-1 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-blue-600">Heizkosten:</span>
+                                <span class="text-blue-900">€{{ "{:.0f}".format(property.betriebskosten_breakdown.heizkosten) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-blue-600">Reparaturrücklage:</span>
+                                <span class="text-blue-900">€{{ "{:.0f}".format(property.betriebskosten_breakdown.reparaturruecklage) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-blue-600">Other costs:</span>
+                                <span class="text-blue-900">€{{ "{:.0f}".format(property.betriebskosten_breakdown.other_costs) }}</span>
+                            </div>
+                            <div class="border-t border-blue-200 pt-1 mt-2">
+                                <div class="flex justify-between font-medium">
+                                    <span class="text-blue-700">Total (incl. VAT):</span>
+                                    <span class="text-blue-900">€{{ "{:.0f}".format(property.betriebskosten_breakdown.total_incl_vat) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Technical Details -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-cogs mr-2 text-blue-600"></i>Technical Details
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Heating:</span>
+                        <span class="font-semibold text-gray-900">{{ property.heating or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Heating Type:</span>
+                        <span class="font-semibold text-gray-900">{{ property.heating_type or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Energy Carrier:</span>
+                        <span class="font-semibold text-gray-900">{{ property.energy_carrier or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">
+                            HWB Value:
+                            <i class="fas fa-info-circle ml-1 text-blue-500 cursor-help" 
+                               title="Heizwärmebedarf (HWB) - This number indicates how much energy (in kilowatt-hours) is theoretically needed per square meter of the building's heated gross floor area per year to maintain a comfortable indoor temperature (typically 20°C)."></i>
+                        </span>
+                        <span class="font-semibold text-gray-900">{{ "{:.1f} kWh/m²/Jahr".format(property.hwb_value) if property.hwb_value else 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">
+                            fGEE Value:
+                            <i class="fas fa-info-circle ml-1 text-blue-500 cursor-help" 
+                               title="Gesamtenergieeffizienzfaktor (fGEE) - This is a factor that compares the building's overall energy efficiency to a reference building from 2007. It takes into account not just heating, but also hot water, ventilation, cooling (if applicable), and the efficiency of the building's technical systems (e.g., heating system)."></i>
+                        </span>
+                        <span class="font-semibold text-gray-900">{{ "{:.1f}".format(property.fgee_value) if property.fgee_value else 'N/A' }}</span>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Parking:</span>
+                        <span class="font-semibold text-gray-900">{{ property.parking or 'N/A' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Available From:</span>
+                        <span class="font-semibold text-gray-900">{{ property.available_from or 'N/A' }}</span>
+                    </div>
+                    {% if property.special_features %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Special Features:</span>
+                        <span class="font-semibold text-gray-900">{{ property.special_features }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- Location & Transport -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-map-marker-alt mr-2 text-red-600"></i>Location & Transport
+            </h2>
+            
+            <div class="space-y-4">
+                {% if property.ubahn_walk_minutes %}
+                <div class="flex items-center">
+                    <i class="fas fa-subway text-blue-500 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-gray-900">U-Bahn</p>
+                        <p class="text-sm text-gray-600">{{ property.ubahn_walk_minutes }} min walk</p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if property.school_walk_minutes %}
+                <div class="flex items-center">
+                    <i class="fas fa-school text-green-500 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-gray-900">School</p>
+                        <p class="text-sm text-gray-600">{{ property.school_walk_minutes }} min walk</p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if property.infrastructure_distances %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">Nearby Amenities:</h3>
+                    <div class="space-y-2">
+                        {% for amenity, data in property.infrastructure_distances.items() %}
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">{{ amenity }}:</span>
+                            <span class="font-medium text-gray-900">{{ "{:.0f} min".format(data.distance_m / 80) if data.distance_m else 'N/A' }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Property Status -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-chart-line mr-2 text-purple-600"></i>Property Status
+            </h2>
+            
+            <div class="space-y-4">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Source:</span>
+                    <span class="font-semibold text-gray-900">
+                        {% if property.source %}
+                        {% if property.source == 'willhaben' %}
+                        <span class="inline-flex items-center bg-blue-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                            <i class="fas fa-home mr-1"></i>Willhaben
+                        </span>
+                        {% elif property.source == 'immo_kurier' %}
+                        <span class="inline-flex items-center bg-green-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                            <i class="fas fa-newspaper mr-1"></i>Immo Kurier
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center bg-gray-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                            <i class="fas fa-globe mr-1"></i>{{ property.source }}
+                        </span>
+                        {% endif %}
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Processed:</span>
+                    <span class="font-semibold text-gray-900">
+                        {% if property.processed_at %}
+                        {{ property.processed_at|datetime }}
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Sent to Telegram:</span>
+                    <span class="font-semibold text-gray-900">
+                        {% if property.sent_to_telegram %}
+                        <i class="fas fa-check text-green-500"></i> Yes
+                        {% else %}
+                        <i class="fas fa-times text-red-500"></i> No
+                        {% endif %}
+                    </span>
+                </div>
+                
+                {% if property.structured_analysis %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">AI Analysis:</h3>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-sm text-gray-600">
+                            <strong>Model:</strong> {{ property.structured_analysis.model }}<br>
+                            <strong>Confidence:</strong> {{ "{:.1%}".format(property.structured_analysis.confidence) }}<br>
+                            <strong>Fields Extracted:</strong> {{ property.structured_analysis.extracted_fields|length }}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-bolt mr-2 text-yellow-600"></i>Quick Actions
+            </h2>
+            
+            <div class="space-y-3">
+                <a href="{{ property.url }}" target="_blank" 
+                   class="w-full bg-primary-600 text-white text-center py-3 px-4 rounded-md font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                    <i class="fas fa-external-link-alt mr-2"></i>View Original
+                </a>
+                
+                <button onclick="navigator.clipboard.writeText('{{ property.url }}')" 
+                        class="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                    <i class="fas fa-copy mr-2"></i>Copy URL
+                </button>
+                
+                <button onclick="window.print()" 
+                        class="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                    <i class="fas fa-print mr-2"></i>Print Details
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Raw Data (Collapsible) -->
+<div class="mt-8">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <button onclick="toggleRawData()" class="w-full p-6 text-left focus:outline-none focus:ring-2 focus:ring-primary-500">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-code mr-2 text-gray-600"></i>Raw Data
+                </h2>
+                <i id="raw-data-icon" class="fas fa-chevron-down text-gray-500"></i>
+            </div>
+        </button>
+        
+        <div id="raw-data-content" class="hidden px-6 pb-6">
+            <pre class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 overflow-x-auto">{{ property | tojson(indent=2) }}</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleRawData() {
+    const content = document.getElementById('raw-data-content');
+    const icon = document.getElementById('raw-data-icon');
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+    } else {
+        content.classList.add('hidden');
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+    }
+}
+
+// Copy URL functionality
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show success message
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check mr-2"></i>Copied!';
+        button.classList.add('bg-green-100', 'text-green-700');
+        
+        setTimeout(function() {
+            button.innerHTML = originalText;
+            button.classList.remove('bg-green-100', 'text-green-700');
+        }, 2000);
+    });
+}
+</script>
+{% endblock %} 

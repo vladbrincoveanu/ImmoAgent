@@ -1,0 +1,43 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6
+    container_name: immo-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: immo-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_MODELS=qwen2.5-coder:7b
+
+  minio:
+    image: minio/minio:latest
+    container_name: immo-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    command: server /data --console-address ":9001"
+
+volumes:
+  mongo_data:
+  ollama_data:
+  minio_data: 

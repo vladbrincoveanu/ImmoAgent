@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+
+{% block title %}home.ai - Vienna Property Search{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl shadow-lg mb-8">
+    <div class="px-8 py-12 text-center text-white">
+        <h1 class="text-4xl font-bold mb-4">
+            <i class="fas fa-home mr-3"></i>Vienna Property Search
+        </h1>
+        <p class="text-xl opacity-90 mb-6">Find your perfect apartment with AI-powered insights</p>
+        
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 backdrop-blur-sm">
+                <div class="text-2xl font-bold">{{ stats.total_properties }}</div>
+                <div class="text-sm opacity-80">Total Properties</div>
+            </div>
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 backdrop-blur-sm">
+                <div class="text-2xl font-bold">{{ "€{:,.0f}".format(stats.avg_price) if stats.avg_price else 'N/A' }}</div>
+                <div class="text-sm opacity-80">Avg Price</div>
+            </div>
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 backdrop-blur-sm">
+                <div class="text-2xl font-bold">{{ "{:.1f}m²".format(stats.avg_area) if stats.avg_area else 'N/A' }}</div>
+                <div class="text-sm opacity-80">Avg Area</div>
+            </div>
+            <div class="bg-white bg-opacity-10 rounded-lg p-4 backdrop-blur-sm">
+                <div class="text-2xl font-bold">
+                    {% if stats.source_breakdown %}
+                        {% set total_sources = stats.source_breakdown|length %}
+                        {{ total_sources }}
+                    {% else %}
+                        0
+                    {% endif %}
+                </div>
+                <div class="text-sm opacity-80">Sources</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Smart Filters Section -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+    <div class="p-6">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4 lg:mb-0">
+                <i class="fas fa-magic mr-2 text-primary-600"></i>Smart Filters
+            </h2>
+            
+            <!-- Sort Controls -->
+            <div class="flex items-center space-x-4">
+                <label class="text-sm font-medium text-gray-700">Sort by:</label>
+                <select id="sort-select" class="border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white">
+                    <option value="score" {% if sort_by == 'score' %}selected{% endif %}>Best Score</option>
+                    <option value="processed_at" {% if sort_by == 'processed_at' %}selected{% endif %}>Latest</option>
+                    <option value="price_total" {% if sort_by == 'price_total' %}selected{% endif %}>Price</option>
+                    <option value="price_per_m2" {% if sort_by == 'price_per_m2' %}selected{% endif %}>Price/m²</option>
+                    <option value="area_m2" {% if sort_by == 'area_m2' %}selected{% endif %}>Area</option>
+                    <option value="hwb_value" {% if sort_by == 'hwb_value' %}selected{% endif %}>Energy (HWB)</option>
+                    <option value="total_monthly_cost" {% if sort_by == 'total_monthly_cost' %}selected{% endif %}>Monthly Cost</option>
+                </select>
+                
+                <button id="sort-order" class="p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg hover:bg-gray-100">
+                    <i class="fas fa-sort-{% if sort_order == -1 %}down{% else %}up{% endif %}"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Filter Form -->
+        <form id="filter-form" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-2">
+            <!-- Price Range -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Price Range (€)</label>
+                <div class="flex space-x-2">
+                    <input type="number" name="price_min" placeholder="Min" value="{{ filters.price_min or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <input type="number" name="price_max" placeholder="Max" value="{{ filters.price_max or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                </div>
+            </div>
+            <!-- Area Range -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Area (m²)</label>
+                <div class="flex space-x-2">
+                    <input type="number" name="area_min" placeholder="Min" value="{{ filters.area_min or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <input type="number" name="area_max" placeholder="Max" value="{{ filters.area_max or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                </div>
+            </div>
+            <!-- Price per m² -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Price/m² (€)</label>
+                <div class="flex space-x-2">
+                    <input type="number" name="price_per_m2_min" placeholder="Min" value="{{ filters.price_per_m2_min or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <input type="number" name="price_per_m2_max" placeholder="Max" value="{{ filters.price_per_m2_max or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                </div>
+            </div>
+            <!-- Monthly Cost Range -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Monthly Cost (€)</label>
+                <div class="flex space-x-2">
+                    <input type="number" name="monthly_cost_min" placeholder="Min" value="{{ filters.monthly_cost_min or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <input type="number" name="monthly_cost_max" placeholder="Max" value="{{ filters.monthly_cost_max or '' }}" 
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                </div>
+            </div>
+            <!-- Initial Sum (Down Payment) -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Initial Sum (€)</label>
+                <input type="number" name="initial_sum" placeholder="e.g. 80000" value="{{ filters.initial_sum or '' }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+            </div>
+            <!-- Energy Class -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Energy Class</label>
+                <select name="energy_class" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white">
+                    <option value="">All Classes</option>
+                    <option value="A++" {% if filters.energy_class == 'A++' %}selected{% endif %}>A++ (Excellent)</option>
+                    <option value="A+" {% if filters.energy_class == 'A+' %}selected{% endif %}>A+ (Very Good)</option>
+                    <option value="A" {% if filters.energy_class == 'A' %}selected{% endif %}>A (Good)</option>
+                    <option value="B" {% if filters.energy_class == 'B' %}selected{% endif %}>B (Average)</option>
+                    <option value="C" {% if filters.energy_class == 'C' %}selected{% endif %}>C (Below Average)</option>
+                    <option value="D" {% if filters.energy_class == 'D' %}selected{% endif %}>D (Poor)</option>
+                    <option value="E" {% if filters.energy_class == 'E' %}selected{% endif %}>E (Very Poor)</option>
+                    <option value="F" {% if filters.energy_class == 'F' %}selected{% endif %}>F (Bad)</option>
+                    <option value="G" {% if filters.energy_class == 'G' %}selected{% endif %}>G (Very Bad)</option>
+                </select>
+            </div>
+            <!-- Source -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">Source</label>
+                <select name="source" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white">
+                    <option value="">All Sources</option>
+                    {% for source in sources %}
+                    <option value="{{ source }}" {% if filters.source == source %}selected{% endif %}>
+                        {% if source == 'willhaben' %}🏠 Willhaben{% elif source == 'immo_kurier' %}📰 Immo Kurier{% else %}{{ source }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- District -->
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700">District</label>
+                <select name="bezirk" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white">
+                    <option value="">All Districts</option>
+                    {% for district in districts %}
+                    <option value="{{ district }}" {% if filters.bezirk == district %}selected{% endif %}>{{ district }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Unbefristet Vermietet Checkbox -->
+            <div class="flex items-end space-x-2">
+                <label class="flex items-center">
+                    <input type="checkbox" name="unbefristet_vermietet" value="1" 
+                           {% if filters.unbefristet_vermietet %}checked{% endif %}
+                           class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                    <span class="ml-2 text-sm text-gray-700">Unbefristet vermietet</span>
+                </label>
+            </div>
+            <!-- Filter Actions -->
+            <div class="flex items-end space-x-3 col-span-full">
+                <button type="submit" class="bg-primary-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors">
+                    <i class="fas fa-search mr-2"></i>Apply
+                </button>
+                <button type="button" id="clear-filters" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                    <i class="fas fa-times mr-2"></i>Clear
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Header -->
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <h3 class="text-xl font-semibold text-gray-900">
+            <i class="fas fa-list mr-2 text-primary-600"></i>
+            Properties ({{ total }})
+        </h3>
+        
+        <!-- View Toggle -->
+        <div class="flex items-center space-x-2">
+            <button id="grid-view" class="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors">
+                <i class="fas fa-th"></i>
+            </button>
+            <button id="list-view" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <i class="fas fa-list"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Properties Grid -->
+<div id="properties-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    {% for property in properties %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-300 card-hover fade-in overflow-hidden">
+        <!-- Property Image -->
+        <div class="relative h-48 bg-gradient-to-br from-primary-100 to-primary-200 overflow-hidden">
+            {% if property.minio_image_path %}
+                <img src="/images/{{ property.minio_image_path }}" alt="{{ property.address or 'Property' }}" 
+                     class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                    <div class="text-center">
+                        <i class="fas fa-home text-4xl text-primary-600 mb-2"></i>
+                        <p class="text-sm text-primary-700 font-medium">{{ property.bezirk or 'N/A' }}</p>
+                    </div>
+                </div>
+            {% elif property.local_image_path %}
+                <img src="{{ property.local_image_path }}" alt="{{ property.address or 'Property' }}" 
+                     class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                    <div class="text-center">
+                        <i class="fas fa-home text-4xl text-primary-600 mb-2"></i>
+                        <p class="text-sm text-primary-700 font-medium">{{ property.bezirk or 'N/A' }}</p>
+                    </div>
+                </div>
+            {% elif property.image_url %}
+                <img src="{{ property.image_url }}" alt="{{ property.address or 'Property' }}" 
+                     class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="absolute inset-0 flex items-center justify-center" style="display: none;">
+                    <div class="text-center">
+                        <i class="fas fa-home text-4xl text-primary-600 mb-2"></i>
+                        <p class="text-sm text-primary-700 font-medium">{{ property.bezirk or 'N/A' }}</p>
+                    </div>
+                </div>
+            {% else %}
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-center">
+                        <i class="fas fa-home text-4xl text-primary-600 mb-2"></i>
+                        <p class="text-sm text-primary-700 font-medium">{{ property.bezirk or 'N/A' }}</p>
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Score Badge -->
+            {% if property.score %}
+            <div class="absolute top-3 left-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-full px-3 py-1 shadow-lg">
+                <span class="text-sm font-bold">{{ "{:.0f}".format(property.score) }}</span>
+                <span class="text-xs ml-1">Score</span>
+            </div>
+            {% endif %}
+            
+            <!-- Price Badge -->
+            <div class="absolute top-3 right-3 bg-white rounded-full px-3 py-1 shadow-lg">
+                <span class="text-sm font-bold text-gray-900">{{ "€{:,.0f}".format(property.price_total) if property.price_total else 'N/A' }}</span>
+            </div>
+            
+            <!-- Source Enum Badge -->
+            {% if property.source_enum %}
+            <div class="absolute top-12 right-3 z-10">
+                {% if property.source_enum == 'WILLHABEN' %}
+                <div class="bg-blue-700 text-white rounded-full px-2 py-1 text-xs font-bold shadow-lg border border-white">
+                    WILLHABEN
+                </div>
+                {% elif property.source_enum == 'IMMO_KURIER' %}
+                <div class="bg-green-700 text-white rounded-full px-2 py-1 text-xs font-bold shadow-lg border border-white">
+                    IMMO KURIER
+                </div>
+                {% elif property.source_enum == 'DERSTANDARD' %}
+                <div class="bg-purple-700 text-white rounded-full px-2 py-1 text-xs font-bold shadow-lg border border-white">
+                    DERSTANDARD
+                </div>
+                {% else %}
+                <div class="bg-gray-500 text-white rounded-full px-2 py-1 text-xs font-bold shadow-lg border border-white">
+                    {{ property.source_enum }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Unbefristet Vermietet Badge -->
+            {% if property.unbefristet_vermietet %}
+            <div class="absolute bottom-3 right-3 bg-red-500 text-white rounded-full px-2 py-1 text-xs font-medium shadow-lg">
+                <i class="fas fa-ban mr-1"></i>Vermietet
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Property Details -->
+        <div class="p-4">
+            <!-- Address -->
+            <h3 class="font-semibold text-gray-900 mb-2 truncate" title="{{ property.address or 'N/A' }}">
+                {{ property.address or 'N/A' }}
+            </h3>
+            
+            <!-- Key Stats -->
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="text-center bg-gray-50 rounded-lg p-2">
+                    <p class="text-xs text-gray-500">Area</p>
+                    <p class="font-semibold text-gray-900">{{ "{:.0f}m²".format(property.area_m2) if property.area_m2 else 'N/A' }}</p>
+                </div>
+                <div class="text-center bg-gray-50 rounded-lg p-2">
+                    <p class="text-xs text-gray-500">Rooms</p>
+                    <p class="font-semibold text-gray-900">{{ property.rooms or 'N/A' }}</p>
+                </div>
+                <div class="text-center bg-gray-50 rounded-lg p-2">
+                    <p class="text-xs text-gray-500">Price/m²</p>
+                    <p class="font-semibold text-gray-900">{{ "€{:,.0f}".format(property.price_per_m2) if property.price_per_m2 else 'N/A' }}</p>
+                </div>
+                <div class="text-center bg-gray-50 rounded-lg p-2">
+                    <p class="text-xs text-gray-500">Energy</p>
+                    <p class="font-semibold text-gray-900">{{ property.energy_class or 'N/A' }}</p>
+                </div>
+                <div class="text-center bg-gray-50 rounded-lg p-2">
+                    <p class="text-xs text-gray-500">Monthly Cost</p>
+                    <p class="font-semibold text-gray-900">{{ "€{:,.0f}".format(property.total_monthly_cost) if property.total_monthly_cost else 'N/A' }}</p>
+                </div>
+                <div></div>
+            </div>
+            
+            <!-- Additional Info -->
+            <div class="space-y-2 mb-4">
+                {% if property.ubahn_walk_minutes %}
+                <div class="flex items-center text-sm text-gray-600">
+                    <i class="fas fa-subway mr-2 text-blue-500"></i>
+                    <span>U-Bahn: {{ property.ubahn_walk_minutes }} min</span>
+                </div>
+                {% endif %}
+                
+                {% if property.school_walk_minutes %}
+                <div class="flex items-center text-sm text-gray-600">
+                    <i class="fas fa-school mr-2 text-green-500"></i>
+                    <span>School: {{ property.school_walk_minutes }} min</span>
+                </div>
+                {% endif %}
+                
+                {% if property.hwb_value %}
+                <div class="flex items-center text-sm text-gray-600">
+                    <i class="fas fa-bolt mr-2 text-yellow-500"></i>
+                    <span>HWB: {{ "{:.1f}".format(property.hwb_value) }} kWh/m²</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex space-x-2">
+                <a href="{{ url_for('property_detail', property_id=property._id) }}" 
+                   class="flex-1 bg-primary-600 text-white text-center py-2 px-3 rounded-lg text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors">
+                    <i class="fas fa-eye mr-1"></i>View Details
+                </a>
+                <a href="{{ property.url }}" target="_blank" 
+                   class="bg-gray-100 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                    <i class="fas fa-external-link-alt"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- No Results -->
+{% if total == 0 %}
+<div class="text-center py-16">
+    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-search text-3xl text-gray-400"></i>
+    </div>
+    <h3 class="text-xl font-medium text-gray-900 mb-3">No properties found</h3>
+    <p class="text-gray-500 mb-6">Try adjusting your filters to see more results.</p>
+    <button onclick="document.getElementById('clear-filters').click()" class="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors">
+        Clear All Filters
+    </button>
+</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if pages > 1 %}
+<div class="mt-12 flex items-center justify-center">
+    <nav class="flex items-center space-x-2">
+        {% if page > 1 %}
+        {% set prev_args = request.args.copy() %}
+        {% set _ = prev_args.pop('page', None) %}
+        <a href="{{ url_for('index', page=page-1, **prev_args) }}" 
+           class="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <i class="fas fa-chevron-left mr-1"></i>Previous
+        </a>
+        {% endif %}
+        
+        {% for p in range(1, pages + 1) %}
+        {% if p == page %}
+        <span class="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg">
+            {{ p }}
+        </span>
+        {% elif p <= 3 or p > pages - 3 or (p >= page - 1 and p <= page + 1) %}
+        {% set page_args = request.args.copy() %}
+        {% set _ = page_args.pop('page', None) %}
+        <a href="{{ url_for('index', page=p, **page_args) }}" 
+           class="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            {{ p }}
+        </a>
+        {% elif p == 4 and page > 6 %}
+        <span class="px-4 py-2 text-sm text-gray-500">...</span>
+        {% elif p == pages - 3 and page < pages - 5 %}
+        <span class="px-4 py-2 text-sm text-gray-500">...</span>
+        {% endif %}
+        {% endfor %}
+        
+        {% if page < pages %}
+        {% set next_args = request.args.copy() %}
+        {% set _ = next_args.pop('page', None) %}
+        <a href="{{ url_for('index', page=page+1, **next_args) }}" 
+           class="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            Next<i class="fas fa-chevron-right ml-1"></i>
+        </a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Debounce function for performance
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const filterForm = document.getElementById('filter-form');
+    const sortSelect = document.getElementById('sort-select');
+    const sortOrderBtn = document.getElementById('sort-order');
+    const clearFiltersBtn = document.getElementById('clear-filters');
+    const propertiesContainer = document.getElementById('properties-container');
+    
+    let currentSortOrder = {{ sort_order }};
+    
+    // Handle form submission
+    filterForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        applyFilters();
+    });
+    
+    // Handle sort changes
+    sortSelect.addEventListener('change', function() {
+        applyFilters();
+    });
+    
+    // Handle sort order toggle
+    sortOrderBtn.addEventListener('click', function() {
+        currentSortOrder = currentSortOrder === -1 ? 1 : -1;
+        const icon = this.querySelector('i');
+        icon.className = currentSortOrder === -1 ? 'fas fa-sort-down' : 'fas fa-sort-up';
+        applyFilters();
+    });
+    
+    // Handle clear filters
+    clearFiltersBtn.addEventListener('click', function() {
+        filterForm.reset();
+        applyFilters();
+    });
+    
+    // Apply filters and reload
+    function applyFilters() {
+        const formData = new FormData(filterForm);
+        const params = new URLSearchParams();
+        
+        // Add form data
+        for (let [key, value] of formData.entries()) {
+            if (value) {
+                params.append(key, value);
+            }
+        }
+        
+        // Add sort parameters
+        params.append('sort', sortSelect.value);
+        params.append('order', currentSortOrder === -1 ? 'desc' : 'asc');
+        
+        // Redirect with new parameters
+        window.location.href = '?' + params.toString();
+    }
+    
+    // Real-time search with debouncing
+    const inputs = filterForm.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        input.addEventListener('input', debounce(function() {
+            if (input.type === 'text' || input.type === 'number') {
+                applyFilters();
+            }
+        }, 500));
+        
+        input.addEventListener('change', function() {
+            if (input.type === 'select-one' || input.type === 'checkbox') {
+                applyFilters();
+            }
+        });
+    });
+    
+    // View toggle functionality
+    const gridViewBtn = document.getElementById('grid-view');
+    const listViewBtn = document.getElementById('list-view');
+    
+    gridViewBtn.addEventListener('click', function() {
+        propertiesContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
+        gridViewBtn.className = 'p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors';
+        listViewBtn.className = 'p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors';
+    });
+    
+    listViewBtn.addEventListener('click', function() {
+        propertiesContainer.className = 'grid grid-cols-1 gap-6';
+        listViewBtn.className = 'p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors';
+        gridViewBtn.className = 'p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors';
+    });
+});
+</script>
+{% endblock %} 

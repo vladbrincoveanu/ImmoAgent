@@ -6,7 +6,7 @@ Demonstrates how it eliminates null values through guaranteed structured output
 
 import json
 import os
-from ollama_analyzer import StructuredAnalyzer
+from Project.Application.analyzer import StructuredAnalyzer
 import unittest
 
 class TestStructuredAnalyzer(unittest.TestCase):

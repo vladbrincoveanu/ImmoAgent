@@ -7,7 +7,7 @@ Tests that the system starts quickly and uses lightweight fallback when needed
 import sys
 import time
 import signal
-from ollama_analyzer import StructuredAnalyzer, OutlinesAnalyzer
+from Project.Application.analyzer import StructuredAnalyzer, OutlinesAnalyzer
 import unittest
 
 def timeout_handler(signum, frame):

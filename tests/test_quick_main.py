@@ -8,8 +8,8 @@ import sys
 import time
 import signal
 import unittest
-from scrape import WillhabenScraper
-from ollama_analyzer import StructuredAnalyzer
+from Project.Application.scraping.willhaben_scraper import WillhabenScraper
+from Project.Application.analyzer import StructuredAnalyzer
 
 def timeout_handler(signum, frame):
     """Handle timeout"""

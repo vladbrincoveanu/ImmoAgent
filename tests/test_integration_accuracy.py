@@ -10,10 +10,12 @@ import json
 import time
 from typing import Dict, Any, List
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scrape import WillhabenScraper
-from telegram_bot import TelegramBot
+from Project.Application.scraping.willhaben_scraper import WillhabenScraper
+from Project.Application.scraping.immo_kurier_scraper import ImmoKurierScraper
+from Project.Application.scraping.derstandard_scraper import DerStandardScraper
+from Project.Integration.telegram_bot import TelegramBot
 import unittest
-from helpers import load_config
+from Project.Application.helpers.utils import load_config
 
 class TestIntegrationAccuracy(unittest.TestCase):
     def test_single_listing_accuracy(self):

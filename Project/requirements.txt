@@ -1,0 +1,16 @@
+requests==2.32.3
+beautifulsoup4==4.12.3
+python-telegram-bot==21.4
+outlines>=0.1.0
+transformers>=4.45.0
+torch>=2.5.0
+accelerate>=0.34.0
+datasets>=4.0.0
+pydantic>=2.0.0
+pymongo==4.8.0
+python-dotenv>=1.0.0
+selenium==4.22.0
+webdriver-manager>=4.0.1
+flask>=3.0.0
+pillow==10.4.0
+minio>=7.2.0

@@ -3,14 +3,13 @@ import unittest
 import sys
 import os
 
-# Add project root to path, assuming this script is in the 'tests' directory
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, project_root)
+# Add Project root to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Project')))
 
 if __name__ == "__main__":
     # Discover and run all tests in the 'tests/' directory
     loader = unittest.TestLoader()
-    suite = loader.discover(os.path.dirname(__file__) or '.', pattern='test_*.py')
+    suite = loader.discover('tests', pattern='test_*.py')
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

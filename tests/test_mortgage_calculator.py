@@ -9,7 +9,7 @@ sys.path.append('.')
 
 import unittest
 
-from scrape import MortgageCalculator
+from Project.Application.scraping.willhaben_scraper import MortgageCalculator
 
 class TestMortgageCalculator(unittest.TestCase):
     def test_mortgage_calculator(self):
