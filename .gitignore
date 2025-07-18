@@ -73,7 +73,9 @@ coverage.xml
 *.tmp
 *.orig
 *.out
-*.json
+
+# Configuration files with secrets
+config.json
 
 # MongoDB and Ollama volumes
 mongo_data/

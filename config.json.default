@@ -1,0 +1,67 @@
+{
+  "mongodb_uri": "mongodb://admin:admin@localhost:27017/immo?authSource=admin",
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "llama3.1:8b",
+  "openai_api_key": null,
+  "openai_model": "gpt-4o-mini",
+  "source": "willhaben",
+  "max_pages": 5,
+  "scraping": {
+    "timeout": 30,
+    "delay_between_requests": 1,
+    "selenium_wait_time": 10,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  },
+  "willhaben": {
+    "base_url": "https://www.willhaben.at",
+    "search_url": "https://www.willhaben.at/iad/immobilien/eigentumswohnung/wien",
+    "max_pages": 5,
+    "timeout": 30
+  },
+  "immo_kurier": {
+    "base_url": "https://immo.kurier.at",
+    "search_url": "https://immo.kurier.at/suche?l=Wien&r=0km&_multiselect_r=0km&a=at.wien&t=all%3Asale%3Aliving&pf=&pt=&rf=&rt=&sf=&st=",
+    "max_pages": 5,
+    "timeout": 30
+  },
+  "derstandard": {
+    "base_url": "https://immobilien.derstandard.at",
+    "search_url": "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung?roomCountFrom=3",
+    "max_pages": 5,
+    "timeout": 30
+  },
+  "telegram": {
+    "telegram_main": {
+      "bot_token": "your-main-bot-token-here",
+      "chat_id": "your-main-chat-id-here"
+    },
+    "telegram_dev": {
+      "bot_token": "your-dev-bot-token-here",
+      "chat_id": "your-dev-chat-id-here"
+    },
+    "min_score_threshold": 40
+  },
+  "criteria": {
+    "price_max": 1000000,
+    "price_per_m2_max": 20000,
+    "area_m2_min": 20,
+    "rooms_min": 1,
+    "districts": [
+      "1010", "1020", "1030", "1040", "1050", "1060", "1070", "1080", "1090", "1100",
+      "1110", "1120", "1130", "1140", "1150", "1160", "1170", "1180", "1190", "1200",
+      "1210", "1220", "1230"
+    ]
+  },
+  "minio": {
+    "endpoint": "localhost:9000",
+    "access_key": "minioadmin",
+    "secret_key": "minioadmin",
+    "bucket_name": "immo-images",
+    "secure": false
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false
+  }
+} 
