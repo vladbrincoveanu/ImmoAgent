@@ -1,14 +1,14 @@
-# Top 5 Properties Report
+# Top5 Properties Report
 
-This feature allows you to fetch the top 5 (or configurable number) of properties from MongoDB and send them to the Telegram main channel as a formatted report.
+This feature fetches the top 5 properties from MongoDB and sends them to the Telegram main channel.
 
 ## Features
 
-- 🏆 **Ranked Properties**: Properties are ranked by score (highest first)
-- 📊 **Configurable Parameters**: Adjust limit, minimum score, and time range
-- 📱 **Telegram Integration**: Sends formatted reports to Telegram main channel
-- 🎯 **Smart Filtering**: Only includes properties from recent days with minimum score
-- 📝 **Detailed Formatting**: Includes ranking, scores, prices, areas, and property links
+- **Score-based ranking**: Properties are ranked by their AI-generated score
+- **Configurable filters**: Minimum score, time range, and limit
+- **Main.py style formatting**: Each property is sent as an individual message with emojis
+- **Channel delivery**: Messages are sent to the ViennaApartmentsLive channel
+- **No rankings**: Individual messages don't show rankings or scores (clean format)
 
 ## Configuration
 
@@ -19,134 +19,160 @@ Add the following section to your `config.json`:
   "top5": {
     "limit": 5,
     "min_score": 40.0,
-    "days_old": 7
+    "days_old": 7,
+    "excluded_districts": ["1100", "1160"],
+    "min_rooms": 3,
+    "include_monthly_payment": true
   }
 }
 ```
 
 ### Parameters
 
-- **`limit`**: Maximum number of properties to include in the report (default: 5)
-- **`min_score`**: Minimum score threshold for properties to be included (default: 40.0)
-- **`days_old`**: Only include properties from the last N days (default: 7)
+- **`limit`**: Number of top properties to send (default: 5)
+- **`min_score`**: Minimum score threshold (default: 40.0)
+- **`days_old`**: Only consider properties from last N days (default: 7)
+- **`excluded_districts`**: List of district codes to exclude (e.g., ["1100", "1160"])
+- **`min_rooms`**: Minimum number of rooms required (default: 0 = no filter)
+- **`include_monthly_payment`**: Whether to include monthly payment calculations (default: true)
+
+### Filtering Features
+
+#### District Exclusion
+Exclude specific districts from the top5 results:
+```json
+"excluded_districts": ["1100", "1160"]
+```
+
+#### Minimum Rooms Filter
+Only include properties with a minimum number of rooms:
+```json
+"min_rooms": 3  // Only 3+ room apartments
+```
+
+#### Monthly Payment Calculations
+Each listing includes calculated monthly payments:
+- **Loan Payment**: Monthly mortgage payment
+- **Betriebskosten**: Operating costs
+- **Total Monthly**: Combined monthly cost
+
+The calculations are automatically added to each listing and displayed in Telegram messages.
 
 ## Usage
 
-### Running the Report
+### Command Line
 
 ```bash
+# From project root
 cd Project
-python run_top5.py
+PYTHONPATH=. python run_top5.py
+
+# Or with explicit Python path
+PYTHONPATH=Project python Project/run_top5.py
 ```
-
-### Expected Output
-
-The script will:
-1. Connect to MongoDB
-2. Fetch top properties matching criteria
-3. Send formatted report to Telegram main channel
-4. Display summary in console
-
-### Console Output Example
-
-```
-🏆 Starting Top 5 Properties Report
-==================================================
-📊 Fetching top 5 listings...
-🎯 Minimum score: 40.0
-📅 Last 7 days
-✅ Successfully sent top 5 listings to Telegram
-
-📊 Summary:
-  1. Score: 48.8 | €600,000 | 70m² | 3 rooms | 1030 | derstandard
-  2. Score: 48.3 | €398,000 | 116m² | 3 rooms | 1100 | derstandard
-  3. Score: 47.7 | €719,000 | 194m² | 3 rooms | 1160 | derstandard
-  4. Score: 45.6 | €498,000 | 103m² | 3 rooms | 1040 | derstandard
-  5. Score: 44.8 | €549,000 | 127m² | 3 rooms | 1100 | derstandard
-```
-
-### Telegram Message Format
-
-The Telegram message will include:
-- 🏆 Title with ranking
-- 📊 Summary statistics
-- 🥇🥈🥉 Ranking emojis for top 3
-- 📝 Property details (price, area, rooms, district)
-- 🔗 Direct links to property listings
-- 📅 Timestamp
-
-## Testing
-
-### Test MongoDB Functionality Only
-
-```bash
-python Tests/test_top5_mongodb_only.py
-```
-
-### Test Full Functionality (requires Telegram config)
-
-```bash
-python Tests/test_top5_functionality.py
-```
-
-## Integration
 
 ### Programmatic Usage
 
-You can also use the functionality programmatically:
-
 ```python
+from Application.helpers.utils import load_config
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 
+# Load config
+config = load_config()
+
 # Initialize handlers
-mongo = MongoDBHandler(uri="mongodb://localhost:27017/")
-telegram_bot = TelegramBot(bot_token, chat_id)
+mongo = MongoDBHandler(uri=config.get('mongodb_uri'))
+telegram_bot = TelegramBot(
+    config['telegram']['telegram_main']['bot_token'],
+    config['telegram']['telegram_main']['chat_id']
+)
 
 # Fetch top listings
-listings = mongo.get_top_listings(limit=5, min_score=40.0, days_old=7)
+listings = mongo.get_top_listings(
+    limit=5,
+    min_score=40.0,
+    days_old=7
+)
 
 # Send to Telegram
-success = telegram_bot.send_top_listings(listings, "🏆 Top Properties Report")
+success = telegram_bot.send_top_listings(listings)
 ```
 
-### Cron Job Setup
+## Message Format
 
-To run the report automatically, you can set up a cron job:
+The Top5 report sends messages in the same format as `main.py`:
+
+### Header Message
+```
+🏆 Top 5 Properties Report
+📊 Found 15 total properties
+🎯 Showing top 5 by score
+📅 Generated at 2024-01-15 14:30:25
+```
+
+### Individual Property Messages
+Each property is sent as a separate message with emojis:
+
+```
+🏠 <b>Stipcakgasse 12, 1230 Wien</b> - €280,000
+💰 Rate: €1,134 (€56,000 initial sum invested)
+📄 Betriebskosten: €248 (est.)
+💳 Total Monthly: €1,382 (€1,134 loan + €248 BK)
+📍 1230
+📐 48.13m² - €5,818/m²
+🛏️ 2.0 Zimmer
+🚇 U-Bahn: 12 min
+🏫 Schule: 10 min
+🏗️ Baujahr: 2024
+🔧 Zustand: Erstbezug
+⚡ Energieklasse: A
+🔗 <a href='https://example.com'>Zur Anzeige</a>
+```
+
+### Footer Message
+```
+✅ Sent 5/5 top properties to channel
+```
+
+## Key Differences from Old Format
+
+| Old Format | New Format |
+|------------|------------|
+| Single long message | Multiple individual messages |
+| Rankings (🥇🥈🥉) | No rankings |
+| Scores displayed | No scores in individual messages |
+| Separators between properties | Clean individual messages |
+| All properties in one message | One property per message |
+| **One long line** | **Multiple lines with proper formatting** |
+
+## Recent Fixes
+
+### Line Break Preservation (Latest)
+- **Issue**: Messages were appearing as one long line instead of multiple lines
+- **Cause**: The `clean_utf8_text` function was removing line breaks
+- **Fix**: Modified the function to preserve line breaks while still cleaning whitespace
+- **Result**: Each property detail now appears on its own line with proper formatting
+
+## Integration
+
+The Top5 feature integrates with:
+
+- **MongoDB**: Fetches top-scored properties
+- **Telegram**: Sends to main channel (ViennaApartmentsLive)
+- **Scoring System**: Uses AI-generated scores for ranking
+- **Configuration**: Respects score thresholds and time filters
+
+## Testing
+
+Run the formatting test to verify the new style:
 
 ```bash
-# Run daily at 9 AM
-0 9 * * * cd /path/to/Project && python run_top5.py
-
-# Run weekly on Sunday at 10 AM
-0 10 * * 0 cd /path/to/Project && python run_top5.py
+python Tests/test_top5_formatting.py
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **No listings found**: Check if there are properties in MongoDB with scores above the threshold
-2. **Telegram connection failed**: Verify bot token and chat ID in config
-3. **MongoDB connection failed**: Ensure MongoDB is running and accessible
-
-### Logs
-
-Check the log file for detailed information:
-```
-Project/log/top5.log
-```
-
-## Dependencies
-
-- MongoDB connection
-- Telegram bot configuration
-- Python packages: `pymongo`, `requests`, `logging`
-
-## Files
-
-- `run_top5.py` - Main script to run the report
-- `Integration/mongodb_handler.py` - MongoDB operations
-- `Integration/telegram_bot.py` - Telegram messaging
-- `Tests/test_top5_*.py` - Test scripts
-- `config.json` - Configuration file 
+This test verifies:
+- ✅ Individual message formatting works
+- ✅ Messages sent one by one (like main.py)
+- ✅ No rankings or scores in individual messages
+- ✅ Proper emojis and formatting 

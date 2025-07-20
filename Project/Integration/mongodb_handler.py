@@ -103,14 +103,17 @@ class MongoDBHandler:
             print(f"MongoDB query error: {e}")
             return None
     
-    def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30) -> List[Dict]:
+    def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30, 
+                        excluded_districts: List[str] = None, min_rooms: float = 0.0) -> List[Dict]:
         """
-        Get top listings from MongoDB sorted by score
+        Get top listings from MongoDB sorted by score with additional filters
         
         Args:
             limit: Maximum number of listings to return
             min_score: Minimum score threshold
             days_old: Only include listings from last N days
+            excluded_districts: List of district codes to exclude (e.g., ["1100", "1160"])
+            min_rooms: Minimum number of rooms required
             
         Returns:
             List of listing dictionaries sorted by score (highest first)
@@ -134,6 +137,14 @@ class MongoDBHandler:
             if min_score > 0:
                 query["score"] = {"$gte": min_score}
             
+            # Add district exclusion filter
+            if excluded_districts and len(excluded_districts) > 0:
+                query["bezirk"] = {"$nin": excluded_districts}
+            
+            # Add minimum rooms filter
+            if min_rooms > 0:
+                query["rooms"] = {"$gte": min_rooms}
+            
             # Sort by score descending, then by processed_at descending
             sort_criteria = [
                 ("score", -1),  # Highest score first
@@ -144,13 +155,64 @@ class MongoDBHandler:
             cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit)
             listings = list(cursor)
             
+            # Add monthly payment calculations to each listing
+            for listing in listings:
+                self._add_monthly_payment_calculation(listing)
+            
             logging.info(f"📊 Found {len(listings)} top listings (score >= {min_score}, last {days_old} days)")
+            if excluded_districts:
+                logging.info(f"🚫 Excluded districts: {excluded_districts}")
+            if min_rooms > 0:
+                logging.info(f"🛏️ Minimum rooms: {min_rooms}")
             
             return listings
             
         except Exception as e:
             logging.error(f"Error fetching top listings: {e}")
             return []
+
+    def _add_monthly_payment_calculation(self, listing: Dict):
+        """
+        Add monthly payment calculations to a listing and fix score if needed
+        
+        Args:
+            listing: Listing dictionary to modify
+        """
+        try:
+            # Get loan payment and Betriebskosten, handle None values
+            loan_payment = listing.get('calculated_monatsrate', 0) or 0
+            betriebskosten = listing.get('betriebskosten', 0) or 0
+            
+            # Ensure both values are numbers
+            if not isinstance(loan_payment, (int, float)):
+                loan_payment = 0
+            if not isinstance(betriebskosten, (int, float)):
+                betriebskosten = 0
+            
+            # Calculate total monthly payment
+            total_monthly = loan_payment + betriebskosten
+            
+            # Add the calculations to the listing
+            listing['monthly_payment'] = {
+                'loan_payment': loan_payment,
+                'betriebskosten': betriebskosten,
+                'total_monthly': total_monthly
+            }
+            
+            # Fix score calculation: multiply by 100 if below 0
+            score = listing.get('score', 0)
+            if score is not None and score < 0:
+                listing['score'] = score * 100
+                logging.info(f"Fixed score from {score} to {listing['score']}")
+            
+        except Exception as e:
+            logging.error(f"Error calculating monthly payment for listing: {e}")
+            # Set default values if calculation fails
+            listing['monthly_payment'] = {
+                'loan_payment': 0,
+                'betriebskosten': 0,
+                'total_monthly': 0
+            }
 
     @staticmethod
     def save_listings_to_mongodb(listings: list) -> int:
