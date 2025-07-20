@@ -1,0 +1,44 @@
+name: Run ImmoAgent Hourly
+
+on:
+  schedule:
+    - cron: '0 * * * *' # runs every hour
+  workflow_dispatch:     # allows manual triggering
+
+jobs:
+  run-immoagent:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r Project/requirements.txt
+
+      - name: Wait for MongoDB to be available
+        run: |
+          for i in $(seq 1 30); do
+            nc -z localhost 27017 && echo "MongoDB is up" && break
+            echo "Waiting for MongoDB..."
+            sleep 2
+          done
+
+      - name: Run ImmoAgent
+        env:
+          MONGO_HOST: localhost
+          MONGO_PORT: 27017
+        run: |
+          python Project/run.py
