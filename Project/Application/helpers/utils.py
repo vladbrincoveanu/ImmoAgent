@@ -17,6 +17,16 @@ def get_project_root() -> str:
     path = os.path.dirname(os.path.abspath(__file__))
     while True:
         if os.path.exists(os.path.join(path, 'README.md')):
+            # Check if config.json exists in this directory
+            if os.path.exists(os.path.join(path, 'config.json')):
+                _project_root = path
+                return path
+            # If no config.json here, check parent directory
+            parent_path = os.path.dirname(path)
+            if os.path.exists(os.path.join(parent_path, 'config.json')):
+                _project_root = parent_path
+                return parent_path
+            # If still no config.json, use current directory as fallback
             _project_root = path
             return path
         parent_path = os.path.dirname(path)

@@ -1,39 +1,44 @@
 import requests
 import json
-from typing import Dict
+from typing import Dict, List
 import logging
 from Application.helpers.utils import load_config
 from Application.scoring import score_apartment_simple
+import time
 
 def clean_utf8_text(text: str) -> str:
-    """Clean text to ensure it's UTF-8 compatible and remove surrogate characters"""
-    if not isinstance(text, str):
-        return str(text)
+    """Clean text to ensure UTF-8 compatibility and proper formatting"""
+    if not text:
+        return ""
     
-    try:
-        # First, try to handle surrogate characters by encoding as utf-8 with error handling
-        cleaned = text.encode('utf-8', errors='replace').decode('utf-8')
-        # Remove excessive whitespace and normalize
-        cleaned = ' '.join(cleaned.split())
-        return cleaned.strip()
-    except Exception:
-        # If that fails, manually remove problematic characters
-        cleaned = ''
-        for char in text:
-            try:
-                # Check if character is a surrogate
-                if 0xD800 <= ord(char) <= 0xDFFF:
-                    cleaned += ' '  # Replace surrogate with space
-                else:
-                    char.encode('utf-8')  # Test if character is valid UTF-8
-                    cleaned += char
-            except UnicodeEncodeError:
-                cleaned += ' '  # Replace problematic character with space
-            except Exception:
-                cleaned += ' '  # Replace any other problematic character with space
-        # Remove excessive whitespace and normalize
-        cleaned = ' '.join(cleaned.split())
-        return cleaned.strip()
+    # Convert to string if needed
+    text = str(text)
+    
+    # Remove or replace problematic characters
+    text = text.replace('\x00', '')  # Remove null bytes
+    text = text.replace('\r\n', '\n')  # Normalize line endings
+    text = text.replace('\r', '\n')  # Normalize line endings
+    
+    # Remove excessive whitespace while preserving intentional formatting
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        # Strip leading/trailing whitespace from each line
+        cleaned_line = line.strip()
+        # Remove excessive internal whitespace (keep single spaces)
+        cleaned_line = ' '.join(cleaned_line.split())
+        if cleaned_line:  # Only add non-empty lines
+            cleaned_lines.append(cleaned_line)
+    
+    # Join lines with single newlines, no extra spacing
+    result = '\n'.join(cleaned_lines)
+    
+    # Final cleanup: ensure no excessive whitespace
+    result = ' '.join(result.split())
+    result = result.replace(' .', '.').replace(' ,', ',').replace(' !', '!').replace(' ?', '?')
+    
+    return result
 
 class TelegramLogHandler(logging.Handler):
     """Custom logging handler that sends logs to Telegram"""
@@ -193,7 +198,7 @@ class TelegramBot:
             logging.error(f"Error formatting property notification: {e}")
             return False
     
-    def _format_property_message(self, listing: Dict) -> str:
+    def _format_property_message(self, listing: Dict, include_url: bool = False) -> str:
         """Format property listing as concise HTML message"""
         def safe_format(value, prefix="€"):
             if value is None or value == "N/A":
@@ -376,7 +381,7 @@ class TelegramBot:
             message_parts.append(f"⚡ Energieklasse: {energy_class}")
         
         # URL
-        if url:
+        if url and include_url:
             message_parts.append(f"🔗 <a href='{url}'>Zur Anzeige</a>")
         
         # Join all parts with newlines and clean up
@@ -384,6 +389,21 @@ class TelegramBot:
         
         # Final cleanup: remove any excessive whitespace and normalize
         message = '\n'.join(line.strip() for line in message.split('\n') if line.strip())
+        
+        # Ensure proper spacing between sections
+        message = message.replace('\n\n\n', '\n\n')  # Remove triple newlines
+        message = message.replace('\n\n\n', '\n\n')  # Do it again in case there were more
+        
+        # Clean up any remaining whitespace issues but preserve line breaks
+        lines = message.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            cleaned_line = line.strip()
+            if cleaned_line:
+                cleaned_lines.append(cleaned_line)
+        
+        # Join with single newlines
+        message = '\n'.join(cleaned_lines)
         
         return message
     
@@ -394,4 +414,69 @@ class TelegramBot:
             return self.send_message(test_message)
         except Exception as e:
             logging.error(f"Telegram connection test failed: {e}")
+            return False 
+
+    def send_top_listings(self, listings: List[Dict], title: str = "🏆 Top Properties", max_listings: int = 5) -> bool:
+        """
+        Send top listings to Telegram channel
+        
+        Args:
+            listings: List of listing dictionaries from MongoDB
+            title: Title for the message
+            max_listings: Maximum number of listings to send
+        
+        Returns:
+            bool: True if sent successfully, False otherwise
+        """
+        try:
+            if not listings:
+                logging.info("No listings to send")
+                return True
+            
+            # Limit to max_listings
+            top_listings = listings[:max_listings]
+            
+            # Create header message
+            message = f"{title}\n"
+            message += f"📊 Found {len(listings)} total properties\n"
+            message += f"🎯 Showing top {len(top_listings)} by score\n"
+            message += "=" * 50 + "\n\n"
+            
+            # Add each listing
+            for i, listing in enumerate(top_listings, 1):
+                try:
+                    # Format individual listing
+                    listing_msg = self._format_property_message(listing, include_url=True)
+                    
+                    # Add ranking
+                    ranking_emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"#{i}"
+                    listing_msg = f"{ranking_emoji}"
+                    
+                    # Add to main message
+                    message += listing_msg + "\n\n"
+                    
+                    # Add separator between listings
+                    if i < len(top_listings):
+                        message += "─" * 30 + "\n\n"
+                        
+                except Exception as e:
+                    logging.error(f"Error formatting listing {i}: {e}")
+                    continue
+            
+            # Add footer
+            message += "=" * 50 + "\n"
+            message += f"📅 Generated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            message += "🔗 View all properties in the database"
+            
+            # Send the message
+            success = self.send_message(message)
+            if success:
+                logging.info(f"✅ Sent top {len(top_listings)} listings to Telegram")
+            else:
+                logging.error("❌ Failed to send top listings to Telegram")
+            
+            return success
+            
+        except Exception as e:
+            logging.error(f"Error sending top listings: {e}")
             return False 
