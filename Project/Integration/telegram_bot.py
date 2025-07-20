@@ -31,11 +31,10 @@ def clean_utf8_text(text: str) -> str:
         if cleaned_line:  # Only add non-empty lines
             cleaned_lines.append(cleaned_line)
     
-    # Join lines with single newlines, no extra spacing
+    # Join lines with single newlines, preserving the line structure
     result = '\n'.join(cleaned_lines)
     
-    # Final cleanup: ensure no excessive whitespace
-    result = ' '.join(result.split())
+    # Final cleanup: fix punctuation spacing but preserve line breaks
     result = result.replace(' .', '.').replace(' ,', ',').replace(' !', '!').replace(' ?', '?')
     
     return result
@@ -344,6 +343,19 @@ class TelegramBot:
                 betriebskosten_line += " (est.)"
             message_parts.append(betriebskosten_line)
         
+        # Monthly payment summary (if available)
+        monthly_payment = listing.get('monthly_payment', {})
+        if monthly_payment and isinstance(monthly_payment, dict):
+            total_monthly = monthly_payment.get('total_monthly', 0)
+            loan_payment = monthly_payment.get('loan_payment', 0)
+            betriebskosten_monthly = monthly_payment.get('betriebskosten', 0)
+            
+            if total_monthly > 0:
+                monthly_summary = f"💳 Total Monthly: €{total_monthly:,.0f}"
+                if loan_payment > 0 and betriebskosten_monthly > 0:
+                    monthly_summary += f" (€{loan_payment:,.0f} loan + €{betriebskosten_monthly:,.0f} BK)"
+                message_parts.append(monthly_summary)
+        
         # District
         if bezirk:
             message_parts.append(f"📍 {bezirk}")
@@ -356,9 +368,9 @@ class TelegramBot:
         if rooms:
             message_parts.append(f"🛏️ {rooms} Zimmer")
         
-        # Score (if available)
-        if score is not None:
-            message_parts.append(f"🔥 <b>Score:</b> <b>{score}</b>")
+        # Score (REMOVED - no longer displayed in Telegram messages)
+        # if score is not None:
+        #     message_parts.append(f"🔥 <b>Score:</b> <b>{score}</b>")
         
         # Transport
         if transport_lines:
@@ -418,7 +430,7 @@ class TelegramBot:
 
     def send_top_listings(self, listings: List[Dict], title: str = "🏆 Top Properties", max_listings: int = 5) -> bool:
         """
-        Send top listings to Telegram channel
+        Send top listings to Telegram channel (one by one, like main.py)
         
         Args:
             listings: List of listing dictionaries from MongoDB
@@ -436,46 +448,45 @@ class TelegramBot:
             # Limit to max_listings
             top_listings = listings[:max_listings]
             
-            # Create header message
-            message = f"{title}\n"
-            message += f"📊 Found {len(listings)} total properties\n"
-            message += f"🎯 Showing top {len(top_listings)} by score\n"
-            message += "=" * 50 + "\n\n"
+            # Send header message
+            header_message = f"{title}\n"
+            header_message += f"📊 Found {len(listings)} total properties\n"
+            header_message += f"🎯 Showing top {len(top_listings)} by score\n"
+            header_message += f"📅 Generated at {time.strftime('%Y-%m-%d %H:%M:%S')}"
             
-            # Add each listing
+            success = self.send_message(header_message)
+            if not success:
+                logging.error("Failed to send header message")
+                return False
+            
+            # Send each listing individually (like main.py does)
+            sent_count = 0
             for i, listing in enumerate(top_listings, 1):
                 try:
-                    # Format individual listing
-                    listing_msg = self._format_property_message(listing, include_url=True)
+                    # Format the listing using the same method as main.py
+                    message = self._format_property_message(listing, include_url=True)
                     
-                    # Add ranking
-                    ranking_emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"#{i}"
-                    listing_msg = f"{ranking_emoji}"
+                    # Send the individual listing
+                    success = self.send_message(message)
+                    if success:
+                        sent_count += 1
+                        logging.info(f"✅ Sent listing {i}/{len(top_listings)} to Telegram")
+                    else:
+                        logging.error(f"❌ Failed to send listing {i}/{len(top_listings)}")
                     
-                    # Add to main message
-                    message += listing_msg + "\n\n"
-                    
-                    # Add separator between listings
-                    if i < len(top_listings):
-                        message += "─" * 30 + "\n\n"
+                    # Small delay between messages to avoid rate limiting
+                    time.sleep(1)
                         
                 except Exception as e:
-                    logging.error(f"Error formatting listing {i}: {e}")
+                    logging.error(f"Error sending listing {i}: {e}")
                     continue
             
-            # Add footer
-            message += "=" * 50 + "\n"
-            message += f"📅 Generated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            message += "🔗 View all properties in the database"
+            # Send footer message
+            footer_message = f"✅ Sent {sent_count}/{len(top_listings)} top properties to channel"
+            self.send_message(footer_message)
             
-            # Send the message
-            success = self.send_message(message)
-            if success:
-                logging.info(f"✅ Sent top {len(top_listings)} listings to Telegram")
-            else:
-                logging.error("❌ Failed to send top listings to Telegram")
-            
-            return success
+            logging.info(f"✅ Sent {sent_count} top listings to Telegram")
+            return sent_count > 0
             
         except Exception as e:
             logging.error(f"Error sending top listings: {e}")

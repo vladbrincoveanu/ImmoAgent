@@ -119,8 +119,14 @@ def score_apartment(apartment_data):
 def score_apartment_simple(apartment_data):
     """
     Simple version that just returns the score without breakdown.
+    Fixes score by multiplying by 100 if below 0.
     """
     score, _ = score_apartment(apartment_data)
+    
+    # Fix score calculation: multiply by 100 if below 0
+    if score < 0:
+        score = score * 100
+    
     return score
 
 def print_apartment_score(apartment_data):

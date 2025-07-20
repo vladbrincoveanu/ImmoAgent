@@ -70,16 +70,27 @@ def main():
         limit = config.get('top5', {}).get('limit', 5)
         min_score = config.get('top5', {}).get('min_score', 40.0)
         days_old = config.get('top5', {}).get('days_old', 7)
+        excluded_districts = config.get('top5', {}).get('excluded_districts', [])
+        min_rooms = config.get('top5', {}).get('min_rooms', 0)
+        include_monthly_payment = config.get('top5', {}).get('include_monthly_payment', True)
         
         print(f"📊 Fetching top {limit} listings...")
         print(f"🎯 Minimum score: {min_score}")
         print(f"📅 Last {days_old} days")
+        if excluded_districts:
+            print(f"🚫 Excluded districts: {excluded_districts}")
+        if min_rooms > 0:
+            print(f"🛏️ Minimum rooms: {min_rooms}")
+        if include_monthly_payment:
+            print(f"💰 Including monthly payment calculations")
         
         # Fetch top listings from MongoDB
         listings = mongo.get_top_listings(
             limit=limit,
             min_score=min_score,
-            days_old=days_old
+            days_old=days_old,
+            excluded_districts=excluded_districts,
+            min_rooms=min_rooms
         )
         
         if not listings:
@@ -89,8 +100,14 @@ def main():
             no_listings_msg = f"📊 **Top Properties Report**\n\n"
             no_listings_msg += f"❌ No properties found matching criteria:\n"
             no_listings_msg += f"• Minimum score: {min_score}\n"
-            no_listings_msg += f"• Last {days_old} days\n\n"
-            no_listings_msg += f"📅 Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            no_listings_msg += f"• Last {days_old} days\n"
+            if excluded_districts:
+                no_listings_msg += f"• Excluded districts: {excluded_districts}\n"
+            if min_rooms > 0:
+                no_listings_msg += f"• Minimum rooms: {min_rooms}\n"
+            if not include_monthly_payment:
+                no_listings_msg += f"• Monthly payment not included\n"
+            no_listings_msg += f"\n📅 Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             
             telegram_bot.send_message(no_listings_msg)
             return True

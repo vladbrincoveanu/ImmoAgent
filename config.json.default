@@ -44,7 +44,10 @@
   "top5": {
     "limit": 5,
     "min_score": 40.0,
-    "days_old": 7
+    "days_old": 7,
+    "excluded_districts": ["1100", "1160"],
+    "min_rooms": 3,
+    "include_monthly_payment": true
   },
   "criteria": {
     "price_max": 1000000,
