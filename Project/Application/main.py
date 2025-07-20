@@ -94,7 +94,12 @@ def test_system_components(config):
     telegram_config = config.get('telegram', {})
     
     # Test main Telegram bot
-    if telegram_config.get('telegram_main', {}).get('bot_token') and telegram_config.get('telegram_main', {}).get('chat_id'):
+    if os.getenv('TELEGRAM_MAIN_BOT_TOKEN') and os.getenv('TELEGRAM_MAIN_CHAT_ID'):
+        bot_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN')
+        bot_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID')
+        bot = TelegramBot(bot_token, bot_chat_id)
+        telegram_ok = bot.test_connection()
+    elif telegram_config.get('telegram_main', {}).get('bot_token') and telegram_config.get('telegram_main', {}).get('chat_id'):
         try:
             main_config = telegram_config['telegram_main']
             bot = TelegramBot(main_config['bot_token'], main_config['chat_id'])
@@ -109,7 +114,12 @@ def test_system_components(config):
         logging.warning("⚠️  Telegram main bot not configured")
     
     # Test dev Telegram bot
-    if telegram_config.get('telegram_dev', {}).get('bot_token') and telegram_config.get('telegram_dev', {}).get('chat_id'):
+    if os.getenv('TELEGRAM_DEV_BOT_TOKEN') and os.getenv('TELEGRAM_DEV_CHAT_ID'):
+        bot_token = os.getenv('TELEGRAM_DEV_BOT_TOKEN')
+        bot_chat_id = os.getenv('TELEGRAM_DEV_CHAT_ID')
+        dev_bot = TelegramBot(bot_token, bot_chat_id)
+        dev_ok = dev_bot.test_connection()
+    elif telegram_config.get('telegram_dev', {}).get('bot_token') and telegram_config.get('telegram_dev', {}).get('chat_id'):
         try:
             dev_config = telegram_config['telegram_dev']
             dev_bot = TelegramBot(dev_config['bot_token'], dev_config['chat_id'])
@@ -415,24 +425,25 @@ def main():
         logging.error("❌ Cannot proceed without configuration")
         return
     
-    # Setup Telegram error logging to dev channel if configured
-    telegram_dev_handler = None
+    # Simplified Telegram error logging setup
     telegram_config = config.get('telegram', {})
-    if telegram_config.get('telegram_dev', {}).get('bot_token') and telegram_config.get('telegram_dev', {}).get('chat_id'):
+    dev_config = telegram_config.get('telegram_dev', {})
+    bot_token = os.getenv('TELEGRAM_DEV_BOT_TOKEN') or dev_config.get('bot_token')
+    bot_chat_id = os.getenv('TELEGRAM_DEV_CHAT_ID') or dev_config.get('chat_id')
+
+    if bot_token and bot_chat_id:
+        from Integration.telegram_bot import TelegramBot
+        bot = TelegramBot(bot_token, bot_chat_id)
+        handler = bot.setup_error_logging(is_dev_channel=True)
         try:
-            from Integration.telegram_bot import TelegramBot
-            dev_config = telegram_config['telegram_dev']
-            telegram_dev_bot = TelegramBot(dev_config['bot_token'], dev_config['chat_id'])
-            telegram_dev_handler = telegram_dev_bot.setup_error_logging(is_dev_channel=True)
-            if telegram_dev_handler:
-                logging.getLogger().addHandler(telegram_dev_handler)
-            logging.info("✅ Telegram dev error logging configured")
+            if handler:
+                logging.getLogger().addHandler(handler)
+                logging.info("✅ Telegram error logging configured")
         except Exception as e:
-            logging.warning(f"⚠️ Failed to setup Telegram dev error logging: {e}")
-    else:
-        logging.info("ℹ️ Telegram dev not configured, skipping error logging setup")
-    
-    component_status = test_system_components(config)
+            logging.warning(f"⚠️ Failed to setup Telegram error logging: {e}")
+        else:
+            logging.info("ℹ️ Telegram not configured, skipping error logging setup")
+        component_status = test_system_components(config)
     if not component_status['mongodb']:
         logging.error("❌ MongoDB is required but not working. Please fix the connection.")
         return
@@ -498,10 +509,11 @@ def main():
         # Initialize Telegram bot for score-based filtering (main channel for properties)
         telegram_bot = None
         telegram_config = config.get('telegram', {})
-        if telegram_config.get('telegram_main', {}).get('bot_token') and telegram_config.get('telegram_main', {}).get('chat_id'):
+        bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
+        bot_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID') or telegram_config.get('telegram_main', {}).get('chat_id')
+        if bot_main_token and bot_main_chat_id:
             try:
-                main_config = telegram_config['telegram_main']
-                telegram_bot = TelegramBot(main_config['bot_token'], main_config['chat_id'])
+                telegram_bot = TelegramBot(bot_main_token, bot_main_chat_id)
                 logging.info("✅ Telegram main bot initialized for property notifications")
             except Exception as e:
                 logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
@@ -581,14 +593,11 @@ def main():
         if telegram_bot:
             try:
                 summary_message = f"""🎉 <b>Integrated Immo-Scouter Summary</b>
-
-📋 Found <b>{len(all_listings)}</b> total properties
-💰 Average price: {format_currency(avg_price)}
-📐 Average area: {avg_area:.1f}m²
-🔥 High-score properties: {len(high_score_listings)} (score > {score_threshold})
-
-📊 By Source:"""
-                
+                    📋 Found <b>{len(all_listings)}</b> total properties
+                    💰 Average price: {format_currency(avg_price)}
+                    📐 Average area: {avg_area:.1f}m²
+                    🔥 High-score properties: {len(high_score_listings)} (score > {score_threshold})
+                    📊 By Source:"""
                 for source, result in scraping_results.items():
                     count = result['count']
                     if count > 0:

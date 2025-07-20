@@ -70,7 +70,15 @@ class TestIntegrationAccuracy(unittest.TestCase):
         missing = []
         for field in telegram_fields:
             expected = expected_data.get(field, None)
-            actual = actual_data.get(field, None)
+            
+            # Handle both dict and Listing object
+            if hasattr(actual_data, field):
+                actual = getattr(actual_data, field)
+            elif isinstance(actual_data, dict):
+                actual = actual_data.get(field, None)
+            else:
+                actual = None
+            
             if expected is None and actual is None:
                 print(f"   - {field}: MISSING in both")
                 missing.append(field)
@@ -91,11 +99,20 @@ class TestIntegrationAccuracy(unittest.TestCase):
         
         comparison = compare_data(actual_data, expected_data)
         
+        # Helper function to get field value from actual_data
+        def get_actual_field(field_name):
+            if hasattr(actual_data, field_name):
+                return getattr(actual_data, field_name)
+            elif isinstance(actual_data, dict):
+                return actual_data.get(field_name)
+            else:
+                return None
+        
         # Print matches
         if comparison["matches"]:
             print(f"✅ CORRECT FIELDS ({len(comparison['matches'])}):")
             for field in comparison["matches"]:
-                print(f"   ✓ {field}: {actual_data.get(field)}")
+                print(f"   ✓ {field}: {get_actual_field(field)}")
         
         # Print mismatches
         if comparison["mismatches"]:
@@ -115,7 +132,7 @@ class TestIntegrationAccuracy(unittest.TestCase):
         if comparison["extra"]:
             print(f"\n➕ EXTRA FIELDS ({len(comparison['extra'])}):")
             for field in comparison["extra"]:
-                print(f"   + {field}: {actual_data.get(field)}")
+                print(f"   + {field}: {get_actual_field(field)}")
         
         # Print accuracy score
         print(f"\n📈 ACCURACY ANALYSIS:")
@@ -232,7 +249,7 @@ def get_expected_data() -> Dict[str, Any]:
         "total_monthly_cost": None  # Calculated field
     }
 
-def compare_data(actual: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, Any]:
+def compare_data(actual, expected: Dict[str, Any]) -> Dict[str, Any]:
     """Compare actual vs expected data and return analysis"""
     comparison = {
         "matches": [],
@@ -242,10 +259,19 @@ def compare_data(actual: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, 
         "accuracy_score": 0.0
     }
     
+    # Helper function to get field value from actual
+    def get_actual_field(field_name):
+        if hasattr(actual, field_name):
+            return getattr(actual, field_name)
+        elif isinstance(actual, dict):
+            return actual.get(field_name)
+        else:
+            return None
+    
     # Check expected fields
     for field, expected_value in expected.items():
-        if field in actual:
-            actual_value = actual.get(field)
+        actual_value = get_actual_field(field)
+        if actual_value is not None:
             
             # Handle case-insensitive string comparison for certain fields
             if isinstance(expected_value, str) and isinstance(actual_value, str):
@@ -283,9 +309,13 @@ def compare_data(actual: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, 
             comparison["missing"].append(field)
     
     # Check for extra fields in actual
-    for field in actual:
-        if field not in expected and field not in ['url', 'processed_at', 'sent_to_telegram', 'structured_analysis']:
-            comparison["extra"].append(field)
+    if isinstance(actual, dict):
+        for field in actual:
+            if field not in expected and field not in ['url', 'processed_at', 'sent_to_telegram', 'structured_analysis']:
+                comparison["extra"].append(field)
+    else:
+        # For Listing objects, we don't check for extra fields as they have a fixed schema
+        pass
     
     # Calculate accuracy score
     total_fields = len(expected)

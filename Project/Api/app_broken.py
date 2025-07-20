@@ -152,7 +152,105 @@ class PropertyDatabase:
         }
         result = self.users_collection.insert_one(user_doc)
         return result.inserted_id is not None
+
+# Initialize database
+db = PropertyDatabase()
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Load user from database"""
+    user_doc = db.users_collection.find_one({'_id': ObjectId(user_id)})
+    if user_doc:
+        return User(
+            user_id=str(user_doc['_id']),
+            username=user_doc['username'],
+            email=user_doc['email'],
+            role=user_doc.get('role', 'user')
+        )
+    return None
+
+# Custom template filters
+@app.template_filter('datetime')
+def datetime_filter(timestamp):
+    """Convert timestamp to readable datetime"""
+    if timestamp:
+        try:
+            from datetime import datetime
+            return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M')
+        except:
+            return str(timestamp)
+    return 'N/A'
+
+# Authentication routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
     
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Please enter both username and password.', 'error')
+            return render_template('login.html')
+        
+        user = db.authenticate_user(username, password)
+        if user:
+            login_user(user, remember=True)
+            next_page = request.args.get('next')
+            if not next_page or not next_page.startswith('/'):
+                next_page = url_for('index')
+            flash(f'Welcome back, {user.username}!', 'success')
+            return redirect(next_page)
+        else:
+            flash('Invalid username or password.', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Logout user"""
+    logout_user()
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validation
+        if not all([username, email, password, confirm_password]):
+            flash('Please fill in all fields.', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('register.html')
+        
+        # Create user
+        if db.create_user(username, email, password):
+            flash('Account created successfully! Please log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Username or email already exists.', 'error')
+    
+    return render_template('register.html')
+
     def get_properties(self, filters: Dict = None, sort_by: str = 'processed_at', sort_order: int = -1, 
                       page: int = 1, per_page: int = 12) -> Dict:
         """Get properties with filtering, sorting, and pagination"""
@@ -395,101 +493,6 @@ class PropertyDatabase:
 
 # Initialize database
 db = PropertyDatabase()
-
-@login_manager.user_loader
-def load_user(user_id):
-    """Load user from database"""
-    user_doc = db.users_collection.find_one({'_id': ObjectId(user_id)})
-    if user_doc:
-        return User(
-            user_id=str(user_doc['_id']),
-            username=user_doc['username'],
-            email=user_doc['email'],
-            role=user_doc.get('role', 'user')
-        )
-    return None
-
-# Custom template filters
-@app.template_filter('datetime')
-def datetime_filter(timestamp):
-    """Convert timestamp to readable datetime"""
-    if timestamp:
-        try:
-            from datetime import datetime
-            return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M')
-        except:
-            return str(timestamp)
-    return 'N/A'
-
-# Authentication routes
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Login page"""
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        if not username or not password:
-            flash('Please enter both username and password.', 'error')
-            return render_template('login.html')
-        
-        user = db.authenticate_user(username, password)
-        if user:
-            login_user(user, remember=True)
-            next_page = request.args.get('next')
-            if not next_page or not next_page.startswith('/'):
-                next_page = url_for('index')
-            flash(f'Welcome back, {user.username}!', 'success')
-            return redirect(next_page)
-        else:
-            flash('Invalid username or password.', 'error')
-    
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    """Logout user"""
-    logout_user()
-    flash('You have been logged out successfully.', 'info')
-    return redirect(url_for('login'))
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    """User registration page"""
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        # Validation
-        if not all([username, email, password, confirm_password]):
-            flash('Please fill in all fields.', 'error')
-            return render_template('register.html')
-        
-        if password != confirm_password:
-            flash('Passwords do not match.', 'error')
-            return render_template('register.html')
-        
-        if len(password) < 6:
-            flash('Password must be at least 6 characters long.', 'error')
-            return render_template('register.html')
-        
-        # Create user
-        if db.create_user(username, email, password):
-            flash('Account created successfully! Please log in.', 'success')
-            return redirect(url_for('login'))
-        else:
-            flash('Username or email already exists.', 'error')
-    
-    return render_template('register.html')
 
 @app.route('/')
 @login_required

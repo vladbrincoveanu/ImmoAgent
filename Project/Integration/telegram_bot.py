@@ -13,7 +13,9 @@ def clean_utf8_text(text: str) -> str:
     try:
         # First, try to handle surrogate characters by encoding as utf-8 with error handling
         cleaned = text.encode('utf-8', errors='replace').decode('utf-8')
-        return cleaned
+        # Remove excessive whitespace and normalize
+        cleaned = ' '.join(cleaned.split())
+        return cleaned.strip()
     except Exception:
         # If that fails, manually remove problematic characters
         cleaned = ''
@@ -29,6 +31,8 @@ def clean_utf8_text(text: str) -> str:
                 cleaned += ' '  # Replace problematic character with space
             except Exception:
                 cleaned += ' '  # Replace any other problematic character with space
+        # Remove excessive whitespace and normalize
+        cleaned = ' '.join(cleaned.split())
         return cleaned.strip()
 
 class TelegramLogHandler(logging.Handler):
@@ -206,7 +210,11 @@ class TelegramBot:
         def safe_text(value):
             if value is None or value == "N/A" or value == "None":
                 return None
-            return clean_utf8_text(str(value))
+            # Clean and strip whitespace
+            cleaned = clean_utf8_text(str(value))
+            # Remove excessive whitespace and normalize
+            cleaned = ' '.join(cleaned.split())
+            return cleaned.strip()
 
         # Ensure listing is a dict and handle None values
         if listing is None:
@@ -371,8 +379,11 @@ class TelegramBot:
         if url:
             message_parts.append(f"🔗 <a href='{url}'>Zur Anzeige</a>")
         
-        # Join all parts with newlines
+        # Join all parts with newlines and clean up
         message = "\n".join(message_parts)
+        
+        # Final cleanup: remove any excessive whitespace and normalize
+        message = '\n'.join(line.strip() for line in message.split('\n') if line.strip())
         
         return message
     

@@ -413,18 +413,18 @@ class ImmoKurierScraper:
         
         for pattern in price_patterns:
             price_match = re.search(pattern, all_text, re.IGNORECASE)
-            if price_match:
-                try:
-                    price_text = price_match.group(1)
-                    if ',' in price_text and '.' in price_text:
-                        parts = price_text.split(',')
-                        if len(parts) == 2:
-                            integer_part = parts[0].replace('.', '')
-                            decimal_part = parts[1]
-                            return float(f"{integer_part}.{decimal_part}")
-                    else:
-                        return float(price_text.replace('.', '').replace(',', '.'))
-                except (ValueError, AttributeError):
+        if price_match:
+            try:
+                price_text = price_match.group(1)
+                if ',' in price_text and '.' in price_text:
+                    parts = price_text.split(',')
+                    if len(parts) == 2:
+                        integer_part = parts[0].replace('.', '')
+                        decimal_part = parts[1]
+                        return float(f"{integer_part}.{decimal_part}")
+                else:
+                    return float(price_text.replace('.', '').replace(',', '.'))
+            except (ValueError, AttributeError):
                     continue
         
         return None
@@ -467,11 +467,11 @@ class ImmoKurierScraper:
         
         for pattern in area_patterns:
             area_match = re.search(pattern, all_text, re.IGNORECASE)
-            if area_match:
-                try:
-                    area_str = area_match.group(1).replace(',', '.')
-                    return float(area_str)
-                except ValueError:
+        if area_match:
+            try:
+                area_str = area_match.group(1).replace(',', '.')
+                return float(area_str)
+            except ValueError:
                     continue
         
         return None
@@ -513,11 +513,11 @@ class ImmoKurierScraper:
         
         for pattern in room_patterns:
             room_match = re.search(pattern, all_text, re.IGNORECASE)
-            if room_match:
-                try:
-                    room_str = room_match.group(1).replace(',', '.')
-                    return float(room_str)
-                except ValueError:
+        if room_match:
+            try:
+                room_str = room_match.group(1).replace(',', '.')
+                return float(room_str)
+            except ValueError:
                     continue
         
         return None
@@ -554,7 +554,7 @@ class ImmoKurierScraper:
         
         for pattern in district_patterns:
             district_match = re.search(pattern, all_text)
-            if district_match:
+        if district_match:
                 district = district_match.group(1)
                 # Convert 2-digit to 4-digit format if needed
                 if len(district) == 1 or len(district) == 2:
@@ -599,8 +599,8 @@ class ImmoKurierScraper:
         
         for pattern in address_patterns:
             address_match = re.search(pattern, all_text)
-            if address_match:
-                return f"{address_match.group(1).strip()}, {address_match.group(2)} Wien"
+        if address_match:
+            return f"{address_match.group(1).strip()}, {address_match.group(2)} Wien"
         
         # Just district if full address not found
         district_match = re.search(r'(\d{4})\s*Wien', all_text)
@@ -812,8 +812,8 @@ class ImmoKurierScraper:
             if betriebskosten_match:
                 try:
                     return float(betriebskosten_match.group(1).replace('.', '').replace(',', '.'))
-                except ValueError:
-                    continue
+                    except ValueError:
+                        continue
         
         return None
 
@@ -883,8 +883,8 @@ class ImmoKurierScraper:
             if hwb_match:
                 try:
                     return float(hwb_match.group(1).replace(',', '.'))
-                except ValueError:
-                    continue
+                    except ValueError:
+                        continue
         
         return None
 
@@ -1018,17 +1018,17 @@ class ImmoKurierScraper:
                 '[data-testid*="gallery"] img',
                 '.gallery img',
                 '.main-image img',
-                '.property-image img',
-                '.listing-image img',
-                '.expose-image img',
+            '.property-image img',
+            '.listing-image img',
+            '.expose-image img',
                 '.image-gallery img',
                 'img[alt*="Hauptbild"]',
                 'img[alt*="main"]',
                 'img[alt*="property"]',
                 '.carousel img',
                 '.slider img'
-            ]
-            
+        ]
+        
             for selector in image_selectors:
                 img_elem = soup.select_one(selector)
                 if img_elem and img_elem.get('src'):
@@ -1061,8 +1061,8 @@ class ImmoKurierScraper:
                     else:
                         # If no size info, assume it's a main image if it has a reasonable URL
                         return src
-            
-            return None
+        
+        return None
             
         except Exception as e:
             print(f"Error extracting image URL: {e}")

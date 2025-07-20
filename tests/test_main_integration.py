@@ -85,9 +85,10 @@ class TestMainIntegration(unittest.TestCase):
         print("=" * 60)
         
         # Mock the scraper components
-        with patch('scrape.ViennaGeocoder') as mock_geocoder, \
-             patch('scrape.MongoDBHandler') as mock_mongo, \
-             patch('scrape.StructuredAnalyzer') as mock_analyzer, \
+        with patch('Project.Application.helpers.geocoding.ViennaGeocoder') as mock_geocoder, \
+             patch('Project.Integration.mongodb_handler.MongoDBHandler') as mock_mongo, \
+             patch('Project.Integration.telegram_bot.TelegramBot') as mock_telegram, \
+             patch('Project.Application.analyzer.StructuredAnalyzer') as mock_analyzer, \
              patch.object(TelegramBot, 'send_property_notification', return_value=True):
             
             # Set up mock geocoder
@@ -217,7 +218,7 @@ class TestMainIntegration(unittest.TestCase):
                 message = scraper.telegram_bot._format_property_message(listing_data)
                 self.assertIsInstance(message, str)
                 self.assertIn('🏠', message)
-                self.assertIn('💳', message)
+                self.assertIn('💰', message)
                 self.assertIn('📍', message)
                 self.assertIn('📐', message)
                 self.assertIn('🛏️', message)
@@ -302,10 +303,10 @@ class TestMainIntegration(unittest.TestCase):
             # Missing many required fields
         }
         
-        with patch('scrape.ViennaGeocoder'), \
-             patch('scrape.MongoDBHandler') as mock_mongo, \
-             patch('scrape.TelegramBot'), \
-             patch('scrape.StructuredAnalyzer'):
+        with patch('Project.Application.helpers.geocoding.ViennaGeocoder'), \
+             patch('Project.Integration.mongodb_handler.MongoDBHandler') as mock_mongo, \
+             patch('Project.Integration.telegram_bot.TelegramBot'), \
+             patch('Project.Application.analyzer.StructuredAnalyzer'):
             
             mock_mongo_instance = Mock()
             mock_mongo_instance.listing_exists.return_value = False
@@ -332,10 +333,10 @@ class TestMainIntegration(unittest.TestCase):
             'year_built': 2025  # Future year
         }
         
-        with patch('scrape.ViennaGeocoder'), \
-             patch('scrape.MongoDBHandler') as mock_mongo, \
-             patch('scrape.TelegramBot'), \
-             patch('scrape.StructuredAnalyzer'):
+        with patch('Project.Application.helpers.geocoding.ViennaGeocoder'), \
+             patch('Project.Integration.mongodb_handler.MongoDBHandler') as mock_mongo, \
+             patch('Project.Integration.telegram_bot.TelegramBot'), \
+             patch('Project.Application.analyzer.StructuredAnalyzer'):
             
             mock_mongo_instance = Mock()
             mock_mongo_instance.listing_exists.return_value = False
@@ -359,7 +360,7 @@ class TestMainIntegration(unittest.TestCase):
         # Test with complete data
         complete_listing = self.sample_listing_data.copy()
         
-        with patch('telegram_bot.requests.post') as mock_post:
+        with patch('Project.Integration.telegram_bot.requests.post') as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {'ok': True}
             mock_response.raise_for_status.return_value = None
@@ -370,7 +371,7 @@ class TestMainIntegration(unittest.TestCase):
             
             # Check required elements
             required_elements = [
-                '🏠', '💳', '📍', '📐', '🛏️', '🚇', '🏫', '🏗️', '🛠️', '⚡', '🔗'
+                '🏠', '💰', '📍', '📐', '🛏️', '🚇', '🏫', '🏗️', '🛠️', '⚡', '🔗'
             ]
             
             for element in required_elements:
@@ -402,7 +403,7 @@ class TestMainIntegration(unittest.TestCase):
             'infrastructure_distances': {}
         }
         
-        with patch('telegram_bot.requests.post') as mock_post:
+        with patch('Project.Integration.telegram_bot.requests.post') as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {'ok': True}
             mock_response.raise_for_status.return_value = None

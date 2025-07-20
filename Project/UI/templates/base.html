@@ -135,10 +135,43 @@
                         <i class="fas fa-database mr-1"></i>
                         <span id="property-count">{{ stats.total_properties if stats else 0 }}</span> properties
                     </div>
+                    
+                    <!-- User Menu -->
+                    {% if current_user.is_authenticated %}
+                    <div class="relative">
+                        <div class="flex items-center space-x-2">
+                            <div class="text-sm text-gray-700">
+                                <i class="fas fa-user-circle mr-1"></i>
+                                <span>{{ current_user.username }}</span>
+                            </div>
+                            <a href="{{ url_for('logout') }}" 
+                               class="text-sm text-gray-500 hover:text-red-600 transition-colors duration-200"
+                               title="Logout">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="fixed top-4 right-4 z-50 space-y-2">
+                {% for category, message in messages %}
+                    <div class="fade-in p-4 rounded-lg shadow-lg max-w-sm {% if category == 'error' %}bg-red-500 text-white{% elif category == 'success' %}bg-green-500 text-white{% else %}bg-blue-500 text-white{% endif %}">
+                        <div class="flex items-center">
+                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% elif category == 'success' %}fa-check-circle{% else %}fa-info-circle{% endif %} mr-2"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

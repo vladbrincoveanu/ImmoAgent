@@ -7,7 +7,7 @@ Tests all new features: manual calculation, Betriebskosten, total costs
 import sys
 sys.path.append('.')
 
-from Project.Application.scraping.willhaben_scraper import WillhabenScraper
+from Project.Application.scraping.willhaben_scraper import WillhabenScraper, MortgageCalculator
 from Project.Application.analyzer import StructuredAnalyzer
 from bs4 import BeautifulSoup
 

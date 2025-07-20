@@ -48,16 +48,31 @@ class TestQuickMain(unittest.TestCase):
                 
                 if listing_data:
                     print(f"✅ Listing scraped successfully in {scrape_time:.2f}s")
-                    print(f"   Price: €{listing_data.get('price_total', 'N/A'):,}")
-                    print(f"   Area: {listing_data.get('area_m2', 'N/A')}m²")
-                    print(f"   Rooms: {listing_data.get('rooms', 'N/A')}")
+                    
+                    # Handle both dict and Listing object
+                    if hasattr(listing_data, 'price_total'):
+                        price = listing_data.price_total
+                        area = listing_data.area_m2
+                        rooms = listing_data.rooms
+                        structured_analysis = getattr(listing_data, 'structured_analysis', None)
+                    else:
+                        price = listing_data.get('price_total', 'N/A')
+                        area = listing_data.get('area_m2', 'N/A')
+                        rooms = listing_data.get('rooms', 'N/A')
+                        structured_analysis = listing_data.get('structured_analysis', None)
+                    
+                    print(f"   Price: €{price:,}" if price != 'N/A' else f"   Price: {price}")
+                    print(f"   Area: {area}m²" if area != 'N/A' else f"   Area: {area}")
+                    print(f"   Rooms: {rooms}")
                     
                     # Check if structured analysis was applied
-                    if 'structured_analysis' in listing_data:
-                        analysis = listing_data['structured_analysis']
-                        print(f"   Analysis model: {analysis.get('model', 'N/A')}")
-                        print(f"   Confidence: {analysis.get('confidence', 'N/A')}")
-                        print(f"   Fields extracted: {len(analysis.get('extracted_fields', []))}")
+                    if structured_analysis:
+                        if isinstance(structured_analysis, dict):
+                            print(f"   Analysis model: {structured_analysis.get('model', 'N/A')}")
+                            print(f"   Confidence: {structured_analysis.get('confidence', 'N/A')}")
+                            print(f"   Fields extracted: {len(structured_analysis.get('extracted_fields', []))}")
+                        else:
+                            print(f"   Analysis applied: {type(structured_analysis)}")
                     else:
                         print("   ⚠️ No structured analysis applied")
                     

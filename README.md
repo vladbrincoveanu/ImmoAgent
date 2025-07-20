@@ -124,12 +124,14 @@ The interface displays a grid of property cards with:
 
 ## 🚀 Usage
 
-### Run All Sources
+### Development Mode
+
+#### Run All Sources
 ```bash
 PYTHONPATH=Project python Project/Application/main.py
 ```
 
-### Run Specific Source
+#### Run Specific Source
 ```bash
 # Willhaben only
 PYTHONPATH=Project python Project/Application/main.py --willhaben-only
@@ -141,16 +143,53 @@ PYTHONPATH=Project python Project/Application/main.py --immo-kurier-only
 PYTHONPATH=Project python Project/Application/main.py --derstandard-only
 ```
 
-### Skip Image Processing
+#### Skip Image Processing
 ```bash
 PYTHONPATH=Project python Project/Application/main.py --skip-images
 ```
 
-### Run API Server
+#### Run Development API Server
 ```bash
 cd Project
 python run_api.py
 ```
+
+### Production Mode
+
+#### Quick Deployment
+```bash
+cd Project
+./deploy.sh
+```
+
+#### Manual Docker Deployment
+```bash
+# Build and start services
+docker-compose -f docker-compose.prod.yml up -d
+
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f
+
+# Stop services
+docker-compose -f docker-compose.prod.yml down
+```
+
+#### Production Features
+- ✅ **User Authentication** - Secure login system with user management
+- ✅ **HTTPS/SSL** - Encrypted connections with automatic redirects
+- ✅ **Rate Limiting** - Protection against abuse and DDoS
+- ✅ **Security Headers** - XSS, CSRF, and clickjacking protection
+- ✅ **Load Balancing** - Nginx reverse proxy with caching
+- ✅ **Health Checks** - Automatic service monitoring and restart
+- ✅ **Comprehensive Logging** - Application and access logs
+- ✅ **Persistent Storage** - MongoDB and MinIO with backup-ready volumes
+- ✅ **Auto-scaling Ready** - Containerized architecture for easy scaling
+
+#### Default Credentials
+- **Admin Username**: `admin`
+- **Admin Password**: `admin123` (change in production!)
+- **MinIO Console**: http://localhost:9001
+- **Application**: http://localhost:5001
 
 ## 🧪 Testing
 
