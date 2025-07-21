@@ -28,7 +28,12 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-# Set up logging
+
+# Ensure log directory exists
+log_dir = 'log'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -453,6 +458,7 @@ def main():
     willhaben_only = "--willhaben-only" in sys.argv
     immo_kurier_only = "--immo-kurier-only" in sys.argv
     derstandard_only = "--derstandard-only" in sys.argv
+    send_to_telegram = "--send-to-telegram" in sys.argv
     
     max_pages = config.get('max_pages', 5)
     logging.info(f"📋 Max pages per source: {max_pages}")
@@ -508,15 +514,20 @@ def main():
         
         # Initialize Telegram bot for score-based filtering (main channel for properties)
         telegram_bot = None
-        telegram_config = config.get('telegram', {})
-        bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
-        bot_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID') or telegram_config.get('telegram_main', {}).get('chat_id')
-        if bot_main_token and bot_main_chat_id:
-            try:
-                telegram_bot = TelegramBot(bot_main_token, bot_main_chat_id)
-                logging.info("✅ Telegram main bot initialized for property notifications")
-            except Exception as e:
-                logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
+        if send_to_telegram:
+            telegram_config = config.get('telegram', {})
+            bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
+            bot_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID') or telegram_config.get('telegram_main', {}).get('chat_id')
+            if bot_main_token and bot_main_chat_id:
+                try:
+                    telegram_bot = TelegramBot(bot_main_token, bot_main_chat_id)
+                    logging.info("✅ Telegram main bot initialized for property notifications")
+                except Exception as e:
+                    logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
+            else:
+                logging.warning("⚠️ Telegram sending requested but bot not configured")
+        else:
+            logging.info("📱 Telegram notifications disabled (use --send-to-telegram to enable)")
         
         # Process each listing: save to MongoDB and send to Telegram if score > 40
         saved_count = 0
@@ -524,7 +535,7 @@ def main():
         high_score_listings = []
         
         for listing in all_listings:
-            # Calculate score for the listing
+            # Calculate score for the listing (always needed for MongoDB storage)
             if telegram_bot:
                 score = telegram_bot.calculate_listing_score(listing.__dict__)
                 listing.score = score
@@ -536,10 +547,11 @@ def main():
                 else:
                     logging.info(f"⏭️  Low score listing ({score:.1f}): {listing.title} - skipping Telegram (threshold: {telegram_bot.min_score_threshold})")
             else:
-                # If no Telegram bot, still calculate score for UI display
+                # If no Telegram bot, still calculate score for UI display and MongoDB storage
                 from Application.scoring import score_apartment_simple
                 score = score_apartment_simple(listing.__dict__)
                 listing.score = score
+                logging.info(f"📊 Listing score ({score:.1f}): {listing.title}")
         
         # Save all listings to MongoDB (regardless of score)
         saved_count = save_listings_to_mongodb(all_listings)
@@ -572,8 +584,8 @@ def main():
         else:
             downloaded_count = 0
         
-        # Send Telegram notifications for high-score listings only
-        if telegram_bot and high_score_listings:
+        # Send Telegram notifications for high-score listings only (if enabled)
+        if send_to_telegram and telegram_bot and high_score_listings:
             logging.info(f"📱 Sending {len(high_score_listings)} high-score notifications to Telegram...")
             
             for listing in high_score_listings:
@@ -588,9 +600,11 @@ def main():
                     logging.error(f"❌ Telegram error for {listing.title}: {e}")
             
             logging.info(f"📱 Sent {telegram_sent_count}/{len(high_score_listings)} Telegram notifications")
+        elif not send_to_telegram:
+            logging.info("📱 Telegram notifications skipped (use --send-to-telegram to enable)")
         
-        # Send summary to Telegram (main channel)
-        if telegram_bot:
+        # Send summary to Telegram (main channel) - only if enabled
+        if send_to_telegram and telegram_bot:
             try:
                 summary_message = f"""🎉 <b>Integrated Immo-Scouter Summary</b>
                     📋 Found <b>{len(all_listings)}</b> total properties
@@ -609,13 +623,15 @@ def main():
                 logging.info("📱 Summary sent to Telegram main channel")
             except Exception as e:
                 logging.error(f"❌ Failed to send Telegram summary: {e}")
+        elif not send_to_telegram:
+            logging.info("📱 Telegram summary skipped (use --send-to-telegram to enable)")
     
     else:
         logging.info("❌ No listings found matching your criteria.")
         logging.info("💡 Consider adjusting your criteria in config.json")
             
-        # Send "no results" notification (main channel)
-        if telegram_bot:
+        # Send "no results" notification (main channel) - only if enabled
+        if send_to_telegram and telegram_bot:
             try:
                 no_results_message = """🤷‍♂️ <b>Integrated Immo-Scouter Update</b>
 
@@ -625,6 +641,8 @@ No new properties found matching your criteria.
                 telegram_bot.send_message(no_results_message)
             except Exception as e:
                 logging.error(f"❌ Failed to send Telegram notification: {e}")
+        elif not send_to_telegram:
+            logging.info("📱 Telegram 'no results' notification skipped (use --send-to-telegram to enable)")
     
     logging.info("\n✅ Integrated Immo-Scouter Main Job Completed")
     logging.info("=" * 60)
@@ -640,6 +658,7 @@ if __name__ == "__main__":
     parser.add_argument("--willhaben-only", action="store_true", help="Only scrape Willhaben")
     parser.add_argument("--immo-kurier-only", action="store_true", help="Only scrape Immo Kurier")
     parser.add_argument("--derstandard-only", action="store_true", help="Only scrape derStandard")
+    parser.add_argument("--send-to-telegram", action="store_true", help="Send property notifications to Telegram (disabled by default)")
     
     args = parser.parse_args()
     
