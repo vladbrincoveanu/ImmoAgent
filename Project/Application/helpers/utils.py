@@ -8,6 +8,65 @@ from Domain.location import Coordinates, UBahnStation
 _config: Optional[Dict] = None
 _project_root: Optional[str] = None
 
+def supplement_config_with_env_vars(config: Dict) -> Dict:
+    """Supplement config with environment variables if they exist"""
+    # MongoDB
+    if os.getenv('MONGODB_URI'):
+        config['mongodb_uri'] = os.getenv('MONGODB_URI')
+    
+    # Ollama
+    if os.getenv('OLLAMA_BASE_URL'):
+        config['ollama_base_url'] = os.getenv('OLLAMA_BASE_URL')
+    if os.getenv('OLLAMA_MODEL'):
+        config['ollama_model'] = os.getenv('OLLAMA_MODEL')
+    
+    # OpenAI
+    if os.getenv('OPENAI_API_KEY'):
+        config['openai_api_key'] = os.getenv('OPENAI_API_KEY')
+    if os.getenv('OPENAI_MODEL'):
+        config['openai_model'] = os.getenv('OPENAI_MODEL')
+    
+    # Telegram - ensure telegram section exists
+    if 'telegram' not in config:
+        config['telegram'] = {}
+    
+    # Telegram Main
+    if os.getenv('TELEGRAM_BOT_MAIN_TOKEN'):
+        if 'telegram_main' not in config['telegram']:
+            config['telegram']['telegram_main'] = {}
+        config['telegram']['telegram_main']['bot_token'] = os.getenv('TELEGRAM_BOT_MAIN_TOKEN')
+    
+    if os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID'):
+        if 'telegram_main' not in config['telegram']:
+            config['telegram']['telegram_main'] = {}
+        config['telegram']['telegram_main']['chat_id'] = os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID')
+    
+    # Telegram Vienna
+    if os.getenv('TELEGRAM_BOT_VIENNA_TOKEN'):
+        if 'telegram_vienna' not in config['telegram']:
+            config['telegram']['telegram_vienna'] = {}
+        config['telegram']['telegram_vienna']['bot_token'] = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN')
+    
+    if os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID'):
+        if 'telegram_vienna' not in config['telegram']:
+            config['telegram']['telegram_vienna'] = {}
+        config['telegram']['telegram_vienna']['chat_id'] = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID')
+    
+    # MinIO - ensure minio section exists
+    if 'minio' not in config:
+        config['minio'] = {}
+    
+    if os.getenv('MINIO_ENDPOINT'):
+        config['minio']['endpoint'] = os.getenv('MINIO_ENDPOINT')
+    if os.getenv('MINIO_ACCESS_KEY'):
+        config['minio']['access_key'] = os.getenv('MINIO_ACCESS_KEY')
+    if os.getenv('MINIO_SECRET_KEY'):
+        config['minio']['secret_key'] = os.getenv('MINIO_SECRET_KEY')
+    if os.getenv('MINIO_BUCKET_NAME'):
+        config['minio']['bucket_name'] = os.getenv('MINIO_BUCKET_NAME')
+    
+    return config
+
 def get_project_root() -> str:
     """Finds the project root by looking for a sentinel file (e.g., README.md)."""
     global _project_root
@@ -16,6 +75,7 @@ def get_project_root() -> str:
 
     # Start from the current working directory
     current_dir = os.getcwd()
+    print(f"🔍 Current working directory: {current_dir}")
     
     # First, try to find config.json in the current working directory
     if os.path.exists(os.path.join(current_dir, 'config.json')):
@@ -27,6 +87,39 @@ def get_project_root() -> str:
     if os.path.exists(os.path.join(parent_dir, 'config.json')):
         _project_root = parent_dir
         return parent_dir
+    
+    # GitHub Actions specific handling
+    if '/home/runner/work/' in current_dir:
+        # We're in GitHub Actions, try common paths
+        possible_paths = [
+            '/home/runner/work/ImmoAgent/ImmoAgent',
+            '/home/runner/work/ImmoAgent/ImmoAgent/Project',
+            '/home/runner/work/ImmoAgent/ImmoAgent/Project/..',
+            current_dir,
+            os.path.dirname(current_dir),
+            # Additional GitHub Actions paths
+            '/home/runner/work/ImmoAgent/ImmoAgent/..',
+            '/home/runner/work/ImmoAgent',
+            '/home/runner/work'
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(os.path.join(path, 'config.json')):
+                _project_root = path
+                print(f"🔍 Found config.json in GitHub Actions path: {path}")
+                return path
+        
+        # If still not found, try to search more broadly
+        print("🔍 Searching more broadly for config.json in GitHub Actions...")
+        for root, dirs, files in os.walk('/home/runner/work', topdown=True):
+            if 'config.json' in files:
+                config_path = os.path.join(root, 'config.json')
+                _project_root = root
+                print(f"🔍 Found config.json in GitHub Actions search: {config_path}")
+                return root
+            # Limit search depth
+            if root.count(os.sep) - '/home/runner/work'.count(os.sep) > 3:
+                dirs.clear()
     
     # Fallback: start from the current file's directory and work up
     path = os.path.dirname(os.path.abspath(__file__))
@@ -70,6 +163,10 @@ def load_config() -> Dict:
                 if isinstance(loaded_json, dict):
                     _config = loaded_json
                     print(f"✅ Loaded config from {config_path}")
+                    
+                    # Supplement with environment variables if they exist
+                    _config = supplement_config_with_env_vars(_config)
+                    
                     return _config
         else:
             print(f"❌ Could not find config.json at {config_path}")
@@ -85,7 +182,16 @@ def load_config() -> Dict:
         '../config.json',
         '../../config.json',
         'Project/config.json',
-        '../Project/config.json'
+        '../Project/config.json',
+        # GitHub Actions specific paths
+        '/home/runner/work/ImmoAgent/ImmoAgent/config.json',
+        '/home/runner/work/ImmoAgent/ImmoAgent/Project/config.json',
+        '/home/runner/work/ImmoAgent/ImmoAgent/Project/../config.json',
+        # Additional common CI paths
+        'ImmoAgent/config.json',
+        'ImmoAgent/Project/config.json',
+        'immo-scouter/Project/config.json',
+        'immo-scouter/Project/../config.json'
     ]
     for path in legacy_paths:
         if os.path.exists(path):
@@ -95,11 +201,119 @@ def load_config() -> Dict:
                     if isinstance(loaded_json, dict):
                         _config = loaded_json
                         print(f"✅ Loaded config from legacy path: {path}")
+                        
+                        # Supplement with environment variables if they exist
+                        _config = supplement_config_with_env_vars(_config)
+                        
                         return _config
             except Exception:
                 continue
 
-    raise FileNotFoundError("❌ No config file found!")
+    # Last resort: create a config using environment variables and defaults
+    print("⚠️  No config file found, creating config from environment variables and defaults...")
+    
+    # Get environment variables with fallbacks
+    mongodb_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/immo')
+    ollama_base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+    ollama_model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+    openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+    
+    # Telegram configuration from environment variables
+    telegram_main_token = os.getenv('TELEGRAM_BOT_MAIN_TOKEN', 'test_token')
+    telegram_main_chat_id = os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID', 'test_chat_id')
+    telegram_vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN', telegram_main_token)
+    telegram_vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID', telegram_main_chat_id)
+    
+    # MinIO configuration from environment variables
+    minio_endpoint = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
+    minio_access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
+    minio_secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+    minio_bucket = os.getenv('MINIO_BUCKET_NAME', 'immo-images')
+    
+    minimal_config = {
+        "mongodb_uri": mongodb_uri,
+        "ollama_base_url": ollama_base_url,
+        "ollama_model": ollama_model,
+        "openai_api_key": openai_api_key,
+        "openai_model": openai_model,
+        "source": "willhaben",
+        "max_pages": 5,
+        "scraping": {
+            "timeout": 30,
+            "delay_between_requests": 1,
+            "selenium_wait_time": 10,
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        },
+        "willhaben": {
+            "base_url": "https://www.willhaben.at",
+            "search_url": "https://www.willhaben.at/iad/immobilien/eigentumswohnung/wien",
+            "max_pages": 5,
+            "timeout": 30
+        },
+        "immo_kurier": {
+            "base_url": "https://immo.kurier.at",
+            "search_url": "https://immo.kurier.at/suche?l=Wien&r=0km&_multiselect_r=0km&a=at.wien&t=all%3Asale%3Aliving&pf=&pt=&rf=&rt=&sf=&st=",
+            "max_pages": 5,
+            "timeout": 30
+        },
+        "derstandard": {
+            "base_url": "https://immobilien.derstandard.at",
+            "search_url": "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung?roomCountFrom=3",
+            "max_pages": 5,
+            "timeout": 30
+        },
+        "telegram": {
+            "telegram_main": {
+                "bot_token": telegram_main_token,
+                "chat_id": telegram_main_chat_id
+            },
+            "telegram_vienna": {
+                "bot_token": telegram_vienna_token,
+                "chat_id": telegram_vienna_chat_id
+            },
+            "min_score_threshold": 40
+        },
+        "top5": {
+            "limit": 5,
+            "min_score": 40.0,
+            "days_old": 7,
+            "excluded_districts": ["1100", "1160"],
+            "min_rooms": 3,
+            "include_monthly_payment": true
+        },
+        "criteria": {
+            "price_max": 1000000,
+            "price_per_m2_max": 20000,
+            "area_m2_min": 20,
+            "rooms_min": 3,
+            "year_built_min": 1970,
+            "districts": [
+                "1010", "1020", "1030", "1040", "1050", "1060", "1070", "1080", "1090", "1100",
+                "1110", "1120", "1130", "1140", "1150", "1160", "1170", "1180", "1190", "1200",
+                "1210", "1220", "1230"
+            ]
+        },
+        "minio": {
+            "endpoint": minio_endpoint,
+            "access_key": minio_access_key,
+            "secret_key": minio_secret_key,
+            "bucket_name": minio_bucket,
+            "secure": False
+        },
+        "api": {
+            "host": "0.0.0.0",
+            "port": 5000,
+            "debug": False
+        }
+    }
+    
+    _config = minimal_config
+    print("✅ Created config from environment variables and defaults")
+    print(f"🔧 Using MongoDB: {mongodb_uri}")
+    print(f"🔧 Using Telegram Main: {telegram_main_token[:10]}... (token), {telegram_main_chat_id} (chat_id)")
+    print(f"🔧 Using MinIO: {minio_endpoint}")
+    return _config
 
 
 class DataLoader:
