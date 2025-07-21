@@ -14,6 +14,21 @@ def get_project_root() -> str:
     if _project_root:
         return _project_root
 
+    # Start from the current working directory
+    current_dir = os.getcwd()
+    
+    # First, try to find config.json in the current working directory
+    if os.path.exists(os.path.join(current_dir, 'config.json')):
+        _project_root = current_dir
+        return current_dir
+    
+    # Then try the parent of current directory (for cases where we're in a subdirectory)
+    parent_dir = os.path.dirname(current_dir)
+    if os.path.exists(os.path.join(parent_dir, 'config.json')):
+        _project_root = parent_dir
+        return parent_dir
+    
+    # Fallback: start from the current file's directory and work up
     path = os.path.dirname(os.path.abspath(__file__))
     while True:
         if os.path.exists(os.path.join(path, 'README.md')):
@@ -45,6 +60,9 @@ def load_config() -> Dict:
     try:
         project_root = get_project_root()
         config_path = os.path.join(project_root, 'config.json')
+        
+        print(f"🔍 Looking for config.json at: {config_path}")
+        print(f"🔍 Current working directory: {os.getcwd()}")
 
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -61,7 +79,14 @@ def load_config() -> Dict:
 
     # Fallback for old structure or errors
     print("⚠️  config.json not found in project root, trying legacy paths...")
-    legacy_paths = ['config.json', 'immo-scouter/config.json']
+    legacy_paths = [
+        'config.json', 
+        'immo-scouter/config.json',
+        '../config.json',
+        '../../config.json',
+        'Project/config.json',
+        '../Project/config.json'
+    ]
     for path in legacy_paths:
         if os.path.exists(path):
             try:

@@ -529,6 +529,19 @@ def main():
         else:
             logging.info("📱 Telegram notifications disabled (use --send-to-telegram to enable)")
         
+        # Calculate additional ratings for all listings before scoring
+        from Application.rating_calculator import calculate_all_ratings
+        
+        for listing in all_listings:
+            # Calculate missing ratings
+            ratings = calculate_all_ratings(listing.__dict__)
+            listing.potential_growth_rating = ratings['potential_growth_rating']
+            listing.renovation_needed_rating = ratings['renovation_needed_rating']
+            listing.balcony_terrace = ratings['balcony_terrace']
+            listing.floor_level = ratings['floor_level']
+            
+            logging.info(f"📊 Calculated ratings for {listing.title}: Growth={ratings['potential_growth_rating']}, Renovation={ratings['renovation_needed_rating']}, Balcony={ratings['balcony_terrace']}, Floor={ratings['floor_level']}")
+        
         # Process each listing: save to MongoDB and send to Telegram if score > 40
         saved_count = 0
         telegram_sent_count = 0

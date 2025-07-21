@@ -61,6 +61,14 @@ def is_valid_listing(listing):
             print(f"🚫 Filtered out garbage: {area_m2}m² area (too small)")
             return False
         
+        # Check monthly payment filter (below €2,000)
+        monthly_payment = listing.get('monthly_payment', {})
+        if monthly_payment and isinstance(monthly_payment, dict):
+            total_monthly = monthly_payment.get('total_monthly', 0)
+            if total_monthly > 2000:  # More than €2,000 monthly payment
+                print(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,000)")
+                return False
+        
         return True
         
     except Exception as e:
