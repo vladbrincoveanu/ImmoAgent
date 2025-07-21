@@ -95,6 +95,18 @@ def main():
     """Main function to fetch top 5 listings and send to Telegram"""
     setup_logging()
     
+    # Parse buyer profile from command line arguments
+    buyer_profile = "diy_renovator"  # Default to DIY Renovator profile
+    for i, arg in enumerate(sys.argv):
+        if arg == "--buyer-profile" and i + 1 < len(sys.argv):
+            buyer_profile = sys.argv[i + 1]
+        elif arg.startswith("--buyer-profile="):
+            buyer_profile = arg.split("=", 1)[1]
+    
+    # Set the buyer profile for scoring
+    from Application.scoring import set_buyer_profile
+    set_buyer_profile(buyer_profile)
+    
     print("🏆 Starting Top 5 Properties Report")
     print("=" * 50)
     
