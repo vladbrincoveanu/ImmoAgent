@@ -3,6 +3,8 @@ import os
 from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass
 
+from sympy import true
+
 from Domain.location import Coordinates, UBahnStation
 
 _config: Optional[Dict] = None
@@ -280,7 +282,7 @@ def load_config() -> Dict:
             "days_old": 7,
             "excluded_districts": ["1100", "1160"],
             "min_rooms": 3,
-            "include_monthly_payment": true
+            "include_monthly_payment": True
         },
         "criteria": {
             "price_max": 1000000,
