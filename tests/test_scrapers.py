@@ -16,6 +16,11 @@ from Project.Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 from Project.Integration.mongodb_handler import MongoDBHandler
 
 # Configure logging
+# Ensure log directory exists
+log_dir = 'log'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',

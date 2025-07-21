@@ -128,22 +128,35 @@ class MongoDBHandler:
             cutoff_date = datetime.now() - timedelta(days=days_old)
             cutoff_timestamp = cutoff_date.timestamp()
             
-            # Build query
-            query = {
+            # Build base query
+            base_query = {
                 "processed_at": {"$gte": cutoff_timestamp}
             }
             
             # Add score filter if specified
             if min_score > 0:
-                query["score"] = {"$gte": min_score}
+                base_query["score"] = {"$gte": min_score}
             
             # Add district exclusion filter
             if excluded_districts and len(excluded_districts) > 0:
-                query["bezirk"] = {"$nin": excluded_districts}
+                base_query["bezirk"] = {"$nin": excluded_districts}
             
-            # Add minimum rooms filter
+            # Build final query with room filter handling
             if min_rooms > 0:
-                query["rooms"] = {"$gte": min_rooms}
+                # Handle None values - include properties with None rooms OR rooms >= min_rooms
+                query = {
+                    "$and": [
+                        base_query,
+                        {
+                            "$or": [
+                                {"rooms": {"$gte": min_rooms}},
+                                {"rooms": None}
+                            ]
+                        }
+                    ]
+                }
+            else:
+                query = base_query
             
             # Sort by score descending, then by processed_at descending
             sort_criteria = [

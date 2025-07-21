@@ -40,6 +40,11 @@ def main():
     print("=" * 60)
     
     # Set up logging
+    # Ensure log directory exists
+    log_dir = 'log'
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',

@@ -12,6 +12,11 @@ from Project.Application.analyzer import StructuredAnalyzer
 from Project.Integration.mongodb_handler import MongoDBHandler
 from Project.Integration.telegram_bot import TelegramBot
 
+# Ensure log directory exists
+log_dir = 'log'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
