@@ -44,3 +44,7 @@ class Listing:
     coordinates: Optional[Coordinates] = None
     source_enum: Optional[Source] = None
     score: Optional[float] = None
+    potential_growth_rating: Optional[int] = None
+    renovation_needed_rating: Optional[int] = None
+    balcony_terrace: Optional[bool] = None
+    floor_level: Optional[int] = None

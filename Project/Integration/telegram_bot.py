@@ -327,14 +327,7 @@ class TelegramBot:
         if address and price:
             message_parts.append(f"🏠 <b>{address}</b> - {price}")
         
-        # Rate line with initial sum invested
-        if monthly_rate:
-            rate_line = f"💰 Rate: {monthly_rate}"
-            if initial_sum:
-                rate_line += f" ({initial_sum} initial sum invested)"
-            if mortgage_line:
-                rate_line += mortgage_line
-            message_parts.append(rate_line)
+        # Rate line removed - only showing total monthly payment
         
         # Betriebskosten line
         if betriebskosten:

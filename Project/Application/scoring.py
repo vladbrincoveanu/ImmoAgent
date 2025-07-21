@@ -26,17 +26,17 @@ NORMALIZATION_RANGES = {
 # Define the weights for each criterion. Sum of weights should be 1.0 (or 100).
 # Adjust these based on your personal priorities.
 CRITERIA_WEIGHTS = {
-    'price_per_m2': 0.20,
-    'hwb_value': 0.15,
-    'year_built': 0.10,
-    'ubahn_walk_minutes': 0.15,
-    'school_walk_minutes': 0.05,
-    'rooms': 0.05,
-    'balcony_terrace': 0.10,
-    'floor_level': 0.05,
-    'potential_growth_rating': 0.05,
-    'renovation_needed_rating': 0.05,
-    'area_m2': 0.05,
+    'price_per_m2': 0.30,              # The single most important factor
+    'potential_growth_rating': 0.25,   # Focus on the future resale value
+    'renovation_needed_rating': 0.20,  # Actively seeking a project
+    'area_m2': 0.10,                   # More space provides more options
+    'ubahn_walk_minutes': 0.10,        # Location still drives resale value
+    'year_built': 0.05,                # Older buildings ("Altbau") can be desirable
+    'hwb_value': 0.00,
+    'school_walk_minutes': 0.00,
+    'rooms': 0.00,
+    'balcony_terrace': 0.00,
+    'floor_level': 0.00,
 }
 
 # Ensure weights sum to 1.0 for validation
