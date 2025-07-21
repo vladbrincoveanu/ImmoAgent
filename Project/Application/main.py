@@ -460,6 +460,18 @@ def main():
     derstandard_only = "--derstandard-only" in sys.argv
     send_to_telegram = "--send-to-telegram" in sys.argv
     
+    # Parse buyer profile from command line arguments
+    buyer_profile = "diy_renovator"  # Default to DIY Renovator profile
+    for i, arg in enumerate(sys.argv):
+        if arg == "--buyer-profile" and i + 1 < len(sys.argv):
+            buyer_profile = sys.argv[i + 1]
+        elif arg.startswith("--buyer-profile="):
+            buyer_profile = arg.split("=", 1)[1]
+    
+    # Set the buyer profile for scoring
+    from Application.scoring import set_buyer_profile
+    set_buyer_profile(buyer_profile)
+    
     max_pages = config.get('max_pages', 5)
     logging.info(f"📋 Max pages per source: {max_pages}")
     

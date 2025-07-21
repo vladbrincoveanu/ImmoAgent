@@ -23,21 +23,23 @@ NORMALIZATION_RANGES = {
     'renovation_needed_rating': {'min_val': 1, 'max_val': 5, 'direction': 'lower_is_better'}, # 1 (None) to 5 (Major)
 }
 
-# Define the weights for each criterion. Sum of weights should be 1.0 (or 100).
-# Adjust these based on your personal priorities.
+# Default weights (will be overridden by buyer profile)
 CRITERIA_WEIGHTS = {
-    'price_per_m2': 0.30,              # The single most important factor
-    'potential_growth_rating': 0.25,   # Focus on the future resale value
-    'renovation_needed_rating': 0.20,  # Actively seeking a project
-    'area_m2': 0.10,                   # More space provides more options
-    'ubahn_walk_minutes': 0.10,        # Location still drives resale value
-    'year_built': 0.05,                # Older buildings ("Altbau") can be desirable
-    'hwb_value': 0.00,
-    'school_walk_minutes': 0.00,
-    'rooms': 0.00,
-    'balcony_terrace': 0.00,
-    'floor_level': 0.00,
+    'price_per_m2': 0.20,
+    'hwb_value': 0.05,
+    'year_built': 0.15,
+    'ubahn_walk_minutes': 0.15,
+    'school_walk_minutes': 0.05,
+    'rooms': 0.05,
+    'balcony_terrace': 0.10,
+    'floor_level': 0.05,
+    'potential_growth_rating': 0.10,
+    'renovation_needed_rating': 0.05,
+    'area_m2': 0.05,
 }
+
+# Global variable to track current profile
+_current_profile = 'diy_renovator'
 
 # Ensure weights sum to 1.0 for validation
 def validate_weights():
@@ -46,8 +48,53 @@ def validate_weights():
     if abs(total_weight - 1.0) > 0.001:
         raise ValueError(f"Weights must sum to 1.0, but sum to {total_weight}")
 
-# Validate weights on import
-validate_weights()
+def set_buyer_profile(profile_name: str):
+    """
+    Set the buyer profile to use for scoring.
+    
+    Args:
+        profile_name: Name of the profile to use
+    """
+    global CRITERIA_WEIGHTS, _current_profile
+    
+    try:
+        from Application.buyer_profiles import get_profile
+        profile = get_profile(profile_name)
+        CRITERIA_WEIGHTS = profile['weights'].copy()
+        _current_profile = profile_name
+        validate_weights()
+        print(f"✅ Set buyer profile to: {profile['name']}")
+    except Exception as e:
+        print(f"❌ Error setting profile '{profile_name}': {e}")
+        print("Using DIY Renovator profile instead.")
+
+def get_current_profile() -> str:
+    """
+    Get the name of the current buyer profile.
+    
+    Returns:
+        str: Name of the current profile
+    """
+    return _current_profile
+
+def get_current_weights() -> dict:
+    """
+    Get the current criteria weights.
+    
+    Returns:
+        dict: Current criteria weights
+    """
+    return CRITERIA_WEIGHTS.copy()
+
+# Initialize with DIY Renovator profile by default
+try:
+    from Application.buyer_profiles import get_profile
+    profile = get_profile('diy_renovator')
+    CRITERIA_WEIGHTS = profile['weights'].copy()
+    validate_weights()
+except Exception as e:
+    # If there's an error, keep the default weights and validate them
+    validate_weights()
 
 def normalize_value(criterion_name, actual_value):
     """
