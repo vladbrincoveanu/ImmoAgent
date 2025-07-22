@@ -215,17 +215,28 @@ def load_config() -> Dict:
     print("⚠️  No config file found, creating config from environment variables and defaults...")
     
     # Get environment variables with fallbacks
-    mongodb_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/immo')
+    mongodb_uri = os.getenv('MONGODB_URI')
+    if not mongodb_uri:
+        mongodb_uri = 'mongodb://localhost:27017/immo'
+        print("⚠️  No MONGODB_URI found, using default localhost")
     ollama_base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     ollama_model = os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
     openai_api_key = os.getenv('OPENAI_API_KEY')
     openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
     
     # Telegram configuration from environment variables
-    telegram_main_token = os.getenv('TELEGRAM_BOT_MAIN_TOKEN', 'test_token')
-    telegram_main_chat_id = os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID', 'test_chat_id')
+    telegram_main_token = os.getenv('TELEGRAM_BOT_MAIN_TOKEN')
+    telegram_main_chat_id = os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID')
     telegram_vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN', telegram_main_token)
     telegram_vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID', telegram_main_chat_id)
+    
+    # Only set default values if environment variables are not provided
+    if not telegram_main_token:
+        telegram_main_token = 'test_token'
+        print("⚠️  No TELEGRAM_BOT_MAIN_TOKEN found, using test token")
+    if not telegram_main_chat_id:
+        telegram_main_chat_id = 'test_chat_id'
+        print("⚠️  No TELEGRAM_BOT_MAIN_CHAT_ID found, using test chat ID")
     
     # MinIO configuration from environment variables
     minio_endpoint = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
