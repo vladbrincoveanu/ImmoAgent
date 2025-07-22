@@ -123,6 +123,7 @@ def main():
         
         if not mongo.client:
             logging.error("❌ Failed to connect to MongoDB")
+            logging.info("ℹ️ This is expected in GitHub Actions environment without MongoDB")
             return False
         
         # Initialize Telegram bot
@@ -141,6 +142,7 @@ def main():
         # Test Telegram connection
         if not telegram_bot.test_connection():
             logging.error("❌ Failed to connect to Telegram")
+            logging.info("ℹ️ This is expected if Telegram bot token is not configured or invalid")
             return False
         
         # Get parameters from config or use defaults
