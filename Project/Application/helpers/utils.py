@@ -3,7 +3,7 @@ import os
 from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass
 
-from sympy import true
+
 
 from Domain.location import Coordinates, UBahnStation
 

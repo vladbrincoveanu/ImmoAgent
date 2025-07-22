@@ -436,6 +436,10 @@ def main():
     bot_token = os.getenv('TELEGRAM_DEV_BOT_TOKEN') or dev_config.get('bot_token')
     bot_chat_id = os.getenv('TELEGRAM_DEV_CHAT_ID') or dev_config.get('chat_id')
 
+    # Test system components
+    component_status = test_system_components(config)
+    
+    # Setup Telegram error logging if configured
     if bot_token and bot_chat_id:
         from Integration.telegram_bot import TelegramBot
         bot = TelegramBot(bot_token, bot_chat_id)
@@ -446,9 +450,10 @@ def main():
                 logging.info("✅ Telegram error logging configured")
         except Exception as e:
             logging.warning(f"⚠️ Failed to setup Telegram error logging: {e}")
-        else:
-            logging.info("ℹ️ Telegram not configured, skipping error logging setup")
-        component_status = test_system_components(config)
+    else:
+        logging.info("ℹ️ Telegram not configured, skipping error logging setup")
+    
+    # Check MongoDB status
     if not component_status['mongodb']:
         logging.error("❌ MongoDB is required but not working. Please fix the connection.")
         return
