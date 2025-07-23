@@ -8,6 +8,13 @@ on:
 jobs:
   run-top5:
     runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -15,11 +22,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Adjust as needed
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           pip install -r Project/requirements.txt
+
+      - name: Wait for MongoDB to be available
+        run: |
+          for i in $(seq 1 30); do
+            nc -z localhost 27017 && echo "MongoDB is up" && break
+            echo "Waiting for MongoDB..."
+            sleep 2
+          done
 
       - name: Run Top5 script
         run: |
