@@ -33,15 +33,15 @@ def supplement_config_with_env_vars(config: Dict) -> Dict:
         config['telegram'] = {}
     
     # Telegram Main
-    if os.getenv('TELEGRAM_BOT_MAIN_TOKEN'):
+    if os.getenv('TELEGRAM_MAIN_BOT_TOKEN'):
         if 'telegram_main' not in config['telegram']:
             config['telegram']['telegram_main'] = {}
-        config['telegram']['telegram_main']['bot_token'] = os.getenv('TELEGRAM_BOT_MAIN_TOKEN')
+        config['telegram']['telegram_main']['bot_token'] = os.getenv('TELEGRAM_MAIN_BOT_TOKEN')
     
-    if os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID'):
+    if os.getenv('TELEGRAM_MAIN_CHAT_ID'):
         if 'telegram_main' not in config['telegram']:
             config['telegram']['telegram_main'] = {}
-        config['telegram']['telegram_main']['chat_id'] = os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID')
+        config['telegram']['telegram_main']['chat_id'] = os.getenv('TELEGRAM_MAIN_CHAT_ID')
     
     # Telegram Vienna
     if os.getenv('TELEGRAM_BOT_VIENNA_TOKEN'):
@@ -225,18 +225,18 @@ def load_config() -> Dict:
     openai_model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
     
     # Telegram configuration from environment variables
-    telegram_main_token = os.getenv('TELEGRAM_BOT_MAIN_TOKEN')
-    telegram_main_chat_id = os.getenv('TELEGRAM_BOT_MAIN_CHAT_ID')
+    telegram_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN')
+    telegram_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID')
     telegram_vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN', telegram_main_token)
     telegram_vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID', telegram_main_chat_id)
     
     # Only set default values if environment variables are not provided
     if not telegram_main_token:
         telegram_main_token = 'test_token'
-        print("⚠️  No TELEGRAM_BOT_MAIN_TOKEN found, using test token")
+        print("⚠️  No TELEGRAM_MAIN_BOT_TOKEN found, using test token")
     if not telegram_main_chat_id:
         telegram_main_chat_id = 'test_chat_id'
-        print("⚠️  No TELEGRAM_BOT_MAIN_CHAT_ID found, using test chat ID")
+        print("⚠️  No TELEGRAM_MAIN_CHAT_ID found, using test chat ID")
     
     # MinIO configuration from environment variables
     minio_endpoint = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
