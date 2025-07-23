@@ -12,68 +12,9 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from Application.helpers.utils import load_config
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
-
-def is_valid_listing(listing):
-    """
-    Validate if a listing has realistic prices and data
-    
-    Args:
-        listing: Listing dictionary
-        
-    Returns:
-        bool: True if listing is valid, False if garbage
-    """
-    try:
-        price_total = listing.get('price_total', 0)
-        area_m2 = listing.get('area_m2', 0)
-        
-        # Skip if missing essential data
-        if not price_total or not area_m2:
-            return False
-        
-        # Calculate price per m²
-        price_per_m2 = price_total / area_m2
-        
-        # Vienna price validation rules
-        # Minimum realistic price per m² in Vienna (even for very cheap areas)
-        min_price_per_m2 = 1000  # €1,000/m² minimum
-        
-        # Maximum realistic price per m² in Vienna (even for luxury areas)
-        max_price_per_m2 = 25000  # €25,000/m² maximum
-        
-        # Check if price per m² is realistic
-        if price_per_m2 < min_price_per_m2:
-            print(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (too cheap)")
-            return False
-        
-        if price_per_m2 > max_price_per_m2:
-            print(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (too expensive)")
-            return False
-        
-        # Additional checks for obviously wrong data
-        if price_total < 50000:  # Less than €50k total price is suspicious
-            print(f"🚫 Filtered out garbage: €{price_total:,} total price (too low)")
-            return False
-        
-        if area_m2 < 20:  # Less than 20m² is suspicious
-            print(f"🚫 Filtered out garbage: {area_m2}m² area (too small)")
-            return False
-        
-        # Check monthly payment filter (below €2,000)
-        monthly_payment = listing.get('monthly_payment', {})
-        if monthly_payment and isinstance(monthly_payment, dict):
-            total_monthly = monthly_payment.get('total_monthly', 0)
-            if total_monthly > 2000:  # More than €2,000 monthly payment
-                print(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,000)")
-                return False
-        
-        return True
-        
-    except Exception as e:
-        print(f"🚫 Error validating listing: {e}")
-        return False
 
 def setup_logging():
     """Setup logging configuration"""
@@ -174,14 +115,12 @@ def main():
         )
         
         # Filter out garbage listings with unrealistic prices
-        valid_listings = []
-        for listing in listings:
-            if is_valid_listing(listing):
-                valid_listings.append(listing)
-                if len(valid_listings) >= limit:
-                    break
+        original_count = len(listings)
+        listings = filter_valid_listings(listings, limit=limit)
         
-        listings = valid_listings[:limit]
+        # Log validation statistics
+        stats = get_validation_stats(listings[:original_count])
+        logging.info(f"📊 Validation stats: {stats['valid']}/{stats['total']} valid ({stats['valid_percentage']:.1f}%)")
         
         if not listings:
             logging.warning("⚠️ No listings found matching criteria")
@@ -214,6 +153,9 @@ def main():
         
         if success:
             print(f"✅ Successfully sent top {len(listings)} listings to Telegram")
+            
+            # Mark listings as sent to prevent duplicates
+            mongo.mark_listings_sent(listings)
             
             # Print summary
             print("\n📊 Summary:")

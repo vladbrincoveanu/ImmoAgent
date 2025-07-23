@@ -65,15 +65,83 @@ class MongoDBHandler:
             return False
 
     def mark_sent(self, url: str):
+        """Mark a listing as sent to Telegram with timestamp"""
         try:
-            self.collection.update_one({"url": url}, {"$set": {"sent_to_telegram": True}})
+            from datetime import datetime
+            sent_timestamp = datetime.now().timestamp()
+            self.collection.update_one(
+                {"url": url}, 
+                {"$set": {
+                    "sent_to_telegram": True,
+                    "sent_to_telegram_at": sent_timestamp
+                }}
+            )
+            logging.info(f"✅ Marked listing as sent to Telegram: {url}")
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
-                print(f"⚠️  MongoDB authentication required, skipping update: {e}")
+                logging.warning(f"⚠️  MongoDB authentication required, skipping update: {e}")
             else:
-                print(f"MongoDB update error: {e}")
+                logging.error(f"MongoDB update error: {e}")
         except Exception as e:
-            print(f"MongoDB update error: {e}")
+            logging.error(f"MongoDB update error: {e}")
+
+    def mark_listings_sent(self, listings: List[Dict]):
+        """Mark multiple listings as sent to Telegram"""
+        try:
+            from datetime import datetime
+            sent_timestamp = datetime.now().timestamp()
+            
+            urls = [listing.get('url') for listing in listings if listing.get('url')]
+            if not urls:
+                return
+            
+            # Update all listings at once
+            result = self.collection.update_many(
+                {"url": {"$in": urls}},
+                {"$set": {
+                    "sent_to_telegram": True,
+                    "sent_to_telegram_at": sent_timestamp
+                }}
+            )
+            
+            logging.info(f"✅ Marked {result.modified_count} listings as sent to Telegram")
+            
+        except pymongo.errors.OperationFailure as e:
+            if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
+                logging.warning(f"⚠️  MongoDB authentication required, skipping update: {e}")
+            else:
+                logging.error(f"MongoDB update error: {e}")
+        except Exception as e:
+            logging.error(f"MongoDB update error: {e}")
+
+    def get_recently_sent_listings(self, days: int = 7) -> List[str]:
+        """Get URLs of listings sent to Telegram in the last N days"""
+        try:
+            from datetime import datetime, timedelta
+            cutoff_timestamp = (datetime.now() - timedelta(days=days)).timestamp()
+            
+            cursor = self.collection.find(
+                {
+                    "sent_to_telegram": True,
+                    "sent_to_telegram_at": {"$gte": cutoff_timestamp}
+                },
+                {"url": 1}
+            )
+            
+            urls = [doc.get('url') for doc in cursor if doc.get('url')]
+            logging.info(f"📋 Found {len(urls)} listings sent to Telegram in last {days} days")
+            return urls
+            
+        except pymongo.errors.OperationFailure as e:
+            if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
+                logging.warning(f"⚠️  MongoDB authentication required, returning empty list: {e}")
+                return []
+            else:
+                logging.error(f"MongoDB query error: {e}")
+                return []
+        except Exception as e:
+            logging.error(f"MongoDB query error: {e}")
+            return []
 
     def get_unsent_listings(self):
         try:
@@ -104,7 +172,8 @@ class MongoDBHandler:
             return None
     
     def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30, 
-                        excluded_districts: List[str] = None, min_rooms: float = 0.0) -> List[Dict]:
+                        excluded_districts: List[str] = None, min_rooms: float = 0.0, 
+                        exclude_recently_sent: bool = True, recently_sent_days: int = 7) -> List[Dict]:
         """
         Get top listings from MongoDB sorted by score with additional filters
         
@@ -114,6 +183,8 @@ class MongoDBHandler:
             days_old: Only include listings from last N days
             excluded_districts: List of district codes to exclude (e.g., ["1100", "1160"])
             min_rooms: Minimum number of rooms required
+            exclude_recently_sent: Whether to exclude listings sent to Telegram in recent days
+            recently_sent_days: Number of days to look back for recently sent listings
             
         Returns:
             List of listing dictionaries sorted by score (highest first)
@@ -140,6 +211,13 @@ class MongoDBHandler:
             # Add district exclusion filter
             if excluded_districts and len(excluded_districts) > 0:
                 base_query["bezirk"] = {"$nin": excluded_districts}
+            
+            # Exclude recently sent listings if requested
+            if exclude_recently_sent:
+                recently_sent_urls = self.get_recently_sent_listings(recently_sent_days)
+                if recently_sent_urls:
+                    base_query["url"] = {"$nin": recently_sent_urls}
+                    logging.info(f"🚫 Excluding {len(recently_sent_urls)} recently sent listings")
             
             # Build final query with room filter handling
             if min_rooms > 0:
@@ -177,6 +255,8 @@ class MongoDBHandler:
                 logging.info(f"🚫 Excluded districts: {excluded_districts}")
             if min_rooms > 0:
                 logging.info(f"🛏️ Minimum rooms: {min_rooms}")
+            if exclude_recently_sent:
+                logging.info(f"🚫 Excluded recently sent listings (last {recently_sent_days} days)")
             
             return listings
             
