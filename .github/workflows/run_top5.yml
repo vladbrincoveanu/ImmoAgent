@@ -37,9 +37,5 @@ jobs:
           done
 
       - name: Run Top5 script
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          TELEGRAM_BOT_MAIN_TOKEN: ${{ secrets.TELEGRAM_BOT_MAIN_TOKEN }}
-          TELEGRAM_BOT_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_BOT_MAIN_CHAT_ID }}
         run: |
           PYTHONPATH=Project python Project/run_top5.py
