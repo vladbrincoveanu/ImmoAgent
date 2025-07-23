@@ -413,12 +413,26 @@ class TelegramBot:
         return message
     
     def test_connection(self) -> bool:
-        """Test if the bot can send messages"""
+        """Test if the bot can connect to Telegram API without sending a message"""
         try:
-            test_message = "🤖 <b>Property Monitor Bot</b>\n\n✅ Connection test successful!\n\nYour bot is ready to send property notifications."
-            return self.send_message(test_message)
+            # Just test the API connection by getting bot info
+            url = f"https://api.telegram.org/bot{self.bot_token}/getMe"
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('ok') and data.get('result'):
+                    logging.info(f"✅ Telegram connection test successful for bot: {data['result'].get('username', 'Unknown')}")
+                    return True
+                else:
+                    logging.error(f"❌ Telegram API returned error: {data}")
+                    return False
+            else:
+                logging.error(f"❌ Telegram API request failed with status {response.status_code}")
+                return False
+                
         except Exception as e:
-            logging.error(f"Telegram connection test failed: {e}")
+            logging.error(f"❌ Telegram connection test failed: {e}")
             return False 
 
     def send_top_listings(self, listings: List[Dict], title: str = "🏆 Top Properties", max_listings: int = 5) -> bool:

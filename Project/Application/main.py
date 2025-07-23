@@ -16,6 +16,7 @@ from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats
 from Domain.listing import Listing
 import logging
 from bson import ObjectId
@@ -458,6 +459,9 @@ def main():
         logging.error("❌ MongoDB is required but not working. Please fix the connection.")
         return
     
+    # Initialize MongoDB handler
+    mongo = MongoDBHandler(uri=config.get('mongodb_uri'))
+    
     import sys
     skip_images = "--skip-images" in sys.argv
     willhaben_only = "--willhaben-only" in sys.argv
@@ -624,6 +628,8 @@ def main():
                     if success:
                         telegram_sent_count += 1
                         logging.info(f"✅ Telegram notification sent for {listing.title} (score: {listing.score})")
+                        # Mark listing as sent to prevent duplicates
+                        mongo.mark_sent(listing.url)
                     else:
                         logging.error(f"❌ Failed to send Telegram notification for {listing.title}")
                 except Exception as e:
