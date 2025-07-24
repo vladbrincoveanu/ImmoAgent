@@ -4,16 +4,21 @@ on:
   schedule:
     - cron: '0 5 * * *' # runs every day at 05:00 UTC
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   run-top5:
     runs-on: ubuntu-latest
 
-    services:
-      mongo:
-        image: mongo:latest
-        ports:
-          - 27017:27017
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
+      TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
+      TELEGRAM_DEV_BOT_TOKEN: ${{ secrets.TELEGRAM_DEV_BOT_TOKEN }}
+      TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
 
     steps:
       - name: Checkout code
@@ -22,20 +27,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11'  # Change to your required version
 
       - name: Install dependencies
         run: |
-          pip install -r Project/requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Wait for MongoDB to be available
-        run: |
-          for i in $(seq 1 30); do
-            nc -z localhost 27017 && echo "MongoDB is up" && break
-            echo "Waiting for MongoDB..."
-            sleep 2
-          done
-
-      - name: Run Top5 script
-        run: |
-          PYTHONPATH=Project python Project/run_top5.py
+      - name: Run Top 5 Properties Report
+        run: PYTHONPATH=Project python Project/run_top5.py
