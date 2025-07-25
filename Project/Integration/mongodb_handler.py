@@ -11,9 +11,23 @@ class MongoDBHandler:
     def __init__(self, uri: str = None, db_name: str = "immo", collection_name: str = "listings"):
         config = load_config()
         self.uri = uri or config.get("mongodb_uri") or os.environ.get("MONGODB_URI", "mongodb://localhost:27017/")
-        self.client = MongoClient(self.uri)
-        self.db = self.client[db_name]
-        self.collection = self.db[collection_name]
+        
+        # Handle SSL connection for MongoDB Atlas in GitHub Actions
+        if "mongodb.net" in self.uri and "ssl=true" not in self.uri:
+            # Add SSL parameters if not present
+            separator = "&" if "?" in self.uri else "?"
+            self.uri = f"{self.uri}{separator}ssl=true&ssl_cert_reqs=CERT_NONE"
+            logging.info("🔧 Added SSL parameters to MongoDB URI for GitHub Actions compatibility")
+        
+        try:
+            self.client = MongoClient(self.uri)
+            self.db = self.client[db_name]
+            self.collection = self.db[collection_name]
+        except Exception as e:
+            logging.error(f"❌ MongoDB connection failed: {e}")
+            self.client = None
+            self.db = None
+            self.collection = None
         
         # Try to create index, but don't fail if authentication is required
         try:
