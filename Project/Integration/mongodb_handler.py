@@ -13,16 +13,38 @@ class MongoDBHandler:
         self.uri = uri or config.get("mongodb_uri") or os.environ.get("MONGODB_URI", "mongodb://localhost:27017/")
         
         # Handle SSL connection for MongoDB Atlas in GitHub Actions
-        if "mongodb.net" in self.uri and "ssl=true" not in self.uri:
-            # Add SSL parameters if not present
+        if "mongodb.net" in self.uri:
+            # Add TLS parameters for GitHub Actions compatibility
             separator = "&" if "?" in self.uri else "?"
-            self.uri = f"{self.uri}{separator}ssl=true&ssl_cert_reqs=CERT_NONE"
-            logging.info("🔧 Added SSL parameters to MongoDB URI for GitHub Actions compatibility")
+            if "tlsAllowInvalidCertificates=true" not in self.uri:
+                self.uri = f"{self.uri}{separator}tlsAllowInvalidCertificates=true"
+            if "tlsInsecure=true" not in self.uri:
+                self.uri = f"{self.uri}&tlsInsecure=true"
+            logging.info("🔧 Added TLS parameters to MongoDB URI for GitHub Actions compatibility")
         
         try:
-            self.client = MongoClient(self.uri)
+            # Create MongoDB client with specific options for GitHub Actions
+            client_options = {
+                'serverSelectionTimeoutMS': 30000,
+                'connectTimeoutMS': 30000,
+                'socketTimeoutMS': 30000,
+            }
+            
+            # Add TLS options if using MongoDB Atlas
+            if "mongodb.net" in self.uri:
+                client_options.update({
+                    'tlsAllowInvalidCertificates': True,
+                    'tlsInsecure': True,
+                })
+            
+            self.client = MongoClient(self.uri, **client_options)
             self.db = self.client[db_name]
             self.collection = self.db[collection_name]
+            
+            # Test the connection
+            self.client.admin.command('ping')
+            logging.info("✅ MongoDB connection successful!")
+            
         except Exception as e:
             logging.error(f"❌ MongoDB connection failed: {e}")
             self.client = None
