@@ -22,14 +22,6 @@ jobs:
         run: |
           pip install -r Project/requirements.txt
 
-      - name: Wait for MongoDB to be available
-        run: |
-          for i in $(seq 1 30); do
-            nc -z localhost 27017 && echo "MongoDB is up" && break
-            echo "Waiting for MongoDB..."
-            sleep 2
-          done
-
       - name: Run ImmoAgent
         run: |
           python Project/run.py
