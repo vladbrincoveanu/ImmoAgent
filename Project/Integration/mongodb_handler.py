@@ -18,8 +18,6 @@ class MongoDBHandler:
             separator = "&" if "?" in self.uri else "?"
             if "tlsAllowInvalidCertificates=true" not in self.uri:
                 self.uri = f"{self.uri}{separator}tlsAllowInvalidCertificates=true"
-            if "tlsInsecure=true" not in self.uri:
-                self.uri = f"{self.uri}&tlsInsecure=true"
             logging.info("🔧 Added TLS parameters to MongoDB URI for GitHub Actions compatibility")
         
         try:
@@ -34,7 +32,6 @@ class MongoDBHandler:
             if "mongodb.net" in self.uri:
                 client_options.update({
                     'tlsAllowInvalidCertificates': True,
-                    'tlsInsecure': True,
                 })
             
             self.client = MongoClient(self.uri, **client_options)

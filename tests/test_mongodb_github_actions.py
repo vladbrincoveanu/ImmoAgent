@@ -74,7 +74,6 @@ def test_alternative_connection():
         client = MongoClient(
             mongo_uri,
             tlsAllowInvalidCertificates=True,
-            tlsInsecure=True,
             serverSelectionTimeoutMS=30000,
             connectTimeoutMS=30000,
             socketTimeoutMS=30000
