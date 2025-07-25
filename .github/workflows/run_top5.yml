@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '0 5 * * *' # runs every day at 05:00 UTC
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   run-top5:
@@ -18,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11'  # Change to your required version
 
       - name: Install dependencies
         run: |
@@ -34,4 +38,4 @@ jobs:
           TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}
           TELEGRAM_BOT_VIENNA_CHAT_ID: ${{ secrets.TELEGRAM_BOT_VIENNA_CHAT_ID }}
         run: |
-          PYTHONPATH=Project python Project/run_top5.py
+          python Project/run_top5.py
