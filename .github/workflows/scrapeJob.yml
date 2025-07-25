@@ -9,12 +9,6 @@ jobs:
   run-immoagent:
     runs-on: ubuntu-latest
 
-    services:
-      mongo:
-        image: mongo:latest
-        ports:
-          - 27017:27017
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -28,17 +22,12 @@ jobs:
         run: |
           pip install -r Project/requirements.txt
 
-      - name: Wait for MongoDB to be available
-        run: |
-          for i in $(seq 1 30); do
-            nc -z localhost 27017 && echo "MongoDB is up" && break
-            echo "Waiting for MongoDB..."
-            sleep 2
-          done
-
       - name: Run ImmoAgent
         env:
-          MONGO_HOST: localhost
-          MONGO_PORT: 27017
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
+          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
+          TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}
+          TELEGRAM_BOT_VIENNA_CHAT_ID: ${{ secrets.TELEGRAM_BOT_VIENNA_CHAT_ID }}
         run: |
           python Project/run.py
