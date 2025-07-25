@@ -23,5 +23,11 @@ jobs:
           pip install -r Project/requirements.txt
 
       - name: Run ImmoAgent
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
+          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
+          TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}
+          TELEGRAM_BOT_VIENNA_CHAT_ID: ${{ secrets.TELEGRAM_BOT_VIENNA_CHAT_ID }}
         run: |
           python Project/run.py
