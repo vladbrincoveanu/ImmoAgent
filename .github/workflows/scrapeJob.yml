@@ -9,12 +9,6 @@ jobs:
   run-immoagent:
     runs-on: ubuntu-latest
 
-    services:
-      mongo:
-        image: mongo:latest
-        ports:
-          - 27017:27017
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -37,8 +31,5 @@ jobs:
           done
 
       - name: Run ImmoAgent
-        env:
-          MONGO_HOST: localhost
-          MONGO_PORT: 27017
         run: |
           python Project/run.py
