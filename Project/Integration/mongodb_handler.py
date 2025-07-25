@@ -250,7 +250,10 @@ class MongoDBHandler:
             for listing in listings:
                 self._add_monthly_payment_calculation(listing)
             
-            logging.info(f"📊 Found {len(listings)} top listings (score >= {min_score}, last {days_old} days)")
+            if days_old >= 365:
+                logging.info(f"📊 Found {len(listings)} top listings (score >= {min_score}, all time)")
+            else:
+                logging.info(f"📊 Found {len(listings)} top listings (score >= {min_score}, last {days_old} days)")
             if excluded_districts:
                 logging.info(f"🚫 Excluded districts: {excluded_districts}")
             if min_rooms > 0:
