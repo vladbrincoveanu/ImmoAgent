@@ -53,12 +53,12 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
             logging.info(f"🚫 Filtered out garbage: {area_m2}m² area (too small)")
             return False
         
-        # Check monthly payment filter (below €2,000)
+        # Check monthly payment filter (below €2,500)
         monthly_payment = listing.get('monthly_payment', {})
         if monthly_payment and isinstance(monthly_payment, dict):
             total_monthly = monthly_payment.get('total_monthly', 0)
-            if total_monthly > 2000:  # More than €2,000 monthly payment
-                logging.info(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,000)")
+            if total_monthly > 2500:  # More than €2,500 monthly payment
+                logging.info(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,500)")
                 return False
         
         return True
