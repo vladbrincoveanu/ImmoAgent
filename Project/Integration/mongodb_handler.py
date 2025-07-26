@@ -302,50 +302,84 @@ class MongoDBHandler:
 
     def _add_monthly_payment_calculation(self, listing: Dict):
         """
-        Add monthly payment calculations to a listing and fix score if needed
-        Includes 10% extra fees (property fees, land registry, makler fee) in loan calculation
+        Add monthly payment calculations to a listing using the new formula
+        Price increased by 10%, 20% down payment, 2.89% rate for 35 years
         
         Args:
             listing: Listing dictionary to modify
         """
         try:
             # Get base values, handle None values
-            base_loan_payment = listing.get('calculated_monatsrate', 0) or 0
             betriebskosten = listing.get('betriebskosten', 0) or 0
             price_total = listing.get('price_total', 0) or 0
             
             # Ensure all values are numbers
-            if not isinstance(base_loan_payment, (int, float)):
-                base_loan_payment = 0
             if not isinstance(betriebskosten, (int, float)):
                 betriebskosten = 0
             if not isinstance(price_total, (int, float)):
                 price_total = 0
             
-            # Calculate 10% extra fees (property fees, land registry, makler fee)
-            extra_fees = price_total * 0.10
-            
-            # Calculate loan amount: 80% of property price + 10% extra fees
-            # (20% down payment, 80% loan for property + 100% loan for fees)
-            loan_amount = (price_total * 0.80) + extra_fees
-            
-            # Calculate adjusted loan payment based on the actual loan amount
-            # Using realistic Austrian mortgage rates (3.5-4% for 35 years)
-            # Always use the realistic calculation to override old data
-            realistic_ratio = 0.00437  # Based on loan calculator example: €244,299 → €1,069 monthly (3.815% rate)
-            adjusted_loan_payment = loan_amount * realistic_ratio
-            
-            # Calculate total monthly payment
-            total_monthly = adjusted_loan_payment + betriebskosten
-            
-            # Add the calculations to the listing
-            listing['monthly_payment'] = {
-                'loan_payment': adjusted_loan_payment,
-                'betriebskosten': betriebskosten,
-                'total_monthly': total_monthly,
-                'extra_fees': extra_fees,
-                'base_loan_payment': base_loan_payment
-            }
+            if price_total > 0:
+                # Increase price by 10%
+                adjusted_price = price_total * 1.10
+                # Calculate 20% down payment from adjusted price
+                down_payment = adjusted_price * 0.20
+                # Calculate loan amount
+                loan_amount = adjusted_price - down_payment
+                
+                # Calculate monthly payment using the new formula
+                # €1,166 monthly rate for €304,570 loan at 2.89% for 35 years
+                # This gives us a ratio of approximately 0.00383
+                monthly_loan_payment = loan_amount * 0.00383
+                
+                # Calculate total monthly payment
+                total_monthly = monthly_loan_payment + betriebskosten
+                
+                # Add the calculations to the listing
+                listing['monthly_payment'] = {
+                    'loan_payment': monthly_loan_payment,
+                    'betriebskosten': betriebskosten,
+                    'total_monthly': total_monthly,
+                    'loan_amount': loan_amount,
+                    'down_payment': down_payment,
+                    'adjusted_price': adjusted_price
+                }
+                
+                # Update the calculated_monatsrate field for backward compatibility
+                listing['calculated_monatsrate'] = monthly_loan_payment
+                
+                # Update total_monthly_cost for backward compatibility
+                listing['total_monthly_cost'] = total_monthly
+                
+                # Add mortgage details
+                listing['mortgage_details'] = {
+                    'loan_amount': loan_amount,
+                    'annual_rate': 2.89,  # New rate
+                    'years': 35,
+                    'monthly_payment': monthly_loan_payment,
+                    'down_payment': down_payment,
+                    'adjusted_price': adjusted_price
+                }
+            else:
+                # Set default values if no price
+                listing['monthly_payment'] = {
+                    'loan_payment': 0,
+                    'betriebskosten': betriebskosten,
+                    'total_monthly': betriebskosten,
+                    'loan_amount': 0,
+                    'down_payment': 0,
+                    'adjusted_price': 0
+                }
+                listing['calculated_monatsrate'] = 0
+                listing['total_monthly_cost'] = betriebskosten
+                listing['mortgage_details'] = {
+                    'loan_amount': 0,
+                    'annual_rate': 2.89,
+                    'years': 35,
+                    'monthly_payment': 0,
+                    'down_payment': 0,
+                    'adjusted_price': 0
+                }
             
             # Fix score calculation: multiply by 100 if below 0
             score = listing.get('score', 0)
@@ -358,11 +392,14 @@ class MongoDBHandler:
             # Set default values if calculation fails
             listing['monthly_payment'] = {
                 'loan_payment': 0,
-                'betriebskosten': 0,
-                'total_monthly': 0,
-                'extra_fees': 0,
-                'base_loan_payment': 0
+                'betriebskosten': listing.get('betriebskosten', 0) or 0,
+                'total_monthly': listing.get('betriebskosten', 0) or 0,
+                'loan_amount': 0,
+                'down_payment': 0,
+                'adjusted_price': 0
             }
+            listing['calculated_monatsrate'] = 0
+            listing['total_monthly_cost'] = listing.get('betriebskosten', 0) or 0
 
     @staticmethod
     def save_listings_to_mongodb(listings: list) -> int:

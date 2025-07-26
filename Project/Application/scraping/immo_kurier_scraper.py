@@ -28,16 +28,16 @@ class MortgageCalculator:
     @staticmethod
     def calculate_monthly_payment(loan_amount: float, annual_rate: float, years: int, include_fees: bool = True) -> float:
         """
-        Calculate monthly mortgage payment using realistic Austrian rates
-        Based on loan calculator example: €244,299 loan → €1,069 monthly payment (3.815% rate, 35 years)
-        This gives us a ratio of approximately 0.00437
+        Calculate monthly mortgage payment using new formula
+        Based on €1,166 monthly rate for €304,570 loan at 2.89% for 35 years
+        This gives us a ratio of approximately 0.00383
         """
         if loan_amount <= 0:
             return 0
         
-        # Use realistic ratio from loan calculator example
-        realistic_ratio = 0.00437  # Based on €244,299 → €1,069 monthly (3.815% rate, 35 years)
-        monthly_payment = loan_amount * realistic_ratio
+        # Use new ratio from the provided formula
+        new_ratio = 0.00383  # Based on €304,570 → €1,166 monthly (2.89% rate, 35 years)
+        monthly_payment = loan_amount * new_ratio
         
         return round(monthly_payment, 2)
     
@@ -61,13 +61,13 @@ class MortgageCalculator:
     
     @staticmethod
     def get_payment_breakdown(loan_amount: float, annual_rate: float, years: int) -> Dict:
-        """Get detailed breakdown of monthly payment components using realistic Austrian rates"""
+        """Get detailed breakdown of monthly payment components using new formula"""
         if loan_amount <= 0:
             return {}
         
-        # Use realistic ratio from loan calculator example
-        realistic_ratio = 0.00437  # Based on €244,299 → €1,069 monthly (3.815% rate, 35 years)
-        monthly_payment = loan_amount * realistic_ratio
+        # Use new ratio from the provided formula
+        new_ratio = 0.00383  # Based on €304,570 → €1,166 monthly (2.89% rate, 35 years)
+        monthly_payment = loan_amount * new_ratio
         
         return {
             'base_payment': round(monthly_payment * 0.85, 2),  # 85% of total is base loan

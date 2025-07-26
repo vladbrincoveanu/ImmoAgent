@@ -283,7 +283,18 @@ class TelegramBot:
                     if dist is not None:
                         min_str = f"{int(round(dist/80))} min" if dist else None
                         if min_str:
-                            transport_lines.append(f"{emoji} {key}: {min_str}")
+                            # Translate transport names
+                            if key == 'U-Bahn':
+                                display_name = 'Subway'
+                            elif key == 'Bahnhof':
+                                display_name = 'Train Station'
+                            elif key == 'Bus':
+                                display_name = 'Bus'
+                            elif key == 'Autobahnanschluss':
+                                display_name = 'Highway'
+                            else:
+                                display_name = key
+                            transport_lines.append(f"{emoji} {display_name}: {min_str}")
                             found_transport = True
                             break
             if found_transport:
@@ -292,7 +303,7 @@ class TelegramBot:
             # Fallback to ubahn_walk_minutes
             ubahn_min = safe_minutes(listing.get('ubahn_walk_minutes'))
             if ubahn_min:
-                transport_lines.append(f"🚇 U-Bahn: {ubahn_min}")
+                transport_lines.append(f"🚇 Subway: {ubahn_min}")
 
         # School: Schule, Kindergarten, Universität
         school_lines = []
@@ -310,7 +321,18 @@ class TelegramBot:
                     if dist is not None:
                         min_str = f"{int(round(dist/80))} min" if dist else None
                         if min_str:
-                            school_lines.append(f"{emoji} {key}: {min_str}")
+                            # Translate school names
+                            if key == 'Schule':
+                                display_name = 'School'
+                            elif key == 'Kindergarten':
+                                display_name = 'Kindergarten'
+                            elif key == 'Universität':
+                                display_name = 'University'
+                            elif key == 'Höhere Schule':
+                                display_name = 'High School'
+                            else:
+                                display_name = key
+                            school_lines.append(f"{emoji} {display_name}: {min_str}")
                             found_school = True
                             break
             if found_school:
@@ -318,7 +340,7 @@ class TelegramBot:
         if not found_school:
             school_min = safe_minutes(listing.get('school_walk_minutes'))
             if school_min:
-                school_lines.append(f"🏫 Schule: {school_min}")
+                school_lines.append(f"🏫 School: {school_min}")
 
         # Build message sections
         message_parts = []
@@ -329,42 +351,34 @@ class TelegramBot:
         
         # Year built (moved to top for maximum prominence)
         if year_built:
-            message_parts.append(f"🏗️ <b>Baujahr: {year_built}</b>")
+            message_parts.append(f"🏗️ <b>Year of Construction: {year_built}</b>")
         else:
             # Add a note when year built is not available
-            message_parts.append(f"🏗️ <b>Baujahr: Auf Anfrage</b>")
+            message_parts.append(f"🏗️ <b>Year of Construction: On Request</b>")
         
-        # Rate line removed - only showing total monthly payment
-        
-        # Initial sum invested (minimum 20% down payment + 10% extra fees)
+        # Calculate mortgage with new formula
         price_total = listing.get('price_total', 0)
         if price_total > 0:
-            # Calculate minimum 20% down payment
-            min_down_payment = price_total * 0.20
-            # Calculate 10% extra fees (property fees, land registry, makler fee)
-            extra_fees = price_total * 0.10
-            total_initial = min_down_payment + extra_fees
+            # Increase price by 10%
+            adjusted_price = price_total * 1.10
+            # Calculate 20% down payment from adjusted price
+            down_payment = adjusted_price * 0.20
+            # Calculate loan amount
+            loan_amount = adjusted_price - down_payment
             
-            message_parts.append(f"💰 Initial Investment: €{total_initial:,.0f} (€{min_down_payment:,.0f} 20% down + €{extra_fees:,.0f} fees)")
-        
-        # Monthly payment summary (if available)
-        monthly_payment = listing.get('monthly_payment', {})
-        if monthly_payment and isinstance(monthly_payment, dict):
-            total_monthly = monthly_payment.get('total_monthly', 0)
-            loan_payment = monthly_payment.get('loan_payment', 0)
-            betriebskosten_monthly = monthly_payment.get('betriebskosten', 0)
-            extra_fees = monthly_payment.get('extra_fees', 0)
+            # Calculate monthly payment using the provided formula
+            # €1,166 monthly rate for €304,570 loan at 2.89% for 35 years
+            # This gives us a ratio of approximately 0.00383
+            monthly_loan_payment = loan_amount * 0.00383
             
-            if total_monthly > 0:
-                monthly_summary = f"💳 Total Monthly: €{total_monthly:,.0f}"
-                if loan_payment > 0 and betriebskosten_monthly > 0:
-                    base_loan = monthly_payment.get('base_loan_payment', loan_payment)
-                    extra_loan = loan_payment - base_loan
-                    if extra_loan > 0:
-                        monthly_summary += f" (€{base_loan:,.0f} loan + €{extra_loan:,.0f} fees + €{betriebskosten_monthly:,.0f} BK)"
-                    else:
-                        monthly_summary += f" (€{loan_payment:,.0f} loan + €{betriebskosten_monthly:,.0f} BK)"
-                message_parts.append(monthly_summary)
+            # Get betriebskosten (operating costs)
+            betriebskosten = listing.get('betriebskosten', 0) or 0
+            
+            # Calculate total monthly payment
+            total_monthly = monthly_loan_payment + betriebskosten
+            
+            message_parts.append(f"💰 Initial Investment: €{down_payment:,.0f} (20% down payment)")
+            message_parts.append(f"💳 Total Monthly: €{total_monthly:,.0f} (€{monthly_loan_payment:,.0f} loan + €{betriebskosten:,.0f} BK)")
         
         # District
         if bezirk:
@@ -376,7 +390,7 @@ class TelegramBot:
         
         # Rooms
         if rooms:
-            message_parts.append(f"🛏️ {rooms} Zimmer")
+            message_parts.append(f"🛏️ {rooms} Rooms")
         
         # Score (REMOVED - no longer displayed in Telegram messages)
         # if score is not None:
@@ -392,15 +406,15 @@ class TelegramBot:
         
         # Condition
         if condition:
-            message_parts.append(f"🔧 Zustand: {condition}")
+            message_parts.append(f"🔧 Condition: {condition}")
         
         # Energy class
         if energy_class:
-            message_parts.append(f"⚡ Energieklasse: {energy_class}")
+            message_parts.append(f"⚡ Energy Class: {energy_class}")
         
         # URL
         if url and include_url:
-            message_parts.append(f"🔗 <a href='{url}'>Zur Anzeige</a>")
+            message_parts.append(f"🔗 <a href='{url}'>View Listing</a>")
         
         # Join all parts with newlines and clean up
         message = "\n".join(message_parts)
