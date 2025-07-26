@@ -327,14 +327,25 @@ class TelegramBot:
         if address and price:
             message_parts.append(f"🏠 <b>{address}</b> - {price}")
         
+        # Year built (moved to top for maximum prominence)
+        if year_built:
+            message_parts.append(f"🏗️ <b>Baujahr: {year_built}</b>")
+        else:
+            # Add a note when year built is not available
+            message_parts.append(f"🏗️ <b>Baujahr: Auf Anfrage</b>")
+        
         # Rate line removed - only showing total monthly payment
         
-        # Betriebskosten line
-        if betriebskosten:
-            betriebskosten_line = f"📄 Betriebskosten: {betriebskosten}"
-            if betriebskosten_estimated:
-                betriebskosten_line += " (est.)"
-            message_parts.append(betriebskosten_line)
+        # Initial sum invested (minimum 20% down payment + 10% extra fees)
+        price_total = listing.get('price_total', 0)
+        if price_total > 0:
+            # Calculate minimum 20% down payment
+            min_down_payment = price_total * 0.20
+            # Calculate 10% extra fees (property fees, land registry, makler fee)
+            extra_fees = price_total * 0.10
+            total_initial = min_down_payment + extra_fees
+            
+            message_parts.append(f"💰 Initial Investment: €{total_initial:,.0f} (€{min_down_payment:,.0f} 20% down + €{extra_fees:,.0f} fees)")
         
         # Monthly payment summary (if available)
         monthly_payment = listing.get('monthly_payment', {})
@@ -342,11 +353,17 @@ class TelegramBot:
             total_monthly = monthly_payment.get('total_monthly', 0)
             loan_payment = monthly_payment.get('loan_payment', 0)
             betriebskosten_monthly = monthly_payment.get('betriebskosten', 0)
+            extra_fees = monthly_payment.get('extra_fees', 0)
             
             if total_monthly > 0:
                 monthly_summary = f"💳 Total Monthly: €{total_monthly:,.0f}"
                 if loan_payment > 0 and betriebskosten_monthly > 0:
-                    monthly_summary += f" (€{loan_payment:,.0f} loan + €{betriebskosten_monthly:,.0f} BK)"
+                    base_loan = monthly_payment.get('base_loan_payment', loan_payment)
+                    extra_loan = loan_payment - base_loan
+                    if extra_loan > 0:
+                        monthly_summary += f" (€{base_loan:,.0f} loan + €{extra_loan:,.0f} fees + €{betriebskosten_monthly:,.0f} BK)"
+                    else:
+                        monthly_summary += f" (€{loan_payment:,.0f} loan + €{betriebskosten_monthly:,.0f} BK)"
                 message_parts.append(monthly_summary)
         
         # District
@@ -372,10 +389,6 @@ class TelegramBot:
         # School
         if school_lines:
             message_parts.extend(school_lines)
-        
-        # Year built
-        if year_built:
-            message_parts.append(f"🏗️ Baujahr: {year_built}")
         
         # Condition
         if condition:
