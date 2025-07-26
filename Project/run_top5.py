@@ -8,8 +8,33 @@ import os
 import logging
 from datetime import datetime
 
-# Add the current directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the project root to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+# Robust config.json search logic (same as run.py, plus CI/CD paths)
+def ensure_config_json_on_path():
+    possible_paths = [
+        os.path.join(project_root, 'config.json'),
+        os.path.join(os.path.dirname(project_root), 'config.json'),
+        os.path.join(project_root, 'Project', 'config.json'),
+        os.path.join(project_root, '..', 'config.json'),
+        os.path.join(project_root, '..', 'Project', 'config.json'),
+        '/home/runner/work/ImmoAgent/ImmoAgent/config.json',
+        '/home/runner/work/ImmoAgent/ImmoAgent/Project/config.json',
+        '/home/runner/work/ImmoAgent/ImmoAgent/Project/../config.json',
+        '/home/runner/work/ImmoAgent/config.json',
+        '/home/runner/work/ImmoAgent/Project/config.json',
+        '/home/runner/work/ImmoAgent/Project/../config.json',
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            # Set CWD to the directory containing config.json
+            os.chdir(os.path.dirname(path))
+            print(f"✅ Found config.json at: {path}")
+            break
+
+ensure_config_json_on_path()
 
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats

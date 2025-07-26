@@ -285,11 +285,11 @@ def load_config() -> Dict:
                 "bot_token": telegram_vienna_token,
                 "chat_id": telegram_vienna_chat_id
             },
-            "min_score_threshold": 40
+            "min_score_threshold": 30
         },
         "top5": {
             "limit": 5,
-            "min_score": 40.0,
+            "min_score": 30.0,
             "days_old": 7,
             "excluded_districts": ["1100", "1160"],
             "min_rooms": 3,
