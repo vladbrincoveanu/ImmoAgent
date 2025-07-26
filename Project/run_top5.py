@@ -88,7 +88,7 @@ def main():
         
         # Get parameters from config or use defaults
         limit = config.get('top5', {}).get('limit', 5)
-        min_score = config.get('top5', {}).get('min_score', 40.0)
+        min_score = config.get('top5', {}).get('min_score', 30.0)
         excluded_districts = config.get('top5', {}).get('excluded_districts', [])
         min_rooms = config.get('top5', {}).get('min_rooms', 0)
         include_monthly_payment = config.get('top5', {}).get('include_monthly_payment', True)
