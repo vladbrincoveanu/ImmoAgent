@@ -16,7 +16,7 @@ class MinIOHandler:
     def __init__(self, 
                  endpoint: str = "localhost:9000",
                  access_key: str = "minioadmin",
-                 secret_key: str = "minioadmin123",
+                 secret_key: str = os.environ.get('MINIO_SECRET_KEY', 'minioadmin'),
                  secure: bool = False,
                  bucket_name: str = "property-images"):
         self.client = Minio(

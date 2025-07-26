@@ -106,8 +106,13 @@ class PropertyDatabase:
         """Initialize admin user if not exists"""
         admin_user = self.users_collection.find_one({'username': 'admin'})
         if not admin_user:
-            # Create default admin user
-            admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+            # Create default admin user only if ADMIN_PASSWORD is set
+            admin_password = os.environ.get('ADMIN_PASSWORD')
+            if not admin_password:
+                print("⚠️  No ADMIN_PASSWORD environment variable set. Skipping admin user creation.")
+                print("💡 Set ADMIN_PASSWORD environment variable to create default admin user.")
+                return
+            
             admin_user = {
                 'username': 'admin',
                 'email': 'admin@home.ai',
@@ -117,7 +122,8 @@ class PropertyDatabase:
                 'last_login': None
             }
             self.users_collection.insert_one(admin_user)
-            print("✅ Admin user created with username: admin, password: admin123")
+            print("✅ Admin user created with username: admin")
+            print("🔐 Password: [Set via ADMIN_PASSWORD environment variable]")
     
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """Authenticate user and return User object if valid"""

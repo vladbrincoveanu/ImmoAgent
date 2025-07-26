@@ -303,29 +303,48 @@ class MongoDBHandler:
     def _add_monthly_payment_calculation(self, listing: Dict):
         """
         Add monthly payment calculations to a listing and fix score if needed
+        Includes 10% extra fees (property fees, land registry, makler fee) in loan calculation
         
         Args:
             listing: Listing dictionary to modify
         """
         try:
-            # Get loan payment and Betriebskosten, handle None values
-            loan_payment = listing.get('calculated_monatsrate', 0) or 0
+            # Get base values, handle None values
+            base_loan_payment = listing.get('calculated_monatsrate', 0) or 0
             betriebskosten = listing.get('betriebskosten', 0) or 0
+            price_total = listing.get('price_total', 0) or 0
             
-            # Ensure both values are numbers
-            if not isinstance(loan_payment, (int, float)):
-                loan_payment = 0
+            # Ensure all values are numbers
+            if not isinstance(base_loan_payment, (int, float)):
+                base_loan_payment = 0
             if not isinstance(betriebskosten, (int, float)):
                 betriebskosten = 0
+            if not isinstance(price_total, (int, float)):
+                price_total = 0
+            
+            # Calculate 10% extra fees (property fees, land registry, makler fee)
+            extra_fees = price_total * 0.10
+            
+            # Calculate loan amount: 80% of property price + 10% extra fees
+            # (20% down payment, 80% loan for property + 100% loan for fees)
+            loan_amount = (price_total * 0.80) + extra_fees
+            
+            # Calculate adjusted loan payment based on the actual loan amount
+            # Using realistic Austrian mortgage rates (3.5-4% for 35 years)
+            # Always use the realistic calculation to override old data
+            realistic_ratio = 0.00437  # Based on loan calculator example: €244,299 → €1,069 monthly (3.815% rate)
+            adjusted_loan_payment = loan_amount * realistic_ratio
             
             # Calculate total monthly payment
-            total_monthly = loan_payment + betriebskosten
+            total_monthly = adjusted_loan_payment + betriebskosten
             
             # Add the calculations to the listing
             listing['monthly_payment'] = {
-                'loan_payment': loan_payment,
+                'loan_payment': adjusted_loan_payment,
                 'betriebskosten': betriebskosten,
-                'total_monthly': total_monthly
+                'total_monthly': total_monthly,
+                'extra_fees': extra_fees,
+                'base_loan_payment': base_loan_payment
             }
             
             # Fix score calculation: multiply by 100 if below 0
@@ -340,7 +359,9 @@ class MongoDBHandler:
             listing['monthly_payment'] = {
                 'loan_payment': 0,
                 'betriebskosten': 0,
-                'total_monthly': 0
+                'total_monthly': 0,
+                'extra_fees': 0,
+                'base_loan_payment': 0
             }
 
     @staticmethod
