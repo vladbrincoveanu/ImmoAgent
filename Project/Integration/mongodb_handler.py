@@ -276,17 +276,70 @@ class MongoDBHandler:
             ]
             
             # Execute query
-            cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit)
+            cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit * 3)  # Get more to filter
             listings = list(cursor)
             
             # Add monthly payment calculations to each listing
             for listing in listings:
                 self._add_monthly_payment_calculation(listing)
             
+            # Apply additional filters for rental properties and expensive properties
+            filtered_listings = []
+            for listing in listings:
+                # Skip rental properties
+                title = listing.get('title', '').lower()
+                description = listing.get('description', '').lower()
+                special_features = listing.get('special_features', [])
+                
+                rental_keywords = [
+                    'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
+                    'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
+                    'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
+                    'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
+                    'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
+                    'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
+                    'zum mietzins', 'an mietzins', 'mit mietzins', 'bei mietzins',
+                    'unbefristet', 'befristet', 'mietdauer', 'mietzeitraum'
+                ]
+                
+                is_rental = False
+                for keyword in rental_keywords:
+                    if keyword in title or keyword in description:
+                        is_rental = True
+                        break
+                
+                if is_rental:
+                    continue
+                
+                # Check special features for rental indicators
+                if special_features:
+                    for feature in special_features:
+                        feature_lower = str(feature).lower()
+                        for keyword in rental_keywords:
+                            if keyword in feature_lower:
+                                is_rental = True
+                                break
+                        if is_rental:
+                            break
+                
+                if is_rental:
+                    continue
+                
+                # Apply stricter scoring for expensive properties
+                price_total = listing.get('price_total', 0)
+                score = listing.get('score', 0) or 0
+                
+                if price_total > 400000 and score < 40:
+                    continue  # Skip expensive properties with low scores
+                
+                filtered_listings.append(listing)
+                if len(filtered_listings) >= limit:
+                    break
+            
             if days_old >= 365:
-                logging.info(f"📊 Found {len(listings)} top listings (score >= {min_score}, all time)")
+                logging.info(f"📊 Found {len(filtered_listings)} top listings (score >= {min_score}, all time)")
             else:
-                logging.info(f"📊 Found {len(listings)} top listings (score >= {min_score}, last {days_old} days)")
+                logging.info(f"📊 Found {len(filtered_listings)} top listings (score >= {min_score}, last {days_old} days)")
             if excluded_districts:
                 logging.info(f"🚫 Excluded districts: {excluded_districts}")
             if min_rooms > 0:
@@ -294,7 +347,9 @@ class MongoDBHandler:
             if exclude_recently_sent:
                 logging.info(f"🚫 Excluded recently sent listings (last {recently_sent_days} days)")
             
-            return listings
+            logging.info(f"🚫 Filtered out {len(listings) - len(filtered_listings)} rental/expensive properties")
+            
+            return filtered_listings
             
         except Exception as e:
             logging.error(f"Error fetching top listings: {e}")

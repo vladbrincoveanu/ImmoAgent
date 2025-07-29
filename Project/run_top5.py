@@ -121,6 +121,8 @@ def main():
         print(f"📊 Fetching top {limit} listings...")
         print(f"🎯 Minimum score: {min_score}")
         print(f"🚫 Excluding listings sent to Telegram in last 7 days")
+        print(f"🚫 Filtering out 'unbefristet vermietete' (rental) properties")
+        print(f"🎯 Properties above €400k need score 70+ (stricter requirements)")
         if excluded_districts:
             print(f"🚫 Excluded districts: {excluded_districts}")
         if min_rooms > 0:
@@ -146,6 +148,7 @@ def main():
         # Log validation statistics
         stats = get_validation_stats(listings[:original_count])
         logging.info(f"📊 Validation stats: {stats['valid']}/{stats['total']} valid ({stats['valid_percentage']:.1f}%)")
+        logging.info(f"🚫 Filtered out rental properties and expensive properties with low scores")
         
         if not listings:
             logging.warning("⚠️ No listings found matching criteria")

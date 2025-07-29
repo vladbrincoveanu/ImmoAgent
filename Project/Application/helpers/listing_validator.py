@@ -61,6 +61,47 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
                 logging.info(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,500)")
                 return False
         
+        # Filter out "unbefristet vermietete" (indefinitely rented) properties
+        title = listing.get('title', '').lower()
+        description = listing.get('description', '').lower()
+        special_features = listing.get('special_features', [])
+        
+        # Check for rental indicators in title, description, and special features
+        rental_keywords = [
+            'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
+            'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
+            'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
+            'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
+            'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
+            'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
+            'zum mietzins', 'an mietzins', 'mit mietzins', 'bei mietzins',
+            'unbefristet', 'befristet', 'mietdauer', 'mietzeitraum'
+        ]
+        
+        # Check title and description
+        for keyword in rental_keywords:
+            if keyword in title or keyword in description:
+                logging.info(f"🚫 Filtered out rental property: '{keyword}' found in title/description")
+                return False
+        
+        # Check special features
+        if special_features:
+            for feature in special_features:
+                feature_lower = str(feature).lower()
+                for keyword in rental_keywords:
+                    if keyword in feature_lower:
+                        logging.info(f"🚫 Filtered out rental property: '{keyword}' found in special features")
+                        return False
+        
+        # Stricter scoring requirements for properties above 400k
+        if price_total > 400000:
+            score = listing.get('score')
+            if score is None:
+                score = 0
+            if score < 70:  # Properties above 400k need a score of at least 70
+                logging.info(f"🚫 Filtered out expensive property with low score: €{price_total:,} with score {score} (needs 70+)")
+                return False
+        
         return True
         
     except Exception as e:
@@ -87,7 +128,7 @@ def filter_valid_listings(listings: list, limit: int = None) -> list:
     
     return valid_listings
 
-def get_validation_stats(listings: list) -> Dict[str, int]:
+def get_validation_stats(listings: list) -> Dict[str, Any]:
     """
     Get statistics about listing validation
     
