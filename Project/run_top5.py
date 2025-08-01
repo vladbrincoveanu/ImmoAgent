@@ -122,7 +122,8 @@ def main():
         print(f"🎯 Minimum score: {min_score}")
         print(f"🚫 Excluding listings sent to Telegram in last 7 days")
         print(f"🚫 Filtering out 'unbefristet vermietete' (rental) properties")
-        print(f"🎯 Properties above €400k need score 70+ (stricter requirements)")
+        print(f"🚫 Filtering out 'Preis auf Anfrage' (price on request) properties")
+        print(f"🎯 Properties above €400k need score 40+ (stricter requirements)")
         if excluded_districts:
             print(f"🚫 Excluded districts: {excluded_districts}")
         if min_rooms > 0:
@@ -152,21 +153,7 @@ def main():
         
         if not listings:
             logging.warning("⚠️ No listings found matching criteria")
-            
-            # Send a message indicating no listings found
-            no_listings_msg = f"📊 **Top Properties Report**\n\n"
-            no_listings_msg += f"❌ No properties found matching criteria:\n"
-            no_listings_msg += f"• Minimum score: {min_score}\n"
-            no_listings_msg += f"• Excluding listings sent in last 7 days\n"
-            if excluded_districts:
-                no_listings_msg += f"• Excluded districts: {excluded_districts}\n"
-            if min_rooms > 0:
-                no_listings_msg += f"• Minimum rooms: {min_rooms}\n"
-            if not include_monthly_payment:
-                no_listings_msg += f"• Monthly payment not included\n"
-            no_listings_msg += f"\n📅 Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            
-            telegram_bot.send_message(no_listings_msg)
+            print("⚠️ No listings found matching criteria - no message sent to Telegram")
             return True
         
         # Create title for the report
