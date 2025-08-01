@@ -93,13 +93,36 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
                         logging.info(f"🚫 Filtered out rental property: '{keyword}' found in special features")
                         return False
         
+        # Filter out "Preis auf Anfrage" (price on request) properties
+        price_on_request_keywords = [
+            'preis auf anfrage', 'price on request', 'auf anfrage', 'on request',
+            'preis nach vereinbarung', 'price by arrangement', 'nach vereinbarung',
+            'preis n.v.', 'price n.v.', 'n.v.', 'n/a', 'na', 'tba', 'to be announced',
+            'preis wird bekanntgegeben', 'price to be announced', 'wird bekanntgegeben'
+        ]
+        
+        # Check title and description for price on request indicators
+        for keyword in price_on_request_keywords:
+            if keyword in title or keyword in description:
+                logging.info(f"🚫 Filtered out price on request property: '{keyword}' found in title/description")
+                return False
+        
+        # Check special features for price on request indicators
+        if special_features:
+            for feature in special_features:
+                feature_lower = str(feature).lower()
+                for keyword in price_on_request_keywords:
+                    if keyword in feature_lower:
+                        logging.info(f"🚫 Filtered out price on request property: '{keyword}' found in special features")
+                        return False
+        
         # Stricter scoring requirements for properties above 400k
         if price_total > 400000:
             score = listing.get('score')
             if score is None:
                 score = 0
-            if score < 70:  # Properties above 400k need a score of at least 70
-                logging.info(f"🚫 Filtered out expensive property with low score: €{price_total:,} with score {score} (needs 70+)")
+            if score < 40:  # Properties above 400k need a score of at least 40
+                logging.info(f"🚫 Filtered out expensive property with low score: €{price_total:,} with score {score} (needs 40+)")
                 return False
         
         return True

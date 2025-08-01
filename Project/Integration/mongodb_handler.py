@@ -325,6 +325,37 @@ class MongoDBHandler:
                 if is_rental:
                     continue
                 
+                # Filter out "Preis auf Anfrage" (price on request) properties
+                price_on_request_keywords = [
+                    'preis auf anfrage', 'price on request', 'auf anfrage', 'on request',
+                    'preis nach vereinbarung', 'price by arrangement', 'nach vereinbarung',
+                    'preis n.v.', 'price n.v.', 'n.v.', 'n/a', 'na', 'tba', 'to be announced',
+                    'preis wird bekanntgegeben', 'price to be announced', 'wird bekanntgegeben'
+                ]
+                
+                is_price_on_request = False
+                for keyword in price_on_request_keywords:
+                    if keyword in title or keyword in description:
+                        is_price_on_request = True
+                        break
+                
+                if is_price_on_request:
+                    continue
+                
+                # Check special features for price on request indicators
+                if special_features:
+                    for feature in special_features:
+                        feature_lower = str(feature).lower()
+                        for keyword in price_on_request_keywords:
+                            if keyword in feature_lower:
+                                is_price_on_request = True
+                                break
+                        if is_price_on_request:
+                            break
+                
+                if is_price_on_request:
+                    continue
+                
                 # Apply stricter scoring for expensive properties
                 price_total = listing.get('price_total', 0)
                 score = listing.get('score', 0) or 0
