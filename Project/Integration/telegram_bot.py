@@ -412,6 +412,11 @@ class TelegramBot:
         if energy_class:
             message_parts.append(f"⚡ Energy Class: {energy_class}")
         
+        # Investment analysis
+        investment_summary = listing.get('investment_summary')
+        if investment_summary:
+            message_parts.append(investment_summary)
+        
         # URL
         if url and include_url:
             message_parts.append(f"🔗 <a href='{url}'>View Listing</a>")
