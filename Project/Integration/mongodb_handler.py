@@ -69,6 +69,11 @@ class MongoDBHandler:
         self.close()
 
     def insert_listing(self, listing: Dict) -> bool:
+        # Skip listings without a positive numeric price_total (e.g., "Preis auf Anfrage")
+        price_val = listing.get('price_total')
+        if not isinstance(price_val, (int, float)) or price_val <= 0:
+            logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing.get('url')}")
+            return False
         try:
             self.collection.insert_one(listing)
             return True
@@ -325,6 +330,11 @@ class MongoDBHandler:
                 if is_rental:
                     continue
                 
+                # Ensure we have a numeric price; drop "Preis auf Anfrage" / missing prices
+                price_total_value = listing.get('price_total')
+                if not isinstance(price_total_value, (int, float)) or price_total_value <= 0:
+                    continue
+
                 # Filter out "Preis auf Anfrage" (price on request) properties
                 price_on_request_keywords = [
                     'preis auf anfrage', 'price on request', 'auf anfrage', 'on request',
