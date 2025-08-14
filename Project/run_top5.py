@@ -354,6 +354,12 @@ def main():
             exclude_recently_sent=exclude_recently_sent,  # Control duplicate suppression
             recently_sent_days=7
         )
+
+        # Extra safeguard: filter out listings without numeric prices (Preis auf Anfrage)
+        listings = [
+            l for l in listings
+            if isinstance(l.get('price_total'), (int, float)) and l.get('price_total', 0) > 0
+        ]
         
         # Filter out garbage listings with unrealistic prices
         original_count = len(listings)
