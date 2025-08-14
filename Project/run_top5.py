@@ -8,6 +8,7 @@ import os
 import logging
 from datetime import datetime
 import numpy as np
+import random
 
 # Add the project root to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -329,7 +330,7 @@ def main():
         print(f"📊 Fetching top {limit} listings...")
         print(f"🎯 Minimum score: {min_score}")
         if exclude_recently_sent:
-            print(f"🚫 Excluding listings sent to Telegram in last 7 days")
+            print(f"🚫 Excluding listings sent to Telegram in last 14 days")
         else:
             print(f"✅ Including listings even if sent recently (weekly mode)")
         print(f"🚫 Filtering out 'unbefristet vermietete' (rental) properties")
@@ -346,13 +347,13 @@ def main():
         
         # Fetch top listings from MongoDB (all time, excluding recently sent)
         listings = mongo.get_top_listings(
-            limit=limit * 3,  # Get more listings to filter out garbage
+            limit=60,  # Get a larger pool of listings to select from
             min_score=min_score,
             days_old=365,  # Look back 1 year to get all available listings
             excluded_districts=excluded_districts,
             min_rooms=min_rooms,
             exclude_recently_sent=exclude_recently_sent,  # Control duplicate suppression
-            recently_sent_days=7
+            recently_sent_days=14
         )
 
         # Extra safeguard: filter out listings without numeric prices (Preis auf Anfrage)
@@ -363,17 +364,25 @@ def main():
         
         # Filter out garbage listings with unrealistic prices
         original_count = len(listings)
-        listings = filter_valid_listings(listings, limit=limit)
+        valid_listings = filter_valid_listings(listings)
         
         # Log validation statistics
         stats = get_validation_stats(listings[:original_count])
         logging.info(f"📊 Validation stats: {stats['valid']}/{stats['total']} valid ({stats['valid_percentage']:.1f}%)")
         logging.info(f"🚫 Filtered out rental properties and expensive properties with low scores")
+
+        # Take top 20 for the pool and randomize selection
+        pool = valid_listings[:20]
+        if len(pool) < limit:
+            logging.warning(f"⚠️ Pool size ({len(pool)}) is less than requested limit ({limit}). Sending all available.")
+            limit = len(pool)
+        
+        listings_to_send = random.sample(pool, limit)
         
         # Add investment analysis to each listing
         if include_investment_analysis:
             print("📊 Calculating investment analysis for each property...")
-            for listing in listings:
+            for listing in listings_to_send:
                 investment_result = calculate_investment_analysis(listing)
                 if investment_result:
                     listing['investment_analysis'] = investment_result
@@ -383,38 +392,38 @@ def main():
                     listing['investment_summary'] = "❌ Investment analysis not available"
         else:
             # Clear any existing investment analysis
-            for listing in listings:
+            for listing in listings_to_send:
                 listing['investment_analysis'] = None
                 listing['investment_summary'] = None
         
-        if not listings:
+        if not listings_to_send:
             logging.warning("⚠️ No listings found matching criteria")
             print("⚠️ No listings found matching criteria - no message sent to Telegram")
             return True
         
         # Create title for the report
         if is_weekly:
-            title = "📅 Weekly Top 10 Properties Report"
+            title = f"📅 Weekly Top {len(listings_to_send)} Properties Report (Randomized)"
         else:
-            title = f"🏆 Top {len(listings)} Properties Report"
+            title = f"🏆 Top {len(listings_to_send)} Properties Report (Randomized)"
         
         # Send to Telegram
         success = telegram_bot.send_top_listings(
-            listings=listings,
+            listings=listings_to_send,
             title=title,
             max_listings=limit
         )
         
         if success:
-            print(f"✅ Successfully sent top {len(listings)} listings to Telegram")
+            print(f"✅ Successfully sent top {len(listings_to_send)} listings to Telegram")
             
             # Mark listings as sent to prevent duplicates (skip in weekly mode)
             if not is_weekly:
-                mongo.mark_listings_sent(listings)
+                mongo.mark_listings_sent(listings_to_send)
             
             # Print summary
             print("\n📊 Summary:")
-            for i, listing in enumerate(listings, 1):
+            for i, listing in enumerate(listings_to_send, 1):
                 score = listing.get('score', 0)
                 price = listing.get('price_total', 0)
                 area = listing.get('area_m2', 0)
