@@ -225,7 +225,7 @@ def calculate_investment_analysis(listing: dict) -> dict | None:
 
 def format_investment_summary(investment_result: dict | None) -> str:
     """
-    Format investment analysis results for display
+    Format investment analysis results for display (concise)
     """
     if not investment_result:
         return "❌ Investment analysis not available"
@@ -233,27 +233,19 @@ def format_investment_summary(investment_result: dict | None) -> str:
     profit_diff = investment_result['profit_difference']
     percentage = investment_result['percentage_better']
     makes_sense = investment_result['makes_sense']
-    
-    summary = f"📊 <b>Investment Analysis (35 years):</b>\n"
-    summary += f"💰 Property Profit: €{investment_result['profit_property']:,.0f}\n"
-    summary += f"📈 ETF Total Profit: €{investment_result['profit_etf_total']:,.0f}\n"
-    summary += f"  • Down Payment: €{investment_result['etf_value_direct']:,.0f}\n"
-    summary += f"  • Monthly Investments: €{investment_result['etf_value_monthly']:,.0f}\n"
-    summary += f"📊 Difference: €{profit_diff:,.0f} ({percentage:+.1f}%)\n"
-    
-    # Add rental income details
-    summary += f"\n🏠 <b>Rental Income Details:</b>\n"
-    summary += f"• Gross Rent (3.5%): €{investment_result['initial_gross_rent']:,.0f}/year\n"
-    summary += f"• Maintenance Costs: €{investment_result['annual_maintenance_cost']:,.0f}/year\n"
-    summary += f"• Net Rent Income: €{investment_result['initial_net_rent_income']:,.0f}/year\n"
-    summary += f"• Future Rent ETF Value: €{investment_result['etf_value_from_rents']:,.0f}\n"
-    
-    if makes_sense:
-        summary += f"\n✅ <b>Real Estate makes sense!</b>"
-    else:
-        summary += f"\n⚠️ <b>ETF might be better</b>"
-    
-    return summary
+
+    # Net rent per month (rounded)
+    monthly_net_rent = (investment_result.get('initial_net_rent_income', 0) or 0) / 12.0
+
+    # Concise summary: RE vs ETF and net rent per month
+    re_profit = investment_result['profit_property']
+    etf_profit = investment_result['profit_etf_total']
+    verdict = "✅ RE" if makes_sense else "⚠️ ETF"
+
+    return (
+        f"📊 RE vs ETF: RE €{re_profit:,.0f} vs ETF €{etf_profit:,.0f} | Δ €{profit_diff:,.0f} ({percentage:+.1f}%)\n"
+        f"💵 Net rent: €{monthly_net_rent:,.0f}/mo | {verdict}"
+    )
 
 def main():
     """Main function to fetch top 5 listings and send to Telegram"""

@@ -412,10 +412,25 @@ class TelegramBot:
         if energy_class:
             message_parts.append(f"⚡ Energy Class: {energy_class}")
         
-        # Investment analysis
-        investment_summary = listing.get('investment_summary')
-        if investment_summary:
-            message_parts.append(investment_summary)
+        # Investment analysis (concise): show RE vs ETF and net rent per month only
+        analysis = listing.get('investment_analysis')
+        if isinstance(analysis, dict) and analysis:
+            try:
+                re_profit = analysis.get('profit_property')
+                etf_profit = analysis.get('profit_etf_total')
+                profit_diff = analysis.get('profit_difference')
+                percentage = analysis.get('percentage_better')
+                makes_sense = analysis.get('makes_sense')
+                net_rent_year = analysis.get('initial_net_rent_income')
+                net_rent_month = (net_rent_year or 0) / 12.0
+                verdict = "✅ RE" if makes_sense else "⚠️ ETF"
+                line1 = f"📊 RE vs ETF: RE €{re_profit:,.0f} vs ETF €{etf_profit:,.0f} | Δ €{profit_diff:,.0f} ({percentage:+.1f}%)"
+                line2 = f"💵 Net rent: €{net_rent_month:,.0f}/mo | {verdict}"
+                message_parts.append(line1)
+                message_parts.append(line2)
+            except Exception:
+                # If anything goes wrong, skip investment block silently
+                pass
         
         # URL
         if url and include_url:
