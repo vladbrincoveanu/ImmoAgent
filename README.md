@@ -109,7 +109,8 @@ jobs:
 The application supports different buyer profiles for customized property scoring:
 
 ### Available Profiles
-- `diy_renovator` (default) - Investment and renovation focus
+- `owner_occupier` (default) - Prefers newer, efficient homes with minimal renovation
+- `diy_renovator` - Investment and renovation focus
 - `growing_family` - Space and schools priority  
 - `urban_professional` - Location and lifestyle
 - `eco_conscious` - Energy efficiency focus
@@ -119,14 +120,21 @@ The application supports different buyer profiles for customized property scorin
 
 ### Usage
 ```bash
-# Use default profile (diy_renovator)
+# Use default profile (owner_occupier)
 python run.py
 
 # Use specific profile
 python run.py --buyer-profile=growing_family
 
+# Use persona enum shorthand
+python run_top5.py --buyer-persona=owner_occupier
+
 # Top5 with specific profile
 python run_top5.py --buyer-profile=budget_buyer
+
+# Scan deeper or faster
+python run.py --deep-scan     # up to 20 pages/source (configurable)
+python run.py --quick-scan    # skim ~4 pages/source for a quick refresh
 ```
 
 ## 📊 Usage
@@ -135,7 +143,7 @@ python run_top5.py --buyer-profile=budget_buyer
 ```bash
 cd Project
 
-# Run all scrapers
+# Run all scrapers (now ~12 pages/source by default)
 python run.py
 
 # Run with Telegram notifications
@@ -148,6 +156,9 @@ python run.py --derstandard-only
 
 # Run with specific buyer profile
 python run.py --buyer-profile=urban_professional --send-to-telegram
+
+# Deep dive for better offers
+python run.py --deep-scan
 ```
 
 ### Top5 Properties Report

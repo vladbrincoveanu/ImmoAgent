@@ -58,10 +58,16 @@ def set_buyer_profile(profile_name: str):
     global CRITERIA_WEIGHTS, _current_profile
     
     try:
-        from Application.buyer_profiles import get_profile
-        profile = get_profile(profile_name)
+        from Application.buyer_profiles import get_profile, BuyerPersona
+        # Allow passing enums directly for safer switching
+        if isinstance(profile_name, BuyerPersona):
+            profile_key = profile_name.value
+        else:
+            profile_key = profile_name
+
+        profile = get_profile(profile_key)
         CRITERIA_WEIGHTS = profile['weights'].copy()
-        _current_profile = profile_name
+        _current_profile = profile_key
         validate_weights()
         print(f"✅ Set buyer profile to: {profile['name']}")
     except Exception as e:

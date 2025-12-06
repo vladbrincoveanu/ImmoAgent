@@ -4,7 +4,31 @@ Buyer Profiles for Property Scoring
 Different weight distributions for different buyer types
 """
 
-from typing import Dict, Any
+from enum import Enum
+from typing import Dict, Any, Union
+
+
+class BuyerPersona(Enum):
+    """Enumerated buyer personas for safer switching."""
+    DEFAULT = 'default'
+    DIY_RENOVATOR = 'diy_renovator'
+    OWNER_OCCUPIER = 'owner_occupier'
+    GROWING_FAMILY = 'growing_family'
+    URBAN_PROFESSIONAL = 'urban_professional'
+    ECO_CONSCIOUS = 'eco_conscious'
+    RETIREE = 'retiree'
+    BUDGET_BUYER = 'budget_buyer'
+
+    @classmethod
+    def from_value(cls, value: Union[str, "BuyerPersona"]) -> "BuyerPersona":
+        """Normalize arbitrary input to a BuyerPersona enum member."""
+        if isinstance(value, cls):
+            return value
+        normalized = str(value).strip().lower()
+        for member in cls:
+            if normalized in (member.name.lower(), member.value.lower()):
+                return member
+        raise ValueError(f"Unknown buyer persona '{value}'.")
 
 # Define all available buyer profiles
 BUYER_PROFILES = {
@@ -23,6 +47,24 @@ BUYER_PROFILES = {
             'potential_growth_rating': 0.10,
             'renovation_needed_rating': 0.05,
             'area_m2': 0.05,
+        }
+    },
+
+    'owner_occupier': {
+        'name': 'Owner-Occupier 🏡',
+        'description': 'Prioritizes newer, efficient homes with low renovation needs',
+        'weights': {
+            'price_per_m2': 0.18,
+            'year_built': 0.18,
+            'hwb_value': 0.12,
+            'ubahn_walk_minutes': 0.15,
+            'balcony_terrace': 0.10,
+            'renovation_needed_rating': 0.10,
+            'area_m2': 0.07,
+            'rooms': 0.05,
+            'potential_growth_rating': 0.03,
+            'floor_level': 0.02,
+            'school_walk_minutes': 0.00,
         }
     },
     
@@ -135,7 +177,7 @@ BUYER_PROFILES = {
     }
 }
 
-def get_profile(profile_name: str) -> Dict[str, Any]:
+def get_profile(profile_name: Union[str, BuyerPersona]) -> Dict[str, Any]:
     """
     Get a specific buyer profile by name.
     
@@ -148,11 +190,16 @@ def get_profile(profile_name: str) -> Dict[str, Any]:
     Raises:
         ValueError: If profile doesn't exist
     """
-    if profile_name not in BUYER_PROFILES:
+    if isinstance(profile_name, BuyerPersona):
+        profile_key = profile_name.value
+    else:
+        profile_key = profile_name
+
+    if profile_key not in BUYER_PROFILES:
         available_profiles = list(BUYER_PROFILES.keys())
         raise ValueError(f"Profile '{profile_name}' not found. Available profiles: {available_profiles}")
     
-    return BUYER_PROFILES[profile_name]
+    return BUYER_PROFILES[profile_key]
 
 def list_profiles() -> Dict[str, str]:
     """

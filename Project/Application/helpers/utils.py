@@ -251,7 +251,7 @@ def load_config() -> Dict:
         "openai_api_key": openai_api_key,
         "openai_model": openai_model,
         "source": "willhaben",
-        "max_pages": 5,
+        "max_pages": 12,
         "scraping": {
             "timeout": 30,
             "delay_between_requests": 1,
@@ -261,19 +261,19 @@ def load_config() -> Dict:
         "willhaben": {
             "base_url": "https://www.willhaben.at",
             "search_url": "https://www.willhaben.at/iad/immobilien/eigentumswohnung/wien",
-            "max_pages": 5,
+            "max_pages": 12,
             "timeout": 30
         },
         "immo_kurier": {
             "base_url": "https://immo.kurier.at",
             "search_url": "https://immo.kurier.at/suche?l=Wien&r=0km&_multiselect_r=0km&a=at.wien&t=all%3Asale%3Aliving&pf=&pt=&rf=&rt=&sf=&st=",
-            "max_pages": 5,
+            "max_pages": 12,
             "timeout": 30
         },
         "derstandard": {
             "base_url": "https://immobilien.derstandard.at",
             "search_url": "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung?roomCountFrom=3",
-            "max_pages": 5,
+            "max_pages": 12,
             "timeout": 30
         },
         "telegram": {
@@ -313,6 +313,10 @@ def load_config() -> Dict:
             "secret_key": minio_secret_key,
             "bucket_name": minio_bucket,
             "secure": False
+        },
+        "scan_depth": {
+            "quick_max_pages": 4,
+            "deep_max_pages": 20
         },
         "api": {
             "host": "0.0.0.0",

@@ -311,6 +311,55 @@ def print_listing_summary(listing):
     print(f"   ⚡ Energy: {energy_class}")
     print(f"   🔗 {listing['url']}")
 
+def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: int = 180, batch_limit: int = 100, verify_urls: bool = True) -> Dict[str, int]:
+    """Prune obviously broken/stale listings to avoid serving dead links."""
+    if mongo_handler is None or mongo_handler.collection is None:
+        return {"checked": 0, "removed": 0, "invalid_data": 0, "broken_urls": 0}
+
+    cutoff_ts = time.time() - (max_age_days * 86400)
+    query = {"processed_at": {"$lt": cutoff_ts}}
+    cursor = mongo_handler.collection.find(query, {"url": 1, "price_total": 1, "area_m2": 1}).limit(batch_limit)
+    candidates = list(cursor)
+
+    removed = 0
+    invalid_data = 0
+    broken_urls = 0
+
+    for doc in candidates:
+        doc_id = doc.get("_id")
+        url = doc.get("url")
+        price_total = doc.get("price_total")
+        area_m2 = doc.get("area_m2")
+
+        if not doc_id:
+            continue
+
+        # Basic data sanity
+        data_invalid = (not url) or (not isinstance(price_total, (int, float)) or price_total <= 0) or (not isinstance(area_m2, (int, float)) or area_m2 <= 0)
+
+        url_invalid = False
+        if verify_urls and url:
+            try:
+                resp = requests.head(url, allow_redirects=True, timeout=5)
+                url_invalid = resp.status_code >= 400
+            except Exception:
+                url_invalid = True
+
+        if data_invalid or url_invalid:
+            try:
+                mongo_handler.collection.delete_one({"_id": doc_id})
+                removed += 1
+                if data_invalid:
+                    invalid_data += 1
+                if url_invalid:
+                    broken_urls += 1
+            except Exception as exc:
+                logging.warning(f"⚠️ Failed to delete stale listing {doc_id}: {exc}")
+
+    if candidates:
+        logging.info(f"🧹 Cleanup: checked {len(candidates)} old listings (>{max_age_days}d), removed {removed} (invalid data: {invalid_data}, broken urls: {broken_urls})")
+    return {"checked": len(candidates), "removed": removed, "invalid_data": invalid_data, "broken_urls": broken_urls}
+
 def scrape_willhaben(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
     """Scrape Willhaben listings"""
     try:
@@ -468,9 +517,11 @@ def main():
     immo_kurier_only = "--immo-kurier-only" in sys.argv
     derstandard_only = "--derstandard-only" in sys.argv
     send_to_telegram = "--send-to-telegram" in sys.argv
+    deep_scan = "--deep-scan" in sys.argv
+    quick_scan = "--quick-scan" in sys.argv
     
     # Parse buyer profile from command line arguments
-    buyer_profile = "diy_renovator"  # Default to DIY Renovator profile
+    buyer_profile = "owner_occupier"  # Default to Owner Occupier profile
     for i, arg in enumerate(sys.argv):
         if arg == "--buyer-profile" and i + 1 < len(sys.argv):
             buyer_profile = sys.argv[i + 1]
@@ -480,8 +531,42 @@ def main():
     # Set the buyer profile for scoring
     from Application.scoring import set_buyer_profile
     set_buyer_profile(buyer_profile)
-    
-    max_pages = config.get('max_pages', 5)
+
+    # Clean up stale/broken listings before scraping to avoid dead links
+    cleanup_config = config.get('cleanup', {})
+    cleanup_enabled = cleanup_config.get('enabled', True)
+    if cleanup_enabled:
+        max_age_days = cleanup_config.get('max_age_days', 180)
+        batch_limit = cleanup_config.get('batch_limit', 100)
+        verify_urls = cleanup_config.get('verify_urls', True)
+        clean_stale_or_broken_listings(mongo, max_age_days=max_age_days, batch_limit=batch_limit, verify_urls=verify_urls)
+
+    # CLI override for crawl depth
+    cli_max_pages = None
+    for i, arg in enumerate(sys.argv):
+        if arg in ("--max-pages", "--max_pages") and i + 1 < len(sys.argv):
+            try:
+                cli_max_pages = int(sys.argv[i + 1])
+            except ValueError:
+                logging.warning(f"⚠️ Invalid --max-pages value: {sys.argv[i + 1]}")
+        elif arg.startswith("--max-pages="):
+            try:
+                cli_max_pages = int(arg.split("=", 1)[1])
+            except ValueError:
+                logging.warning(f"⚠️ Invalid --max-pages value: {arg}")
+
+    max_pages = cli_max_pages or config.get('max_pages', 10)
+
+    scan_depth_config = config.get('scan_depth', {})
+    if quick_scan:
+        quick_pages = scan_depth_config.get('quick_max_pages', max(2, max_pages // 2))
+        max_pages = min(max_pages, quick_pages)
+        logging.info(f"⏩ Quick scan enabled: limiting sources to {max_pages} pages each")
+    elif deep_scan:
+        deep_pages = scan_depth_config.get('deep_max_pages', max_pages * 2)
+        if deep_pages > max_pages:
+            max_pages = deep_pages
+        logging.info(f"🔎 Deep scan enabled: crawling up to {max_pages} pages per source")
     logging.info(f"📋 Max pages per source: {max_pages}")
     
     # Log scraping configuration
