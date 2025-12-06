@@ -426,8 +426,16 @@ class TelegramBot:
                 verdict = "✅ RE" if makes_sense else "⚠️ ETF"
                 line1 = f"📊 RE vs ETF: RE €{re_profit:,.0f} vs ETF €{etf_profit:,.0f} | Δ €{profit_diff:,.0f} ({percentage:+.1f}%)"
                 line2 = f"💵 Net rent: €{net_rent_month:,.0f}/mo | {verdict}"
+                rent_month = analysis.get('regional_rent_monthly')
+                own_month = analysis.get('total_monthly_cost')
+                line3 = None
+                if rent_month and own_month:
+                    rent_delta = rent_month - own_month
+                    line3 = f"🏠 Rent vs Own: Rent €{rent_month:,.0f}/mo vs Own €{own_month:,.0f} ({rent_delta:+,.0f})"
                 message_parts.append(line1)
                 message_parts.append(line2)
+                if line3:
+                    message_parts.append(line3)
             except Exception:
                 # If anything goes wrong, skip investment block silently
                 pass
