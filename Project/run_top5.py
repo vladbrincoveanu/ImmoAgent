@@ -3,6 +3,7 @@
 Script to fetch top 5 listings from MongoDB and send to Telegram main channel
 """
 
+import argparse
 import sys
 import os
 import logging
@@ -10,7 +11,7 @@ import time
 from datetime import datetime
 import numpy as np
 import random
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # Add the project root to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -55,6 +56,98 @@ DEFAULT_RENT_BENCHMARKS: Dict[str, float] = {
     '1210': 13.0, '1220': 13.8, '1230': 12.8,
     'default': 13.5,
 }
+
+
+def buyer_persona_type(value: str) -> BuyerPersona:
+    """argparse helper to coerce user input into a BuyerPersona."""
+    try:
+        return BuyerPersona.from_value(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def parse_cli_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """Parse CLI flags for the Top5 report."""
+    parser = argparse.ArgumentParser(
+        description="Send the Top5 (or TopN) property report to Telegram"
+    )
+    parser.add_argument(
+        "--buyer-profile",
+        help="Buyer profile key (e.g. budget_buyer, retiree). Overrides config and persona.",
+    )
+    parser.add_argument(
+        "--buyer-persona",
+        "--persona",
+        dest="buyer_persona",
+        type=buyer_persona_type,
+        help="Buyer persona enum shortcut (owner_occupier, diy_renovator, etc.)",
+    )
+    parser.add_argument(
+        "--weekly",
+        action="store_true",
+        help="Weekly digest mode (top 10, allow resends).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Override how many listings to send (default 5, or 10 in weekly mode).",
+    )
+    parser.add_argument(
+        "--min-score",
+        type=float,
+        help="Minimum listing score to consider.",
+    )
+    parser.add_argument(
+        "--min-rooms",
+        type=int,
+        help="Minimum room count to consider.",
+    )
+    parser.add_argument(
+        "--pool-size",
+        type=int,
+        help="Number of listings to pull from Mongo before filtering (default 150).",
+    )
+    parser.add_argument(
+        "--candidate-pool",
+        type=int,
+        help="Number of high quality listings to consider before sampling (default 50).",
+    )
+    parser.add_argument(
+        "--exclude-district",
+        dest="exclude_districts",
+        action="append",
+        help="District code to exclude. Pass multiple times for several districts.",
+    )
+    parser.add_argument(
+        "--include-investment-analysis",
+        dest="include_investment_analysis",
+        action="store_true",
+        help="Force-enable investment analysis calculations.",
+    )
+    parser.add_argument(
+        "--skip-investment-analysis",
+        dest="include_investment_analysis",
+        action="store_false",
+        help="Disable investment analysis calculations.",
+    )
+    parser.add_argument(
+        "--include-monthly-payment",
+        dest="include_monthly_payment",
+        action="store_true",
+        help="Force monthly payment calculations.",
+    )
+    parser.add_argument(
+        "--skip-monthly-payment",
+        dest="include_monthly_payment",
+        action="store_false",
+        help="Disable monthly payment calculations.",
+    )
+    parser.set_defaults(
+        include_investment_analysis=None,
+        include_monthly_payment=None,
+        buyer_persona=None,
+    )
+    return parser.parse_args(argv)
 
 
 def normalize_district_code(bezirk: Optional[Any]) -> str:
@@ -397,33 +490,15 @@ def format_investment_summary(investment_result: dict | None) -> str:
         f"{rent_line}"
     )
 
-def main():
+def main(argv: Optional[List[str]] = None):
     """Main function to fetch top 5 listings and send to Telegram"""
     setup_logging()
-    
-    # Parse buyer profile from command line arguments
+
+    args = parse_cli_args(argv)
     default_persona = BuyerPersona.OWNER_OCCUPIER
-    buyer_profile_override = None
-    buyer_persona = default_persona
-    is_weekly = False
-    for i, arg in enumerate(sys.argv):
-        if arg == "--buyer-profile" and i + 1 < len(sys.argv):
-            buyer_profile_override = sys.argv[i + 1]
-        elif arg.startswith("--buyer-profile="):
-            buyer_profile_override = arg.split("=", 1)[1]
-        elif arg in ("--buyer-persona", "--persona") and i + 1 < len(sys.argv):
-            try:
-                buyer_persona = BuyerPersona.from_value(sys.argv[i + 1])
-            except ValueError as exc:
-                logging.warning(f"⚠️ Unknown buyer persona '{sys.argv[i + 1]}': {exc}")
-        elif arg.startswith("--buyer-persona=") or arg.startswith("--persona="):
-            _, value = arg.split("=", 1)
-            try:
-                buyer_persona = BuyerPersona.from_value(value)
-            except ValueError as exc:
-                logging.warning(f"⚠️ Unknown buyer persona '{value}': {exc}")
-        elif arg == "--weekly":
-            is_weekly = True
+    buyer_profile_override = args.buyer_profile
+    buyer_persona = args.buyer_persona or default_persona
+    is_weekly = args.weekly
     
     print("🏆 Starting Top 5 Properties Report")
     print("=" * 50)
@@ -474,15 +549,29 @@ def main():
             logging.info("ℹ️ This is expected if Telegram bot token is not configured or invalid")
             return False
         
-        # Get parameters from config or use defaults
-        limit = top5_config.get('limit', 5)
-        min_score = top5_config.get('min_score', 30.0)
-        excluded_districts = top5_config.get('excluded_districts', [])
-        min_rooms = top5_config.get('min_rooms', 0)
-        include_monthly_payment = top5_config.get('include_monthly_payment', True)
-        include_investment_analysis = top5_config.get('include_investment_analysis', True)
-        pool_size = top5_config.get('pool_size', 150)  # how many to pull from DB for deeper scanning
-        candidate_pool = top5_config.get('candidate_pool', 50)  # top-N (by score/data quality) to consider before randomizing
+        # Get parameters from config or use defaults (allow CLI overrides)
+        limit = args.limit if args.limit is not None else top5_config.get('limit', 5)
+        min_score = args.min_score if args.min_score is not None else top5_config.get('min_score', 30.0)
+
+        excluded_districts_cfg = top5_config.get('excluded_districts', [])
+        if not isinstance(excluded_districts_cfg, list):
+            excluded_districts_cfg = []
+        excluded_districts = args.exclude_districts if args.exclude_districts is not None else excluded_districts_cfg
+        excluded_districts = [normalize_district_code(d) for d in excluded_districts if d]
+
+        min_rooms = args.min_rooms if args.min_rooms is not None else top5_config.get('min_rooms', 0)
+        include_monthly_payment = (
+            args.include_monthly_payment
+            if args.include_monthly_payment is not None
+            else top5_config.get('include_monthly_payment', True)
+        )
+        include_investment_analysis = (
+            args.include_investment_analysis
+            if args.include_investment_analysis is not None
+            else top5_config.get('include_investment_analysis', True)
+        )
+        pool_size = args.pool_size if args.pool_size is not None else top5_config.get('pool_size', 150)
+        candidate_pool = args.candidate_pool if args.candidate_pool is not None else top5_config.get('candidate_pool', 50)
         exclude_recently_sent = True
 
         # Rent benchmarks (configurable, fallback to defaults)
@@ -497,9 +586,10 @@ def main():
 
         # Weekly mode overrides
         if is_weekly:
-            limit = 10
+            if args.limit is None:
+                limit = 10
             exclude_recently_sent = False
-            logging.info("📅 Weekly mode enabled: sending top 10, including previously sent listings")
+            logging.info(f"📅 Weekly mode enabled: sending top {limit}, including previously sent listings")
         
         candidate_pool = max(candidate_pool, limit)
         
