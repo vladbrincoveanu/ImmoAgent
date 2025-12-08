@@ -549,21 +549,24 @@ class DerStandardScraper:
             soup = BeautifulSoup(html_content, 'html.parser')
             
             # Handle collection listings by extracting individual properties
+            actual_url = listing_url  # Track the actual URL we're scraping
             if self.is_collection_listing(soup):
                 logging.info(f"📦 Detected collection listing, extracting individual properties: {listing_url}")
                 individual_urls = self.navigate_collection_listing(listing_url, visited_urls)
                 
                 if individual_urls:
-                    # Return the first individual property (we'll process others in the main loop)
-                    logging.info(f"🔄 Processing first individual property: {individual_urls[0]}")
-                    return self.scrape_single_listing(individual_urls[0], visited_urls, recursion_depth + 1)
+                    # Use the first individual property URL for the listing
+                    actual_url = individual_urls[0]
+                    logging.info(f"🔄 Using individual property URL: {actual_url}")
+                    # Re-scrape with the individual property URL
+                    return self.scrape_single_listing(actual_url, visited_urls, recursion_depth + 1)
                 else:
                     logging.info(f"📦 No individual properties found in collection, trying as regular listing: {listing_url}")
                     # Continue with regular scraping instead of returning None
             
             # Create a Listing object with all required fields
             listing = Listing(
-                url=listing_url,
+                url=actual_url,  # Use actual_url to ensure we store the correct URL
                 source="derstandard",
                 source_enum="derstandard",
                 title="",  # Will be populated
@@ -1600,7 +1603,7 @@ class DerStandardScraper:
         for i, url in enumerate(listing_urls, 1):
             logging.info(f"🔍 Scraping listing {i}/{len(listing_urls)}: {url}")
             
-            # Check if already exists in MongoDB
+            # Check if already exists in MongoDB (check the input URL first)
             if self.mongo.listing_exists(url):
                 logging.info(f"⏭️  Skipping already processed: {url}")
                 continue
@@ -1608,6 +1611,10 @@ class DerStandardScraper:
             listing = self.scrape_single_listing(url)
             
             if listing:
+                # Check if the listing's actual URL (which may differ from input URL for collections) already exists
+                if listing.url != url and self.mongo.listing_exists(listing.url):
+                    logging.info(f"⏭️  Skipping already processed (individual property): {listing.url}")
+                    continue
                 if self.meets_criteria(listing):
                     # Calculate score for logging
                     try:
@@ -1694,13 +1701,13 @@ class DerStandardScraper:
                     listing_dict.update(required_fields)
                     
                     if self.mongo.insert_listing(listing_dict):
-                        logging.info(f"💾 Saved to MongoDB: {url}")
+                        logging.info(f"💾 Saved to MongoDB: {listing.url}")
                         saved_count += 1
                         # Note: Telegram notifications are handled centrally in main.py
                     else:
-                        logging.warning(f"⚠️  Already exists in MongoDB: {url}")
+                        logging.warning(f"⚠️  Already exists in MongoDB: {listing.url}")
                 else:
-                    logging.info(f"❌ Does not match criteria: {url}")
+                    logging.info(f"❌ Does not match criteria: {listing.url}")
                 
                 valid_count += 1
             else:
