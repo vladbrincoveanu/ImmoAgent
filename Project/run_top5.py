@@ -640,7 +640,7 @@ def main(argv: Optional[List[str]] = None):
         logging.info(f"📊 Validation stats: {stats['valid']}/{stats['total']} valid ({stats['valid_percentage']:.1f}%)")
         logging.info(f"🚫 Filtered out rental properties and expensive properties with low scores")
 
-        # Prioritize data richness before random selection
+        # Prioritize data richness before random selection (best listings regardless of source)
         def candidate_sort_key(l: Dict[str, Any]):
             coverage = l.get('data_quality', {}).get('coverage_pct', 0)
             rent_flag = 1 if l.get('regional_rent_monthly') else 0
@@ -655,7 +655,14 @@ def main(argv: Optional[List[str]] = None):
 
         sorted_candidates = sorted(valid_listings, key=candidate_sort_key, reverse=True)
 
+        # Select best listings regardless of source (pure quality-based selection)
         pool = sorted_candidates[:candidate_pool]
+        
+        # Log source distribution for transparency
+        if pool:
+            from collections import Counter
+            source_counts = Counter(l.get('source', 'unknown') for l in pool)
+            logging.info(f"📊 Source distribution in candidate pool: {dict(source_counts)}")
         if pool:
             avg_coverage = sum(l.get('data_quality', {}).get('coverage_pct', 0) for l in pool) / len(pool)
             logging.info(f"🧮 Avg data coverage in candidate pool: {avg_coverage:.1f}%")

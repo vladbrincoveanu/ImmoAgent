@@ -4,6 +4,7 @@ from pymongo.errors import ConnectionFailure, OperationFailure
 from typing import Dict, Any, Optional, List
 import os
 import json
+import time
 from Application.helpers.utils import load_config
 import logging
 
@@ -242,9 +243,16 @@ class MongoDBHandler:
                 "processed_at": {"$gte": cutoff_timestamp}
             }
             
-            # Add score filter if specified
+            # Add score filter if specified (handle both existing scores and null scores)
+            # We'll calculate scores for listings without them later, so don't exclude them here
+            # Include score: 0 in case it's used as a placeholder before scoring
             if min_score > 0:
-                base_query["score"] = {"$gte": min_score}
+                base_query["$or"] = [
+                    {"score": {"$gte": min_score}},
+                    {"score": {"$exists": False}},
+                    {"score": None},
+                    {"score": 0}  # Include 0 as it may be a placeholder before scoring
+                ]
             
             # Add district exclusion filter
             if excluded_districts and len(excluded_districts) > 0:
@@ -275,14 +283,62 @@ class MongoDBHandler:
                 query = base_query
             
             # Sort by score descending, then by processed_at descending
+            # Use a projection to handle null scores (treat as 0 for sorting)
             sort_criteria = [
-                ("score", -1),  # Highest score first
+                ("score", -1),  # Highest score first (nulls will be last)
                 ("processed_at", -1)  # Most recent first for same scores
             ]
             
             # Execute query
             cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit * 3)  # Get more to filter
             listings = list(cursor)
+            
+            # Calculate scores for listings that don't have them
+            # Strategy: Only recalculate for None/missing scores to avoid overwriting intentional 0 scores
+            # Score: 0 listings are included in query but only recalculated if very recent (likely placeholders)
+            from Application.scoring import score_apartment_simple
+            scores_calculated = 0
+            for listing in listings:
+                score_value = listing.get('score')
+                
+                # Case 1: Score is None or missing - definitely needs calculation
+                if score_value is None or 'score' not in listing:
+                    try:
+                        score = score_apartment_simple(listing)
+                        listing['score'] = score
+                        scores_calculated += 1
+                        logging.debug(f"📊 Calculated missing score for listing: {score:.1f}")
+                    except Exception as e:
+                        logging.warning(f"⚠️ Could not calculate score for listing: {e}")
+                        listing['score'] = 0.0
+                
+                # Case 2: Score is 0 - could be placeholder or intentional "bad" score
+                # Only recalculate if very recent (within 24h) as those are likely placeholders
+                elif score_value == 0:
+                    processed_at = listing.get('processed_at')
+                    if processed_at and isinstance(processed_at, (int, float)):
+                        age_hours = (time.time() - processed_at) / 3600
+                        if age_hours < 24:
+                            # Recent listing with score 0 - likely a placeholder, recalculate
+                            try:
+                                score = score_apartment_simple(listing)
+                                listing['score'] = score
+                                scores_calculated += 1
+                                logging.debug(f"📊 Recalculated recent score:0 listing (age: {age_hours:.1f}h): {score:.1f}")
+                            except Exception as e:
+                                logging.warning(f"⚠️ Could not recalculate score for listing: {e}")
+                                # Keep score as 0
+                    # If score is 0 and listing is older, treat it as intentional "bad" score and don't recalculate
+            
+            if scores_calculated > 0:
+                logging.info(f"📊 Calculated scores for {scores_calculated} listings that were missing scores")
+            
+            # Filter by min_score after calculating scores
+            if min_score > 0:
+                listings = [l for l in listings if (l.get('score', 0) or 0) >= min_score]
+            
+            # Re-sort by score after calculating missing scores
+            listings = sorted(listings, key=lambda x: (x.get('score', 0) or 0, x.get('processed_at', 0)), reverse=True)
             
             # Add monthly payment calculations to each listing
             for listing in listings:
@@ -292,14 +348,16 @@ class MongoDBHandler:
             filtered_listings = []
             for listing in listings:
                 # Skip rental properties
-                title = listing.get('title', '').lower()
-                description = listing.get('description', '').lower()
-                special_features = listing.get('special_features', [])
+                title = (listing.get('title') or '').lower()
+                description = (listing.get('description') or '').lower()
+                special_features = listing.get('special_features', []) or []
                 
                 rental_keywords = [
                     'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
                     'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
+                    'bereits vermietet', 'aktuell vermietet', 'ist vermietet', 'wird vermietet',
                     'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
+                    'mieteinnahmen', 'mietertrag', 'mietrendite',
                     'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
                     'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
                     'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
