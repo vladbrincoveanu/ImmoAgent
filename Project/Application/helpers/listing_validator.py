@@ -62,15 +62,17 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
                 return False
         
         # Filter out "unbefristet vermietete" (indefinitely rented) properties
-        title = listing.get('title', '').lower()
-        description = listing.get('description', '').lower()
-        special_features = listing.get('special_features', [])
+        title = (listing.get('title') or '').lower()
+        description = (listing.get('description') or '').lower()
+        special_features = listing.get('special_features', []) or []
         
         # Check for rental indicators in title, description, and special features
         rental_keywords = [
             'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
             'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
+            'bereits vermietet', 'aktuell vermietet', 'ist vermietet', 'wird vermietet',
             'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
+            'mieteinnahmen', 'mietertrag', 'mietrendite',
             'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
             'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
             'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
