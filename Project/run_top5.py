@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 import numpy as np
 import random
+import requests
 from typing import Dict, Any, Optional, List
 
 # Add the project root to the Python path
@@ -250,6 +251,66 @@ def recency_score(listing: Dict[str, Any], horizon_days: int = 120) -> float:
         return 0.0
     age_days = max((time.time() - ts) / 86400, 0)
     return max(0.0, (horizon_days - age_days) / horizon_days)
+
+def validate_url(url: Optional[str], timeout: int = 5) -> bool:
+    """
+    Validate that a URL is accessible and returns a 200 OK status.
+    
+    Args:
+        url: The URL to validate (can be None)
+        timeout: Request timeout in seconds (default: 5)
+    
+    Returns:
+        True if URL is accessible (status 200), False otherwise
+    """
+    if not url or not isinstance(url, str):
+        return False
+    
+    try:
+        # Use HEAD request for efficiency (faster than GET)
+        resp = requests.head(url, allow_redirects=True, timeout=timeout)
+        # Only accept 200 OK status codes
+        is_valid = resp.status_code == 200
+        if not is_valid:
+            logging.debug(f"❌ Invalid URL (HTTP {resp.status_code}): {url}")
+        return is_valid
+    except requests.exceptions.Timeout:
+        logging.debug(f"⏱️ URL timeout: {url}")
+        return False
+    except requests.exceptions.RequestException as e:
+        logging.debug(f"❌ URL error ({type(e).__name__}): {url}")
+        return False
+    except Exception as e:
+        logging.debug(f"❌ Unexpected error validating URL: {e} - {url}")
+        return False
+
+def filter_valid_urls(listings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filter out listings with broken or invalid URLs.
+    
+    Args:
+        listings: List of listing dictionaries
+    
+    Returns:
+        List of listings with valid URLs only
+    """
+    valid_listings = []
+    broken_count = 0
+    
+    for listing in listings:
+        url = listing.get('url')
+        if validate_url(url):
+            valid_listings.append(listing)
+        else:
+            broken_count += 1
+            listing_id = listing.get('_id', 'unknown')
+            source = listing.get('source', 'unknown')
+            logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {url}")
+    
+    if broken_count > 0:
+        logging.info(f"🔍 URL validation: {broken_count} listing(s) filtered out due to broken URLs")
+    
+    return valid_listings
 
 def setup_logging():
     """Setup logging configuration"""
@@ -550,8 +611,8 @@ def main(argv: Optional[List[str]] = None):
             return False
         
         # Get parameters from config or use defaults (allow CLI overrides)
-        limit = args.limit if args.limit is not None else top5_config.get('limit', 5)
-        min_score = args.min_score if args.min_score is not None else top5_config.get('min_score', 30.0)
+        limit = args.limit if args.limit is not None else top5_config.get('limit', 3)
+        min_score = args.min_score if args.min_score is not None else top5_config.get('min_score', 40.0)
 
         excluded_districts_cfg = top5_config.get('excluded_districts', [])
         if not isinstance(excluded_districts_cfg, list):
@@ -701,9 +762,33 @@ def main(argv: Optional[List[str]] = None):
                 listing['investment_analysis'] = None
                 listing['investment_summary'] = None
         
+        # Validate URLs and filter out listings with broken/invalid URLs
+        print("🔍 Validating listing URLs...")
+        original_count = len(listings_to_send)
+        listings_to_send = filter_valid_urls(listings_to_send)
+        filtered_count = original_count - len(listings_to_send)
+        
+        if filtered_count > 0:
+            logging.info(f"🚫 Filtered out {filtered_count} listing(s) with broken URLs")
+            print(f"🚫 Filtered out {filtered_count} listing(s) with broken URLs")
+        
+        # If we filtered out too many listings, try to get more from the pool
+        if len(listings_to_send) < limit and len(pool) > len(listings_to_send):
+            remaining_pool = [l for l in pool if l not in listings_to_send]
+            # Validate remaining listings and add valid ones
+            for listing in remaining_pool:
+                if len(listings_to_send) >= limit:
+                    break
+                if validate_url(listing.get('url')):
+                    listings_to_send.append(listing)
+                else:
+                    listing_id = listing.get('_id', 'unknown')
+                    source = listing.get('source', 'unknown')
+                    logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {listing.get('url')}")
+        
         if not listings_to_send:
-            logging.warning("⚠️ No listings found matching criteria")
-            print("⚠️ No listings found matching criteria - no message sent to Telegram")
+            logging.warning("⚠️ No listings found matching criteria after URL validation")
+            print("⚠️ No listings found matching criteria after URL validation - no message sent to Telegram")
             return True
         
         # Create title for the report

@@ -1,0 +1,33 @@
+name: Run Outreach Emails
+
+on:
+  schedule:
+    - cron: '0 8 * * 1,3,5'  # 8 AM UTC on Mon, Wed, Fri (10 AM Vienna)
+  workflow_dispatch:  # allows manual triggering
+
+jobs:
+  run-outreach:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r Project/requirements.txt
+
+      - name: Run Outreach Script
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
+          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
+        run: |
+          python Project/run_outreach.py --limit 5 --min-score 40.0

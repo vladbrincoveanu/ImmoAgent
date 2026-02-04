@@ -260,11 +260,61 @@ class WillhabenScraper:
             print(f"Error extracting from JSON data: {e}")
             return {}
 
+    def _fetch_with_retry(self, url: str, max_retries: int = 3, base_delay: float = 2.0) -> Optional[requests.Response]:
+        """Fetch URL with retry logic and exponential backoff for rate limiting"""
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(url, headers=self.headers, timeout=30)
+                
+                # Handle 429 Too Many Requests with exponential backoff
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff: 2s, 4s, 8s
+                        retry_after = response.headers.get('Retry-After')
+                        if retry_after:
+                            try:
+                                delay = float(retry_after)
+                            except (ValueError, TypeError):
+                                pass
+                        logging.warning(f"⏱️  Rate limited (429) for {url}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logging.error(f"❌ Rate limited (429) for {url} after {max_retries} attempts")
+                        return None
+                
+                response.raise_for_status()
+                return response
+                
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logging.warning(f"⏱️  Timeout for {url}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    logging.error(f"❌ Timeout for {url} after {max_retries} attempts")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logging.warning(f"⚠️  Request error for {url}: {e}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    logging.error(f"❌ Request error for {url} after {max_retries} attempts: {e}")
+                    return None
+        
+        return None
+
     def scrape_single_listing(self, url: str) -> Optional[Listing]:
         """Scrape a single listing and return a Listing object"""
         try:
-            response = self.session.get(url, headers=self.headers)
-            response.raise_for_status()
+            response = self._fetch_with_retry(url)
+            if not response:
+                return None
+                
             soup = BeautifulSoup(response.content, 'html.parser')
 
             # Extract data from JSON-LD first
@@ -1545,8 +1595,15 @@ class WillhabenScraper:
             print(f"📄 Scraping page {page}: {url}")
 
             try:
-                response = self.session.get(url, headers=self.headers)
-                response.raise_for_status()
+                # Add delay between pages to avoid rate limiting
+                if page > 1:
+                    time.sleep(2.0)  # 2 second delay between pages
+                
+                response = self._fetch_with_retry(url)
+                if not response:
+                    logging.warning(f"⚠️  Failed to fetch page {page}, skipping...")
+                    break
+                    
                 soup = BeautifulSoup(response.content, 'html.parser')
 
                 listing_urls = self.extract_listing_urls(soup)
@@ -1558,6 +1615,9 @@ class WillhabenScraper:
                     if self.mongo.listing_exists(listing_url):
                         print(f"⏭️  Skipping already processed: {listing_url}")
                         continue
+                    
+                    # Add delay between requests to avoid rate limiting
+                    time.sleep(1.0)  # 1 second delay between listing requests
                     
                     listing = self.scrape_single_listing(listing_url)
                     if not listing:

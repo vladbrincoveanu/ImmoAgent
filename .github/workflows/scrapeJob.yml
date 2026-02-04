@@ -1,8 +1,12 @@
-name: Run ImmoAgent Hourly
+name: Run ImmoAgent
 
 on:
   schedule:
-    - cron: '0 * * * *' # runs every hour
+    - cron: '0 6 * * 1-5'   # 6 AM UTC  (8 AM Vienna) — morning batch
+    - cron: '0 11 * * 1-5'  # 11 AM UTC (1 PM Vienna) — midday batch
+    - cron: '0 15 * * 1-5'  # 3 PM UTC  (5 PM Vienna) — afternoon batch
+    - cron: '0 18 * * 1-5'  # 6 PM UTC  (8 PM Vienna) — evening batch
+    - cron: '0 9 * * 6'     # 9 AM UTC  Saturday only  — weekend sweep
   workflow_dispatch:     # allows manual triggering
 
 jobs:
@@ -33,5 +37,7 @@ jobs:
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
           TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}
           TELEGRAM_BOT_VIENNA_CHAT_ID: ${{ secrets.TELEGRAM_BOT_VIENNA_CHAT_ID }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           python Project/run.py
