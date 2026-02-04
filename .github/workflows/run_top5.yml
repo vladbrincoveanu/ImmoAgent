@@ -4,10 +4,6 @@ on:
   schedule:
     - cron: '0 5 * * *' # runs every day at 05:00 UTC
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
 
 jobs:
   run-top5:
@@ -37,5 +33,7 @@ jobs:
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
           TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}
           TELEGRAM_BOT_VIENNA_CHAT_ID: ${{ secrets.TELEGRAM_BOT_VIENNA_CHAT_ID }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           python Project/run_top5.py

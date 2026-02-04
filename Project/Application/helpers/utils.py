@@ -67,6 +67,24 @@ def supplement_config_with_env_vars(config: Dict) -> Dict:
     if os.getenv('MINIO_BUCKET_NAME'):
         config['minio']['bucket_name'] = os.getenv('MINIO_BUCKET_NAME')
     
+    # Outreach - ensure outreach section exists
+    if 'outreach' not in config:
+        config['outreach'] = {}
+    
+    # Outreach SMTP credentials (sensitive - should come from env vars)
+    if os.getenv('SMTP_USER'):
+        config['outreach']['smtp_user'] = os.getenv('SMTP_USER')
+    if os.getenv('SMTP_PASSWORD'):
+        config['outreach']['smtp_password'] = os.getenv('SMTP_PASSWORD')
+    if os.getenv('SMTP_HOST'):
+        config['outreach']['smtp_host'] = os.getenv('SMTP_HOST')
+    if os.getenv('SMTP_PORT'):
+        config['outreach']['smtp_port'] = int(os.getenv('SMTP_PORT'))
+    if os.getenv('SENDER_EMAIL'):
+        config['outreach']['sender_email'] = os.getenv('SENDER_EMAIL')
+    if os.getenv('SENDER_NAME'):
+        config['outreach']['sender_name'] = os.getenv('SENDER_NAME')
+    
     return config
 
 def get_project_root() -> str:

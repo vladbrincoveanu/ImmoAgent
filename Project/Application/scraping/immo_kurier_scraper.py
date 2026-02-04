@@ -1211,10 +1211,12 @@ class ImmoKurierScraper:
                             #         logging.error(f"Error sending to Telegram: {e}")
                             
                             logging.info(f"✅ MATCHES CRITERIA: {listing.title}")
-                            logging.info(f"   💰 Price: €{listing.price_total:,.0f}")
-                            logging.info(f"   📐 Area: {listing.area_m2}m²")
+                            price_str = f"€{listing.price_total:,.0f}" if listing.price_total else "N/A"
+                            logging.info(f"   💰 Price: {price_str}")
+                            area_str = f"{listing.area_m2}m²" if listing.area_m2 else "N/A"
+                            logging.info(f"   📐 Area: {area_str}")
                             logging.info(f"   🏠 Rooms: {listing.rooms or 'N/A'}")
-                            logging.info(f"   📍 District: {listing.bezirk}")
+                            logging.info(f"   📍 District: {listing.bezirk or 'N/A'}")
                         else:
                             invalid_count += 1
                             logging.info(f"❌ Does not meet criteria: {listing.title if listing.title else 'Unknown'}")

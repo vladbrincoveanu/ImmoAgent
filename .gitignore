@@ -93,6 +93,7 @@ ollama_data/
 *.key
 *.pem
 telegram_config.json
+secrets.json
 
 # System files
 .DS_Store

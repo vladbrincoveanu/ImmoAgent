@@ -5,6 +5,7 @@ import requests
 import glob
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import asdict
@@ -311,16 +312,270 @@ def print_listing_summary(listing):
     print(f"   ⚡ Energy: {energy_class}")
     print(f"   🔗 {listing['url']}")
 
-def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: int = 180, batch_limit: int = 100, verify_urls: bool = True) -> Dict[str, int]:
-    """Prune obviously broken/stale listings to avoid serving dead links."""
+def deep_cleanup_database(mongo_handler: MongoDBHandler) -> Dict[str, int]:
+    """One-time comprehensive cleanup: removes invalid data, broken URLs, very old listings, and recalculates scores."""
+    if mongo_handler is None or mongo_handler.collection is None:
+        return {"checked": 0, "removed": 0, "invalid_data": 0, "broken_urls": 0, "old_removed": 0, "scores_calculated": 0}
+    
+    logging.info("🧹 Running DEEP CLEANUP (comprehensive database cleanup)...")
+    
+    stats = {
+        "invalid_data": 0,
+        "broken_urls": 0,
+        "old_removed": 0,
+        "scores_calculated": 0
+    }
+    
+    # Step 1: Remove listings with invalid data
+    invalid_query = {
+        "$or": [
+            {"url": {"$exists": False}},
+            {"url": None},
+            {"url": ""},
+            {"price_total": {"$exists": False}},
+            {"price_total": None},
+            {"price_total": {"$lte": 0}},
+            {"area_m2": {"$exists": False}},
+            {"area_m2": None},
+            {"area_m2": {"$lte": 0}}
+        ]
+    }
+    invalid_result = mongo_handler.collection.delete_many(invalid_query)
+    stats["invalid_data"] = invalid_result.deleted_count
+    if stats["invalid_data"] > 0:
+        logging.info(f"   ✅ Removed {stats['invalid_data']} listings with invalid data")
+    
+    # Step 2: Check and remove broken derstandard URLs
+    derstandard_listings = list(mongo_handler.collection.find(
+        {"source": "derstandard"},
+        {"url": 1, "_id": 1}
+    ))
+    
+    if derstandard_listings:
+        logging.info(f"   🔍 Checking {len(derstandard_listings)} derstandard URLs for broken links...")
+        broken_count = 0
+        for listing in derstandard_listings:
+            url = listing.get("url")
+            if not url:
+                continue
+            
+            try:
+                resp = requests.head(url, allow_redirects=True, timeout=3)
+                if resp.status_code >= 400:
+                    mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                    broken_count += 1
+            except Exception:
+                mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                broken_count += 1
+        
+        stats["broken_urls"] = broken_count
+        if broken_count > 0:
+            logging.info(f"   ✅ Removed {broken_count} broken derstandard URLs")
+    
+    # Step 3: Remove very old listings (older than 365 days)
+    cutoff_ts = time.time() - (365 * 86400)
+    old_result = mongo_handler.collection.delete_many({"processed_at": {"$lt": cutoff_ts}})
+    stats["old_removed"] = old_result.deleted_count
+    if stats["old_removed"] > 0:
+        logging.info(f"   ✅ Removed {stats['old_removed']} listings older than 365 days")
+    
+    # Step 4: Recalculate all missing scores
+    missing_scores_query = {
+        "$or": [
+            {"score": {"$exists": False}},
+            {"score": None}
+        ]
+    }
+    listings_without_scores = list(mongo_handler.collection.find(missing_scores_query))
+    
+    if listings_without_scores:
+        from Application.scoring import score_apartment_simple
+        from collections import Counter
+        source_counts = Counter(l.get('source', 'unknown') for l in listings_without_scores)
+        logging.info(f"   🔍 Recalculating scores for {len(listings_without_scores)} listings without scores")
+        logging.info(f"      By source: {dict(source_counts)}")
+        
+        success_count = 0
+        for listing in listings_without_scores:
+            try:
+                score = score_apartment_simple(listing)
+                mongo_handler.collection.update_one(
+                    {"_id": listing["_id"]},
+                    {"$set": {"score": score}}
+                )
+                success_count += 1
+            except Exception as e:
+                logging.debug(f"      ⚠️ Failed to calculate score: {e}")
+        
+        stats["scores_calculated"] = success_count
+        if success_count > 0:
+            logging.info(f"   ✅ Calculated {success_count} missing scores")
+    
+    total_removed = stats["invalid_data"] + stats["broken_urls"] + stats["old_removed"]
+    logging.info(f"🧹 Deep cleanup complete: removed {total_removed} listings, calculated {stats['scores_calculated']} scores")
+    
+    return {
+        "checked": len(derstandard_listings) + len(listings_without_scores),
+        "removed": total_removed,
+        "invalid_data": stats["invalid_data"],
+        "broken_urls": stats["broken_urls"],
+        "old_removed": stats["old_removed"],
+        "scores_calculated": stats["scores_calculated"]
+    }
+
+def comprehensive_cleanup_all_listings(mongo_handler: MongoDBHandler, max_age_days: int = 180, verify_urls: bool = True, batch_size: int = 100) -> Dict[str, int]:
+    """
+    Comprehensive cleanup that checks ALL listings for broken URLs and invalid data.
+    This is more thorough than regular cleanup and should be run periodically.
+    
+    Args:
+        mongo_handler: MongoDB handler instance
+        max_age_days: Remove listings older than this (default: 180 days)
+        verify_urls: Actually check if URLs are accessible (slower but thorough)
+        batch_size: Process listings in batches to avoid memory issues
+    
+    Returns:
+        Dictionary with cleanup statistics
+    """
+    if mongo_handler is None or mongo_handler.collection is None:
+        return {"checked": 0, "removed": 0, "invalid_data": 0, "broken_urls": 0, "old_removed": 0}
+    
+    logging.info("🧹 Running COMPREHENSIVE cleanup (checking ALL listings for broken URLs)...")
+    
+    stats = {
+        "checked": 0,
+        "removed": 0,
+        "invalid_data": 0,
+        "broken_urls": 0,
+        "old_removed": 0
+    }
+    
+    # Step 1: Remove listings with invalid data (fast, no URL checking needed)
+    invalid_query = {
+        "$or": [
+            {"url": {"$exists": False}},
+            {"url": None},
+            {"url": ""},
+            {"price_total": {"$exists": False}},
+            {"price_total": None},
+            {"price_total": {"$lte": 0}},
+            {"area_m2": {"$exists": False}},
+            {"area_m2": None},
+            {"area_m2": {"$lte": 0}}
+        ]
+    }
+    invalid_result = mongo_handler.collection.delete_many(invalid_query)
+    stats["invalid_data"] = invalid_result.deleted_count
+    if stats["invalid_data"] > 0:
+        logging.info(f"   ✅ Removed {stats['invalid_data']} listings with invalid data")
+    
+    # Step 2: Remove very old listings (older than max_age_days)
+    cutoff_ts = time.time() - (max_age_days * 86400)
+    old_result = mongo_handler.collection.delete_many({"processed_at": {"$lt": cutoff_ts}})
+    stats["old_removed"] = old_result.deleted_count
+    if stats["old_removed"] > 0:
+        logging.info(f"   ✅ Removed {stats['old_removed']} listings older than {max_age_days} days")
+    
+    # Step 3: Check ALL remaining listings for broken URLs (if verify_urls is enabled)
+    if verify_urls:
+        # Get all listings with valid URLs (exclude None and empty strings)
+        all_listings = list(mongo_handler.collection.find(
+            {
+                "$and": [
+                    {"url": {"$exists": True}},
+                    {"url": {"$ne": None}},
+                    {"url": {"$ne": ""}}
+                ]
+            },
+            {"url": 1, "_id": 1, "source": 1}
+        ))
+        
+        total_listings = len(all_listings)
+        if total_listings > 0:
+            logging.info(f"   🔍 Checking {total_listings} listings for broken URLs...")
+            
+            broken_count = 0
+            checked = 0
+            
+            # Process in batches to show progress
+            for i in range(0, total_listings, batch_size):
+                batch = all_listings[i:i + batch_size]
+                for listing in batch:
+                    url = listing.get("url")
+                    if not url:
+                        continue
+                    
+                    checked += 1
+                    url_invalid = False
+                    
+                    try:
+                        resp = requests.head(url, allow_redirects=True, timeout=5)
+                        # Only accept 200 OK status codes
+                        if resp.status_code != 200:
+                            url_invalid = True
+                            logging.debug(f"💀 Broken URL (HTTP {resp.status_code}): {url}")
+                    except Exception as e:
+                        url_invalid = True
+                        logging.debug(f"💀 Unreachable URL ({type(e).__name__}): {url}")
+                    
+                    if url_invalid:
+                        try:
+                            mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                            broken_count += 1
+                        except Exception as exc:
+                            logging.warning(f"⚠️ Failed to delete listing {listing.get('_id')}: {exc}")
+                
+                # Log progress for large batches
+                if total_listings > batch_size:
+                    progress = min(100, int((checked / total_listings) * 100))
+                    logging.info(f"   🔍 Progress: {checked}/{total_listings} checked ({progress}%)...")
+            
+            stats["broken_urls"] = broken_count
+            stats["checked"] = checked
+            if broken_count > 0:
+                logging.info(f"   ✅ Removed {broken_count} listings with broken URLs")
+            else:
+                logging.info(f"   ✅ All {checked} URLs are valid")
+    
+    stats["removed"] = stats["invalid_data"] + stats["broken_urls"] + stats["old_removed"]
+    
+    if stats["removed"] > 0:
+        logging.info(f"🧹 Comprehensive cleanup complete: checked {stats['checked']} URLs, removed {stats['removed']} listings (invalid: {stats['invalid_data']}, broken URLs: {stats['broken_urls']}, old: {stats['old_removed']})")
+    else:
+        logging.info(f"🧹 Comprehensive cleanup complete: checked {stats['checked']} URLs, no listings removed")
+    
+    return stats
+
+def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: int = 180, batch_limit: int = None, verify_urls: bool = True, aggressive: bool = False) -> Dict[str, int]:
+    """Prune obviously broken/stale listings to avoid serving dead links.
+    
+    Args:
+        mongo_handler: MongoDB handler instance
+        max_age_days: Remove listings older than this (default: 180 days)
+        batch_limit: Limit number of listings to check (None = check all)
+        verify_urls: Actually check if URLs are accessible (slower but thorough)
+        aggressive: If True, check ALL listings regardless of age, focusing on derstandard URLs
+    """
     if mongo_handler is None or mongo_handler.collection is None:
         return {"checked": 0, "removed": 0, "invalid_data": 0, "broken_urls": 0}
 
-    cutoff_ts = time.time() - (max_age_days * 86400)
-    query = {"processed_at": {"$lt": cutoff_ts}}
-    cursor = mongo_handler.collection.find(query, {"url": 1, "price_total": 1, "area_m2": 1}).limit(batch_limit)
+    # Build query based on cleanup mode
+    if aggressive:
+        # Aggressive mode: check derstandard listings (they tend to expire quickly)
+        query = {"source": "derstandard"}
+        logging.info("🧹 Running AGGRESSIVE cleanup on derstandard listings...")
+    else:
+        # Normal mode: check old listings
+        cutoff_ts = time.time() - (max_age_days * 86400)
+        query = {"processed_at": {"$lt": cutoff_ts}}
+        logging.info(f"🧹 Running cleanup on listings older than {max_age_days} days...")
+    
+    # Apply batch limit if specified
+    cursor = mongo_handler.collection.find(query, {"url": 1, "price_total": 1, "area_m2": 1, "source": 1})
+    if batch_limit:
+        cursor = cursor.limit(batch_limit)
+    
     candidates = list(cursor)
-
     removed = 0
     invalid_data = 0
     broken_urls = 0
@@ -330,6 +585,7 @@ def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: 
         url = doc.get("url")
         price_total = doc.get("price_total")
         area_m2 = doc.get("area_m2")
+        source = doc.get("source")
 
         if not doc_id:
             continue
@@ -340,10 +596,13 @@ def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: 
         url_invalid = False
         if verify_urls and url:
             try:
-                resp = requests.head(url, allow_redirects=True, timeout=5)
+                resp = requests.head(url, allow_redirects=True, timeout=3)
                 url_invalid = resp.status_code >= 400
-            except Exception:
+                if url_invalid:
+                    logging.debug(f"💀 Broken URL (HTTP {resp.status_code}): {url}")
+            except Exception as e:
                 url_invalid = True
+                logging.debug(f"💀 Unreachable URL ({type(e).__name__}): {url}")
 
         if data_invalid or url_invalid:
             try:
@@ -354,10 +613,13 @@ def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: 
                 if url_invalid:
                     broken_urls += 1
             except Exception as exc:
-                logging.warning(f"⚠️ Failed to delete stale listing {doc_id}: {exc}")
+                logging.warning(f"⚠️ Failed to delete listing {doc_id}: {exc}")
 
     if candidates:
-        logging.info(f"🧹 Cleanup: checked {len(candidates)} old listings (>{max_age_days}d), removed {removed} (invalid data: {invalid_data}, broken urls: {broken_urls})")
+        logging.info(f"🧹 Cleanup complete: checked {len(candidates)} listings, removed {removed} (invalid data: {invalid_data}, broken URLs: {broken_urls})")
+    else:
+        logging.info("🧹 No listings found matching cleanup criteria")
+    
     return {"checked": len(candidates), "removed": removed, "invalid_data": invalid_data, "broken_urls": broken_urls}
 
 def scrape_willhaben(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
@@ -519,6 +781,7 @@ def main():
     send_to_telegram = "--send-to-telegram" in sys.argv
     deep_scan = "--deep-scan" in sys.argv
     quick_scan = "--quick-scan" in sys.argv
+    run_cleanup = "--cleanup" in sys.argv
     
     # Parse buyer profile from command line arguments
     buyer_profile = "owner_occupier"  # Default to Owner Occupier profile
@@ -532,14 +795,34 @@ def main():
     from Application.scoring import set_buyer_profile
     set_buyer_profile(buyer_profile)
 
-    # Clean up stale/broken listings before scraping to avoid dead links
+    # Clean up stale/broken listings before scraping to avoid dead links.
+    # Comprehensive cleanup (HTTP HEAD against every listing) is expensive — only run
+    # when explicitly requested via --cleanup, or automatically on the first run of the
+    # day (before 7 AM UTC, i.e. the morning scrape window).
     cleanup_config = config.get('cleanup', {})
     cleanup_enabled = cleanup_config.get('enabled', True)
-    if cleanup_enabled:
-        max_age_days = cleanup_config.get('max_age_days', 180)
-        batch_limit = cleanup_config.get('batch_limit', 100)
-        verify_urls = cleanup_config.get('verify_urls', True)
-        clean_stale_or_broken_listings(mongo, max_age_days=max_age_days, batch_limit=batch_limit, verify_urls=verify_urls)
+    hour_utc = datetime.utcnow().hour
+    should_cleanup = run_cleanup or hour_utc < 7
+    if cleanup_enabled and should_cleanup:
+        # Run comprehensive cleanup first (checks ALL listings for broken URLs)
+        comprehensive_cleanup = cleanup_config.get('comprehensive_cleanup', True)
+        if comprehensive_cleanup:
+            max_age_days = cleanup_config.get('max_age_days', 180)
+            verify_urls = cleanup_config.get('verify_urls', True)
+            batch_size = cleanup_config.get('cleanup_batch_size', 100)
+            comprehensive_cleanup_all_listings(mongo, max_age_days=max_age_days, verify_urls=verify_urls, batch_size=batch_size)
+
+        # Then run deep cleanup (removes invalid data, recalculates scores)
+        deep_cleanup = cleanup_config.get('deep_cleanup', True)
+        if deep_cleanup:
+            deep_cleanup_database(mongo)
+
+        # Finally run regular cleanup (ongoing maintenance for specific sources)
+        batch_limit = cleanup_config.get('batch_limit', None)  # None = check all
+        aggressive = cleanup_config.get('aggressive', True)
+        clean_stale_or_broken_listings(mongo, max_age_days=max_age_days, batch_limit=batch_limit, verify_urls=False, aggressive=aggressive)
+    elif cleanup_enabled:
+        logging.info("⏭️ Skipping comprehensive cleanup (not the morning run; pass --cleanup to force)")
 
     # CLI override for crawl depth
     cli_max_pages = None
@@ -614,26 +897,26 @@ def main():
                 logging.error(f"❌ {scraper_name} failed: {e}")
                 scraping_results[scraper_name] = {'listings': [], 'count': 0, 'error': str(e)}
     
+    # Initialize Telegram bot for notifications (main channel)
+    telegram_bot = None
+    if send_to_telegram:
+        telegram_config = config.get('telegram', {})
+        bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
+        bot_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID') or telegram_config.get('telegram_main', {}).get('chat_id')
+        if bot_main_token and bot_main_chat_id:
+            try:
+                telegram_bot = TelegramBot(bot_main_token, bot_main_chat_id)
+                logging.info("✅ Telegram main bot initialized for property notifications")
+            except Exception as e:
+                logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
+        else:
+            logging.warning("⚠️ Telegram sending requested but bot not configured")
+    else:
+        logging.info("📱 Telegram notifications disabled (use --send-to-telegram to enable)")
+
     if all_listings:
         # Calculate scores for all listings and save to MongoDB
         logging.info(f"💾 Saving {len(all_listings)} listings to MongoDB...")
-        
-        # Initialize Telegram bot for score-based filtering (main channel for properties)
-        telegram_bot = None
-        if send_to_telegram:
-            telegram_config = config.get('telegram', {})
-            bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
-            bot_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID') or telegram_config.get('telegram_main', {}).get('chat_id')
-            if bot_main_token and bot_main_chat_id:
-                try:
-                    telegram_bot = TelegramBot(bot_main_token, bot_main_chat_id)
-                    logging.info("✅ Telegram main bot initialized for property notifications")
-                except Exception as e:
-                    logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
-            else:
-                logging.warning("⚠️ Telegram sending requested but bot not configured")
-        else:
-            logging.info("📱 Telegram notifications disabled (use --send-to-telegram to enable)")
         
         # Calculate additional ratings for all listings before scoring
         from Application.rating_calculator import calculate_all_ratings
