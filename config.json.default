@@ -45,7 +45,7 @@
     "limit": 5,
     "min_score": 30.0,
     "days_old": 7,
-    "excluded_districts": ["1100", "1160"],
+    "excluded_districts": ["1100", "1160", "2100", "2200"],
     "min_rooms": 3,
     "include_monthly_payment": true
   },
