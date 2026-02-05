@@ -36,4 +36,4 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          python Project/run_top5.py
+          python Project/run_top5.py --exclude-districts 1100 1160 1210 1220
