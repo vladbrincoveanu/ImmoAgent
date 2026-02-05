@@ -42,12 +42,14 @@
     "min_score_threshold": 40
   },
   "top5": {
-    "limit": 5,
-    "min_score": 30.0,
+    "limit": 3,
+    "min_score": 40.0,
     "days_old": 7,
     "excluded_districts": ["1100", "1160", "1210", "1220"],
     "min_rooms": 3,
-    "include_monthly_payment": true
+    "include_monthly_payment": true,
+    "pool_size": 200,
+    "candidate_pool": 75
   },
   "criteria": {
     "price_max": 1000000,
