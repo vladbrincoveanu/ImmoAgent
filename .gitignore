@@ -102,4 +102,7 @@ Thumbs.db
 # Ignore filtered and matches files
 filtered_listings.json
 matches_*.json
-seen_listings.json 
+seen_listings.json
+
+# Git worktrees
+.worktrees/ 
