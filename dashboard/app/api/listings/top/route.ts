@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, ObjectId } from '@/lib/mongodb';
+import { Document, WithId } from 'mongodb';
+
+type ListingDocument = Document;
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -28,13 +31,13 @@ export async function GET(request: NextRequest) {
     }
 
     const listings = await db
-      .collection('listings')
+      .collection<ListingDocument>('listings')
       .find(filter)
       .sort({ score: -1, processed_at: -1 })
       .limit(limit)
       .toArray();
 
-    const result = listings.map((l) => ({
+    const result = listings.map((l: WithId<ListingDocument>) => ({
       _id: l._id.toString(),
       title: l.title,
       url: l.url,
