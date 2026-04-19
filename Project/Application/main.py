@@ -727,7 +727,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 # Geocode the listing and update coordinates
                 geocoded = geocode_listing(listing_dict)
                 if geocoded.get('coordinate_source') != 'none':
-                    mongodb_handler.update_listing_coordinates(listing['url'], geocoded)
+                    mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
         
         client.close()
         
