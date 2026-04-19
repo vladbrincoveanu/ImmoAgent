@@ -1,8 +1,8 @@
-import { MongoClient, ObjectId } from 'mongodb';
+import { MongoClient, ObjectId, Db } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 
-let cached = (global as { mongodb?: { client: MongoClient; db: ReturnType<MongoClient['database']> } }).mongodb;
+let cached = (global as { mongodb?: { client: MongoClient; db: Db } }).mongodb;
 
 if (!cached) {
   const client = new MongoClient(MONGODB_URI);
