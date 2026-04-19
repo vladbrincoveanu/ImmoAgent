@@ -12,6 +12,24 @@ export interface ListingBase {
   image_url: string | null;
 }
 
+export type CoordinateSource = 'exact' | 'landmark' | 'none';
+
+export interface MapListing {
+  _id: string;
+  title: string | null;
+  url: string;
+  source_enum: string;
+  bezirk: string | null;
+  price_total: number | null;
+  area_m2: number | null;
+  rooms: number | null;
+  score: number | null;
+  image_url: string | null;
+  coordinates: { lat: number; lon: number } | null;
+  coordinate_source: CoordinateSource;
+  landmark_hint: string | null;
+}
+
 export interface ListingDetail extends ListingBase {
   address: string | null;
   year_built: number | null;
@@ -31,6 +49,8 @@ export interface ListingDetail extends ListingBase {
   infrastructure_distances: Record<string, unknown>;
   score_breakdown?: Record<string, number>;
   url_is_valid?: boolean;
+  coordinate_source?: CoordinateSource;
+  landmark_hint?: string | null;
 }
 
 export interface TopListingsResponse {
