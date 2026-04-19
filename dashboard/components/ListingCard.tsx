@@ -3,7 +3,6 @@
 
 import React, { useState } from 'react';
 import { ListingBase } from '@/lib/types';
-import { ScoreBadge } from './ScoreBadge';
 
 interface ListingCardProps {
   listing: ListingBase;
