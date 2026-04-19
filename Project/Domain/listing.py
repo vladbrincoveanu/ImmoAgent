@@ -42,6 +42,8 @@ class Listing:
     processed_at: Optional[float] = None
     local_image_path: Optional[str] = None
     coordinates: Optional[Coordinates] = None
+    coordinate_source: Optional[str] = None  # 'exact' | 'landmark' | 'none'
+    landmark_hint: Optional[str] = None
     source_enum: Optional[Source] = None
     score: Optional[float] = None
     potential_growth_rating: Optional[int] = None
