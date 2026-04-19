@@ -45,7 +45,7 @@ export function ListingSidebar({
         LISTINGS ({listings.length})
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-2">
+      <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-1.5">
         {listings.length === 0 ? (
           <p className="text-gray-400 text-sm">No listings match your filters.</p>
         ) : (
@@ -53,30 +53,39 @@ export function ListingSidebar({
             <div
               key={l._id}
               onClick={() => onSelect(l)}
-              className={`bg-white rounded-lg border p-3 cursor-pointer transition-all text-xs ${
+              className={`flex gap-3 bg-white rounded-lg border p-2 cursor-pointer transition-all text-xs ${
                 selectedId === l._id
-                  ? 'border-blue-500 ring-1 ring-blue-500'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-accent ring-1 ring-accent'
+                  : 'border-border hover:border-muted'
               }`}
             >
-              <p className="font-semibold text-gray-900 truncate">{l.title || 'Untitled'}</p>
-              <p className="text-blue-600 font-bold mt-1">
-                {l.price_total ? `€${l.price_total.toLocaleString()}` : 'N/A'}
-              </p>
-              <p className="text-gray-500 mt-1">
-                {l.area_m2}m² · {l.rooms} rooms
-              </p>
-              <div className="flex items-center gap-1 mt-2">
-                <span className={`px-1.5 py-0.5 rounded text-white text-[10px] font-medium ${
-                  l.coordinate_source === 'exact' ? 'bg-red-500' : 'bg-orange-500'
-                }`}>
-                  {l.coordinate_source === 'exact' ? 'Exact' : 'Landmark'}
-                </span>
-                {l.score && (
-                  <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-[10px]">
-                    {l.score}
-                  </span>
+              {/* Thumbnail */}
+              <div className="w-16 h-16 rounded-md overflow-hidden bg-border shrink-0 flex items-center justify-center">
+                {l.image_url ? (
+                  <img src={l.image_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <svg className="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
+                  </svg>
                 )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-text line-clamp-1 leading-tight">{l.title || 'Untitled'}</p>
+                <p className="font-bold text-heading mt-0.5">
+                  {l.price_total ? `€${l.price_total.toLocaleString('de-AT')}` : '—'}
+                </p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className={`px-1 py-0.5 rounded text-[9px] font-medium text-white ${
+                    l.coordinate_source === 'exact' ? 'bg-red-500' : l.coordinate_source === 'landmark' ? 'bg-orange-500' : 'bg-muted'
+                  }`}>
+                    {l.coordinate_source === 'exact' ? 'Pin' : l.coordinate_source === 'landmark' ? '~' : '—'}
+                  </span>
+                  {l.score && (
+                    <span className="px-1 py-0.5 rounded bg-accent text-white text-[9px] font-medium">{l.score}</span>
+                  )}
+                </div>
               </div>
             </div>
           ))
