@@ -90,6 +90,22 @@ class MongoDBHandler:
             print(f"MongoDB insert error: {e}")
             return False
 
+    def update_listing_coordinates(self, url: str, geocoded_listing: Dict) -> bool:
+        """Update a listing's coordinates after geocoding."""
+        try:
+            result = self.collection.update_one(
+                {"url": url},
+                {"$set": {
+                    "coordinates": geocoded_listing.get('coordinates'),
+                    "coordinate_source": geocoded_listing.get('coordinate_source'),
+                    "landmark_hint": geocoded_listing.get('landmark_hint'),
+                }}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logging.error(f"Error updating coordinates: {e}")
+            return False
+
     def listing_exists(self, url: str) -> bool:
         try:
             return self.collection.find_one({"url": url}) is not None
