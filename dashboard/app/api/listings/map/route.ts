@@ -8,6 +8,16 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
   const minScore = parseFloat(searchParams.get('min_score') || '0');
   const district = searchParams.get('district');
+  const sort = searchParams.get('sort') || 'score_desc';
+
+  const sortOptions: Record<string, Record<string, 1 | -1>> = {
+    score_desc: { score: -1, processed_at: -1 },
+    price_asc: { price_total: 1 },
+    price_desc: { price_total: -1 },
+    date_desc: { processed_at: -1 },
+    area_desc: { area_m2: -1 },
+  };
+  const sortBy = sortOptions[sort] ?? sortOptions.score_desc;
 
   try {
     // Show listings that have coordinates (exact/landmark) OR haven't been geocoded yet (no field).
@@ -30,7 +40,7 @@ export async function GET(request: NextRequest) {
     const listings = await getDb()
       .collection<Document>('listings')
       .find(filter)
-      .sort({ score: -1 })
+      .sort(sortBy)
       .limit(limit)
       .toArray();
 
