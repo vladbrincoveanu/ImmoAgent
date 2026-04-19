@@ -10,7 +10,7 @@ const SORT_OPTIONS = [
   { value: 'area_desc', label: 'Largest first' },
 ] as const;
 
-type SortOption = typeof SORT_OPTIONS[number]['value'];
+export type SortOption = typeof SORT_OPTIONS[number]['value'];
 
 interface FilterBarProps {
   minScore: string;

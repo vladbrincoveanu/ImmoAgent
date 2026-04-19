@@ -2,11 +2,9 @@
 
 import React, { useState, useCallback } from 'react';
 import { ListingCard } from '@/components/ListingCard';
-import { FilterBar } from '@/components/FilterBar';
+import { FilterBar, SortOption } from '@/components/FilterBar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { ListingBase } from '@/lib/types';
-
-type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
 
 export default function DashboardPage() {
   const [listings, setListings] = useState<ListingBase[]>([]);
