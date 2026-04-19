@@ -21,7 +21,7 @@ function MapLoadingState() {
 
 export default function MapPage() {
   const [listings, setListings] = useState<MapListing[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [minScore, setMinScore] = useState('0');
   const [district, setDistrict] = useState('');
@@ -56,7 +56,7 @@ export default function MapPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden bg-warm-bg">
       {/* Header */}
       <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 shrink-0">
         <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
