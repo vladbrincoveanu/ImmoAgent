@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, ObjectId } from '@/lib/mongodb';
+import { getDb, ObjectId } from '@/lib/mongodb';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const listing = await db.collection('listings').findOne({
+    const listing = await getDb().collection('listings').findOne({
       _id: new ObjectId(params.id),
     });
 

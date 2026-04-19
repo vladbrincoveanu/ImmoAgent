@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, ObjectId } from '@/lib/mongodb';
+import { getDb, ObjectId } from '@/lib/mongodb';
 
 async function checkUrl(url: string): Promise<boolean> {
   try {
@@ -15,7 +15,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const listing = await db.collection('listings').findOne({
+    const listing = await getDb().collection('listings').findOne({
       _id: new ObjectId(params.id),
     });
 
@@ -25,7 +25,7 @@ export async function POST(
 
     const isValid = await checkUrl(listing.url);
 
-    await db.collection('listings').updateOne(
+    await getDb().collection('listings').updateOne(
       { _id: new ObjectId(params.id) },
       { $set: { url_is_valid: isValid } }
     );
