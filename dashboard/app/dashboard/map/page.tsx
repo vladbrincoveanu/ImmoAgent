@@ -19,12 +19,15 @@ function MapLoadingState() {
   );
 }
 
+type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
+
 export default function MapPage() {
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [minScore, setMinScore] = useState('0');
   const [district, setDistrict] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
@@ -32,6 +35,7 @@ export default function MapPage() {
       const params = new URLSearchParams();
       if (minScore !== '0') params.set('min_score', minScore);
       if (district) params.set('district', district);
+      params.set('sort', sortBy);
 
       const res = await fetch(`/api/listings/map?${params}`);
       const data = await res.json();
@@ -41,7 +45,7 @@ export default function MapPage() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district]);
+  }, [minScore, district, sortBy]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -77,6 +81,8 @@ export default function MapPage() {
           onRefresh={fetchListings}
           selectedId={selectedId}
           onSelect={handleSidebarSelect}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
         />
 
         <div className="flex-1 relative">
