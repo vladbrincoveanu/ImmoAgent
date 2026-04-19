@@ -6,7 +6,19 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        'dm-sans': ['DM Sans', 'sans-serif'],
+      },
+      colors: {
+        accent: '#E07A5F',
+        heading: '#3D405B',
+        muted: '#8B8B8B',
+        border: '#E8E4E0',
+        success: '#81B29A',
+        'warm-bg': '#F9F7F4',
+      },
+    },
   },
   plugins: [],
 };
