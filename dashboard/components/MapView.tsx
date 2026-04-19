@@ -1,0 +1,103 @@
+'use client';
+
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MapListing } from '@/lib/types';
+import { useEffect } from 'react';
+
+// Fix default marker icon (Leaflet + webpack issue)
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+const EXACT_COLOR = '#ef4444';
+const LANDMARK_COLOR = '#f97316';
+
+export function createPinIcon(color: string) {
+  return L.divIcon({
+    html: `<div style="
+      background:${color};
+      width:14px;height:14px;
+      border-radius:50% 50% 0;
+      transform:rotate(45deg);
+      border:2px solid white;
+      box-shadow:0 2px 4px rgba(0,0,0,0.3);
+    "></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 0],
+    popupAnchor: [0, -10],
+    className: '',
+  });
+}
+
+interface FlyToProps {
+  listing: MapListing | null;
+}
+
+function FlyTo({ listing }: FlyToProps) {
+  const map = useMap();
+  useEffect(() => {
+    if (listing?.coordinates) {
+      map.flyTo([listing.coordinates.lat, listing.coordinates.lon], 16, { duration: 0.8 });
+    }
+  }, [listing, map]);
+  return null;
+}
+
+interface MapViewProps {
+  listings: MapListing[];
+  selectedListing: MapListing | null;
+  onPinClick: (listing: MapListing) => void;
+}
+
+export function MapView({ listings, selectedListing, onPinClick }: MapViewProps) {
+  const viennaCenter: [number, number] = [48.2082, 16.3738];
+
+  return (
+    <MapContainer
+      center={viennaCenter}
+      zoom={13}
+      style={{ height: '100%', width: '100%' }}
+      className="rounded-lg"
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+
+      <FlyTo listing={selectedListing} />
+
+      {listings.map((listing) => {
+        if (!listing.coordinates) return null;
+        const isLandmark = listing.coordinate_source === 'landmark';
+        return (
+          <Marker
+            key={listing._id}
+            position={[listing.coordinates.lat, listing.coordinates.lon]}
+            icon={createPinIcon(isLandmark ? LANDMARK_COLOR : EXACT_COLOR)}
+            eventHandlers={{ click: () => onPinClick(listing) }}
+          >
+            <Popup>
+              <div className="text-sm min-w-[160px]">
+                <p className="font-semibold">{listing.title}</p>
+                <p className="text-blue-600 font-bold">
+                  {listing.price_total ? `€${listing.price_total.toLocaleString()}` : 'N/A'}
+                </p>
+                <p className="text-gray-500 text-xs">
+                  {listing.area_m2}m² · {listing.rooms} rooms · Score {listing.score}
+                </p>
+                {isLandmark && listing.landmark_hint && (
+                  <p className="text-orange-500 text-xs mt-1">~ {listing.landmark_hint}</p>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+    </MapContainer>
+  );
+}
