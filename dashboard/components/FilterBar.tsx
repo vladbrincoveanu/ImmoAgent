@@ -18,8 +18,8 @@ interface FilterBarProps {
   district: string;
   onDistrictChange: (v: string) => void;
   onRefresh: () => void;
-  sortBy: SortOption;
-  onSortChange: (sort: SortOption) => void;
+  sortBy?: SortOption;
+  onSortChange?: (sort: SortOption) => void;
 }
 
 export function FilterBar({
@@ -27,6 +27,8 @@ export function FilterBar({
   district, onDistrictChange,
   onRefresh, sortBy, onSortChange,
 }: FilterBarProps) {
+  const effectiveSort = sortBy ?? 'score_desc';
+
   return (
     <div className="flex flex-wrap gap-3 mb-6">
       <div className="flex items-center gap-2 ml-auto">
@@ -62,8 +64,8 @@ export function FilterBar({
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium text-gray-700">Sort</label>
         <select
-          value={sortBy}
-          onChange={(e) => onSortChange(e.target.value as SortOption)}
+          value={effectiveSort}
+          onChange={(e) => onSortChange?.(e.target.value as SortOption)}
           className="rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent text-gray-700"
         >
           {SORT_OPTIONS.map((opt) => (
