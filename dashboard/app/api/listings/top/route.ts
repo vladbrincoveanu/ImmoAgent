@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, ObjectId } from '@/lib/mongodb';
+import { getDb } from '@/lib/mongodb';
 import { Document, WithId } from 'mongodb';
 
 type ListingDocument = Document;
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       filter.bezirk = district;
     }
 
-    const listings = await db
+    const listings = await getDb()
       .collection<ListingDocument>('listings')
       .find(filter)
       .sort({ score: -1, processed_at: -1 })
