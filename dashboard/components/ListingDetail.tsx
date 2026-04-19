@@ -14,8 +14,11 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [urlValid, setUrlValid] = useState<boolean | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
+    setImageError(false);
+    setUrlValid(null);
     fetch(`/api/listings/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -54,6 +57,21 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
             </div>
 
             <div className="p-6 space-y-4">
+              {listing.image_url && !imageError ? (
+                <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+                  <img
+                    src={listing.image_url}
+                    alt={listing.title || 'Property image'}
+                    className="w-full h-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-48 rounded-lg bg-gray-100 flex items-center justify-center">
+                  <span className="text-gray-400 text-sm">No image available</span>
+                </div>
+              )}
+
               <h2 className="text-xl font-bold text-gray-900">{listing.title || 'No title'}</h2>
 
               <div className="grid grid-cols-2 gap-4 text-sm">

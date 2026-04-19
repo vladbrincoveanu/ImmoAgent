@@ -4,6 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 from Domain.location import Coordinates, Amenity
 from .utils import get_project_root, DataLoader
+from .landmark_extractor import extract_landmark_hint
 
 class ViennaGeocoder:
     def __init__(self):
@@ -488,4 +489,45 @@ class ViennaGeocoder:
             # Fallback to straight-line distance calculation
             distance_m = self.calculate_distance(start_coords, end_coords)
             walking_minutes = int(round(distance_m / 80))
-            return walking_minutes 
+            return walking_minutes
+
+
+def geocode_listing(listing: Dict) -> Dict:
+    """
+    Geocode a listing's location and store coordinates.
+    Returns updated listing dict with coordinates, coordinate_source, landmark_hint.
+    """
+    from .landmark_extractor import extract_landmark_hint
+
+    coordinates = listing.get('coordinates')
+    coordinate_source = listing.get('coordinate_source')
+
+    # Already geocoded — skip
+    if coordinate_source in ('exact', 'landmark'):
+        return listing
+
+    geocoder = ViennaGeocoder()
+
+    # Try exact address first
+    address = listing.get('address')
+    if address:
+        coords = geocoder.geocode_address(address)
+        if coords:
+            listing['coordinates'] = {'lat': coords.lat, 'lon': coords.lon}
+            listing['coordinate_source'] = 'exact'
+            return listing
+
+    # Try landmark hint from title
+    title = listing.get('title', '') or ''
+    hint = extract_landmark_hint(title)
+    if hint:
+        coords = geocoder.geocode_address(hint)
+        if coords:
+            listing['coordinates'] = {'lat': coords.lat, 'lon': coords.lon}
+            listing['coordinate_source'] = 'landmark'
+            listing['landmark_hint'] = hint.replace(', Wien, Austria', '')
+            return listing
+
+    # No usable location
+    listing['coordinate_source'] = 'none'
+    return listing 
