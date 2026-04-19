@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { ListingSidebar } from '@/components/ListingSidebar';
 import { MapLegend } from '@/components/MapLegend';
+import { SortOption } from '@/components/FilterBar';
 import { MapListing } from '@/lib/types';
 
 const MapView = dynamic(
@@ -18,8 +19,6 @@ function MapLoadingState() {
     </div>
   );
 }
-
-type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
 
 export default function MapPage() {
   const [listings, setListings] = useState<MapListing[]>([]);
