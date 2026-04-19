@@ -82,9 +82,9 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
             eventHandlers={{ click: () => onPinClick(listing) }}
           >
             <Popup>
-              <div className="text-sm min-w-[160px]">
-                <p className="font-semibold">{listing.title}</p>
-                <p className="text-blue-600 font-bold">
+              <div className="text-sm min-w-[160px] font-dm-sans">
+                <p className="font-bold text-heading">{listing.title}</p>
+                <p className="text-accent font-bold">
                   {listing.price_total ? `€${listing.price_total.toLocaleString()}` : 'N/A'}
                 </p>
                 <p className="text-gray-500 text-xs">
