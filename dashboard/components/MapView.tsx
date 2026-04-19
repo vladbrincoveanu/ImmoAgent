@@ -16,35 +16,34 @@ L.Icon.Default.mergeOptions({
 
 const EXACT_COLOR = '#ef4444';
 const LANDMARK_COLOR = '#f97316';
+const SELECTED_COLOR = '#E07A5F'; // terracotta accent
+const SELECTED_PIN_SIZE = 20;
 
-export function createPinIcon(color: string) {
+export function createPinIcon(color: string, size: number = 14) {
+  const rotation = 'rotate(45deg)';
   return L.divIcon({
     html: `<div style="
       background:${color};
-      width:14px;height:14px;
+      width:${size}px;height:${size}px;
       border-radius:50% 50% 0;
-      transform:rotate(45deg);
+      transform:${rotation};
       border:2px solid white;
-      box-shadow:0 2px 4px rgba(0,0,0,0.3);
+      box-shadow:0 3px 8px rgba(0,0,0,0.4);
     "></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 0],
-    popupAnchor: [0, -10],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, 0],
+    popupAnchor: [0, -(size / 2 + 4)],
     className: '',
   });
 }
 
-interface FlyToProps {
-  listing: MapListing | null;
-}
-
-function FlyTo({ listing }: FlyToProps) {
+function FlyTo({ listingId, coordinates }: { listingId: string | null; coordinates: { lat: number; lon: number } | null }) {
   const map = useMap();
   useEffect(() => {
-    if (listing?.coordinates) {
-      map.flyTo([listing.coordinates.lat, listing.coordinates.lon], 16, { duration: 0.8 });
+    if (coordinates) {
+      map.flyTo([coordinates.lat, coordinates.lon], 16, { duration: 0.8 });
     }
-  }, [listing, map]);
+  }, [listingId, coordinates, map]);
   return null;
 }
 
@@ -69,16 +68,22 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      <FlyTo listing={selectedListing} />
+      <FlyTo
+        listingId={selectedListing?._id ?? null}
+        coordinates={selectedListing?.coordinates ?? null}
+      />
 
       {listings.map((listing) => {
         if (!listing.coordinates) return null;
         const isLandmark = listing.coordinate_source === 'landmark';
+        const isSelected = selectedListing?._id === listing._id;
+        const pinColor = isSelected ? SELECTED_COLOR : (isLandmark ? LANDMARK_COLOR : EXACT_COLOR);
+        const pinSize = isSelected ? SELECTED_PIN_SIZE : 14;
         return (
           <Marker
             key={listing._id}
             position={[listing.coordinates.lat, listing.coordinates.lon]}
-            icon={createPinIcon(isLandmark ? LANDMARK_COLOR : EXACT_COLOR)}
+            icon={createPinIcon(pinColor, pinSize)}
             eventHandlers={{ click: () => onPinClick(listing) }}
           >
             <Popup>
