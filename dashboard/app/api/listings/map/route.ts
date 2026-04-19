@@ -10,8 +10,13 @@ export async function GET(request: NextRequest) {
   const district = searchParams.get('district');
 
   try {
+    // Show listings that have coordinates (exact/landmark) OR haven't been geocoded yet (no field).
+    // Listings with coordinate_source='none' have no usable location and are excluded.
     const filter: Record<string, unknown> = {
-      coordinate_source: { $in: ['exact', 'landmark'] },
+      $or: [
+        { coordinate_source: { $in: ['exact', 'landmark'] } },
+        { coordinate_source: { $exists: false } },
+      ],
     };
 
     if (minScore > 0) {
