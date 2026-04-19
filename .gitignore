@@ -89,6 +89,7 @@ ollama_data/
 # Secrets
 .env
 .env.*
+!.env.local.example
 *.secret
 *.key
 *.pem
@@ -105,4 +106,9 @@ matches_*.json
 seen_listings.json
 
 # Git worktrees
-.worktrees/ 
+.worktrees/
+
+# Dashboard (Next.js)
+dashboard/node_modules/
+dashboard/.next/
+/dashboard/.env.local 
