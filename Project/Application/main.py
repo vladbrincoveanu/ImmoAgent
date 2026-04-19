@@ -18,6 +18,7 @@ from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats
+from Application.helpers.geocoding import geocode_listing
 from Domain.listing import Listing
 import logging
 from bson import ObjectId
@@ -722,6 +723,11 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 listing_dict['_id'] = result.inserted_id
                 saved_count += 1
                 logging.debug(f"💾 Saved new listing: {listing.title}")
+
+                # Geocode the listing and update coordinates
+                geocoded = geocode_listing(listing_dict)
+                if geocoded.get('coordinate_source') != 'none':
+                    mongodb_handler.update_listing_coordinates(listing['url'], geocoded)
         
         client.close()
         
