@@ -4,6 +4,8 @@ import React from 'react';
 import { FilterBar } from './FilterBar';
 import { MapListing } from '@/lib/types';
 
+type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
+
 interface ListingSidebarProps {
   listings: MapListing[];
   minScore: string;
@@ -13,6 +15,8 @@ interface ListingSidebarProps {
   onRefresh: () => void;
   selectedId: string | null;
   onSelect: (listing: MapListing) => void;
+  sortBy?: SortOption;
+  onSortChange?: (sort: SortOption) => void;
 }
 
 export function ListingSidebar({
@@ -21,6 +25,7 @@ export function ListingSidebar({
   district, onDistrictChange,
   onRefresh,
   selectedId, onSelect,
+  sortBy, onSortChange,
 }: ListingSidebarProps) {
   return (
     <div className="w-[280px] h-full flex flex-col border-r border-gray-200 bg-gray-50 overflow-hidden">
@@ -31,6 +36,8 @@ export function ListingSidebar({
           district={district}
           onDistrictChange={onDistrictChange}
           onRefresh={onRefresh}
+          sortBy={sortBy}
+          onSortChange={onSortChange}
         />
       </div>
 

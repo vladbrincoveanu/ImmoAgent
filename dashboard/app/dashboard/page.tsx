@@ -6,12 +6,15 @@ import { FilterBar } from '@/components/FilterBar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { ListingBase } from '@/lib/types';
 
+type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
+
 export default function DashboardPage() {
   const [listings, setListings] = useState<ListingBase[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [minScore, setMinScore] = useState('0');
   const [district, setDistrict] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
@@ -19,6 +22,7 @@ export default function DashboardPage() {
       const params = new URLSearchParams();
       if (minScore !== '0') params.set('min_score', minScore);
       if (district) params.set('district', district);
+      params.set('sort', sortBy);
 
       const res = await fetch(`/api/listings/top?${params}`);
       const data = await res.json();
@@ -28,7 +32,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district]);
+  }, [minScore, district, sortBy]);
 
   React.useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -46,6 +50,8 @@ export default function DashboardPage() {
           district={district}
           onDistrictChange={setDistrict}
           onRefresh={fetchListings}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
         />
 
         {loading ? (
