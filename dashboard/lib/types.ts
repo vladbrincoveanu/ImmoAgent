@@ -12,7 +12,7 @@ export interface ListingBase {
   image_url: string | null;
 }
 
-export type CoordinateSource = 'exact' | 'landmark' | 'none';
+export type CoordinateSource = 'exact' | 'landmark' | 'district' | 'none';
 
 export interface MapListing {
   _id: string;
