@@ -16,6 +16,7 @@ L.Icon.Default.mergeOptions({
 
 const EXACT_COLOR = '#ef4444';
 const LANDMARK_COLOR = '#f97316';
+const DISTRICT_COLOR = '#3B82F6'; // blue — approximate district centroid
 const SELECTED_COLOR = '#E07A5F'; // terracotta accent
 const SELECTED_PIN_SIZE = 20;
 
@@ -76,8 +77,9 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
       {listings.map((listing) => {
         if (!listing.coordinates) return null;
         const isLandmark = listing.coordinate_source === 'landmark';
+        const isDistrict = listing.coordinate_source === 'district';
         const isSelected = selectedListing?._id === listing._id;
-        const pinColor = isSelected ? SELECTED_COLOR : (isLandmark ? LANDMARK_COLOR : EXACT_COLOR);
+        const pinColor = isSelected ? SELECTED_COLOR : (isLandmark ? LANDMARK_COLOR : isDistrict ? DISTRICT_COLOR : EXACT_COLOR);
         const pinSize = isSelected ? SELECTED_PIN_SIZE : 14;
         return (
           <Marker
@@ -97,6 +99,9 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
                 </p>
                 {isLandmark && listing.landmark_hint && (
                   <p className="text-orange-500 text-xs mt-1">~ {listing.landmark_hint}</p>
+                )}
+                {isDistrict && (
+                  <p className="text-blue-400 text-xs mt-1">~ District centroid (approx.)</p>
                 )}
               </div>
             </Popup>

@@ -5,11 +5,15 @@ export function MapLegend() {
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm transform rotate-45 bg-red-500"></div>
-          <span>Exact coordinates</span>
+          <span>Exact location</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm transform rotate-45 bg-orange-500"></div>
-          <span>District + landmark</span>
+          <span>Landmark vicinity</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-sm transform rotate-45 bg-blue-500"></div>
+          <span>District centroid</span>
         </div>
       </div>
     </div>
