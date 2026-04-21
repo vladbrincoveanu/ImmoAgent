@@ -1,3 +1,241 @@
+# Global Skill Feedback Memory Loop — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build a feedback loop where key skills write observations after completing their workflow, a periodic digest consolidates those into ~/.claude/CLAUDE.md, and future sessions benefit automatically.
+
+**Architecture:** Override 4 Superpowers skills in `~/.claude/skills/` to append a feedback-write step. Create a new `daily-memory-digest` skill that scans accumulated feedback and proposes CLAUDE.md updates. All files live under `~/.claude/` making changes project-agnostic and global.
+
+**Tech Stack:** Claude Code skill files (YAML frontmatter + Markdown), filesystem (no external deps)
+
+---
+
+## File Structure (what we're creating)
+
+```
+~/.claude/
+├── memory/
+│   ├── feedback/                      # Created: Task 1
+│   │   └── .gitkeep                   # Created: Task 1
+│   └── metadata/
+│       └── last-digest-date            # Created: Task 2 (ISO date string)
+└── skills/
+    └── daily-memory-digest/
+    │   └── SKILL.md                   # Created: Task 3
+    └── brainstorming/
+    │   └── SKILL.md                   # Created: Task 4
+    └── writing-plans/
+    │   └── SKILL.md                   # Created: Task 5
+    └── verification-before-completion/
+    │   └── SKILL.md                   # Created: Task 6
+    └── finishing-a-development-branch/
+        └── SKILL.md                   # Created: Task 7
+```
+
+---
+
+## Feedback Format (written by all skills)
+
+Every skill override writes this structure to `~/.claude/memory/feedback/<skill-name>-<YYYY-MM-DD>.md`:
+
+```markdown
+---
+name: <skill>-feedback-<timestamp>
+type: feedback
+---
+
+## <SkillName> Feedback
+
+**Session:** <current working directory or project name>
+**Date:** <YYYY-MM-DD>
+**Outcome:** <approved|rejected|modified|abandoned|passed|merged|pr|discard>
+
+### What worked
+- <bullet>
+
+### What didn't work
+- <bullet>
+
+### Next time try
+- <bullet>
+
+### Energy level (1-5)
+<number>
+```
+
+---
+
+## Task 1: Create memory directory structure
+
+**Files:**
+- Create: `~/.claude/memory/feedback/.gitkeep`
+- Create: `~/.claude/memory/metadata/` (directory)
+
+- [ ] **Step 1: Create directories**
+
+Run:
+```bash
+mkdir -p ~/.claude/memory/feedback
+mkdir -p ~/.claude/memory/metadata
+touch ~/.claude/memory/feedback/.gitkeep
+```
+
+- [ ] **Step 2: Verify structure**
+
+Run:
+```bash
+ls -la ~/.claude/memory/
+ls -la ~/.claude/memory/feedback/
+```
+Expected: Both directories exist, feedback contains `.gitkeep`
+
+- [ ] **Step 3: Commit (in immo-scouter repo since that's where we are)**
+
+```bash
+git add docs/superpowers/plans/2026-04-21-global-skill-memory-loop.md
+git commit -m "feat: add global skill feedback memory loop implementation
+
+- Creates ~/.claude/memory/feedback/ and ~/.claude/memory/metadata/
+- Adds skill overrides that write feedback after each workflow
+- Adds daily-memory-digest skill to consolidate into CLAUDE.md
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+```
+
+---
+
+## Task 2: Create last-digest-date marker
+
+**Files:**
+- Create: `~/.claude/memory/metadata/last-digest-date`
+
+- [ ] **Step 1: Write initial last-digest-date**
+
+Run:
+```bash
+echo "1970-01-01" > ~/.claude/memory/metadata/last-digest-date
+cat ~/.claude/memory/metadata/last-digest-date
+```
+Expected output: `1970-01-01`
+
+---
+
+## Task 3: Create daily-memory-digest skill
+
+**Files:**
+- Create: `~/.claude/skills/daily-memory-digest/SKILL.md`
+
+The digest skill scans feedback files since last-digest-date, identifies patterns, generates a CLAUDE.md delta, presents it for approval, and applies it.
+
+- [ ] **Step 1: Create skill file**
+
+```markdown
+---
+name: daily-memory-digest
+description: Scan accumulated skill feedback and update ~/.claude/CLAUDE.md with patterns. Run weekly or on-demand. Writes to CLAUDE.md only after user approval.
+---
+
+# Daily Memory Digest
+
+Scan accumulated skill feedback files since the last digest, identify patterns in what worked/what didn't across sessions, and propose targeted updates to `~/.claude/CLAUDE.md`.
+
+**Announce at start:** "I'm running the memory digest to consolidate recent skill feedback into CLAUDE.md."
+
+## The Process
+
+### Step 1: Read last digest date
+
+Read `~/.claude/memory/metadata/last-digest-date` to get the ISO date string of the last digest run.
+
+### Step 2: Scan feedback files
+
+List all files in `~/.claude/memory/feedback/` that were modified since the last digest date.
+
+Run:
+```bash
+find ~/.claude/memory/feedback/ -name "*.md" -type f -newer ~/.claude/memory/metadata/last-digest-date 2>/dev/null
+```
+
+If no files found:
+```
+No new feedback since last digest (1970-01-01). Nothing to do.
+```
+Exit gracefully.
+
+### Step 3: Read all new feedback files
+
+For each file found, read its contents and extract:
+- Skill name
+- Outcome
+- "What worked" bullets
+- "What didn't work" bullets
+- "Next time try" bullets
+- Energy level
+
+### Step 4: Identify patterns
+
+Group feedback by skill. For each skill, tally:
+- Most common "what worked" patterns
+- Most common "what didn't work" patterns
+- Recurring "next time try" suggestions
+- Average energy level
+
+### Step 5: Generate CLAUDE.md delta
+
+If patterns found, generate a diff that:
+- Adds a new section "## Recent Skill Feedback Patterns" with summarized patterns
+- Updates any existing feedback section with new observations
+- Keeps existing CLAUDE.md content intact
+
+Present the delta to the user as a diff:
+
+```
+## Proposed CLAUDE.md Update
+
+Since last digest, N feedback files from: <skill list>
+
+### Patterns identified:
+- <skill>: <pattern summary>
+
+Diff:
+```diff
+<full diff of proposed changes>
+```
+
+Approve these changes? (yes/no)
+```
+
+### Step 6: Apply or exit
+
+**If user approves:**
+Edit `~/.claude/CLAUDE.md` to apply the diff.
+
+Then update the last-digest-date:
+```bash
+date +%Y-%m-%d > ~/.claude/memory/metadata/last-digest-date
+```
+
+Report: "CLAUDE.md updated. Last digest date reset to today."
+
+**If user rejects:** Report "Digest skipped. Feedback files preserved for next cycle." and exit.
+
+### Step 7: Commit
+
+Since the digest modified `~/.claude/CLAUDE.md` (a file outside the current repo), do NOT commit. Just report the update is complete.
+
+## Error Handling
+
+| Failure | Handling |
+|---------|----------|
+| No feedback files since last digest | Exit gracefully with message |
+| last-digest-date file missing | Treat as 1970-01-01, continue |
+| Feedback file corrupted (empty/parse error) | Skip file, log warning, continue |
+| User rejects delta | Exit, feedback preserved |
+| Write to CLAUDE.md fails | Report error, do not update last-digest-date |
+```
+
+---
+
 ## Task 4: Create brainstorming skill override
 
 **Files:**
