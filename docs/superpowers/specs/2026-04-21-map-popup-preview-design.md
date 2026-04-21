@@ -87,16 +87,10 @@ selectedListing state (MapPage.tsx)
 - `onError`: show fallback house SVG icon (same as ListingCard)
 - No `image_url`: show fallback icon
 
-## Edge Cases
+## Interaction Notes
 
-| Case | Behavior |
-|------|----------|
-| No image | Show house SVG fallback icon |
-| `price_total: null`, `area_m2: null` | Show "Price on request" |
-| `price_total: null`, `area_m2: 83` | Show `~€581,000` |
-| `title: null` | Show "Untitled" |
-| No `bezirk` | Hide district badge row |
-| `score: null` | Hide score badge |
+- **Coordinate hints omitted**: The `~ landmark vicinity` / `~ district centroid` text from the old popup is intentionally excluded — the pin color already communicates location precision (orange = landmark, blue = district), and including it in the popup would be redundant and add clutter to the card preview.
+- **No duplicate coordinate hints in card** — this is intentional.
 
 ## Files to Modify
 
