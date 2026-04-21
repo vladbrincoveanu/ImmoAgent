@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
+import { MapPopup } from '@/components/MapPopup';
 import { useEffect } from 'react';
 
 // Fix default marker icon (Leaflet + webpack issue)
@@ -89,23 +90,12 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
             eventHandlers={{ click: () => onPinClick(listing) }}
           >
             <Popup>
-              <div className="text-sm min-w-[160px] font-dm-sans">
-                <p className="font-bold text-heading">{listing.title}</p>
-                <p className="text-accent font-bold">
-                  {listing.price_total != null
-                    ? `${listing.price_is_estimated ? '~' : ''}€${listing.price_total.toLocaleString()}`
-                    : 'N/A'}
-                </p>
-                <p className="text-gray-500 text-xs">
-                  {listing.area_m2}m² · {listing.rooms} rooms · Score {listing.score}
-                </p>
-                {isLandmark && listing.landmark_hint && (
-                  <p className="text-orange-500 text-xs mt-1">~ {listing.landmark_hint}</p>
-                )}
-                {isDistrict && (
-                  <p className="text-blue-400 text-xs mt-1">~ District centroid (approx.)</p>
-                )}
-              </div>
+              <MapPopup
+                listing={listing}
+                onViewDetails={(id) => {
+                  window.location.href = `/dashboard/${id}`;
+                }}
+              />
             </Popup>
           </Marker>
         );
