@@ -10,6 +10,7 @@ export interface ListingBase {
   score: number | null;
   processed_at: number | null;
   image_url: string | null;
+  price_is_estimated?: boolean;
 }
 
 export type CoordinateSource = 'exact' | 'landmark' | 'district' | 'none';
@@ -28,6 +29,7 @@ export interface MapListing {
   coordinates: { lat: number; lon: number } | null;
   coordinate_source: CoordinateSource;
   landmark_hint: string | null;
+  price_is_estimated?: boolean;
 }
 
 export interface ListingDetail extends ListingBase {
