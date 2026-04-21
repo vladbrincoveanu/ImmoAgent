@@ -92,7 +92,9 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
               <div className="text-sm min-w-[160px] font-dm-sans">
                 <p className="font-bold text-heading">{listing.title}</p>
                 <p className="text-accent font-bold">
-                  {listing.price_total ? `€${listing.price_total.toLocaleString()}` : 'N/A'}
+                  {listing.price_total != null
+                    ? `${listing.price_is_estimated ? '~' : ''}€${listing.price_total.toLocaleString()}`
+                    : 'N/A'}
                 </p>
                 <p className="text-gray-500 text-xs">
                   {listing.area_m2}m² · {listing.rooms} rooms · Score {listing.score}
