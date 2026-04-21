@@ -67,8 +67,8 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
         </h3>
 
         <p className="font-bold text-heading text-base mb-1">
-          {listing.price_total
-            ? `€${listing.price_total.toLocaleString('de-AT')}`
+          {listing.price_total != null
+            ? `${listing.price_is_estimated ? '~' : ''}€${listing.price_total.toLocaleString('de-AT')}`
             : 'Price on request'}
         </p>
 
