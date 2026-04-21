@@ -3,6 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import { MapListing } from '@/lib/types';
 import { Document, WithId } from 'mongodb';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const config = require('@/../../config.json');
+
 // Vienna district centroid coordinates (approximate lat/lon for each district)
 const DISTRICT_CENTROIDS: Record<string, { lat: number; lon: number }> = {
   '1010': { lat: 48.2082, lon: 16.3716 },
@@ -70,7 +73,18 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .toArray();
 
+    const PRICE_PER_SQM = (config?.PRICE_PER_SQM as number | undefined) ?? 7000;
+
     const result: MapListing[] = listings.map((l: WithId<Document>) => {
+      // Price imputation: use area_m2 × PRICE_PER_SQM when price_total is missing
+      const hasPrice = typeof l.price_total === 'number' && (l.price_total as number) > 0;
+      const price_is_estimated = !hasPrice && typeof l.area_m2 === 'number' && (l.area_m2 as number) > 0;
+      const price_total = hasPrice
+        ? (l.price_total as number)
+        : price_is_estimated
+          ? Math.round((l.area_m2 as number) * PRICE_PER_SQM)
+          : null;
+
       // Use actual coordinates if available, otherwise fall back to district centroid
       let coordinates = l.coordinates as { lat: number; lon: number } | null | undefined;
       let coordinate_source: string = (l.coordinate_source as string) || 'none';
@@ -89,7 +103,7 @@ export async function GET(request: NextRequest) {
         url: l.url,
         source_enum: l.source_enum,
         bezirk: l.bezirk,
-        price_total: l.price_total,
+        price_total,
         area_m2: l.area_m2,
         rooms: l.rooms,
         score: l.score,
@@ -97,6 +111,7 @@ export async function GET(request: NextRequest) {
         coordinates: coordinates ?? null,
         coordinate_source: coordinate_source as MapListing['coordinate_source'],
         landmark_hint: l.landmark_hint || null,
+        price_is_estimated,
       };
     });
 
