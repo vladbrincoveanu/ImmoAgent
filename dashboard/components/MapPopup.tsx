@@ -2,18 +2,12 @@
 
 import React, { useState } from 'react';
 import { MapListing } from '@/lib/types';
+import { SOURCE_LABELS, formatPrice } from '@/lib/utils';
 
 interface MapPopupProps {
   listing: MapListing;
   onViewDetails: (id: string) => void;
 }
-
-const SOURCE_LABELS: Record<string, string> = {
-  willhaben: 'WH',
-  immo_kurier: 'IK',
-  derstandard: 'DS',
-  unknown: '?',
-};
 
 export function MapPopup({ listing, onViewDetails }: MapPopupProps) {
   const [imageError, setImageError] = useState(false);
@@ -22,7 +16,6 @@ export function MapPopup({ listing, onViewDetails }: MapPopupProps) {
 
   return (
     <div className="min-w-[240px] bg-white rounded-lg overflow-hidden font-dm-sans">
-      {/* Image area */}
       <div className="relative aspect-[16/10] bg-warm-bg overflow-hidden">
         {hasImage ? (
           <img
@@ -39,7 +32,6 @@ export function MapPopup({ listing, onViewDetails }: MapPopupProps) {
           </div>
         )}
 
-        {/* Score badge — top right */}
         {listing.score != null && (
           <div className="absolute top-2 right-2">
             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold text-white bg-accent">
@@ -48,7 +40,6 @@ export function MapPopup({ listing, onViewDetails }: MapPopupProps) {
           </div>
         )}
 
-        {/* Source badge — bottom left */}
         <div className="absolute bottom-2 left-2">
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-heading bg-white bg-opacity-90">
             {SOURCE_LABELS[listing.source_enum] ?? '?'}
@@ -56,16 +47,13 @@ export function MapPopup({ listing, onViewDetails }: MapPopupProps) {
         </div>
       </div>
 
-      {/* Details area */}
       <div className="p-3">
         <h3 className="font-medium text-heading line-clamp-2 text-sm leading-snug mb-1">
           {listing.title || 'Untitled'}
         </h3>
 
         <p className="font-bold text-heading text-sm mb-1">
-          {listing.price_total != null
-            ? `${listing.price_is_estimated ? '~' : ''}€${listing.price_total.toLocaleString('de-AT')}`
-            : 'Price on request'}
+          {formatPrice(listing.price_total, listing.price_is_estimated)}
         </p>
 
         <div className="flex items-center justify-between mb-2">
@@ -80,7 +68,6 @@ export function MapPopup({ listing, onViewDetails }: MapPopupProps) {
           )}
         </div>
 
-        {/* View Details CTA */}
         <button
           onClick={() => onViewDetails(listing._id)}
           className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer transition-colors duration-150"
