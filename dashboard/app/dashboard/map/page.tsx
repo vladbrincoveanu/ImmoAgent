@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { ListingSidebar } from '@/components/ListingSidebar';
+import { ListingDetail } from '@/components/ListingDetail';
 import { MapLegend } from '@/components/MapLegend';
 import { SortOption } from '@/components/FilterBar';
 import { MapListing } from '@/lib/types';
@@ -51,7 +52,7 @@ export default function MapPage() {
   const selectedListing = listings.find((l) => l._id === selectedId) ?? null;
 
   const handlePinClick = (listing: MapListing) => {
-    window.location.href = `/dashboard/${listing._id}`;
+    setSelectedId(listing._id);
   };
 
   const handleSidebarSelect = (listing: MapListing) => {
@@ -105,6 +106,13 @@ export default function MapPage() {
           )}
         </div>
       </div>
+
+      {selectedId && (
+        <ListingDetail
+          id={selectedId}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
     </div>
   );
 }

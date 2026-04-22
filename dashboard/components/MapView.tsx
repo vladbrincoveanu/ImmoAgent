@@ -3,6 +3,7 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useRouter } from 'next/navigation';
 import { MapListing } from '@/lib/types';
 import { MapPopup } from '@/components/MapPopup';
 import { useEffect } from 'react';
@@ -56,6 +57,7 @@ interface MapViewProps {
 }
 
 export function MapView({ listings, selectedListing, onPinClick }: MapViewProps) {
+  const router = useRouter();
   const viennaCenter: [number, number] = [48.2082, 16.3738];
 
   return (
@@ -92,9 +94,7 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
             <Popup>
               <MapPopup
                 listing={listing}
-                onViewDetails={(id) => {
-                  window.location.href = `/dashboard/${id}`;
-                }}
+                onViewDetails={(id) => router.push(`/dashboard/${id}`)}
               />
             </Popup>
           </Marker>

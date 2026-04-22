@@ -1,20 +1,13 @@
-// dashboard/components/ListingCard.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { ListingBase } from '@/lib/types';
+import { SOURCE_LABELS, formatPrice } from '@/lib/utils';
 
 interface ListingCardProps {
   listing: ListingBase;
   onClick: (id: string) => void;
 }
-
-const SOURCE_LABELS: Record<string, string> = {
-  willhaben: 'WH',
-  immo_kurier: 'IK',
-  derstandard: 'DS',
-  unknown: '?',
-};
 
 export function ListingCard({ listing, onClick }: ListingCardProps) {
   const [imageError, setImageError] = useState(false);
@@ -26,7 +19,6 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
       onClick={() => onClick(listing._id)}
       className="group bg-white rounded-xl shadow-sm border border-border overflow-hidden cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
     >
-      {/* Image area */}
       <div className="relative aspect-[16/10] bg-warm-bg overflow-hidden">
         {hasImage ? (
           <img
@@ -43,7 +35,6 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
           </div>
         )}
 
-        {/* Score badge — top right */}
         {listing.score != null && (
           <div className="absolute top-2 right-2">
             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold text-white bg-accent">
@@ -52,7 +43,6 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
           </div>
         )}
 
-        {/* Source badge — bottom left */}
         <div className="absolute bottom-2 left-2">
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-heading bg-white bg-opacity-90">
             {SOURCE_LABELS[listing.source_enum] ?? '?'}
@@ -60,16 +50,13 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
         </div>
       </div>
 
-      {/* Details area */}
       <div className="p-4">
         <h3 className="font-medium text-text line-clamp-2 text-sm leading-snug mb-2">
           {listing.title || 'Untitled'}
         </h3>
 
         <p className="font-bold text-heading text-base mb-1">
-          {listing.price_total != null
-            ? `${listing.price_is_estimated ? '~' : ''}€${listing.price_total.toLocaleString('de-AT')}`
-            : 'Price on request'}
+          {formatPrice(listing.price_total, listing.price_is_estimated)}
         </p>
 
         <div className="flex items-center justify-between">
