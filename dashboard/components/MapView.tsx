@@ -59,10 +59,9 @@ function MapViewController({
     if (selectedListing?.coordinates) {
       previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
       previousZoom.current = map.getZoom();
-      map.flyTo([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16, { duration: 0.8 });
-      map.closePopup();
+      map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16);
     } else if (previousCenter.current) {
-      map.flyTo(previousCenter.current, previousZoom.current, { duration: 0.8 });
+      map.setView(previousCenter.current, previousZoom.current);
     }
   }, [selectedListing, map, previousCenter, previousZoom]);
   return null;
