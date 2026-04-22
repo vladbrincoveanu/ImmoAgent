@@ -3,10 +3,9 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useRouter } from 'next/navigation';
 import { MapListing } from '@/lib/types';
 import { MapPopup } from '@/components/MapPopup';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 // Fix default marker icon (Leaflet + webpack issue)
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -40,25 +39,39 @@ export function createPinIcon(color: string, size: number = 14) {
   });
 }
 
-function FlyTo({ listingId, coordinates }: { listingId: string | null; coordinates: { lat: number; lon: number } | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (coordinates) {
-      map.flyTo([coordinates.lat, coordinates.lon], 16, { duration: 0.8 });
-    }
-  }, [listingId, coordinates, map]);
-  return null;
-}
-
 interface MapViewProps {
   listings: MapListing[];
   selectedListing: MapListing | null;
   onPinClick: (listing: MapListing) => void;
 }
 
+function MapViewController({
+  selectedListing,
+  previousCenter,
+  previousZoom,
+}: {
+  selectedListing: MapListing | null;
+  previousCenter: React.MutableRefObject<[number, number]>;
+  previousZoom: React.MutableRefObject<number>;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (selectedListing?.coordinates) {
+      previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
+      previousZoom.current = map.getZoom();
+      map.flyTo([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16, { duration: 0.8 });
+      map.closePopup();
+    } else if (previousCenter.current) {
+      map.flyTo(previousCenter.current, previousZoom.current, { duration: 0.8 });
+    }
+  }, [selectedListing, map, previousCenter, previousZoom]);
+  return null;
+}
+
 export function MapView({ listings, selectedListing, onPinClick }: MapViewProps) {
-  const router = useRouter();
   const viennaCenter: [number, number] = [48.2082, 16.3738];
+  const previousCenter = useRef<[number, number]>(viennaCenter);
+  const previousZoom = useRef(13);
 
   return (
     <MapContainer
@@ -72,9 +85,10 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      <FlyTo
-        listingId={selectedListing?._id ?? null}
-        coordinates={selectedListing?.coordinates ?? null}
+      <MapViewController
+        selectedListing={selectedListing}
+        previousCenter={previousCenter}
+        previousZoom={previousZoom}
       />
 
       {listings.map((listing) => {
@@ -92,10 +106,7 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
             eventHandlers={{ click: () => onPinClick(listing) }}
           >
             <Popup>
-              <MapPopup
-                listing={listing}
-                onViewDetails={(id) => router.push(`/dashboard/${id}`)}
-              />
+              <MapPopup listing={listing} />
             </Popup>
           </Marker>
         );
