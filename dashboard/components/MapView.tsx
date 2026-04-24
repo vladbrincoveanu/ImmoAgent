@@ -61,6 +61,7 @@ function MapViewController({
       previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
       previousZoom.current = map.getZoom();
       map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16);
+      map.closePopup();
     } else if (previousCenter.current) {
       map.setView(previousCenter.current, previousZoom.current);
     }
@@ -106,9 +107,11 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
             icon={createPinIcon(pinColor, pinSize)}
             eventHandlers={{ click: () => onPinClick(listing) }}
           >
-            <Popup>
-              <MapPopup listing={listing} />
-            </Popup>
+            {!isSelected && (
+              <Popup>
+                <MapPopup listing={listing} />
+              </Popup>
+            )}
           </Marker>
         );
       })}
