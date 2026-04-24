@@ -56,6 +56,7 @@ function MapViewController({
 }) {
   const map = useMap();
   useEffect(() => {
+    if (!map) return;
     if (selectedListing?.coordinates) {
       previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
       previousZoom.current = map.getZoom();
@@ -63,7 +64,8 @@ function MapViewController({
     } else if (previousCenter.current) {
       map.setView(previousCenter.current, previousZoom.current);
     }
-  }, [selectedListing, map, previousCenter, previousZoom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedListing]);
   return null;
 }
 
