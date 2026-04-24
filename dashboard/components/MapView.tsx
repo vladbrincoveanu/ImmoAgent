@@ -57,6 +57,15 @@ function MapViewController({
   const map = useMap();
   useEffect(() => {
     if (!map) return;
+    // Fix: disable pointer events on popup pane when no popup content exists
+    // The popup pane sits at zIndex 700 (above markers at 600), blocking clicks
+    // when there's no actual popup content
+    const popupPane = map.getPane('popupPane');
+    if (popupPane) {
+      // When a listing is selected, no popup is shown (modal handles details)
+      // So always disable pointer events on the popup pane
+      (popupPane as HTMLElement).style.pointerEvents = 'none';
+    }
     if (selectedListing?.coordinates) {
       previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
       previousZoom.current = map.getZoom();
