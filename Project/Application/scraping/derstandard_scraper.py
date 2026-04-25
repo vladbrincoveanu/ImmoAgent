@@ -803,7 +803,7 @@ class DerStandardScraper:
                                     details = data['propertyDetails']
                                     if 'title' in details and not property_info.get('title'):
                                         property_info['title'] = details['title']
-                                    if 'price' in details and not property_info.get('price_total'):
+                                    if 'price' in details and not property_info.get('price_total') and not property_info.get('price_is_on_request'):
                                         property_info['price_total'] = details['price']
                                     if 'area' in details and not property_info.get('area_m2'):
                                         property_info['area_m2'] = details['area']
