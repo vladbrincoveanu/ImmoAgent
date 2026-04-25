@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
+import { validateObjectId } from '@/lib/validators';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const validId = validateObjectId(params.id);
+  if (!validId) {
+    return NextResponse.json({ error: 'Invalid listing ID', field: 'id' }, { status: 400 });
+  }
+
   try {
     const listing = await getDb().collection('listings').findOne({
-      _id: new ObjectId(params.id),
+      _id: new ObjectId(validId),
     });
 
     if (!listing) {
