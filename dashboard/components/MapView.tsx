@@ -69,9 +69,11 @@ function MapViewController({
     if (selectedListing?.coordinates) {
       previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
       previousZoom.current = map.getZoom();
+      console.log('[MapViewController] ZOOM IN to', selectedListing.coordinates, 'from', previousCenter.current, 'zoom:', previousZoom.current);
       map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16);
       map.closePopup();
     } else if (previousCenter.current) {
+      console.log('[MapViewController] ZOOM OUT to', previousCenter.current, 'zoom:', previousZoom.current);
       map.setView(previousCenter.current, previousZoom.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
