@@ -5,7 +5,23 @@ Common logic for validating property listings across the application
 """
 
 import logging
+import hashlib
 from typing import Dict, Any
+
+
+def compute_content_fingerprint(listing: Dict[str, Any]) -> str:
+    """
+    Compute a content fingerprint hash for dedup based on key property fields.
+    Used to detect duplicate listings that have different URLs (same agent, same property).
+    """
+    key_fields = (
+        f"{listing.get('title', '')}"
+        f"{listing.get('area_m2', '')}"
+        f"{listing.get('rooms', '')}"
+        f"{listing.get('bezirk', '')}"
+        f"{listing.get('source_enum', listing.get('source', ''))}"
+    )
+    return hashlib.md5(key_fields.encode('utf-8')).hexdigest()
 
 def is_valid_listing(listing: Dict[str, Any]) -> bool:
     """

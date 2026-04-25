@@ -724,7 +724,18 @@ class DerStandardScraper:
                                 if 'costs' in data and 'main' in data['costs']:
                                     cost_data = data['costs']['main']
                                     if 'value' in cost_data:
-                                        property_info['price_total'] = cost_data['value']
+                                        price_val = cost_data['value']
+                                        # Detect "Preis auf Anfrage" by checking if price is suspiciously low
+                                        # (costs.main.value often returns Betriebskosten instead of purchase price)
+                                        if price_val is not None and price_val < 10000:
+                                            page_text = soup.get_text().lower() if soup else ""
+                                            if any(phrase in page_text for phrase in ['preis auf anfrage', 'auf anfrage', 'price on request', 'preis nach vereinbarung']):
+                                                property_info['price_total'] = None
+                                                property_info['price_is_on_request'] = True
+                                            else:
+                                                property_info['price_total'] = price_val
+                                        else:
+                                            property_info['price_total'] = price_val
                                 
                                 # Area and rooms
                                 if 'areas' in data and 'details' in data['areas']:

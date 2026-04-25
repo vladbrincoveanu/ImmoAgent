@@ -30,6 +30,12 @@ jobs:
           pip install -r Project/requirements.txt
           pip install --upgrade pymongo  # Optional safety
 
+      - name: Run derStandard cleanup migration (idempotent — only runs once)
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          python Project/cleanup_derstandard_issues.py
+
       - name: Run ImmoAgent
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
