@@ -4,9 +4,9 @@ const MONGODB_URI = process.env.MONGODB_URI;
 
 let cached: { client: MongoClient; db: Db } | null = null;
 
-function getClient(): { client: MongoClient; db: Db } {
+function getClient(): { client: MongoClient; db: Db } | null {
   if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
+    return null;
   }
   if (!cached) {
     const client = new MongoClient(MONGODB_URI);
@@ -15,8 +15,8 @@ function getClient(): { client: MongoClient; db: Db } {
   return cached;
 }
 
-export function getDb(): Db {
-  return getClient().db;
+export function getDb(): Db | null {
+  return getClient()?.db ?? null;
 }
 
 export function getMongoClient(): MongoClient {

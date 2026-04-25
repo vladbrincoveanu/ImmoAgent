@@ -15,7 +15,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const listing = await getDb().collection('listings').findOne({
+    const db = getDb();
+    if (!db) {
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+    }
+    const listing = await db.collection('listings').findOne({
       _id: new ObjectId(params.id),
     });
 
@@ -25,7 +29,7 @@ export async function POST(
 
     const isValid = await checkUrl(listing.url);
 
-    await getDb().collection('listings').updateOne(
+    await db.collection('listings').updateOne(
       { _id: new ObjectId(params.id) },
       { $set: { url_is_valid: isValid } }
     );

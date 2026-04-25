@@ -1,0 +1,34 @@
+<h2>One more question: Geocoding landmark hints</h2>
+<p class="subtitle">Listings with "near Kettenbrückengasse U-Bahn" — how to place the pin?</p>
+
+<div style="display:flex;flex-direction:column;gap:16px;margin-top:20px;">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)" style="padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;">
+    <div class="letter" style="display:inline-block;width:28px;height:28px;background:#2563eb;color:white;border-radius:50%;text-align:center;line-height:28px;font-weight:bold;margin-right:12px;">A</div>
+    <div style="display:inline-block;vertical-align:top;">
+      <h3 style="margin:0 0 4px 0;">Pre-geocode at scrape time</h3>
+      <p style="margin:0;color:#666;font-size:13px;">When scraping, extract landmark hints and geocode them via Nominatim (OpenStreetMap). Store the resolved coordinates in MongoDB. Map just reads coordinates — instant, no runtime API calls.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)" style="padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;">
+    <div class="letter" style="display:inline-block;width:28px;height:28px;background:#2563eb;color:white;border-radius:50%;text-align:center;line-height:28px;font-weight:bold;margin-right:12px;">B</div>
+    <div style="display:inline-block;vertical-align:top;">
+      <h3 style="margin:0 0 4px 0;">Geocode at runtime (on demand)</h3>
+      <p style="margin:0;color:#666;font-size:13px;">Don't store coordinates — when the map page loads, look up each landmark hint via Nominatim in real-time. No schema changes, but adds latency and depends on external API availability.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)" style="padding:16px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;">
+    <div class="letter" style="display:inline-block;width:28px;height:28px;background:#2563eb;color:white;border-radius:50%;text-align:center;line-height:28px;font-weight:bold;margin-right:12px;">C</div>
+    <div style="display:inline-block;vertical-align:top;">
+      <h3 style="margin:0 0 4px 0;">Hybrid — pre-geocode common landmarks, runtime for rare ones</h3>
+      <p style="margin:0;color:#666;font-size:13px;">Build a local cache of known Vienna landmarks (U-Bahn stations, known streets, streetcar stops). Match hints against the cache first. Fall back to runtime Nominatim for anything not in the cache.</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;padding:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:12px;">
+  <strong>My recommendation: A</strong> — geocode once at scrape time. Nominatim is free and has no rate limits for light use. The geocoding already happens in your <code>ViennaGeocoder</code>. We'd just need to persist the resolved coordinates to MongoDB so they're available when the map loads.
+</div>

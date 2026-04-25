@@ -1,0 +1,111 @@
+<h2>Property Map — Option A</h2>
+<p class="subtitle">Map as top-level route, synced with list filters</p>
+
+<div class="mockup">
+  <div class="mockup-header">/map — Vienna Property Listings</div>
+  <div class="mockup-body">
+    <div style="display:flex;height:400px;">
+      <!-- Sidebar: Filters + List preview -->
+      <div style="width:280px;background:#f8f9fa;border-right:1px solid #ddd;padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
+        <div style="font-size:11px;color:#666;margin-bottom:4px;">FILTERS</div>
+        <div style="background:white;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;">
+          <div style="color:#888;margin-bottom:4px;">District</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <span style="background:#2563eb;color:white;padding:2px 8px;border-radius:12px;font-size:10px;">05 Margareten</span>
+            <span style="background:#e5e7eb;color:#374151;padding:2px 8px;border-radius:12px;font-size:10px;">02</span>
+            <span style="background:#e5e7eb;color:#374151;padding:2px 8px;border-radius:12px;font-size:10px;">06</span>
+          </div>
+        </div>
+        <div style="background:white;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;">
+          <div style="color:#888;margin-bottom:4px;">Min Score</div>
+          <div style="font-weight:600;">70</div>
+        </div>
+        <div style="background:white;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;">
+          <div style="color:#888;margin-bottom:4px;">Profile</div>
+          <div style="font-weight:600;">Owner Occupier</div>
+        </div>
+        <div style="font-size:11px;color:#666;margin-top:8px;margin-bottom:4px;">LISTINGS (12 results)</div>
+        <!-- Listing items -->
+        <div style="background:white;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;cursor:pointer;">
+          <div style="font-weight:600;margin-bottom:4px;">3-Zi in Margareten</div>
+          <div style="color:#2563eb;font-weight:600;">€420,000</div>
+          <div style="color:#666;font-size:10px;">75m² · 3 rooms · Score 82</div>
+        </div>
+        <div style="background:white;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;cursor:pointer;">
+          <div style="font-weight:600;margin-bottom:4px;">Stilvolle 2-Zi-Wohnung</div>
+          <div style="color:#2563eb;font-weight:600;">€315,000</div>
+          <div style="color:#666;font-size:10px;">58m² · 2 rooms · Score 76</div>
+        </div>
+        <div style="background:white;border:1px solid #ddd;border-radius:6px;padding:8px;font-size:11px;cursor:pointer;">
+          <div style="font-weight:600;margin-bottom:4px;">Altbau mit Potenzial</div>
+          <div style="color:#2563eb;font-weight:600;">€280,000</div>
+          <div style="color:#666;font-size:10px;">65m² · 2.5 rooms · Score 71</div>
+        </div>
+      </div>
+      <!-- Map area -->
+      <div style="flex:1;background:#e5e7eb;position:relative;overflow:hidden;">
+        <!-- OSM map tiles (simulated) -->
+        <div style="position:absolute;inset:0;background:linear-gradient(135deg,#d4e4f7 0%,#b8d4e8 100%);display:flex;align-items:center;justify-content:center;">
+          <div style="text-align:center;color:#666;font-size:12px;">
+            <div style="font-size:20px;margin-bottom:8px;">🗺️</div>
+            <div>OpenStreetMap tiles</div>
+            <div style="font-size:10px;margin-top:4px;">(Leaflet renders real map here)</div>
+          </div>
+        </div>
+        <!-- Map pins -->
+        <div style="position:absolute;top:30%;left:55%;transform:translate(-50%,-100%);">
+          <div style="background:#ef4444;width:16px;height:16px;border-radius:50% 50% 0;transform:rotate(45deg);border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);cursor:pointer;"></div>
+          <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#1e3a5f;color:white;padding:2px 6px;border-radius:4px;font-size:9px;white-space:nowrap;">Kettenbrückengasse U</div>
+        </div>
+        <div style="position:absolute;top:55%;left:40%;transform:translate(-50%,-100%);">
+          <div style="background:#ef4444;width:16px;height:16px;border-radius:50% 50% 0;transform:rotate(45deg);border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);cursor:pointer;"></div>
+          <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#1e3a5d;color:white;padding:2px 6px;border-radius:4px;font-size:9px;white-space:nowrap;">Pilgramgasse U</div>
+        </div>
+        <div style="position:absolute;top:45%;left:70%;transform:translate(-50%,-100%);">
+          <div style="background:#f97316;width:16px;height:16px;border-radius:50% 50% 0;transform:rotate(45deg);border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);cursor:pointer;"></div>
+          <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#92400e;color:white;padding:2px 6px;border-radius:4px;font-size:9px;white-space:nowrap;">~ Reinprechtsdorfer Str.</div>
+        </div>
+        <!-- Popup on hover -->
+        <div style="position:absolute;top:35%;left:58%;background:white;border-radius:8px;padding:10px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:11px;min-width:180px;border:1px solid #e5e7eb;">
+          <div style="font-weight:600;margin-bottom:4px;">3-Zi in Margareten</div>
+          <div style="color:#2563eb;font-weight:600;font-size:12px;margin-bottom:4px;">€420,000</div>
+          <div style="color:#666;font-size:10px;margin-bottom:4px;">75m² · 3 rooms</div>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:4px;font-size:9px;">Score 82</span>
+            <span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:4px;font-size:9px;">willhaben</span>
+          </div>
+        </div>
+        <!-- Legend -->
+        <div style="position:absolute;bottom:12px;left:12px;background:white;border-radius:6px;padding:8px;font-size:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+          <div style="font-weight:600;margin-bottom:6px;">Legend</div>
+          <div style="display:flex;gap:8px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="background:#ef4444;width:10px;height:10px;border-radius:50% 50% 0;transform:rotate(45deg);"></div>
+              <span>Exact coords</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="background:#f97316;width:10px;height:10px;border-radius:50% 50% 0;transform:rotate(45deg);"></div>
+              <span>District + landmark</span>
+            </div>
+          </div>
+        </div>
+        <!-- Map controls -->
+        <div style="position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;">
+          <div style="background:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.1);cursor:pointer;">+</div>
+          <div style="background:white;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.1);cursor:pointer;">−</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:16px;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:12px;">
+  <strong>Key features:</strong>
+  <ul style="margin:6px 0 0 16px;">
+    <li>Filters sidebar (district, score, buyer profile) controls BOTH list and map</li>
+    <li>Red pins = exact coordinates, Orange pins = landmark-only (district + hint)</li>
+    <li>Hover pin → popup with listing summary. Click → full detail view</li>
+    <li>Clustering when zoomed out (many listings in one area)</li>
+    <li>OSM tiles via Leaflet — no API key needed</li>
+  </ul>
+</div>
