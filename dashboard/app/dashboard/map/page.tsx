@@ -64,6 +64,9 @@ export default function MapPage() {
       {/* Header */}
       <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 shrink-0">
         <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
+        <span className="ml-3 text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+          {selectedId ? `Selected: ${selectedId.slice(0,8)}...` : 'No selection'}
+        </span>
         <nav className="ml-auto flex items-center gap-4 text-sm">
           <a href="/dashboard" className="text-gray-500 hover:text-gray-700">Dashboard</a>
           <a href="/dashboard/map" className="text-blue-600 font-medium">Map</a>
