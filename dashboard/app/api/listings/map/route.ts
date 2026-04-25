@@ -55,6 +55,10 @@ export async function GET(request: NextRequest) {
   const sortBy = sortOptions[sort] ?? sortOptions.score_desc;
 
   try {
+    const db = getDb();
+    if (!db) {
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+    }
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
@@ -69,7 +73,7 @@ export async function GET(request: NextRequest) {
       filter.bezirk = district;
     }
 
-    const listings = await getDb()
+    const listings = await db
       .collection<Document>('listings')
       .find(filter)
       .sort(sortBy)

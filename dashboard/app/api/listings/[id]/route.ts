@@ -12,7 +12,11 @@ export async function GET(
   }
 
   try {
-    const listing = await getDb().collection('listings').findOne({
+    const db = getDb();
+    if (!db) {
+      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+    }
+    const listing = await db.collection('listings').findOne({
       _id: new ObjectId(validId),
     });
 

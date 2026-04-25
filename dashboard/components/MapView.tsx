@@ -57,24 +57,21 @@ function MapViewController({
   const map = useMap();
   useEffect(() => {
     if (!map) return;
-    // Fix: disable pointer events on popup pane when no popup content exists
-    // The popup pane sits at zIndex 700 (above markers at 600), blocking clicks
-    // when there's no actual popup content
+    // Disable pointer events on popup pane to prevent it from blocking marker clicks
+    // The popup pane sits at zIndex 700 (above markers at 600) and would block clicks
     const popupPane = map.getPane('popupPane');
     if (popupPane) {
-      // When a listing is selected, no popup is shown (modal handles details)
-      // So always disable pointer events on the popup pane
       (popupPane as HTMLElement).style.pointerEvents = 'none';
     }
     if (selectedListing?.coordinates) {
-      previousCenter.current = [map.getCenter().lat, map.getCenter().lng];
-      previousZoom.current = map.getZoom();
-      console.log('[MapViewController] ZOOM IN to', selectedListing.coordinates, 'from', previousCenter.current, 'zoom:', previousZoom.current);
-      map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16);
+      const currentCenter: [number, number] = [map.getCenter().lat, map.getCenter().lng];
+      const currentZoom = map.getZoom();
+      previousCenter.current = currentCenter;
+      previousZoom.current = currentZoom;
+      map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16, { animate: false });
       map.closePopup();
     } else if (previousCenter.current) {
-      console.log('[MapViewController] ZOOM OUT to', previousCenter.current, 'zoom:', previousZoom.current);
-      map.setView(previousCenter.current, previousZoom.current);
+      map.setView(previousCenter.current, previousZoom.current, { animate: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedListing]);
