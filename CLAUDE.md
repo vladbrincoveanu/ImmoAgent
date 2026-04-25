@@ -220,6 +220,26 @@ The `listing_validator.py` module:
 - Set test environment variables before running tests
 - Mock external services (MongoDB, Telegram) when appropriate
 
+### Dashboard UI Testing (After ANY dashboard change)
+**MANDATORY — No exceptions. No ping-pong. Always tested.**
+
+The `.claude/rules/ui-testing.md` rule is auto-loaded and enforces this loop:
+
+1. Start dev server: `cd dashboard && npm run dev &` (background)
+2. Wait ~15 seconds for server to be ready
+3. Run playwright smoke tests: `cd dashboard && npx playwright test --reporter=list`
+4. Read all browser console errors and test failures
+5. If any errors: fix the code, re-run tests
+6. Repeat until all 5 smoke tests pass with 0 console errors
+7. Stop dev server: `pkill -f "next dev"`
+
+**What to test** (all routes in `dashboard/tests/smoke.spec.ts`):
+- `/` → redirects to `/dashboard`
+- `/dashboard` — header, filter bar, listing cards (or empty state)
+- `/dashboard/map` — header nav, leaflet map container, sidebar
+
+**Never commit dashboard changes when tests are failing.**
+
 ## CI/CD Integration
 
 The system is designed for GitHub Actions:
