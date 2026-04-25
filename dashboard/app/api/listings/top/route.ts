@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
-import path from 'path';
-
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const config = require(path.resolve(process.cwd(), 'config.json'));
+const config = require('../../../../config.json');
 
 type ListingDocument = Document;
 

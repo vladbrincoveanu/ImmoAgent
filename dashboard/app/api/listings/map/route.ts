@@ -3,10 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import { MapListing } from '@/lib/types';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
-import path from 'path';
-
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const config = require(path.resolve(process.cwd(), 'config.json'));
+const config = require('../../../../config.json');
 
 // Vienna district centroid coordinates (approximate lat/lon for each district)
 const DISTRICT_CENTROIDS: Record<string, { lat: number; lon: number }> = {
