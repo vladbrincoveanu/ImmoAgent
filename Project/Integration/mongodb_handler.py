@@ -6,6 +6,7 @@ import os
 import json
 import time
 from Application.helpers.utils import load_config
+from Application.helpers.listing_validator import compute_content_fingerprint
 import logging
 
 class MongoDBHandler:
@@ -52,6 +53,7 @@ class MongoDBHandler:
         # Try to create index, but don't fail if authentication is required
         try:
             self.collection.create_index("url", unique=True)
+            self.collection.create_index([("content_fingerprint", 1), ("source_enum", 1)])
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 print(f"⚠️  MongoDB authentication required, skipping index creation: {e}")
@@ -70,12 +72,21 @@ class MongoDBHandler:
         self.close()
 
     def insert_listing(self, listing: Dict) -> bool:
-        # Skip listings without a positive numeric price_total (e.g., "Preis auf Anfrage")
         price_val = listing.get('price_total')
         if not isinstance(price_val, (int, float)) or price_val <= 0:
             logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing.get('url')}")
             return False
+
+        fingerprint = compute_content_fingerprint(listing)
+        listing['content_fingerprint'] = fingerprint
+
         try:
+            existing_fingerprint = self.collection.find_one(
+                {"content_fingerprint": fingerprint, "source_enum": listing.get('source_enum', listing.get('source'))}
+            )
+            if existing_fingerprint:
+                logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing.get('title')} (URL: {listing.get('url')})")
+                return True
             self.collection.insert_one(listing)
             return True
         except pymongo.errors.DuplicateKeyError:

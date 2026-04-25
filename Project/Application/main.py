@@ -17,7 +17,7 @@ from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
-from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint
 from Application.helpers.geocoding import geocode_listing
 from Domain.listing import Listing
 import logging
@@ -693,38 +693,53 @@ def normalize_listing_schema(listing: Listing) -> Listing:
     
     return listing
 
-def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb://localhost:27017/", 
+def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb://localhost:27017/",
                            db_name: str = "immo", collection_name: str = "listings") -> int:
     """Save listings to MongoDB with deduplication"""
     if not listings:
         return 0
-    
+
     try:
         client = pymongo.MongoClient(mongo_uri)
         db = client[db_name]
         collection = db[collection_name]
-        
+
+        collection.create_index([("content_fingerprint", 1), ("source_enum", 1)])
+
         saved_count = 0
         duplicate_count = 0
-        
+
         for listing in listings:
             listing = normalize_listing_schema(listing)
             listing_dict = asdict(listing)
-            
-            existing = collection.find_one({"url": listing.url})
-            
-            if existing:
-                listing_dict['_id'] = existing['_id']
-                collection.replace_one({"_id": existing['_id']}, listing_dict)
+
+            fingerprint = compute_content_fingerprint(listing_dict)
+            listing_dict['content_fingerprint'] = fingerprint
+            source_enum = listing_dict.get('source_enum', listing_dict.get('source', ''))
+
+            existing_by_url = collection.find_one({"url": listing.url})
+
+            if existing_by_url:
+                listing_dict['_id'] = existing_by_url['_id']
+                collection.replace_one({"_id": existing_by_url['_id']}, listing_dict)
                 duplicate_count += 1
                 logging.debug(f"🔄 Updated existing listing: {listing.title}")
             else:
+                existing_by_fingerprint = collection.find_one(
+                    {"content_fingerprint": fingerprint, "source_enum": source_enum}
+                )
+                if existing_by_fingerprint:
+                    logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing.title} (URL: {listing.url})")
+                    duplicate_count += 1
+                    geocoded = geocode_listing(listing_dict)
+                    if geocoded.get('coordinate_source') != 'none' and not existing_by_fingerprint.get('coordinates'):
+                        mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
+                    continue
                 result = collection.insert_one(listing_dict)
                 listing_dict['_id'] = result.inserted_id
                 saved_count += 1
                 logging.debug(f"💾 Saved new listing: {listing.title}")
 
-                # Geocode the listing and update coordinates
                 geocoded = geocode_listing(listing_dict)
                 if geocoded.get('coordinate_source') != 'none':
                     mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
