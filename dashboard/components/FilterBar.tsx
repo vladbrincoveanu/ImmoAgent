@@ -30,7 +30,7 @@ export function FilterBar({
   const effectiveSort = sortBy ?? 'score_desc';
 
   return (
-    <div className="flex flex-wrap gap-3 mb-6">
+    <div className="hidden md:flex flex-wrap gap-3 mb-6">
       <div className="flex items-center gap-2 ml-auto">
         <label className="text-sm font-medium text-gray-700">Min Score</label>
         <input
