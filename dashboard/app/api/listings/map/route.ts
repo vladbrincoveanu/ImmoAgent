@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { MapListing } from '@/lib/types';
 import { Document, WithId } from 'mongodb';
+import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
+import path from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const config = require('@/../../config.json');
+const config = require(path.resolve(process.cwd(), 'config.json'));
 
 // Vienna district centroid coordinates (approximate lat/lon for each district)
 const DISTRICT_CENTROIDS: Record<string, { lat: number; lon: number }> = {
@@ -40,10 +42,10 @@ function getDistrictCentroid(bezirk: string | null): { lat: number; lon: number 
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
-  const minScore = parseFloat(searchParams.get('min_score') || '0');
-  const district = searchParams.get('district');
-  const sort = searchParams.get('sort') || 'score_desc';
+  const limit = validateLimit(searchParams.get('limit'), 200);
+  const minScore = validateMinScore(searchParams.get('min_score'));
+  const district = validateDistrict(searchParams.get('district'));
+  const sort = validateSort(searchParams.get('sort'));
 
   const sortOptions: Record<string, Record<string, 1 | -1>> = {
     score_desc: { score: -1, processed_at: -1 },
@@ -55,6 +57,9 @@ export async function GET(request: NextRequest) {
   const sortBy = sortOptions[sort] ?? sortOptions.score_desc;
 
   try {
+    if (district === null && searchParams.get('district') !== null) {
+      console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
+    }
     // Show ALL listings — those with coordinates use exact location, those without use district centroid fallback
     const filter: Record<string, unknown> = {};
 
