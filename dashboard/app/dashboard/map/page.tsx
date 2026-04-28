@@ -31,15 +31,16 @@ export default function MapPage() {
   const [district, setDistrict] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
+  const [snapPoints, setSnapPoints] = useState<[number, number, number]>(() => {
+    const h = typeof window !== 'undefined' ? window.innerHeight : 800;
+    return [64, Math.round(h * 0.45), Math.round(h * 0.9)];
+  });
 
   useEffect(() => {
-    const getSnapPoints = (): [number, number, number] => {
-      const h = typeof window !== 'undefined' ? window.innerHeight : 800;
-      return [64, Math.round(h * 0.45), Math.round(h * 0.9)];
+    const handleResize = () => {
+      const h = window.innerHeight;
+      setSnapPoints([64, Math.round(h * 0.45), Math.round(h * 0.9)]);
     };
-    setSnapPoints(getSnapPoints());
-    const handleResize = () => setSnapPoints(getSnapPoints());
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -79,10 +80,6 @@ export default function MapPage() {
       {/* Header */}
       <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 shrink-0">
         <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
-        <nav className="ml-auto flex items-center gap-4 text-sm">
-          <a href="/dashboard" className="text-gray-500 hover:text-gray-700">Dashboard</a>
-          <a href="/dashboard/map" className="text-blue-600 font-medium">Map</a>
-        </nav>
       </header>
 
       {/* Body */}
@@ -163,7 +160,7 @@ export default function MapPage() {
           {/* Mobile filter FAB */}
           <button
             onClick={() => setFilterDrawerOpen(true)}
-            className="md:hidden absolute bottom-6 right-6 w-14 h-14 rounded-full bg-accent text-white shadow-lg flex items-center justify-center z-50 hover:opacity-90 transition-opacity"
+            className="md:hidden absolute bottom-6 right-6 w-14 h-14 rounded-full bg-accent text-white shadow-lg flex items-center justify-center z-[1100] hover:opacity-90 transition-opacity"
             aria-label="Open filters"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
 import { MapPopup } from '@/components/MapPopup';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 // Fix default marker icon (Leaflet + webpack issue)
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -55,21 +55,19 @@ function MapViewController({
   previousZoom: React.MutableRefObject<number>;
 }) {
   const map = useMap();
+  const flyTo = useCallback((listing: MapListing) => {
+    if (!listing.coordinates) return;
+    const currentCenter: [number, number] = [map.getCenter().lat, map.getCenter().lng];
+    const currentZoom = map.getZoom();
+    previousCenter.current = currentCenter;
+    previousZoom.current = currentZoom;
+    map.setView([listing.coordinates.lat, listing.coordinates.lon], 16, { animate: false });
+  }, [map]);
+
   useEffect(() => {
     if (!map) return;
-    // Disable pointer events on popup pane to prevent it from blocking marker clicks
-    // The popup pane sits at zIndex 700 (above markers at 600) and would block clicks
-    const popupPane = map.getPane('popupPane');
-    if (popupPane) {
-      (popupPane as HTMLElement).style.pointerEvents = 'none';
-    }
     if (selectedListing?.coordinates) {
-      const currentCenter: [number, number] = [map.getCenter().lat, map.getCenter().lng];
-      const currentZoom = map.getZoom();
-      previousCenter.current = currentCenter;
-      previousZoom.current = currentZoom;
-      map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16, { animate: false });
-      map.closePopup();
+      flyTo(selectedListing);
     } else if (previousCenter.current) {
       map.setView(previousCenter.current, previousZoom.current, { animate: false });
     }
@@ -115,11 +113,9 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
             icon={createPinIcon(pinColor, pinSize)}
             eventHandlers={{ click: () => onPinClick(listing) }}
           >
-            {!isSelected && (
-              <Popup>
-                <MapPopup listing={listing} />
-              </Popup>
-            )}
+            <Popup>
+              <MapPopup listing={listing} />
+            </Popup>
           </Marker>
         );
       })}

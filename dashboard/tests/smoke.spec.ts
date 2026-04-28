@@ -32,7 +32,7 @@ test.describe('Dashboard Smoke Tests', () => {
     expect(serverErrors.length).toBe(0);
   });
 
-  test('dashboard map page renders header and nav', async ({ page }) => {
+  test('dashboard map page renders header', async ({ page }) => {
     const serverErrors: string[] = [];
     page.on('response', response => {
       if (response.status() >= 500 && response.status() !== 503) {
@@ -42,10 +42,10 @@ test.describe('Dashboard Smoke Tests', () => {
 
     await page.goto('/dashboard/map');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
-
     await expect(page.locator('h1')).toContainText('Property Map');
-    await expect(page.locator('a[href="/dashboard"]').first()).toBeVisible();
+
+    const mapOrEmpty = page.locator('.leaflet-container').or(page.locator('text=No listings match your filters'));
+    await expect(mapOrEmpty.first()).toBeAttached({ timeout: 10000 });
 
     expect(serverErrors.length).toBe(0);
   });
@@ -53,16 +53,14 @@ test.describe('Dashboard Smoke Tests', () => {
   test('dashboard listing page is not stuck in loading state', async ({ page }) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000);
 
-    expect(await page.locator('text=Loading...').count()).toBe(0);
+    await expect(page.locator('text=Loading...')).toHaveCount(0, { timeout: 15000 });
   });
 
   test('dashboard map page is not stuck in loading state', async ({ page }) => {
     await page.goto('/dashboard/map');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
 
-    expect(await page.locator('text=Loading...').count()).toBe(0);
+    await expect(page.locator('text=Loading...')).toHaveCount(0, { timeout: 15000 });
   });
 });
