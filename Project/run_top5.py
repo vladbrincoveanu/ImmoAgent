@@ -252,64 +252,75 @@ def recency_score(listing: Dict[str, Any], horizon_days: int = 120) -> float:
     age_days = max((time.time() - ts) / 86400, 0)
     return max(0.0, (horizon_days - age_days) / horizon_days)
 
-def validate_url(url: Optional[str], timeout: int = 5) -> bool:
+SOFT_404_PATTERNS = [
+    'nicht gefunden', 'seite nicht', '404',
+    'anzeige wurde entfernt', 'nicht mehr verfügbar',
+    'inserat nicht', 'keine ergebnisse',
+    'page not found', 'this page is no longer',
+    'listing not found', 'nicht vorhanden',
+    'objekt nicht mehr', 'ist nicht mehr aktiv',
+]
+
+def validate_url(url: Optional[str], timeout: int = 10) -> bool:
     """
-    Validate that a URL is accessible and returns a 200 OK status.
-    
-    Args:
-        url: The URL to validate (can be None)
-        timeout: Request timeout in seconds (default: 5)
-    
-    Returns:
-        True if URL is accessible (status 200), False otherwise
+    Validate that a URL is accessible, returns 200, and is not a soft-404.
+    Uses GET with streaming to limit download to ~50KB for performance.
     """
     if not url or not isinstance(url, str):
         return False
-    
+
     try:
-        # Use HEAD request for efficiency (faster than GET)
-        resp = requests.head(url, allow_redirects=True, timeout=timeout)
-        # Only accept 200 OK status codes
-        is_valid = resp.status_code == 200
+        resp = requests.get(url, allow_redirects=True, timeout=timeout, stream=True)
+        chunk = b''
+        for c in resp.iter_content(8192):
+            chunk += c
+            if len(chunk) > 51200:
+                break
+        body = chunk.decode('utf-8', errors='ignore').lower()
+        is_soft_404 = any(p in body for p in SOFT_404_PATTERNS)
+        is_valid = resp.status_code == 200 and not is_soft_404
         if not is_valid:
-            logging.debug(f"❌ Invalid URL (HTTP {resp.status_code}): {url}")
+            logging.debug(f"URL rejected: {url} (HTTP {resp.status_code}, soft_404={is_soft_404})")
         return is_valid
     except requests.exceptions.Timeout:
-        logging.debug(f"⏱️ URL timeout: {url}")
-        return False
-    except requests.exceptions.RequestException as e:
-        logging.debug(f"❌ URL error ({type(e).__name__}): {url}")
+        logging.debug(f"URL timeout: {url}")
         return False
     except Exception as e:
-        logging.debug(f"❌ Unexpected error validating URL: {e} - {url}")
+        logging.debug(f"URL error ({type(e).__name__}): {url}")
         return False
 
-def filter_valid_urls(listings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def filter_valid_urls(
+    listings: List[Dict[str, Any]],
+    mongo=None
+) -> List[Dict[str, Any]]:
     """
     Filter out listings with broken or invalid URLs.
-    
-    Args:
-        listings: List of listing dictionaries
-    
-    Returns:
-        List of listings with valid URLs only
+    Optionally marks broken URLs in MongoDB so future runs skip them.
     """
     valid_listings = []
-    broken_count = 0
-    
+    broken = []
+
     for listing in listings:
         url = listing.get('url')
         if validate_url(url):
             valid_listings.append(listing)
         else:
-            broken_count += 1
+            broken.append(listing)
             listing_id = listing.get('_id', 'unknown')
             source = listing.get('source', 'unknown')
             logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {url}")
-    
-    if broken_count > 0:
-        logging.info(f"🔍 URL validation: {broken_count} listing(s) filtered out due to broken URLs")
-    
+
+    if broken:
+        logging.info(f"🔍 URL validation: {len(broken)} listing(s) filtered out due to broken URLs")
+        if mongo:
+            for listing in broken:
+                url = listing.get('url')
+                if url:
+                    try:
+                        mongo.mark_url_invalid(url)
+                    except Exception as e:
+                        logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
+
     return valid_listings
 
 def setup_logging():
@@ -765,26 +776,30 @@ def main(argv: Optional[List[str]] = None):
         # Validate URLs and filter out listings with broken/invalid URLs
         print("🔍 Validating listing URLs...")
         original_count = len(listings_to_send)
-        listings_to_send = filter_valid_urls(listings_to_send)
+        listings_to_send = filter_valid_urls(listings_to_send, mongo)
         filtered_count = original_count - len(listings_to_send)
-        
+
         if filtered_count > 0:
             logging.info(f"🚫 Filtered out {filtered_count} listing(s) with broken URLs")
             print(f"🚫 Filtered out {filtered_count} listing(s) with broken URLs")
-        
+
         # If we filtered out too many listings, try to get more from the pool
         if len(listings_to_send) < limit and len(pool) > len(listings_to_send):
             remaining_pool = [l for l in pool if l not in listings_to_send]
-            # Validate remaining listings and add valid ones
             for listing in remaining_pool:
                 if len(listings_to_send) >= limit:
                     break
-                if validate_url(listing.get('url')):
+                url = listing.get('url')
+                if validate_url(url):
                     listings_to_send.append(listing)
                 else:
                     listing_id = listing.get('_id', 'unknown')
                     source = listing.get('source', 'unknown')
-                    logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {listing.get('url')}")
+                    logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {url}")
+                    try:
+                        mongo.mark_url_invalid(url)
+                    except Exception as e:
+                        logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
         
         if not listings_to_send:
             logging.warning("⚠️ No listings found matching criteria after URL validation")
