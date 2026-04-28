@@ -156,11 +156,11 @@ class MongoDBHandler:
         try:
             from datetime import datetime
             sent_timestamp = datetime.now().timestamp()
-            
+
             urls = [listing.get('url') for listing in listings if listing.get('url')]
             if not urls:
                 return
-            
+
             # Update all listings at once
             result = self.collection.update_many(
                 {"url": {"$in": urls}},
@@ -169,9 +169,9 @@ class MongoDBHandler:
                     "sent_to_telegram_at": sent_timestamp
                 }}
             )
-            
+
             logging.info(f"✅ Marked {result.modified_count} listings as sent to Telegram")
-            
+
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 logging.warning(f"⚠️  MongoDB authentication required, skipping update: {e}")
@@ -179,6 +179,24 @@ class MongoDBHandler:
                 logging.error(f"MongoDB update error: {e}")
         except Exception as e:
             logging.error(f"MongoDB update error: {e}")
+
+    def mark_url_invalid(self, url: str) -> None:
+        """Mark a listing URL as invalid/broken so future runs skip it."""
+        try:
+            from datetime import datetime
+            if not url or not self.client:
+                return
+            result = self.collection.update_one(
+                {"url": url},
+                {"$set": {
+                    "url_is_valid": False,
+                    "url_invalidated_at": datetime.now().timestamp()
+                }}
+            )
+            if result.modified_count > 0:
+                logging.debug(f"Marked URL as invalid: {url}")
+        except Exception as e:
+            logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
 
     def get_recently_sent_listings(self, days: int = 7) -> List[str]:
         """Get URLs of listings sent to Telegram in the last N days"""
@@ -265,9 +283,10 @@ class MongoDBHandler:
             cutoff_date = datetime.now() - timedelta(days=days_old)
             cutoff_timestamp = cutoff_date.timestamp()
             
-            # Build base query
+            # Build base query — skip listings already confirmed as dead URLs
             base_query = {
-                "processed_at": {"$gte": cutoff_timestamp}
+                "processed_at": {"$gte": cutoff_timestamp},
+                "url_is_valid": {"$ne": False},
             }
             
             # Add score filter if specified (handle both existing scores and null scores)
