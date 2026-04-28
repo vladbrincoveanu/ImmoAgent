@@ -39,16 +39,28 @@ export async function GET(request: NextRequest) {
       processed_at: { $gte: cutoff / 1000 },
     };
 
+    // Exclude "Preis auf Anfrage" — no price, no area → can't determine value
+    const andConditions: Record<string, unknown>[] = [
+      { $or: [
+        { price_total: { $gt: 0 } },
+        { area_m2: { $gt: 0 } },
+      ]},
+    ];
+
     if (minScore > 0) {
-      filter.$or = [
-        { score: { $gte: minScore } },
-        { score: null },
-      ];
+      andConditions.push({
+        $or: [
+          { score: { $gte: minScore } },
+          { score: null },
+        ],
+      });
     }
 
     if (district) {
-      filter.bezirk = district;
+      andConditions.push({ bezirk: district });
     }
+
+    filter.$and = andConditions;
 
     const listings = await db
       .collection<ListingDocument>('listings')

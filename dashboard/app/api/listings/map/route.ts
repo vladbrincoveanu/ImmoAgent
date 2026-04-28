@@ -62,8 +62,13 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
-    // Show ALL listings — those with coordinates use exact location, those without use district centroid fallback
-    const filter: Record<string, unknown> = {};
+    // Show all listings that have a meaningful price (exclude "Preis auf Anfrage")
+    const filter: Record<string, unknown> = {
+      $or: [
+        { price_total: { $gt: 0 } },
+        { area_m2: { $gt: 0 } },
+      ],
+    };
 
     if (minScore > 0) {
       filter.score = { $gte: minScore };

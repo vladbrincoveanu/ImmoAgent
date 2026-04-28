@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMap } from 'react-leaflet';
 import { MapListing } from '@/lib/types';
 import { SOURCE_LABELS, formatPrice } from '@/lib/utils';
 
@@ -11,7 +10,6 @@ interface MapPopupProps {
 
 export function MapPopup({ listing }: MapPopupProps) {
   const [imageError, setImageError] = useState(false);
-  const map = useMap();
 
   const hasImage = listing.image_url && !imageError;
 
@@ -68,13 +66,6 @@ export function MapPopup({ listing }: MapPopupProps) {
             </span>
           )}
         </div>
-
-        <button
-          onClick={() => map.closePopup()}
-          className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer transition-colors duration-150"
-        >
-          Close
-        </button>
       </div>
     </div>
   );
