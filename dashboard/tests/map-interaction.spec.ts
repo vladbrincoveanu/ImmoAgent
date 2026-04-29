@@ -10,6 +10,9 @@ const KNOWN_INFRA_ERRORS = [
   'hydration',
   'warning:',
   'react',
+  'websocket',
+  '429',
+  'too many requests',
 ];
 
 function isUnexpectedError(msg: string): boolean {
