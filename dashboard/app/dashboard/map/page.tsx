@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { ListingSidebar } from '@/components/ListingSidebar';
 import { ListingDetail } from '@/components/ListingDetail';
@@ -65,15 +65,18 @@ export default function MapPage() {
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
-  const selectedListing = listings.find((l) => l._id === selectedId) ?? null;
+  const selectedListing = useMemo(
+    () => listings.find((l) => l._id === selectedId) ?? null,
+    [listings, selectedId]
+  );
 
-  const handlePinClick = (listing: MapListing) => {
+  const handlePinClick = useCallback((listing: MapListing) => {
     setSelectedId(listing._id);
-  };
+  }, []);
 
-  const handleSidebarSelect = (listing: MapListing) => {
+  const handleSidebarSelect = useCallback((listing: MapListing) => {
     setSelectedId(listing._id);
-  };
+  }, []);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-warm-bg">

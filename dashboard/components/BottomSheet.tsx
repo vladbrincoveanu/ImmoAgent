@@ -22,22 +22,29 @@ export function BottomSheet({
   count,
 }: BottomSheetProps) {
   const [state, setState] = useState<SheetState>(defaultState);
-  const [translateY, setTranslateY] = useState(0);
+  const [translateY, setTranslateY] = useState(() => {
+    const h = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const defaultHeights: Record<SheetState, number> = {
+      collapsed: snapPoints[0],
+      half: snapPoints[1],
+      full: snapPoints[2],
+    };
+    return h - defaultHeights[defaultState];
+  });
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef(0);
   const dragStartTranslate = useRef(0);
   const isDragging = useRef(false);
 
-  const defaultHeights: Record<SheetState, number> = {
-    collapsed: snapPoints[0],
-    half: snapPoints[1],
-    full: snapPoints[2],
-  };
-
   useEffect(() => {
+    const defaultHeights: Record<SheetState, number> = {
+      collapsed: snapPoints[0],
+      half: snapPoints[1],
+      full: snapPoints[2],
+    };
     const height = defaultHeights[defaultState];
     setTranslateY(window.innerHeight - height);
-  }, [defaultState]);
+  }, [defaultState, snapPoints]);
 
   const snapToNearest = useCallback((currentY: number) => {
     const windowH = window.innerHeight;

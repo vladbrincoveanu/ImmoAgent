@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
 import { MapPopup } from '@/components/MapPopup';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 
 // Fix default marker icon (Leaflet + webpack issue)
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -55,31 +55,57 @@ function MapViewController({
   previousZoom: React.MutableRefObject<number>;
 }) {
   const map = useMap();
-  const flyTo = useCallback((listing: MapListing) => {
-    if (!listing.coordinates) return;
-    const currentCenter: [number, number] = [map.getCenter().lat, map.getCenter().lng];
-    const currentZoom = map.getZoom();
-    previousCenter.current = currentCenter;
-    previousZoom.current = currentZoom;
-    map.setView([listing.coordinates.lat, listing.coordinates.lon], 16, { animate: false });
-  }, [map]);
+  const prevSelectedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!map) return;
+
+    const currentId = selectedListing?._id ?? null;
+    if (currentId === prevSelectedIdRef.current) return;
+    prevSelectedIdRef.current = currentId;
+
     if (selectedListing?.coordinates) {
-      flyTo(selectedListing);
+      const [lat, lon] = [selectedListing.coordinates.lat, selectedListing.coordinates.lon];
+      const currCenter = map.getCenter();
+      const currZoom = map.getZoom();
+      if (currCenter.lat !== lat || currCenter.lng !== lon || currZoom !== 16) {
+        previousCenter.current = [currCenter.lat, currCenter.lng];
+        previousZoom.current = currZoom;
+        map.setView([lat, lon], 16, { animate: false });
+      }
     } else if (previousCenter.current) {
       map.setView(previousCenter.current, previousZoom.current, { animate: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedListing]);
+  }, [selectedListing, map, previousCenter, previousZoom]);
+
   return null;
 }
 
-export function MapView({ listings, selectedListing, onPinClick }: MapViewProps) {
+export const MapView = memo(function MapView({ listings, selectedListing, onPinClick }: MapViewProps) {
   const viennaCenter: [number, number] = [48.2082, 16.3738];
   const previousCenter = useRef<[number, number]>(viennaCenter);
   const previousZoom = useRef(13);
+
+  const markers = useMemo(() => listings.map((listing) => {
+    if (!listing.coordinates) return null;
+    const isLandmark = listing.coordinate_source === 'landmark';
+    const isDistrict = listing.coordinate_source === 'district';
+    const isSelected = selectedListing?._id === listing._id;
+    const pinColor = isSelected ? SELECTED_COLOR : (isLandmark ? LANDMARK_COLOR : isDistrict ? DISTRICT_COLOR : EXACT_COLOR);
+    const pinSize = isSelected ? SELECTED_PIN_SIZE : 14;
+    return (
+      <Marker
+        key={listing._id}
+        position={[listing.coordinates.lat, listing.coordinates.lon]}
+        icon={createPinIcon(pinColor, pinSize)}
+        eventHandlers={{ click: () => onPinClick(listing) }}
+      >
+        <Popup>
+          <MapPopup listing={listing} />
+        </Popup>
+      </Marker>
+    );
+  }), [listings, selectedListing, onPinClick]);
 
   return (
     <MapContainer
@@ -99,26 +125,7 @@ export function MapView({ listings, selectedListing, onPinClick }: MapViewProps)
         previousZoom={previousZoom}
       />
 
-      {listings.map((listing) => {
-        if (!listing.coordinates) return null;
-        const isLandmark = listing.coordinate_source === 'landmark';
-        const isDistrict = listing.coordinate_source === 'district';
-        const isSelected = selectedListing?._id === listing._id;
-        const pinColor = isSelected ? SELECTED_COLOR : (isLandmark ? LANDMARK_COLOR : isDistrict ? DISTRICT_COLOR : EXACT_COLOR);
-        const pinSize = isSelected ? SELECTED_PIN_SIZE : 14;
-        return (
-          <Marker
-            key={listing._id}
-            position={[listing.coordinates.lat, listing.coordinates.lon]}
-            icon={createPinIcon(pinColor, pinSize)}
-            eventHandlers={{ click: () => onPinClick(listing) }}
-          >
-            <Popup>
-              <MapPopup listing={listing} />
-            </Popup>
-          </Marker>
-        );
-      })}
+      {markers}
     </MapContainer>
   );
-}
+});
