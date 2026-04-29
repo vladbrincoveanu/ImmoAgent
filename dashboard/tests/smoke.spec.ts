@@ -44,8 +44,10 @@ test.describe('Dashboard Smoke Tests', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.locator('h1')).toContainText('Property Map');
 
-    const mapOrEmpty = page.locator('.leaflet-container').or(page.locator('text=No listings match your filters'));
-    await expect(mapOrEmpty.first()).toBeAttached({ timeout: 10000 });
+    const mapVisible = await page.locator('.leaflet-container').isVisible().catch(() => false);
+    if (!mapVisible) {
+      await expect(page.locator('text=No listings match your filters').first()).toBeVisible({ timeout: 10000 });
+    }
 
     expect(serverErrors.length).toBe(0);
   });

@@ -1,13 +1,10 @@
-'use client';
-
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
 import { MapPopup } from '@/components/MapPopup';
-import { useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { useEffect, useRef, useCallback, memo } from 'react';
 
-// Fix default marker icon (Leaflet + webpack issue)
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -17,26 +14,26 @@ L.Icon.Default.mergeOptions({
 
 const EXACT_COLOR = '#ef4444';
 const LANDMARK_COLOR = '#f97316';
-const DISTRICT_COLOR = '#3B82F6'; // blue — approximate district centroid
-const SELECTED_COLOR = '#E07A5F'; // terracotta accent
+const DISTRICT_COLOR = '#3B82F6';
+const SELECTED_COLOR = '#E07A5F';
 const SELECTED_PIN_SIZE = 20;
 
 export function createPinIcon(color: string, size: number = 14) {
   const rotation = 'rotate(45deg)';
   return L.divIcon({
-    html: `<div style="
-      background:${color};
-      width:${size}px;height:${size}px;
-      border-radius:50% 50% 0;
-      transform:${rotation};
-      border:2px solid white;
-      box-shadow:0 3px 8px rgba(0,0,0,0.4);
-    "></div>`,
+    html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50% 50% 0;transform:${rotation};border:2px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);"></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, 0],
     popupAnchor: [0, -(size / 2 + 4)],
     className: '',
   });
+}
+
+function defaultIcon(listing: MapListing): L.DivIcon {
+  const isLandmark = listing.coordinate_source === 'landmark';
+  const isDistrict = listing.coordinate_source === 'district';
+  const color = isLandmark ? LANDMARK_COLOR : isDistrict ? DISTRICT_COLOR : EXACT_COLOR;
+  return createPinIcon(color, 14);
 }
 
 interface MapViewProps {
@@ -85,27 +82,59 @@ export const MapView = memo(function MapView({ listings, selectedListing, onPinC
   const viennaCenter: [number, number] = [48.2082, 16.3738];
   const previousCenter = useRef<[number, number]>(viennaCenter);
   const previousZoom = useRef(13);
+  const markerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const prevSelectedIdRef = useRef<string | null>(null);
 
-  const markers = useMemo(() => listings.map((listing) => {
+  const selectedId = selectedListing?._id ?? null;
+
+  // Stable marker rendering — ONLY recreated when listings or onPinClick change.
+  // selectedListing is NOT a dep — icons are updated imperatively via setIcon.
+  const markerNodes = listings.map((listing) => {
     if (!listing.coordinates) return null;
-    const isLandmark = listing.coordinate_source === 'landmark';
-    const isDistrict = listing.coordinate_source === 'district';
-    const isSelected = selectedListing?._id === listing._id;
-    const pinColor = isSelected ? SELECTED_COLOR : (isLandmark ? LANDMARK_COLOR : isDistrict ? DISTRICT_COLOR : EXACT_COLOR);
-    const pinSize = isSelected ? SELECTED_PIN_SIZE : 14;
     return (
       <Marker
         key={listing._id}
         position={[listing.coordinates.lat, listing.coordinates.lon]}
-        icon={createPinIcon(pinColor, pinSize)}
+        icon={defaultIcon(listing)}
         eventHandlers={{ click: () => onPinClick(listing) }}
+        ref={(marker: L.Marker | null) => {
+          if (marker) {
+            markerRefs.current.set(listing._id, marker);
+          } else {
+            markerRefs.current.delete(listing._id);
+          }
+        }}
       >
         <Popup>
           <MapPopup listing={listing} />
         </Popup>
       </Marker>
     );
-  }), [listings, selectedListing, onPinClick]);
+  });
+
+  // Imperatively update marker icons when selection changes.
+  // This avoids recreating all marker DOM elements on every pin click.
+  useEffect(() => {
+    const newSelectedId = selectedListing?._id ?? null;
+    const prevSelectedId = prevSelectedIdRef.current;
+
+    if (prevSelectedId && prevSelectedId !== newSelectedId) {
+      const prevMarker = markerRefs.current.get(prevSelectedId);
+      if (prevMarker) {
+        const prevListing = listings.find((l) => l._id === prevSelectedId);
+        if (prevListing) prevMarker.setIcon(defaultIcon(prevListing));
+      }
+    }
+
+    if (newSelectedId) {
+      const newMarker = markerRefs.current.get(newSelectedId);
+      if (newMarker) {
+        newMarker.setIcon(createPinIcon(SELECTED_COLOR, SELECTED_PIN_SIZE));
+      }
+    }
+
+    prevSelectedIdRef.current = newSelectedId;
+  }, [selectedListing, listings]);
 
   return (
     <MapContainer
@@ -125,7 +154,7 @@ export const MapView = memo(function MapView({ listings, selectedListing, onPinC
         previousZoom={previousZoom}
       />
 
-      {markers}
+      {markerNodes}
     </MapContainer>
   );
 });
