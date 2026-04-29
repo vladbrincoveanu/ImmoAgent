@@ -31,16 +31,14 @@ export default function MapPage() {
   const [district, setDistrict] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [snapPoints, setSnapPoints] = useState<[number, number, number]>(() => {
-    const h = typeof window !== 'undefined' ? window.innerHeight : 800;
-    return [64, Math.round(h * 0.45), Math.round(h * 0.9)];
-  });
+  const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
 
   useEffect(() => {
     const handleResize = () => {
       const h = window.innerHeight;
       setSnapPoints([64, Math.round(h * 0.45), Math.round(h * 0.9)]);
     };
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);

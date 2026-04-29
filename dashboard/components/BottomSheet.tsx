@@ -123,6 +123,7 @@ export function BottomSheet({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        suppressHydrationWarning
       >
         <div className="shrink-0 flex flex-col items-center pt-3 pb-2 cursor-grab active:cursor-grabbing select-none">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />

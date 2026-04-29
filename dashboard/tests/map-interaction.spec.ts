@@ -9,10 +9,19 @@ const KNOWN_INFRA_ERRORS = [
   'server error',
   'hydration',
   'warning:',
-  'react',
   'websocket',
+  'ws://',
+  'wss://',
+  'hot update',
   '429',
   'too many requests',
+  'err_conn_refused',
+  'server:',
+  'client:',
+  'style "',
+  '/favicon.ico',
+  '404',
+  'failed to load resource',
 ];
 
 function isUnexpectedError(msg: string): boolean {

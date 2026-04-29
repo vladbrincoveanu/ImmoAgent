@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: 'list',
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3010',
     trace: 'on-first-retry',
   },
 
@@ -21,8 +21,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
-    port: 3000,
+    command: 'PORT=3010 MONGODB_URI=mongodb://localhost:27017/immo npm run dev',
+    port: 3010,
     reuseExistingServer: true,
     timeout: 120000,
   },
