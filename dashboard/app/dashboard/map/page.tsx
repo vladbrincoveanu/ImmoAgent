@@ -83,7 +83,7 @@ export default function MapPage() {
 
   const handleCloseDetail = useCallback(() => {
     setDetailId(null);
-    setHighlightedId(null);
+    queueMicrotask(() => setHighlightedId(null));
   }, []);
 
   return (
