@@ -107,6 +107,7 @@ export default function MapPage() {
             snapPoints={snapPoints}
             defaultState="half"
             count={listings.length}
+            scrollToId={selectedId}
           >
             <div className="p-3">
               <div className="text-xs text-gray-500 font-medium mb-2">
@@ -119,6 +120,7 @@ export default function MapPage() {
                   listings.map((l) => (
                     <div
                       key={l._id}
+                      data-listing-id={l._id}
                       onClick={() => handleSidebarSelect(l)}
                       className={`flex gap-3 bg-white rounded-lg border p-2 cursor-pointer transition-all text-xs ${
                         selectedId === l._id

@@ -47,3 +47,10 @@ body {
     padding-right: 36px;
   }
 }
+
+/* On mobile, hide Leaflet popups — BottomSheet shows listing details instead */
+@media (max-width: 767px) {
+  .leaflet-popup {
+    display: none !important;
+  }
+}

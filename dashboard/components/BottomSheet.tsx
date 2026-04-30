@@ -10,6 +10,7 @@ interface BottomSheetProps {
   defaultState?: SheetState;
   onStateChange?: (state: SheetState) => void;
   count?: number;
+  scrollToId?: string | null;
 }
 
 const STATE_KEYS: SheetState[] = ['collapsed', 'half', 'full'];
@@ -20,8 +21,10 @@ export function BottomSheet({
   defaultState = 'half',
   onStateChange,
   count,
+  scrollToId,
 }: BottomSheetProps) {
   const [state, setState] = useState<SheetState>(defaultState);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [translateY, setTranslateY] = useState(() => {
     const h = typeof window !== 'undefined' ? window.innerHeight : 800;
     const defaultHeights: Record<SheetState, number> = {
@@ -45,6 +48,20 @@ export function BottomSheet({
     const height = defaultHeights[defaultState];
     setTranslateY(window.innerHeight - height);
   }, [defaultState, snapPoints]);
+
+  useEffect(() => {
+    if (!scrollToId || state === 'full') return;
+    const scrollToHalf = () => {
+      setState('half');
+      setTranslateY(window.innerHeight - snapPoints[1]);
+      onStateChange?.('half');
+    };
+    scrollToHalf();
+    setTimeout(() => {
+      const el = scrollContainerRef.current?.querySelector(`[data-listing-id="${scrollToId}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  }, [scrollToId, snapPoints, onStateChange, state]);
 
   const snapToNearest = useCallback((currentY: number) => {
     const windowH = window.innerHeight;
@@ -147,7 +164,7 @@ export function BottomSheet({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" ref={scrollContainerRef}>
           {children}
         </div>
       </div>
