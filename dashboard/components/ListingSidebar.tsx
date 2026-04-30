@@ -72,7 +72,9 @@ export function ListingSidebar({
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-text line-clamp-1 leading-tight">{l.title || 'Untitled'}</p>
+                <p className={`font-medium line-clamp-1 leading-tight ${selectedId === l._id ? 'text-accent' : 'text-text'}`}>
+                  {l.title || 'Untitled'}{selectedId === l._id && <span className="ml-1">→</span>}
+                </p>
                 <p className="font-bold text-heading mt-0.5">
                   {l.price_total ? `€${l.price_total.toLocaleString('de-AT')}` : '—'}
                 </p>

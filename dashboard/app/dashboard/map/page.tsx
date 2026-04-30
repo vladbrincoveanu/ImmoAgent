@@ -26,7 +26,8 @@ function MapLoadingState() {
 export default function MapPage() {
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [minScore, setMinScore] = useState('0');
   const [district, setDistrict] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
@@ -63,17 +64,30 @@ export default function MapPage() {
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
-  const selectedListing = useMemo(
-    () => listings.find((l) => l._id === selectedId) ?? null,
-    [listings, selectedId]
+  const highlightedListing = useMemo(
+    () => listings.find((l) => l._id === highlightedId) ?? null,
+    [listings, highlightedId]
   );
 
   const handlePinClick = useCallback((listing: MapListing) => {
-    setSelectedId(listing._id);
+    setHighlightedId(listing._id);
   }, []);
 
   const handleSidebarSelect = useCallback((listing: MapListing) => {
-    setSelectedId(listing._id);
+    if (highlightedId === listing._id) {
+      setDetailId(listing._id);
+    } else {
+      setHighlightedId(listing._id);
+    }
+  }, [highlightedId]);
+
+  const handleOpenDetail = useCallback(() => {
+    if (highlightedId) setDetailId(highlightedId);
+  }, [highlightedId]);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailId(null);
+    setHighlightedId(null);
   }, []);
 
   return (
@@ -94,7 +108,7 @@ export default function MapPage() {
             district={district}
             onDistrictChange={setDistrict}
             onRefresh={fetchListings}
-            selectedId={selectedId}
+            selectedId={highlightedId}
             onSelect={handleSidebarSelect}
             sortBy={sortBy}
             onSortChange={setSortBy}
@@ -107,7 +121,7 @@ export default function MapPage() {
             snapPoints={snapPoints}
             defaultState="half"
             count={listings.length}
-            scrollToId={selectedId}
+            scrollToId={highlightedId}
           >
             <div className="p-3">
               <div className="text-xs text-gray-500 font-medium mb-2">
@@ -123,7 +137,7 @@ export default function MapPage() {
                       data-listing-id={l._id}
                       onClick={() => handleSidebarSelect(l)}
                       className={`flex gap-3 bg-white rounded-lg border p-2 cursor-pointer transition-all text-xs ${
-                        selectedId === l._id
+                        highlightedId === l._id
                           ? 'border-accent ring-1 ring-accent'
                           : 'border-border hover:border-muted'
                       }`}
@@ -198,8 +212,9 @@ export default function MapPage() {
             <>
               <MapView
                 listings={listings}
-                selectedListing={selectedListing}
+                selectedListing={highlightedListing}
                 onPinClick={handlePinClick}
+                onMapClick={handleCloseDetail}
               />
               <MapLegend />
             </>
@@ -207,10 +222,10 @@ export default function MapPage() {
         </div>
       </div>
 
-      {selectedId && (
+      {detailId && (
         <ListingDetail
-          id={selectedId}
-          onClose={() => setSelectedId(null)}
+          id={detailId}
+          onClose={handleCloseDetail}
         />
       )}
     </div>

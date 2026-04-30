@@ -1,9 +1,9 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
 import { MapPopup } from '@/components/MapPopup';
-import { useEffect, useRef, useCallback, memo } from 'react';
+import { useEffect, useRef, memo } from 'react';
 
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -40,16 +40,27 @@ interface MapViewProps {
   listings: MapListing[];
   selectedListing: MapListing | null;
   onPinClick: (listing: MapListing) => void;
+  onMapClick?: () => void;
+}
+
+function MapClickHandler({ onMapClick }: { onMapClick?: () => void }) {
+  const wasDragged = useRef(false);
+  useMapEvents({
+    mousedown: () => { wasDragged.current = false; },
+    mousemove: () => { wasDragged.current = true; },
+    click: () => {
+      if (!wasDragged.current) onMapClick?.();
+    },
+  });
+  return null;
 }
 
 function MapViewController({
   selectedListing,
-  previousCenter,
-  previousZoom,
+  savedViewport,
 }: {
   selectedListing: MapListing | null;
-  previousCenter: React.MutableRefObject<[number, number]>;
-  previousZoom: React.MutableRefObject<number>;
+  savedViewport: React.MutableRefObject<{ lat: number; lng: number; zoom: number } | null>;
 }) {
   const map = useMap();
   const prevSelectedIdRef = useRef<string | null>(null);
@@ -57,38 +68,43 @@ function MapViewController({
   useEffect(() => {
     if (!map) return;
 
+    const prevId = prevSelectedIdRef.current;
     const currentId = selectedListing?._id ?? null;
-    if (currentId === prevSelectedIdRef.current) return;
-    prevSelectedIdRef.current = currentId;
 
-    if (selectedListing?.coordinates) {
-      const [lat, lon] = [selectedListing.coordinates.lat, selectedListing.coordinates.lon];
-      const currCenter = map.getCenter();
-      const currZoom = map.getZoom();
-      if (currCenter.lat !== lat || currCenter.lng !== lon || currZoom !== 16) {
-        previousCenter.current = [currCenter.lat, currCenter.lng];
-        previousZoom.current = currZoom;
-        map.setView([lat, lon], 16, { animate: false });
+    if (currentId !== prevId) {
+      prevSelectedIdRef.current = currentId;
+
+      if (prevId === null && selectedListing?.coordinates) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        savedViewport.current = { lat: center.lat, lng: center.lng, zoom };
+        map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16, { animate: true, duration: 0.3 });
+      } else if (currentId === null && savedViewport.current) {
+        const { lat, lng, zoom } = savedViewport.current;
+        map.setView([lat, lng], zoom, { animate: true, duration: 0.3 });
+        savedViewport.current = null;
+      } else if (selectedListing?.coordinates) {
+        const [lat, lon] = [selectedListing.coordinates.lat, selectedListing.coordinates.lon];
+        const currCenter = map.getCenter();
+        const currZoom = map.getZoom();
+        if (currCenter.lat !== lat || currCenter.lng !== lon || currZoom !== 16) {
+          map.setView([lat, lon], 16, { animate: true, duration: 0.3 });
+        }
       }
-    } else if (previousCenter.current) {
-      map.setView(previousCenter.current, previousZoom.current, { animate: false });
     }
-  }, [selectedListing, map, previousCenter, previousZoom]);
+  }, [selectedListing, map, savedViewport]);
 
   return null;
 }
 
-export const MapView = memo(function MapView({ listings, selectedListing, onPinClick }: MapViewProps) {
+export const MapView = memo(function MapView({ listings, selectedListing, onPinClick, onMapClick }: MapViewProps) {
   const viennaCenter: [number, number] = [48.2082, 16.3738];
-  const previousCenter = useRef<[number, number]>(viennaCenter);
-  const previousZoom = useRef(13);
+  const savedViewport = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
   const prevSelectedIdRef = useRef<string | null>(null);
 
   const selectedId = selectedListing?._id ?? null;
 
-  // Stable marker rendering — ONLY recreated when listings or onPinClick change.
-  // selectedListing is NOT a dep — icons are updated imperatively via setIcon.
   const markerNodes = listings.map((listing) => {
     if (!listing.coordinates) return null;
     return (
@@ -112,8 +128,6 @@ export const MapView = memo(function MapView({ listings, selectedListing, onPinC
     );
   });
 
-  // Imperatively update marker icons when selection changes.
-  // This avoids recreating all marker DOM elements on every pin click.
   useEffect(() => {
     const newSelectedId = selectedListing?._id ?? null;
     const prevSelectedId = prevSelectedIdRef.current;
@@ -148,10 +162,11 @@ export const MapView = memo(function MapView({ listings, selectedListing, onPinC
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
+      <MapClickHandler onMapClick={onMapClick} />
+
       <MapViewController
         selectedListing={selectedListing}
-        previousCenter={previousCenter}
-        previousZoom={previousZoom}
+        savedViewport={savedViewport}
       />
 
       {markerNodes}

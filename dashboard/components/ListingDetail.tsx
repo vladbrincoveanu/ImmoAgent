@@ -17,6 +17,14 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     setImageError(false);
     setUrlValid(null);
     fetch(`/api/listings/${id}`)
