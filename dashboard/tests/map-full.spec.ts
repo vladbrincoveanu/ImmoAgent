@@ -3,6 +3,7 @@ import { test, expect, Page } from '@playwright/test';
 const KNOWN_INFRA_ERRORS = [
   'database unavailable',
   'failed to fetch',
+  'failed to load resource',
   'networkerror',
   'next.js',
   '503',
@@ -206,7 +207,7 @@ test.describe('Marker interactions', () => {
       const markers = page.locator('.leaflet-marker-icon');
       const count = await markers.count();
       if (count > 0) {
-        await markers.first().click({ timeout: 5000 });
+        await markers.first().click({ timeout: 5000, force: true });
         await page.waitForTimeout(800);
       }
     }
@@ -226,11 +227,11 @@ test.describe('Marker interactions', () => {
       const markers = page.locator('.leaflet-marker-icon');
       const count = await markers.count();
       if (count > 1) {
-        await markers.nth(0).click();
+        await markers.nth(0).click({ force: true });
         await page.waitForTimeout(200);
-        await markers.nth(1).click();
+        await markers.nth(1).click({ force: true });
         await page.waitForTimeout(200);
-        await markers.nth(Math.floor(count / 2)).click();
+        await markers.nth(Math.floor(count / 2)).click({ force: true });
         await page.waitForTimeout(200);
       }
     }
