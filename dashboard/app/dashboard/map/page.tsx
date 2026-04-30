@@ -81,10 +81,6 @@ export default function MapPage() {
     }
   }, [highlightedId]);
 
-  const handleOpenDetail = useCallback(() => {
-    if (highlightedId) setDetailId(highlightedId);
-  }, [highlightedId]);
-
   const handleCloseDetail = useCallback(() => {
     setDetailId(null);
     setHighlightedId(null);

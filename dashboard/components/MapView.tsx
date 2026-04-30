@@ -74,16 +74,18 @@ function MapViewController({
     if (currentId !== prevId) {
       prevSelectedIdRef.current = currentId;
 
-      if (prevId === null && selectedListing?.coordinates) {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        savedViewport.current = { lat: center.lat, lng: center.lng, zoom };
-        map.setView([selectedListing.coordinates.lat, selectedListing.coordinates.lon], 16, { animate: true, duration: 0.3 });
-      } else if (currentId === null && savedViewport.current) {
-        const { lat, lng, zoom } = savedViewport.current;
-        map.setView([lat, lng], zoom, { animate: true, duration: 0.3 });
-        savedViewport.current = null;
+      if (currentId === null) {
+        if (savedViewport.current) {
+          const { lat, lng, zoom } = savedViewport.current;
+          map.setView([lat, lng], zoom, { animate: true, duration: 0.3 });
+          savedViewport.current = null;
+        }
       } else if (selectedListing?.coordinates) {
+        if (!savedViewport.current) {
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          savedViewport.current = { lat: center.lat, lng: center.lng, zoom };
+        }
         const [lat, lon] = [selectedListing.coordinates.lat, selectedListing.coordinates.lon];
         const currCenter = map.getCenter();
         const currZoom = map.getZoom();
