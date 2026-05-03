@@ -1,13 +1,40 @@
 import pymongo
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import os
 import json
 import time
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint
+from Application.buyer_profiles import GLOBAL_VALIDATION
 import logging
+
+
+def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
+    """
+    Validate listing data against GLOBAL_VALIDATION thresholds.
+    Returns (is_valid, reason).
+    """
+    config = GLOBAL_VALIDATION
+    price = listing.get('price_total')
+    area = listing.get('area_m2')
+
+    if price is not None and price < config['min_price_total']:
+        return False, f"price_total {price} below minimum {config['min_price_total']}"
+
+    if area is not None and area < config['min_area_m2']:
+        return False, f"area_m2 {area} below minimum {config['min_area_m2']}"
+
+    if price is not None and area is not None and area > 0:
+        per_m2 = price / area
+        if per_m2 < config['min_price_per_m2']:
+            return False, f"price_per_m2 {per_m2:.0f} below minimum {config['min_price_per_m2']}"
+        if per_m2 > config['max_price_per_m2']:
+            return False, f"price_per_m2 {per_m2:.0f} above maximum {config['max_price_per_m2']}"
+
+    return True, ""
+
 
 class MongoDBHandler:
     def __init__(self, uri: str = None, db_name: str = "immo", collection_name: str = "listings"):
@@ -75,6 +102,11 @@ class MongoDBHandler:
         price_val = listing.get('price_total')
         if not isinstance(price_val, (int, float)) or price_val <= 0:
             logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing.get('url')}")
+            return False
+
+        valid, reason = is_valid_listing_data(listing)
+        if not valid:
+            logging.info(f"🚫 Skipping save: validation failed — {reason}")
             return False
 
         fingerprint = compute_content_fingerprint(listing)
