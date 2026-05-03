@@ -135,16 +135,23 @@ def normalize_value(criterion_name, actual_value):
     else:
         return 0.0
 
-def score_apartment(apartment_data):
+def score_apartment(apartment_data, weights=None):
     """
     Calculates the total weighted score for a single apartment.
     Returns the score and detailed breakdown.
+
+    Args:
+        apartment_data: Listing dict with scoring criteria
+        weights: Criteria weights dict. If None, uses global CRITERIA_WEIGHTS.
     """
+    if weights is None:
+        weights = CRITERIA_WEIGHTS
+
     apartment_id = apartment_data.get('_id', 'Unknown')
     weighted_scores_breakdown = {}
     total_score = 0.0
 
-    for criterion, weight in CRITERIA_WEIGHTS.items():
+    for criterion, weight in weights.items():
         if criterion in apartment_data and apartment_data[criterion] is not None:
             actual_value = apartment_data[criterion]
             normalized_score = normalize_value(criterion, actual_value)
@@ -169,17 +176,16 @@ def score_apartment(apartment_data):
     
     return final_total_score, weighted_scores_breakdown
 
-def score_apartment_simple(apartment_data):
+def score_apartment_simple(apartment_data, weights=None):
     """
     Simple version that just returns the score without breakdown.
     Fixes score by multiplying by 100 if below 0.
     """
-    score, _ = score_apartment(apartment_data)
-    
-    # Fix score calculation: multiply by 100 if below 0
+    score, _ = score_apartment(apartment_data, weights)
+
     if score < 0:
         score = score * 100
-    
+
     return score
 
 def print_apartment_score(apartment_data):
@@ -206,14 +212,14 @@ def print_apartment_score(apartment_data):
     
     return score, breakdown
 
-def score_multiple_apartments(apartments_list):
+def score_multiple_apartments(apartments_list, weights=None):
     """
     Scores multiple apartments and returns them sorted by score.
     """
     apartment_results = []
-    
+
     for apartment in apartments_list:
-        score, breakdown = score_apartment(apartment)
+        score, breakdown = score_apartment(apartment, weights)
         apartment_results.append({
             'apartment': apartment,
             'total_score': score, 
