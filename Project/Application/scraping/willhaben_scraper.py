@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from Domain.listing import Listing
 from Domain.sources import Source
 from Application.analyzer import StructuredAnalyzer
-from Integration.mongodb_handler import MongoDBHandler
+from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.geocoding import ViennaGeocoder
 import logging
@@ -1629,7 +1629,12 @@ class WillhabenScraper:
                         all_listings.append(listing)
                         
                         listing_dict = self._ensure_serializable(listing)
-                        
+
+                        valid, reason = is_valid_listing_data(listing_dict)
+                        if not valid:
+                            logging.info(f"🚫 Willhaben: skipping — {reason}")
+                            continue
+
                         if self.mongo.insert_listing(listing_dict):
                              print(f"💾 Saved to MongoDB: {listing_url}")
                              # Note: Telegram notifications are now handled centrally in main.py

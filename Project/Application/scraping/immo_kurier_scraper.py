@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from Domain.listing import Listing
 from Domain.sources import Source
 from Application.analyzer import StructuredAnalyzer
-from Integration.mongodb_handler import MongoDBHandler
+from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.geocoding import ViennaGeocoder
 import logging
@@ -1190,6 +1190,12 @@ class ImmoKurierScraper:
                                 try:
                                     # Convert listing to dict for MongoDB
                                     listing_dict = listing.__dict__.copy()
+
+                                    valid, reason = is_valid_listing_data(listing_dict)
+                                    if not valid:
+                                        logging.info(f"🚫 ImmoKurier: skipping — {reason}")
+                                        continue
+
                                     if self.mongo.insert_listing(listing_dict):
                                         saved_count += 1
                                         logging.info(f"💾 Saved to MongoDB")
