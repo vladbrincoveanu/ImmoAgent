@@ -827,14 +827,10 @@ def main():
     set_buyer_profile(buyer_profile)
 
     # Clean up stale/broken listings before scraping to avoid dead links.
-    # Comprehensive cleanup (HTTP HEAD against every listing) is expensive — only run
-    # when explicitly requested via --cleanup, or automatically on the first run of the
-    # day (before 7 AM UTC, i.e. the morning scrape window).
+    # Run cleanup on every execution (DB maintenance, validity checks, m2 recalculation)
     cleanup_config = config.get('cleanup', {})
     cleanup_enabled = cleanup_config.get('enabled', True)
-    hour_utc = datetime.utcnow().hour
-    should_cleanup = run_cleanup or hour_utc < 7
-    if cleanup_enabled and should_cleanup:
+    if cleanup_enabled or run_cleanup:
         # Run comprehensive cleanup first (checks ALL listings for broken URLs)
         comprehensive_cleanup = cleanup_config.get('comprehensive_cleanup', True)
         if comprehensive_cleanup:
