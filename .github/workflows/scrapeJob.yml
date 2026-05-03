@@ -36,6 +36,18 @@ jobs:
         run: |
           python Project/cleanup_derstandard_issues.py
 
+      - name: Run invalid listings cleanup
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          python Project/scripts/cleanup_invalid_listings.py
+
+      - name: Run URL validation cleanup
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          python Project/scripts/validate_all_urls.py
+
       - name: Run ImmoAgent
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
