@@ -14,7 +14,7 @@ import logging
 def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     """
     Validate listing data against GLOBAL_VALIDATION thresholds.
-    Returns (is_valid, reason).
+    Returns (is_valid, reason). Lenient: missing price/area passes.
     """
     config = GLOBAL_VALIDATION
     price = listing.get('price_total')

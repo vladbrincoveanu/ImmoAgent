@@ -7,6 +7,7 @@ Common logic for validating property listings across the application
 import logging
 import hashlib
 from typing import Dict, Any
+from Application.buyer_profiles import GLOBAL_VALIDATION
 
 
 def compute_content_fingerprint(listing: Dict[str, Any]) -> str:
@@ -34,39 +35,31 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
         bool: True if listing is valid, False if garbage
     """
     try:
-        price_total = listing.get('price_total', 0)
-        area_m2 = listing.get('area_m2', 0)
-        
-        # Skip if missing essential data
-        if not price_total or not area_m2:
-            return False
-        
+        price_total = listing.get('price_total')
+        area_m2 = listing.get('area_m2')
+
+        # Allow missing price/area to pass (lenient - some listings have price on request)
+        if price_total is None or area_m2 is None or area_m2 <= 0:
+            return True
+
         # Calculate price per m²
         price_per_m2 = price_total / area_m2
-        
-        # Vienna price validation rules
-        # Minimum realistic price per m² in Vienna (even for very cheap areas)
-        min_price_per_m2 = 1000  # €1,000/m² minimum
-        
-        # Maximum realistic price per m² in Vienna (even for luxury areas)
-        max_price_per_m2 = 25000  # €25,000/m² maximum
-        
-        # Check if price per m² is realistic
-        if price_per_m2 < min_price_per_m2:
-            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (too cheap)")
+
+        # Vienna price validation rules using GLOBAL_VALIDATION thresholds
+        if price_per_m2 < GLOBAL_VALIDATION['min_price_per_m2']:
+            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (below min {GLOBAL_VALIDATION['min_price_per_m2']})")
             return False
-        
-        if price_per_m2 > max_price_per_m2:
-            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (too expensive)")
+
+        if price_per_m2 > GLOBAL_VALIDATION['max_price_per_m2']:
+            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (above max {GLOBAL_VALIDATION['max_price_per_m2']})")
             return False
-        
-        # Additional checks for obviously wrong data
-        if price_total < 50000:  # Less than €50k total price is suspicious
-            logging.info(f"🚫 Filtered out garbage: €{price_total:,} total price (too low)")
+
+        if price_total < GLOBAL_VALIDATION['min_price_total']:
+            logging.info(f"🚫 Filtered out garbage: €{price_total:,} total price (below min {GLOBAL_VALIDATION['min_price_total']})")
             return False
-        
-        if area_m2 < 20:  # Less than 20m² is suspicious
-            logging.info(f"🚫 Filtered out garbage: {area_m2}m² area (too small)")
+
+        if area_m2 < GLOBAL_VALIDATION['min_area_m2']:
+            logging.info(f"🚫 Filtered out garbage: {area_m2}m² area (below min {GLOBAL_VALIDATION['min_area_m2']})")
             return False
         
         # Check monthly payment filter (below €2,500)
