@@ -27,6 +27,7 @@ from Integration.mongodb_handler import MongoDBHandler
 from Application.analyzer import StructuredAnalyzer
 from Application.helpers.geocoding import ViennaGeocoder
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten
+from Application.buyer_profiles import GLOBAL_VALIDATION
 
 class DerStandardScraper:
     # URLs will be loaded from config.json
@@ -736,6 +737,19 @@ class DerStandardScraper:
                                                 property_info['price_total'] = price_val
                                         else:
                                             property_info['price_total'] = price_val
+
+                                # Per-m2 sanity check (only if we have both price and area)
+                                if property_info.get('price_total') and property_info.get('area_m2'):
+                                    per_m2 = property_info['price_total'] / property_info['area_m2']
+                                    config = GLOBAL_VALIDATION
+                                    if per_m2 < config['min_price_per_m2']:
+                                        page_text = soup.get_text().lower() if soup else ""
+                                        if any(phrase in page_text for phrase in ['preis auf anfrage', 'auf anfrage', 'price on request', 'preis nach vereinbarung']):
+                                            property_info['price_total'] = None
+                                            property_info['price_is_on_request'] = True
+                                        else:
+                                            logging.info(f"🚫 DerStandard: rejecting price {property_info['price_total']} for area {property_info['area_m2']} (per-m2={per_m2:.0f})")
+                                            property_info['price_total'] = None
                                 
                                 # Area and rooms
                                 if 'areas' in data and 'details' in data['areas']:
