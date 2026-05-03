@@ -753,6 +753,16 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         logging.error(f"❌ Error saving to MongoDB: {e}")
         return 0
 
+def check_and_alert_rejection_rate(mongodb: MongoDBHandler, telegram_bot, threshold: float = 10.0):
+    """Check rejection rate and send Telegram alert if above threshold."""
+    metrics = mongodb.get_validation_metrics()
+    for source, data in metrics.items():
+        if data["rate"] > threshold:
+            message = f"⚠️ High validation rejection rate for {source}: {data['rate']:.1f}% ({data['failures']}/{data['total']} failed)"
+            telegram_bot.send_message(message)
+            logger.warning(message)
+    mongodb.reset_validation_metrics()
+
 def main():
     """Main function to run the integrated property scraper"""
     logging.info("🚀 Starting Integrated Immo-Scouter Main Job")
@@ -1071,6 +1081,15 @@ No new properties found matching your criteria.
     
     logging.info("\n✅ Integrated Immo-Scouter Main Job Completed")
     logging.info("=" * 60)
+
+    dev_bot_token = os.getenv('TELEGRAM_DEV_BOT_TOKEN')
+    dev_bot_chat_id = os.getenv('TELEGRAM_DEV_CHAT_ID')
+    if dev_bot_token and dev_bot_chat_id:
+        try:
+            dev_bot = TelegramBot(dev_bot_token, dev_bot_chat_id)
+            check_and_alert_rejection_rate(mongo, dev_bot, threshold=10.0)
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to send rejection rate alert: {e}")
 
 if __name__ == "__main__":
     import argparse

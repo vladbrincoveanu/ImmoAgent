@@ -66,6 +66,7 @@ class MongoDBHandler:
             self.client = MongoClient(self.uri, **client_options)
             self.db = self.client[db_name]
             self.collection = self.db[collection_name]
+            self.metrics_collection = self.db["validation_metrics"]
             
             # Test the connection
             self.client.admin.command('ping')
@@ -107,6 +108,8 @@ class MongoDBHandler:
         valid, reason = is_valid_listing_data(listing)
         if not valid:
             logging.info(f"🚫 Skipping save: validation failed — {reason}")
+            source = listing.get('source_enum', listing.get('source', 'unknown'))
+            self.increment_validation_failure(source)
             return False
 
         fingerprint = compute_content_fingerprint(listing)
@@ -658,4 +661,32 @@ class MongoDBHandler:
             
         except Exception as e:
             print(f"Error saving listings to MongoDB: {e}")
-            return 0 
+            return 0
+    
+    def increment_validation_failure(self, source: str):
+        """Increment validation failure counter for a source."""
+        try:
+            self.metrics_collection.update_one(
+                {"source": source},
+                {"$inc": {"validation_failures": 1, "total_processed": 1}},
+                upsert=True
+            )
+        except Exception as e:
+            logger.warning(f"Failed to increment metrics: {e}")
+
+    def get_validation_metrics(self, source: str = None) -> Dict:
+        """Get validation metrics for a source or all sources."""
+        query = {"source": source} if source else {}
+        metrics = list(self.metrics_collection.find(query))
+        result = {}
+        for m in metrics:
+            total = m.get("total_processed", 0)
+            failures = m.get("validation_failures", 0)
+            rate = (failures / total * 100) if total > 0 else 0
+            result[m["source"]] = {"total": total, "failures": failures, "rate": rate}
+        return result
+
+    def reset_validation_metrics(self, source: str = None):
+        """Reset metrics for a source or all sources."""
+        query = {"source": source} if source else {}
+        self.metrics_collection.delete_many(query)
