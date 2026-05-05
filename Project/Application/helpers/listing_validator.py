@@ -54,14 +54,6 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
             logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (above max {GLOBAL_VALIDATION['max_price_per_m2']})")
             return False
 
-        if price_total < GLOBAL_VALIDATION['min_price_total']:
-            logging.info(f"🚫 Filtered out garbage: €{price_total:,} total price (below min {GLOBAL_VALIDATION['min_price_total']})")
-            return False
-
-        if area_m2 < GLOBAL_VALIDATION['min_area_m2']:
-            logging.info(f"🚫 Filtered out garbage: {area_m2}m² area (below min {GLOBAL_VALIDATION['min_area_m2']})")
-            return False
-        
         # Check monthly payment filter (below €2,500)
         monthly_payment = listing.get('monthly_payment', {})
         if monthly_payment and isinstance(monthly_payment, dict):

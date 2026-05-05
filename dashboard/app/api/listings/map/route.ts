@@ -62,11 +62,13 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
-    // Show all listings that have a meaningful price (exclude "Preis auf Anfrage")
     const filter: Record<string, unknown> = {
-      $or: [
+      $and: [
+        { url_is_valid: { $ne: false } },
         { price_total: { $gt: 0 } },
         { area_m2: { $gt: 0 } },
+        { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 1000] } },
+        { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
       ],
     };
 

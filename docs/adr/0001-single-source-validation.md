@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-03
 **Status:** Accepted
+**Updated:** 2026-05-05
 
 ## Context
 
@@ -18,6 +19,14 @@ This caused inconsistent filtering and bugs where listings passed one validator 
 2. `listing_validator.is_valid_listing()` uses `GLOBAL_VALIDATION` instead of hardcoded values.
 3. `mongodb_handler.is_valid_listing_data()` delegates to `listing_validator.is_valid_listing()` for full validation.
 4. Missing price/area passes validation (price-on-request listings exist).
+
+## Current Thresholds (2026-05-05)
+
+Only price_per_m2 validation is used:
+- `min_price_per_m2`: €1,000
+- `max_price_per_m2`: €20,000
+
+min_price_total and min_area_m2 have been removed.
 
 ## Consequences
 

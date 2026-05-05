@@ -268,9 +268,7 @@ def print_all_profiles():
                 print(f"   {i+1}. {criterion.replace('_', ' ').title()}: {percentage:.0f}%")
 
 GLOBAL_VALIDATION = {
-    "min_price_total": 50000,
-    "min_area_m2": 30,
-    "min_price_per_m2": 2000,
+    "min_price_per_m2": 1000,
     "max_price_per_m2": 20000,
 }
 

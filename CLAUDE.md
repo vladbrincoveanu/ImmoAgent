@@ -27,6 +27,7 @@ python run_top5.py --limit=10             # Top N listings
 python run_top5.py --weekly               # Weekly digest mode (top 10, allow resends)
 python run_top5.py --buyer-profile=retiree  # Use specific buyer profile
 python run_top5.py --min-score=30.0       # Minimum score threshold
+python run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220  # Exclude industrial districts
 ```
 
 ### Outreach System
@@ -242,7 +243,17 @@ The `.claude/rules/ui-testing.md` rule is auto-loaded and enforces this loop:
 
 ## CI/CD Integration
 
-The system is designed for GitHub Actions:
+The system is designed for GitHub Actions with TWO jobs:
+
+1. **Scraper Job**: `python Project/run.py`
+   - Runs cleanup automatically (removes invalid price_per_m2 listings)
+   - Scrapes all sources
+   - Stores in MongoDB
+
+2. **Top 5 Report Job**: `python Project/run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220`
+   - Excludes industrial districts: 1100, 1160, 1210, 1220
+   - Sends top listings to Telegram
+
 - Environment variables override config.json
 - No local file dependencies
 - Graceful degradation if services unavailable
@@ -269,6 +280,34 @@ See README.md for example GitHub Actions workflow.
 - `requests` - HTTP client
 - `python-dotenv` - Environment variable management
 
+## NEVER VIOLATE RULES
+
+1. **GLOBAL_VALIDATION is the ONLY source of truth for listing validation thresholds**
+   - `min_price_per_m2`: €1,000
+   - `max_price_per_m2`: €20,000
+   - Only price_per_m2 is validated - no min_price_total or min_area_m2
+   - ALL code that validates listings MUST use `is_valid_listing_data()` from `mongodb_handler.py`
+   - Cleanup, scrapers, API endpoints - ALL must use the same validation function
+   - If you see inline `> 0` or hardcoded thresholds, THAT'S A BUG - report immediately
+
+2. **URL validation is mandatory before display**
+   - Listings can go offline between scrape and display
+   - Dashboard API routes MUST filter by `url_is_valid !== false`
+   - run_top5.py already does this via `validate_url()` with soft-404 detection
+   - If you see a display/send path that doesn't validate URLs, THAT'S A BUG - report immediately
+
+3. **Extraction refactoring checklist** (never skip):
+   - [ ] Identify all call sites of old function
+   - [ ] Verify new module has same behavior
+   - [ ] ADR covers ALL affected modules, not just primary ones
+   - [ ] Test that new module rejects known bad data
+   - [ ] Run existing tests after refactor
+
+3. **ADR completeness checklist**:
+   - [ ] List EVERY module that implements this decision
+   - [ ] Verify each module actually implements it (read the code)
+   - [ ] If module X uses function Y, and Y changes → X must be updated too
+
 ## Notes for Claude Code
 
 1. **Run.py path**: Use `python Project/run.py` from repo root OR `python run.py` from Project/ directory
@@ -279,3 +318,4 @@ See README.md for example GitHub Actions workflow.
 6. **Telegram formatting**: Follow existing patterns in `telegram_bot.py` for message formatting
 7. **URL validation**: Always use `listing_validator.py` before sending listings to users
 8. **Outreach emails**: Templates are in German, located in `outreach/email_sender.py`
+9. **Validation**: Use `is_valid_listing_data()` from `mongodb_handler.py` - NEVER inline `> 0` checks

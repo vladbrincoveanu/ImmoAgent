@@ -7,7 +7,7 @@ import time
 import logging
 import requests
 from typing import Dict
-from Integration.mongodb_handler import MongoDBHandler
+from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
 
 logger = logging.getLogger(__name__)
@@ -32,18 +32,29 @@ def deep_cleanup_database(mongo_handler: MongoDBHandler) -> Dict[str, int]:
             {"url": {"$exists": False}},
             {"url": None},
             {"url": ""},
-            {"price_total": {"$exists": False}},
-            {"price_total": None},
-            {"price_total": {"$lte": 0}},
-            {"area_m2": {"$exists": False}},
-            {"area_m2": None},
-            {"area_m2": {"$lte": 0}}
         ]
     }
     invalid_result = mongo_handler.collection.delete_many(invalid_query)
     stats["invalid_data"] = invalid_result.deleted_count
     if stats["invalid_data"] > 0:
         logging.info(f"   ✅ Removed {stats['invalid_data']} listings with invalid data")
+
+    invalid_price_per_m2 = 0
+    all_listings = list(mongo_handler.collection.find(
+        {"url": {"$exists": True, "$ne": None, "$ne": ""}},
+        {"price_total": 1, "area_m2": 1, "_id": 1}
+    ))
+    for listing in all_listings:
+        is_valid, _ = is_valid_listing_data(listing)
+        if not is_valid:
+            try:
+                mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                invalid_price_per_m2 += 1
+            except Exception as e:
+                logging.debug(f"   ⚠️ Failed to delete listing {listing.get('_id')}: {e}")
+    if invalid_price_per_m2 > 0:
+        logging.info(f"   ✅ Removed {invalid_price_per_m2} listings with invalid price_per_m2")
+        stats["invalid_data"] += invalid_price_per_m2
 
     derstandard_listings = list(mongo_handler.collection.find(
         {"source": "derstandard"},
@@ -153,18 +164,29 @@ def comprehensive_cleanup_all_listings(mongo_handler: MongoDBHandler, max_age_da
             {"url": {"$exists": False}},
             {"url": None},
             {"url": ""},
-            {"price_total": {"$exists": False}},
-            {"price_total": None},
-            {"price_total": {"$lte": 0}},
-            {"area_m2": {"$exists": False}},
-            {"area_m2": None},
-            {"area_m2": {"$lte": 0}}
         ]
     }
     invalid_result = mongo_handler.collection.delete_many(invalid_query)
     stats["invalid_data"] = invalid_result.deleted_count
     if stats["invalid_data"] > 0:
         logging.info(f"   ✅ Removed {stats['invalid_data']} listings with invalid data")
+
+    invalid_price_per_m2 = 0
+    all_listings = list(mongo_handler.collection.find(
+        {"url": {"$exists": True, "$ne": None, "$ne": ""}},
+        {"price_total": 1, "area_m2": 1, "_id": 1}
+    ))
+    for listing in all_listings:
+        is_valid, _ = is_valid_listing_data(listing)
+        if not is_valid:
+            try:
+                mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                invalid_price_per_m2 += 1
+            except Exception as e:
+                logging.debug(f"   ⚠️ Failed to delete listing {listing.get('_id')}: {e}")
+    if invalid_price_per_m2 > 0:
+        logging.info(f"   ✅ Removed {invalid_price_per_m2} listings with invalid price_per_m2")
+        stats["invalid_data"] += invalid_price_per_m2
 
     cutoff_ts = time.time() - (max_age_days * 86400)
     old_result = mongo_handler.collection.delete_many({"processed_at": {"$lt": cutoff_ts}})

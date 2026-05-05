@@ -20,12 +20,6 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     price = listing.get('price_total')
     area = listing.get('area_m2')
 
-    if price is not None and price < config['min_price_total']:
-        return False, f"price_total {price} below minimum {config['min_price_total']}"
-
-    if area is not None and area < config['min_area_m2']:
-        return False, f"area_m2 {area} below minimum {config['min_area_m2']}"
-
     if price is not None and area is not None and area > 0:
         per_m2 = price / area
         if per_m2 < config['min_price_per_m2']:
