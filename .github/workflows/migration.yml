@@ -31,3 +31,29 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           python Project/cleanup_derstandard_issues.py
+
+      - name: Run price_per_m2 cleanup
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          python -c "
+import sys
+sys.path.insert(0, 'Project')
+from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
+from Application.helpers.utils import load_config
+
+config = load_config()
+db = MongoDBHandler(config.get('mongodb_uri'))
+coll = db.collection
+
+removed = 0
+listings = list(coll.find({}, {'price_total': 1, 'area_m2': 1, 'title': 1, '_id': 1}))
+for l in listings:
+    valid, reason = is_valid_listing_data(l)
+    if not valid:
+        coll.delete_one({'_id': l['_id']})
+        removed += 1
+        print(f'Removed: {l.get(\"title\", \"N/A\")[:50]} - {reason}')
+
+print(f'Total removed: {removed}')
+"
