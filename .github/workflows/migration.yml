@@ -1,6 +1,8 @@
 name: Run Migrations
 
 on:
+  schedule:
+    - cron: '0 5 * * *'   # 5 AM UTC daily — cleanup before morning scrape
   workflow_dispatch:
 
 jobs:
