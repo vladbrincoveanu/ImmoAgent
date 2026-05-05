@@ -31,7 +31,7 @@ jobs:
           pip install --upgrade pymongo
 
       - name: Scrape listings
-        run: python Project/run.py --cleanup
+        run: python Project/run.py
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
@@ -58,7 +58,7 @@ jobs:
         run: pip install -r Project/requirements.txt
 
       - name: Send top 5 report
-        run: python Project/run_top5.py
+        run: python Project/run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
