@@ -663,7 +663,12 @@ class DerStandardScraper:
                     if listing.betriebskosten:
                         total_monthly += listing.betriebskosten
                     listing.total_monthly_cost = total_monthly
-                
+
+                # New fields for prime_new_build profile
+                listing.street_view = self.extract_street_view(soup)
+                listing.orientation = self.extract_orientation(soup)
+                listing.floor_level = self.extract_floor_level(soup)
+
                 # Validate that we have essential data
                 if self.validate_listing_data(listing):
                     logging.info(f"✅ Successfully scraped listing: {listing.title}")
@@ -1085,15 +1090,6 @@ class DerStandardScraper:
                 if available_elem and available_elem.get_text().strip():
                     listing.available_from = available_elem.get_text().strip()
                     break
-
-            # Extract street view: 1 = main street, 0 = quiet/inner court
-            listing.street_view = self.extract_street_view(soup)
-
-            # Extract orientation as ordinal: N=0, NE/NW=30, E/W=50, SE/SW=70, S=100
-            listing.orientation = self.extract_orientation(soup)
-
-            # Extract floor level as integer: 0=ground, 1+=floors
-            listing.floor_level = self.extract_floor_level(soup)
 
             # Extract image URL
             listing.image_url = self.extract_image_url(soup)
