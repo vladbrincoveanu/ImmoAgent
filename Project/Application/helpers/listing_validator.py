@@ -63,13 +63,13 @@ def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) 
                 logging.info(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,500)")
                 return False
 
+        # Extract text fields needed for both rental and price-on-request filters
+        title = (listing.get('title') or '').lower()
+        description = (listing.get('description') or '').lower()
+        special_features = listing.get('special_features', []) or []
+
         # Filter out "unbefristet vermietete" (indefinitely rented) properties
         if not skip_rental_filter:
-            title = (listing.get('title') or '').lower()
-            description = (listing.get('description') or '').lower()
-            special_features = listing.get('special_features', []) or []
-
-            # Check for rental indicators in title, description, and special features
             rental_keywords = [
                 'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
                 'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
@@ -98,62 +98,6 @@ def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) 
                             logging.info(f"🚫 Filtered out rental property: '{keyword}' found in special features")
                             return False
 
-        return True
-
-        # Calculate price per m²
-        price_per_m2 = price_total / area_m2
-
-        # Vienna price validation rules using GLOBAL_VALIDATION thresholds
-        if price_per_m2 < GLOBAL_VALIDATION['min_price_per_m2']:
-            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (below min {GLOBAL_VALIDATION['min_price_per_m2']})")
-            return False
-
-        if price_per_m2 > GLOBAL_VALIDATION['max_price_per_m2']:
-            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (above max {GLOBAL_VALIDATION['max_price_per_m2']})")
-            return False
-
-        # Check monthly payment filter (below €2,500)
-        monthly_payment = listing.get('monthly_payment', {})
-        if monthly_payment and isinstance(monthly_payment, dict):
-            total_monthly = monthly_payment.get('total_monthly', 0)
-            if total_monthly > 2500:  # More than €2,500 monthly payment
-                logging.info(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,500)")
-                return False
-        
-        # Filter out "unbefristet vermietete" (indefinitely rented) properties
-        title = (listing.get('title') or '').lower()
-        description = (listing.get('description') or '').lower()
-        special_features = listing.get('special_features', []) or []
-        
-        # Check for rental indicators in title, description, and special features
-        rental_keywords = [
-            'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
-            'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
-            'bereits vermietet', 'aktuell vermietet', 'ist vermietet', 'wird vermietet',
-            'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
-            'mieteinnahmen', 'mietertrag', 'mietrendite',
-            'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
-            'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
-            'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
-            'zum mietzins', 'an mietzins', 'mit mietzins', 'bei mietzins',
-            'unbefristet', 'befristet', 'mietdauer', 'mietzeitraum'
-        ]
-        
-        # Check title and description
-        for keyword in rental_keywords:
-            if keyword in title or keyword in description:
-                logging.info(f"🚫 Filtered out rental property: '{keyword}' found in title/description")
-                return False
-        
-        # Check special features
-        if special_features:
-            for feature in special_features:
-                feature_lower = str(feature).lower()
-                for keyword in rental_keywords:
-                    if keyword in feature_lower:
-                        logging.info(f"🚫 Filtered out rental property: '{keyword}' found in special features")
-                        return False
-        
         # Filter out "Preis auf Anfrage" (price on request) properties
         price_on_request_keywords = [
             'preis auf anfrage', 'price on request', 'auf anfrage', 'on request',
@@ -161,13 +105,13 @@ def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) 
             'preis n.v.', 'price n.v.', 'n.v.', 'n/a', 'na', 'tba', 'to be announced',
             'preis wird bekanntgegeben', 'price to be announced', 'wird bekanntgegeben'
         ]
-        
+
         # Check title and description for price on request indicators
         for keyword in price_on_request_keywords:
             if keyword in title or keyword in description:
                 logging.info(f"🚫 Filtered out price on request property: '{keyword}' found in title/description")
                 return False
-        
+
         # Check special features for price on request indicators
         if special_features:
             for feature in special_features:
@@ -176,7 +120,7 @@ def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) 
                     if keyword in feature_lower:
                         logging.info(f"🚫 Filtered out price on request property: '{keyword}' found in special features")
                         return False
-        
+
         # Stricter scoring requirements for properties above 400k
         if price_total > 400000:
             score = listing.get('score')
@@ -185,7 +129,7 @@ def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) 
             if score < 40:  # Properties above 400k need a score of at least 40
                 logging.info(f"🚫 Filtered out expensive property with low score: €{price_total:,} with score {score} (needs 40+)")
                 return False
-        
+
         return True
         
     except Exception as e:
