@@ -258,6 +258,7 @@ class ImmoKurierScraper:
             listing.street_view = self.extract_street_view(soup)
             listing.orientation = self.extract_orientation(soup)
             listing.floor_level = self.extract_floor_level(soup)
+            listing.balcony_terrace = self.extract_balcony_terrace(soup)
 
             # Handle Betriebskosten - extract if available, estimate if not
             extracted_betriebskosten = self.extract_betriebskosten(soup)
@@ -1066,6 +1067,19 @@ class ImmoKurierScraper:
             return None
         except Exception as e:
             logging.error(f"Error extracting floor level: {e}")
+            return None
+
+    def extract_balcony_terrace(self, soup: BeautifulSoup) -> Optional[int]:
+        """Extract balcony/terrace presence: 1 = has outdoor space, 0 = none"""
+        try:
+            all_text = soup.get_text()
+            outdoor_patterns = [r'Balkon', r'Terrasse', r'Loggia']
+            for pattern in outdoor_patterns:
+                if re.search(pattern, all_text, re.IGNORECASE):
+                    return 1
+            return 0
+        except Exception as e:
+            logging.error(f"Error extracting balcony/terrace: {e}")
             return None
 
     def extract_image_url(self, soup: BeautifulSoup) -> Optional[str]:
