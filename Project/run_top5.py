@@ -625,6 +625,15 @@ def main(argv: Optional[List[str]] = None):
         limit = args.limit if args.limit is not None else top5_config.get('limit', 3)
         min_score = args.min_score if args.min_score is not None else top5_config.get('min_score', 40.0)
 
+        # prime_new_build profile: owner-occupiers don't care about rental status
+        skip_rental_filter = (active_profile == 'prime_new_build')
+        if skip_rental_filter:
+            print(f"✅ Including rented properties (owner-occupier mode)")
+
+        # prime_new_build: auto-set min_score to 50 if user didn't explicitly override
+        if active_profile == 'prime_new_build' and args.min_score is None:
+            min_score = 50.0
+
         excluded_districts_cfg = top5_config.get('excluded_districts', [])
         if not isinstance(excluded_districts_cfg, list):
             excluded_districts_cfg = []
@@ -671,7 +680,8 @@ def main(argv: Optional[List[str]] = None):
             print(f"🚫 Excluding listings sent to Telegram in last 14 days")
         else:
             print(f"✅ Including listings even if sent recently (weekly mode)")
-        print(f"🚫 Filtering out 'unbefristet vermietete' (rental) properties")
+        if not skip_rental_filter:
+            print(f"🚫 Filtering out 'unbefristet vermietete' (rental) properties")
         print(f"🚫 Filtering out 'Preis auf Anfrage' (price on request) properties")
         print(f"🎯 Properties above €400k need score 40+ (stricter requirements)")
         print(f"🧠 Deep scan pool: {pool_size} listings → top {candidate_pool} considered for sending")
@@ -705,7 +715,7 @@ def main(argv: Optional[List[str]] = None):
         
         # Filter out garbage listings with unrealistic prices
         original_count = len(listings)
-        valid_listings = filter_valid_listings(listings)
+        valid_listings = filter_valid_listings(listings, skip_rental_filter=skip_rental_filter)
         
         # Log validation statistics
         stats = get_validation_stats(listings[:original_count])

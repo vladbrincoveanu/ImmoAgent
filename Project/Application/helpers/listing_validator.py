@@ -24,13 +24,14 @@ def compute_content_fingerprint(listing: Dict[str, Any]) -> str:
     )
     return hashlib.md5(key_fields.encode('utf-8')).hexdigest()
 
-def is_valid_listing(listing: Dict[str, Any]) -> bool:
+def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) -> bool:
     """
     Validate if a listing has realistic prices and data
-    
+
     Args:
         listing: Listing dictionary
-        
+        skip_rental_filter: If True, skip the "unbefristet vermietete" rental filter (for owner-occupier profiles)
+
     Returns:
         bool: True if listing is valid, False if garbage
     """
@@ -41,6 +42,63 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
         # Allow missing price/area to pass (lenient - some listings have price on request)
         if price_total is None or area_m2 is None or area_m2 <= 0:
             return True
+
+        # Calculate price per m²
+        price_per_m2 = price_total / area_m2
+
+        # Vienna price validation rules using GLOBAL_VALIDATION thresholds
+        if price_per_m2 < GLOBAL_VALIDATION['min_price_per_m2']:
+            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (below min {GLOBAL_VALIDATION['min_price_per_m2']})")
+            return False
+
+        if price_per_m2 > GLOBAL_VALIDATION['max_price_per_m2']:
+            logging.info(f"🚫 Filtered out garbage: €{price_total:,} for {area_m2}m² = €{price_per_m2:.0f}/m² (above max {GLOBAL_VALIDATION['max_price_per_m2']})")
+            return False
+
+        # Check monthly payment filter (below €2,500)
+        monthly_payment = listing.get('monthly_payment', {})
+        if monthly_payment and isinstance(monthly_payment, dict):
+            total_monthly = monthly_payment.get('total_monthly', 0)
+            if total_monthly > 2500:  # More than €2,500 monthly payment
+                logging.info(f"🚫 Filtered out expensive: €{total_monthly:,.0f} monthly payment (above €2,500)")
+                return False
+
+        # Filter out "unbefristet vermietete" (indefinitely rented) properties
+        if not skip_rental_filter:
+            title = (listing.get('title') or '').lower()
+            description = (listing.get('description') or '').lower()
+            special_features = listing.get('special_features', []) or []
+
+            # Check for rental indicators in title, description, and special features
+            rental_keywords = [
+                'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
+                'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
+                'bereits vermietet', 'aktuell vermietet', 'ist vermietet', 'wird vermietet',
+                'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
+                'mieteinnahmen', 'mietertrag', 'mietrendite',
+                'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
+                'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
+                'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
+                'zum mietzins', 'an mietzins', 'mit mietzins', 'bei mietzins',
+                'unbefristet', 'befristet', 'mietdauer', 'mietzeitraum'
+            ]
+
+            # Check title and description
+            for keyword in rental_keywords:
+                if keyword in title or keyword in description:
+                    logging.info(f"🚫 Filtered out rental property: '{keyword}' found in title/description")
+                    return False
+
+            # Check special features
+            if special_features:
+                for feature in special_features:
+                    feature_lower = str(feature).lower()
+                    for keyword in rental_keywords:
+                        if keyword in feature_lower:
+                            logging.info(f"🚫 Filtered out rental property: '{keyword}' found in special features")
+                            return False
+
+        return True
 
         # Calculate price per m²
         price_per_m2 = price_total / area_m2
@@ -134,24 +192,25 @@ def is_valid_listing(listing: Dict[str, Any]) -> bool:
         logging.error(f"🚫 Error validating listing: {e}")
         return False
 
-def filter_valid_listings(listings: list, limit: int = None) -> list:
+def filter_valid_listings(listings: list, limit: int = None, skip_rental_filter: bool = False) -> list:
     """
     Filter a list of listings to only include valid ones
-    
+
     Args:
         listings: List of listing dictionaries
         limit: Maximum number of listings to return (None for all)
-        
+        skip_rental_filter: If True, skip the rental filter (for owner-occupier profiles)
+
     Returns:
         list: Filtered list of valid listings
     """
     valid_listings = []
     for listing in listings:
-        if is_valid_listing(listing):
+        if is_valid_listing(listing, skip_rental_filter=skip_rental_filter):
             valid_listings.append(listing)
             if limit and len(valid_listings) >= limit:
                 break
-    
+
     return valid_listings
 
 def get_validation_stats(listings: list) -> Dict[str, Any]:
