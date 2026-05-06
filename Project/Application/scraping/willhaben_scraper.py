@@ -357,6 +357,11 @@ class WillhabenScraper:
                 listing.ubahn_walk_minutes = ubahn_minutes
                 listing.school_walk_minutes = school_minutes
             
+            # New fields for prime_new_build profile
+            listing.street_view = self.extract_street_view(soup)
+            listing.orientation = self.extract_orientation(soup)
+            listing.floor_level = self.extract_floor_level(soup)
+            
             # Monatsrate and other financial details
             listing.monatsrate = self.extract_monatsrate(soup)
             listing.own_funds = self.extract_own_funds(soup)
@@ -1369,6 +1374,80 @@ class WillhabenScraper:
             if match:
                 return value if value else (match.group(1).strip() if len(match.groups()) > 0 else "sofort")
         return None
+
+    def extract_street_view(self, soup: BeautifulSoup) -> Optional[int]:
+        """Extract street view: 1 = main street, 0 = quiet/inner court"""
+        try:
+            all_text = soup.get_text()
+            address_text = ''
+            address_selectors = ['[data-testid="object-location-address"]', '.address-line', '.location-address']
+            for selector in address_selectors:
+                elem = soup.select_one(selector)
+                if elem:
+                    address_text = elem.get_text()
+                    break
+            if not address_text:
+                address_text = all_text
+
+            main_street_patterns = [r'Straße', r'gasse', r'platz', r'weg', r'allee', r'ring']
+            quiet_patterns = [r'Hof', r'Ruhelage', r'innenliegend']
+
+            has_main_street = any(re.search(p, address_text, re.IGNORECASE) for p in main_street_patterns)
+            has_quiet = any(re.search(p, address_text, re.IGNORECASE) for p in quiet_patterns)
+
+            if has_quiet:
+                return 0
+            if has_main_street:
+                return 1
+            return None
+        except Exception as e:
+            print(f"Error extracting street view: {e}")
+            return None
+
+    def extract_orientation(self, soup: BeautifulSoup) -> Optional[int]:
+        """Extract orientation as ordinal: N=0, NE/NW=30, E/W=50, SE/SW=70, S=100"""
+        try:
+            all_text = soup.get_text()
+            orientation_patterns = [
+                (r'Südosten|SO| southeast', 70),
+                (r'Südwesten|SW|southwest', 70),
+                (r'Nordosten|NO|northeast', 30),
+                (r'Nordwesten|NW|northwest', 30),
+                (r'\bSüd\b|\bS\b.*\bseite\b|south', 100),
+                (r'\bNord\b|\bN\b.*\bseite\b|north', 0),
+                (r'\bOst\b|\bO\b.*\bseite\b|east', 50),
+                (r'\bWest\b|\bW\b.*\bseite\b|west', 50),
+            ]
+            for pattern, score in orientation_patterns:
+                if re.search(pattern, all_text, re.IGNORECASE):
+                    return score
+            return None
+        except Exception as e:
+            print(f"Error extracting orientation: {e}")
+            return None
+
+    def extract_floor_level(self, soup: BeautifulSoup) -> Optional[int]:
+        """Extract floor level as integer: 0=ground, 1+=floors"""
+        try:
+            all_text = soup.get_text()
+            floor_patterns = [
+                (r'hochparterre', 0),
+                (r'erdgeschoss|ground\s*floor', 0),
+                (r'dachgeschoss|attic', 4),
+                (r'(\d+)\.\s*[Ss]tock|(\d+)\.\s*[Ee]tage|(\d+)\s*[Ss]tock', None),
+            ]
+            for pattern, level in floor_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    if level is not None:
+                        return level
+                    for group in match.groups():
+                        if group:
+                            return int(group)
+            return None
+        except Exception as e:
+            print(f"Error extracting floor level: {e}")
+            return None
 
     def extract_image_url(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract main image URL from listing"""
