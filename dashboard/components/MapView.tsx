@@ -77,6 +77,7 @@ function MapViewController({
       if (currentId === null) {
         if (savedViewport.current) {
           const { lat, lng, zoom } = savedViewport.current;
+          map.stop();
           map.setView([lat, lng], zoom, { animate: true, duration: 0.3 });
           savedViewport.current = null;
         }
@@ -87,9 +88,10 @@ function MapViewController({
           savedViewport.current = { lat: center.lat, lng: center.lng, zoom };
         }
         const [lat, lon] = [selectedListing.coordinates.lat, selectedListing.coordinates.lon];
-        const currCenter = map.getCenter();
-        const currZoom = map.getZoom();
-        if (currCenter.lat !== lat || currCenter.lng !== lon || currZoom !== 16) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        if (Math.abs(center.lat - lat) > 0.00001 || Math.abs(center.lng - lon) > 0.00001 || zoom !== 16) {
+          map.stop();
           map.setView([lat, lon], 16, { animate: true, duration: 0.3 });
         }
       }

@@ -77,6 +77,7 @@ export default function MapPage() {
     if (highlightedId === listing._id) {
       setDetailId(listing._id);
     } else {
+      setDetailId(null);
       setHighlightedId(listing._id);
     }
   }, [highlightedId]);

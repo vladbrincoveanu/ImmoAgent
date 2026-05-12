@@ -20,6 +20,11 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import logging
 from urllib.parse import urljoin
 
+from Application.scraping.field_extractors import (
+    extract_lift_present, extract_facade_renovated,
+    extract_parifizierung_complete, extract_roof_renovated,
+)
+
 from Domain.listing import Listing
 from Domain.sources import Source
 from Integration.telegram_bot import TelegramBot
@@ -669,6 +674,13 @@ class DerStandardScraper:
                 listing.orientation = self.extract_orientation(soup)
                 listing.floor_level = self.extract_floor_level(soup)
                 listing.balcony_terrace = self.extract_balcony_terrace(soup)
+
+                # New fields for bank_loan_ready profile
+                _full_text = soup.get_text().lower()
+                listing.lift_present = extract_lift_present(_full_text)
+                listing.facade_renovated = extract_facade_renovated(_full_text)
+                listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
+                listing.roof_renovated = extract_roof_renovated(_full_text)
 
                 # Validate that we have essential data
                 if self.validate_listing_data(listing):
