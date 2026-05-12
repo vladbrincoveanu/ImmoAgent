@@ -21,6 +21,12 @@ NORMALIZATION_RANGES = {
     'floor_level': {'min_val': 0, 'max_val': 5, 'direction': 'higher_is_better'}, # 0 for Ground, 5 for 5th+
     'potential_growth_rating': {'min_val': 1, 'max_val': 5, 'direction': 'higher_is_better'}, # 1 (Low) to 5 (High)
     'renovation_needed_rating': {'min_val': 1, 'max_val': 5, 'direction': 'lower_is_better'}, # 1 (None) to 5 (Major)
+    'street_view': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'}, # 0 = quiet/inner court, 1 = main street
+    'orientation': {'min_val': 0, 'max_val': 100, 'direction': 'higher_is_better'}, # N=0, E/W=50, S=100
+    'lift_present': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
+    'facade_renovated': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
+    'parifizierung_complete': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
+    'roof_renovated': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
 }
 
 # Default weights (will be overridden by buyer profile)
