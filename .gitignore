@@ -111,4 +111,7 @@ seen_listings.json
 # Dashboard (Next.js)
 dashboard/node_modules/
 dashboard/.next/
-/dashboard/.env.local 
+/dashboard/.env.local
+
+# MCP tool state
+.playwright-mcp/
