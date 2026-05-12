@@ -43,7 +43,7 @@ Two gaps in the current willhaben scraper:
 
 `is_project_url`: returns `'/d/neubauprojekt/' in url`
 
-`expand_project_to_units`: fetches project page, selects `a[href*="/iad/immobilien/d/"]`, filters out any URL containing `/d/neubauprojekt/`, deduplicates, returns list. If fetch fails, returns empty list (caller logs and skips).
+`expand_project_to_units`: sleeps 1.0s (same rate as regular listing requests), fetches project page, calls `self.extract_listing_urls(soup)` (reuses existing selector + dedup logic), then filters out any URL containing `/d/neubauprojekt/`. Returns filtered list. If fetch fails, returns empty list (caller logs and skips).
 
 ### Module: `scrape_search_agent_page` (modified)
 - **Responsibility:** Orchestrate per-page scraping; expand project URLs before scraping units
@@ -72,7 +72,7 @@ Used by `scrape_single_listing` to extract:
 | `floor_surface` | `FLOOR_SURFACE` |
 | `free_area_m2` | `FREE_AREA/FREE_AREA_AREA` (first value, parse float) |
 | `unit_number` | `UNIT_NUMBER` |
-| `parent_project_id` | `parentAdId` (top-level advertDetails field, not in attributes array) |
+| `parent_project_id` | `parentAdId` — read directly in `scrape_single_listing` via `ad_details.get('parentAdId')` from the same `__NEXT_DATA__` parse, not via `extract_attributes_dict` |
 
 Text blocks passed to field extractors (HTML-stripped via `BeautifulSoup.get_text()`):
 - `GENERAL_TEXT_ADVERT/Ausstattung` → `extract_kitchen_included`, `extract_window_type`
@@ -101,7 +101,8 @@ Returns one of `"kastenfenster"`, `"kunststoff"`, `"holz-alu"`, `"isolierverglas
 
 #### `extract_ruecklage_eur_month(text) -> Optional[float]`
 Input: stripped `preis_detail` text, e.g. `"monatliche reparaturrücklage (excl. mwst): 81,62 eur"`.
-Pattern: `r'reparaturrücklage[^:]*:\s*([\d]+[,.][\d]+)'` — parse comma-as-decimal, return float.
+Pattern: `r'reparaturrücklage[^:]*:\s*([\d]{1,3}(?:[.,]\d{3})*[,.]\d{2}|\d+[,.]\d{1,2})'`
+Parsing: strip `.` as thousands separator, replace `,` with `.`, cast to float. Handles `81,62` and `1.081,62`.
 Returns `None` if absent.
 
 #### `extract_sonderumlage_risk(text) -> Optional[bool]`
@@ -173,7 +174,7 @@ Also fix missing wiring from the bank_loan_ready session: add `extract_parifizie
 **`test_willhaben_integration.py` additions:**
 - `test_is_project_url` — neubauprojekt URL → True; eigentumswohnung → False; mietwohnung → False
 - `test_extract_attributes_dict` — mock `__NEXT_DATA__` HTML with known attributes → verify flat dict keys/values
-- `test_extract_document_urls` — mock HTML with `data-testid="documents-item-anchor-0..3"` → verify `{Exposé: url, ...}`
+- `test_extract_document_urls` — mock HTML with `data-testid="documents-item-anchor-0..3"` → verify `{expose: url, preisliste: url, ...}`
 
 ---
 
