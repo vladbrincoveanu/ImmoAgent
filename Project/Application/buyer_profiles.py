@@ -18,6 +18,8 @@ class BuyerPersona(Enum):
     ECO_CONSCIOUS = 'eco_conscious'
     RETIREE = 'retiree'
     BUDGET_BUYER = 'budget_buyer'
+    PRIME_NEW_BUILD = 'prime_new_build'
+    BANK_LOAN_READY = 'bank_loan_ready'
 
     @classmethod
     def from_value(cls, value: Union[str, "BuyerPersona"]) -> "BuyerPersona":
@@ -174,7 +176,49 @@ BUYER_PROFILES = {
             'potential_growth_rating': 0.00,
             'school_walk_minutes': 0.00,
         }
-    }
+    },
+
+    'prime_new_build': {
+        'name': 'Prime New Build 🏗️',
+        'description': 'New/recent construction in good zones with street view and optimal orientation',
+        'weights': {
+            'year_built': 0.20,
+            'renovation_needed_rating': 0.15,
+            'ubahn_walk_minutes': 0.15,
+            'floor_level': 0.12,
+            'street_view': 0.12,
+            'orientation': 0.10,
+            'balcony_terrace': 0.08,
+            'price_per_m2': 0.05,
+            'hwb_value': 0.03,
+            'area_m2': 0.00,
+            'rooms': 0.00,
+            'potential_growth_rating': 0.00,
+            'school_walk_minutes': 0.00,
+        }
+    },
+
+    'bank_loan_ready': {
+        'name': 'Bank Loan Ready 🏦',
+        'description': 'Scores based on Austrian bank Belehnungswert criteria. Missing fields score 0 — transparency rewarded.',
+        'weights': {
+            'price_per_m2':           0.13,
+            'ubahn_walk_minutes':     0.12,
+            'renovation_needed_rating': 0.12,
+            'hwb_value':              0.10,
+            'parifizierung_complete': 0.10,
+            'potential_growth_rating': 0.08,
+            'facade_renovated':       0.07,
+            'year_built':             0.09,
+            'roof_renovated':         0.04,
+            'lift_present':           0.03,
+            'area_m2':                0.03,
+            'floor_level':            0.03,
+            'school_walk_minutes':    0.02,
+            'balcony_terrace':        0.02,
+            'rooms':                  0.02,
+        }
+    },
 }
 
 def get_profile(profile_name: Union[str, BuyerPersona]) -> Dict[str, Any]:
