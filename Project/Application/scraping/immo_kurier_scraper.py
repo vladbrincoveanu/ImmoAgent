@@ -12,6 +12,10 @@ from Domain.sources import Source
 from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
+from Application.scraping.field_extractors import (
+    extract_lift_present, extract_facade_renovated,
+    extract_parifizierung_complete, extract_roof_renovated,
+)
 from Application.helpers.geocoding import ViennaGeocoder
 import logging
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, load_config
@@ -259,6 +263,13 @@ class ImmoKurierScraper:
             listing.orientation = self.extract_orientation(soup)
             listing.floor_level = self.extract_floor_level(soup)
             listing.balcony_terrace = self.extract_balcony_terrace(soup)
+
+            # New fields for bank_loan_ready profile
+            _full_text = soup.get_text().lower()
+            listing.lift_present = extract_lift_present(_full_text)
+            listing.facade_renovated = extract_facade_renovated(_full_text)
+            listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
+            listing.roof_renovated = extract_roof_renovated(_full_text)
 
             # Handle Betriebskosten - extract if available, estimate if not
             extracted_betriebskosten = self.extract_betriebskosten(soup)
