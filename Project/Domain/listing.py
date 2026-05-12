@@ -50,3 +50,9 @@ class Listing:
     renovation_needed_rating: Optional[int] = None
     balcony_terrace: Optional[bool] = None
     floor_level: Optional[int] = None
+    street_view: Optional[int] = None
+    orientation: Optional[int] = None
+    lift_present: Optional[bool] = None
+    facade_renovated: Optional[bool] = None
+    parifizierung_complete: Optional[bool] = None
+    roof_renovated: Optional[bool] = None
