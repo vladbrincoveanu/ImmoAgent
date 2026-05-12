@@ -37,3 +37,5 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           python Project/run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220
+          python Project/run_top5.py --buyer-profile=bank_loan_ready --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220
+
