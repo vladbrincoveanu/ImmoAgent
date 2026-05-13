@@ -99,6 +99,57 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                 {listing.ubahn_walk_minutes != null && <div><span className="font-medium">U-Bahn:</span> {listing.ubahn_walk_minutes} min</div>}
               </div>
 
+              {listing.estimated_down_pct != null && (
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <h3 className="font-semibold text-gray-800 mb-3">Financing (estimated)</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Standard (80% LTV):</span>
+                      <span className="ml-2 font-semibold">
+                        ~{Math.round(listing.estimated_down_pct)}%
+                        {listing.estimated_equity_eur != null && (
+                          <span className="text-gray-500 font-normal">
+                            {' '}(~€{Math.round(listing.estimated_equity_eur / 1000)}k equity)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {listing.estimated_down_pct_kimv != null && (
+                      <div>
+                        <span className="font-medium text-gray-600">KIM-V (90% LTV):</span>
+                        <span className="ml-2 font-semibold">
+                          ~{Math.round(listing.estimated_down_pct_kimv)}%
+                        </span>
+                      </div>
+                    )}
+                    {listing.belehnungswert_factor != null && (
+                      <div>
+                        <span className="font-medium text-gray-600">Belehnungswert est.:</span>
+                        <span className="ml-2">~{Math.round(listing.belehnungswert_factor * 100)}% of asking</span>
+                      </div>
+                    )}
+                    {listing.bank_score_confidence && (
+                      <div>
+                        <span className="font-medium text-gray-600">Confidence:</span>
+                        <span className={`ml-2 ${
+                          listing.bank_score_confidence === 'high' ? 'text-green-700' :
+                          listing.bank_score_confidence === 'medium' ? 'text-yellow-700' :
+                          'text-gray-500'
+                        }`}>
+                          {listing.bank_score_confidence}
+                        </span>
+                      </div>
+                    )}
+                    {listing.energy_class && (
+                      <div className="col-span-2 text-xs text-gray-500 mt-1">
+                        Based on: Energy {listing.energy_class}
+                        {listing.hwb_value != null ? ` (HWB ${listing.hwb_value})` : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {listing.infrastructure_distances && Object.keys(listing.infrastructure_distances).length > 0 && (
                 <div>
                   <h3 className="font-medium text-gray-700 mb-1">Infrastructure</h3>
