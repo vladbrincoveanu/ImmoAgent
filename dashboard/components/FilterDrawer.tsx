@@ -13,28 +13,33 @@ interface FilterDrawerProps {
   onRefresh: () => void;
   sortBy: SortOption;
   onSortChange: (sort: SortOption) => void;
+  maxPrice: string;
+  onMaxPriceChange: (v: string) => void;
+  showUnfinanceable: boolean;
+  onShowUnfinanceableChange: (v: boolean) => void;
 }
 
 export function FilterDrawer({
-  open,
-  onClose,
-  minScore,
-  onMinScoreChange,
-  district,
-  onDistrictChange,
-  onRefresh,
-  sortBy,
-  onSortChange,
+  open, onClose,
+  minScore, onMinScoreChange,
+  district, onDistrictChange,
+  onRefresh, sortBy, onSortChange,
+  maxPrice, onMaxPriceChange,
+  showUnfinanceable, onShowUnfinanceableChange,
 }: FilterDrawerProps) {
   const [localMinScore, setLocalMinScore] = useState(minScore);
   const [localDistrict, setLocalDistrict] = useState(district);
   const [localSortBy, setLocalSortBy] = useState(sortBy);
+  const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice);
+  const [localShowUnfinanceable, setLocalShowUnfinanceable] = useState(showUnfinanceable);
 
   useEffect(() => {
     setLocalMinScore(minScore);
     setLocalDistrict(district);
     setLocalSortBy(sortBy);
-  }, [minScore, district, sortBy]);
+    setLocalMaxPrice(maxPrice);
+    setLocalShowUnfinanceable(showUnfinanceable);
+  }, [minScore, district, sortBy, maxPrice, showUnfinanceable]);
 
   if (!open) return null;
 
@@ -42,6 +47,8 @@ export function FilterDrawer({
     onMinScoreChange(localMinScore);
     onDistrictChange(localDistrict);
     onSortChange(localSortBy);
+    onMaxPriceChange(localMaxPrice);
+    onShowUnfinanceableChange(localShowUnfinanceable);
     onRefresh();
     onClose();
   };
@@ -50,14 +57,13 @@ export function FilterDrawer({
     setLocalMinScore('0');
     setLocalDistrict('');
     setLocalSortBy('score_desc');
+    setLocalMaxPrice('500000');
+    setLocalShowUnfinanceable(false);
   };
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       <div className="relative mt-auto bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
@@ -77,11 +83,17 @@ export function FilterDrawer({
           <div className="space-y-2">
             <label className="text-sm font-medium text-text">Minimum Score</label>
             <input
-              type="number"
-              min="0"
-              max="100"
-              value={localMinScore}
+              type="number" min="0" max="100" value={localMinScore}
               onChange={(e) => setLocalMinScore(e.target.value)}
+              className="w-full rounded-lg border border-border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text">Max Price €</label>
+            <input
+              type="number" min="0" step="10000" value={localMaxPrice}
+              onChange={(e) => setLocalMaxPrice(e.target.value)}
               className="w-full rounded-lg border border-border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
@@ -89,9 +101,7 @@ export function FilterDrawer({
           <div className="space-y-2">
             <label className="text-sm font-medium text-text">District</label>
             <input
-              type="text"
-              placeholder="e.g. 02"
-              value={localDistrict}
+              type="text" placeholder="e.g. 02" value={localDistrict}
               onChange={(e) => setLocalDistrict(e.target.value)}
               className="w-full rounded-lg border border-border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-accent"
             />
@@ -111,6 +121,16 @@ export function FilterDrawer({
               <option value="area_desc">Largest first</option>
             </select>
           </div>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localShowUnfinanceable}
+              onChange={(e) => setLocalShowUnfinanceable(e.target.checked)}
+              className="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent"
+            />
+            <span className="text-sm font-medium text-text">Show unfinanceable listings</span>
+          </label>
         </div>
 
         <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">

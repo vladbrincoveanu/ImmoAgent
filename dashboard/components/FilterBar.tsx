@@ -20,35 +20,45 @@ interface FilterBarProps {
   onRefresh: () => void;
   sortBy?: SortOption;
   onSortChange?: (sort: SortOption) => void;
+  maxPrice: string;
+  onMaxPriceChange: (v: string) => void;
+  showUnfinanceable: boolean;
+  onShowUnfinanceableChange: (v: boolean) => void;
 }
 
 export function FilterBar({
   minScore, onMinScoreChange,
   district, onDistrictChange,
   onRefresh, sortBy, onSortChange,
+  maxPrice, onMaxPriceChange,
+  showUnfinanceable, onShowUnfinanceableChange,
 }: FilterBarProps) {
   const effectiveSort = sortBy ?? 'score_desc';
 
   return (
-    <div className="hidden md:flex flex-wrap gap-3 mb-6">
+    <div className="hidden md:flex flex-wrap gap-3 mb-6 items-center">
       <div className="flex items-center gap-2 ml-auto">
         <label className="text-sm font-medium text-gray-700">Min Score</label>
         <input
-          type="number"
-          min="0"
-          max="100"
-          value={minScore}
+          type="number" min="0" max="100" value={minScore}
           onChange={(e) => onMinScoreChange(e.target.value)}
           className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
       <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">Max Price €</label>
+        <input
+          type="number" min="0" step="10000" value={maxPrice}
+          onChange={(e) => onMaxPriceChange(e.target.value)}
+          className="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
         <label className="text-sm font-medium text-gray-700">District</label>
         <input
-          type="text"
-          placeholder="e.g. 02"
-          value={district}
+          type="text" placeholder="e.g. 02" value={district}
           onChange={(e) => onDistrictChange(e.target.value)}
           className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
@@ -73,6 +83,16 @@ export function FilterBar({
           ))}
         </select>
       </div>
+
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={showUnfinanceable}
+          onChange={(e) => onShowUnfinanceableChange(e.target.checked)}
+          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span className="text-sm font-medium text-gray-700">Show unfinanceable</span>
+      </label>
     </div>
   );
 }
