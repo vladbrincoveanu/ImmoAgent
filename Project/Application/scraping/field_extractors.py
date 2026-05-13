@@ -150,7 +150,7 @@ def extract_sonderumlage_risk(text: str) -> Optional[bool]:
 
 def extract_doppelmakler(text: str) -> Optional[bool]:
     """True if Doppelmakler disclosed, None otherwise."""
-    if re.search(r'doppelmakler', text):
+    if _any_match(text, [r'doppelmakler']):
         return True
     return None
 
