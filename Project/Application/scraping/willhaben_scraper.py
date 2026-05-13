@@ -360,7 +360,12 @@ class WillhabenScraper:
             response = self._fetch_with_retry(url)
             if not response:
                 return None
-                
+
+            # Skip Neubauprojekt aggregate pages — these show project-level data, not unit data
+            if '/neubauprojekt/' in url:
+                logger.info(f"⏭️  Skipping Neubauprojekt aggregate page: {url}")
+                return None
+
             soup = BeautifulSoup(response.content, 'html.parser')
 
             # Extract data from JSON-LD first
