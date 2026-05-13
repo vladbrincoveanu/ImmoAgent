@@ -101,3 +101,36 @@ def extract_window_type(text: str) -> Optional[str]:
         if _any_match(text, patterns):
             return label
     return None
+
+
+def extract_ruecklage_eur_month(text: str) -> Optional[float]:
+    """Extract monthly Reparaturrücklage in EUR. Handles German thousands separators."""
+    m = re.search(
+        r'reparaturrücklage[^:]*:\s*([\d]{1,3}(?:[.,]\d{3})*[,.]\d{2}|\d+[,.]\d{1,2})',
+        text
+    )
+    if not m:
+        return None
+    raw = m.group(1)
+    if ',' in raw:
+        raw = raw.replace('.', '').replace(',', '.')
+    return float(raw)
+
+
+def extract_maklerprovision_pct(text: str) -> Optional[float]:
+    """Extract broker commission percentage. Returns float e.g. 3.0 for '3% Kundenprovision'."""
+    # "3% kundenprovision" — number before keyword
+    m = re.search(
+        r'(\d+(?:[,.]\d+)?)\s*%\s*(kundenprovision|maklerprovision|provision|käuferprovision)',
+        text
+    )
+    if m:
+        return float(m.group(1).replace(',', '.'))
+    # "käuferprovision: 2%" — keyword before number
+    m = re.search(
+        r'(kundenprovision|maklerprovision|provision|käuferprovision)[^%\d]{0,20}(\d+(?:[,.]\d+)?)\s*%',
+        text
+    )
+    if m:
+        return float(m.group(2).replace(',', '.'))
+    return None

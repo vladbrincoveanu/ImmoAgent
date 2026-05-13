@@ -11,6 +11,8 @@ from Application.scraping.field_extractors import (
     extract_roof_renovated,
     extract_kitchen_included,
     extract_window_type,
+    extract_ruecklage_eur_month,
+    extract_maklerprovision_pct,
 )
 
 
@@ -71,6 +73,52 @@ class TestExtractRoofRenovated(unittest.TestCase):
 
     def test_absent_returns_none(self):
         self.assertIsNone(extract_roof_renovated("ruhige lage, u-bahn nähe"))
+
+
+class TestExtractRuecklageEurMonth(unittest.TestCase):
+    def test_comma_decimal(self):
+        self.assertAlmostEqual(
+            extract_ruecklage_eur_month("monatliche reparaturrücklage (excl. mwst): 81,62 eur"),
+            81.62, places=2
+        )
+
+    def test_dot_decimal(self):
+        self.assertAlmostEqual(
+            extract_ruecklage_eur_month("reparaturrücklage: 81.62 eur"),
+            81.62, places=2
+        )
+
+    def test_thousands_separator(self):
+        self.assertAlmostEqual(
+            extract_ruecklage_eur_month("monatliche reparaturrücklage: 1.081,62 eur"),
+            1081.62, places=2
+        )
+
+    def test_absent_returns_none(self):
+        self.assertIsNone(extract_ruecklage_eur_month("monatliche betriebskosten: 281,75 eur"))
+
+
+class TestExtractMaklerprovisionPct(unittest.TestCase):
+    def test_integer_percent(self):
+        self.assertAlmostEqual(
+            extract_maklerprovision_pct("3% kundenprovision zzgl. mwst"),
+            3.0, places=1
+        )
+
+    def test_decimal_percent_comma(self):
+        self.assertAlmostEqual(
+            extract_maklerprovision_pct("3,6% maklerprovision"),
+            3.6, places=1
+        )
+
+    def test_provision_variant(self):
+        self.assertAlmostEqual(
+            extract_maklerprovision_pct("käuferprovision: 2% zzgl. mwst"),
+            2.0, places=1
+        )
+
+    def test_absent_returns_none(self):
+        self.assertIsNone(extract_maklerprovision_pct("keine provision für käufer"))
 
 
 class TestExtractKitchenIncluded(unittest.TestCase):
