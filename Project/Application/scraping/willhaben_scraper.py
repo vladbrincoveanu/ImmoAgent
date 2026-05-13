@@ -18,6 +18,10 @@ from Application.helpers.utils import calculate_ubahn_proximity, format_currency
 from Application.scraping.field_extractors import (
     extract_lift_present, extract_facade_renovated,
     extract_parifizierung_complete, extract_roof_renovated,
+    extract_kitchen_included, extract_window_type,
+    extract_ruecklage_eur_month, extract_sonderumlage_risk,
+    extract_doppelmakler, extract_maklerprovision_pct,
+    extract_document_urls,
 )
 
 @dataclass
@@ -404,7 +408,50 @@ class WillhabenScraper:
             listing.facade_renovated = extract_facade_renovated(_full_text)
             listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
             listing.roof_renovated = extract_roof_renovated(_full_text)
-            
+
+            # Rich attribute extraction from __NEXT_DATA__
+            _attrs = self.extract_attributes_dict(soup)
+            def _strip_html(val: str) -> str:
+                from bs4 import BeautifulSoup as _BS
+                return _BS(val, 'html.parser').get_text(' ', strip=True).lower() if val else ''
+
+            _ausstattung = _strip_html((_attrs.get('GENERAL_TEXT_ADVERT/Ausstattung') or [''])[0])
+            _preis_detail = _strip_html((_attrs.get('GENERAL_TEXT_ADVERT/Preis - Detailinformation') or [''])[0])
+            _zusatz = _strip_html((_attrs.get('GENERAL_TEXT_ADVERT/Zusatzinformationen') or [''])[0])
+            _combined = ' '.join([_ausstattung, _zusatz, _preis_detail])
+
+            _bc = (_attrs.get('BUILDING_CONDITION') or [None])[0]
+            listing.building_condition = _bc
+            _fs = (_attrs.get('FLOOR_SURFACE') or [None])[0]
+            listing.floor_surface = _fs
+            _unit = (_attrs.get('UNIT_NUMBER') or [None])[0]
+            listing.unit_number = _unit
+            _raw_area = (_attrs.get('FREE_AREA/FREE_AREA_AREA') or [None])[0]
+            if _raw_area:
+                try:
+                    listing.free_area_m2 = float(str(_raw_area).replace(',', '.'))
+                except (ValueError, TypeError):
+                    pass
+
+            listing.kitchen_included = extract_kitchen_included(_ausstattung)
+            listing.window_type = extract_window_type(_ausstattung)
+            listing.ruecklage_eur_month = extract_ruecklage_eur_month(_preis_detail)
+            listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
+            listing.doppelmakler = extract_doppelmakler(_combined)
+            listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+
+            _doc_urls = extract_document_urls(soup)
+            listing.document_urls = _doc_urls if _doc_urls else None
+
+            try:
+                _script = soup.find('script', {'id': '__NEXT_DATA__'})
+                if _script and _script.string:
+                    _jd = json.loads(str(_script.string))
+                    _ad = _jd.get('props', {}).get('pageProps', {}).get('advertDetails', {})
+                    listing.parent_project_id = _ad.get('parentAdId')
+            except Exception:
+                pass
+
             # Monatsrate and other financial details
             listing.monatsrate = self.extract_monatsrate(soup)
             listing.own_funds = self.extract_own_funds(soup)
