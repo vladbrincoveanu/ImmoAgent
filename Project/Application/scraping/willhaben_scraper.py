@@ -184,6 +184,37 @@ class WillhabenScraper:
         
         return unique_urls
 
+    def is_project_url(self, url: str) -> bool:
+        """Return True if the URL is a Neubauprojekt project page (not an individual unit)."""
+        return '/d/neubauprojekt/' in url
+
+    def expand_project_to_units(self, url: str) -> List[str]:
+        """Fetch a Neubauprojekt page and return individual unit listing URLs."""
+        time.sleep(1.0)
+        response = self._fetch_with_retry(url)
+        if not response:
+            logging.warning(f"⚠️  Failed to expand project page: {url}")
+            return []
+        soup = BeautifulSoup(response.content, 'html.parser')
+        all_urls = self.extract_listing_urls(soup)
+        return [u for u in all_urls if '/d/neubauprojekt/' not in u]
+
+    def extract_attributes_dict(self, soup: BeautifulSoup) -> Dict[str, List[str]]:
+        """Parse __NEXT_DATA__ attributes array into a flat {name: [values]} dict."""
+        try:
+            script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
+            if not script_tag or not script_tag.string:
+                return {}
+            json_data = json.loads(str(script_tag.string))
+            attrs = (json_data.get('props', {})
+                              .get('pageProps', {})
+                              .get('advertDetails', {})
+                              .get('attributes', {})
+                              .get('attribute', []))
+            return {a['name']: a.get('values', []) for a in attrs if 'name' in a}
+        except Exception:
+            return {}
+
     def extract_special_features(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract special features"""
         try:
