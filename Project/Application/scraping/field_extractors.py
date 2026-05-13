@@ -134,3 +134,21 @@ def extract_maklerprovision_pct(text: str) -> Optional[float]:
     if m:
         return float(m.group(2).replace(',', '.'))
     return None
+
+
+def extract_sonderumlage_risk(text: str) -> Optional[bool]:
+    """True if Sonderumlage mentioned, False if explicitly absent, None if not mentioned."""
+    negative = [r'(keine|kein)\s+sonderumlage']
+    positive = [r'sonderumlage']
+    if _any_match(text, negative):
+        return False
+    if _any_match(text, positive):
+        return True
+    return None
+
+
+def extract_doppelmakler(text: str) -> Optional[bool]:
+    """True if Doppelmakler disclosed, None otherwise."""
+    if re.search(r'doppelmakler', text):
+        return True
+    return None

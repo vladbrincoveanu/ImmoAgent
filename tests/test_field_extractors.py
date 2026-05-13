@@ -13,6 +13,8 @@ from Application.scraping.field_extractors import (
     extract_window_type,
     extract_ruecklage_eur_month,
     extract_maklerprovision_pct,
+    extract_sonderumlage_risk,
+    extract_doppelmakler,
 )
 
 
@@ -73,6 +75,31 @@ class TestExtractRoofRenovated(unittest.TestCase):
 
     def test_absent_returns_none(self):
         self.assertIsNone(extract_roof_renovated("ruhige lage, u-bahn nähe"))
+
+
+class TestExtractSonderumlageRisk(unittest.TestCase):
+    def test_positive(self):
+        self.assertTrue(extract_sonderumlage_risk("eine sonderumlage für fassadensanierung ist geplant"))
+
+    def test_negative_keine(self):
+        self.assertFalse(extract_sonderumlage_risk("keine sonderumlage bekannt"))
+
+    def test_negative_kein(self):
+        self.assertFalse(extract_sonderumlage_risk("kein sonderumlage erwartet"))
+
+    def test_absent_returns_none(self):
+        self.assertIsNone(extract_sonderumlage_risk("schöne wohnung mit parkett und balkon"))
+
+
+class TestExtractDoppelmakler(unittest.TestCase):
+    def test_present(self):
+        self.assertTrue(extract_doppelmakler("der vermittler ist als doppelmakler tätig"))
+
+    def test_with_provision_context(self):
+        self.assertTrue(extract_doppelmakler("doppelmakler tätig. 3% kundenprovision zzgl. mwst"))
+
+    def test_absent_returns_none(self):
+        self.assertIsNone(extract_doppelmakler("3% kundenprovision, keine weiteren kosten"))
 
 
 class TestExtractRuecklageEurMonth(unittest.TestCase):
