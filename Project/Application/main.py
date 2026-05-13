@@ -647,6 +647,19 @@ def main():
         high_score_listings = []
         
         for listing in all_listings:
+            # 7-day Telegram dedup cooldown — check BEFORE scoring to skip CPU for recently-sent listings
+            SEVEN_DAYS = 7 * 86400
+            if mongo.collection:
+                doc = mongo.collection.find_one({"url": listing.url}, {"sent_to_telegram_at": 1})
+                last_sent = doc.get("sent_to_telegram_at") if doc else None
+                if last_sent and (time.time() - last_sent) < SEVEN_DAYS:
+                    logging.info(f"⏭️  Skipping '{listing.title}' — sent {int((time.time()-last_sent)/86400)}d ago")
+                    # Still calculate score for MongoDB storage
+                    if telegram_bot:
+                        score = telegram_bot.calculate_listing_score(listing.__dict__)
+                        listing.score = score
+                    continue
+
             # Calculate score for the listing (always needed for MongoDB storage)
             if telegram_bot:
                 score = telegram_bot.calculate_listing_score(listing.__dict__)
