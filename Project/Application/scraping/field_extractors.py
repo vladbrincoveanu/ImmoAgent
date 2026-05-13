@@ -4,7 +4,7 @@ Two-pass approach: check negative patterns first, then positive.
 Input: soup.get_text().lower() — full page text, pre-lowercased.
 """
 import re
-from typing import Optional
+from typing import Dict, Optional
 
 
 def _any_match(text: str, patterns: list) -> bool:
@@ -70,4 +70,34 @@ def extract_roof_renovated(text: str) -> Optional[bool]:
         return False
     if _any_match(text, positive):
         return True
+    return None
+
+
+def extract_kitchen_included(text: str) -> Optional[bool]:
+    """True if furnished kitchen mentioned, False if explicitly absent, None if not mentioned."""
+    negative = [r'(ohne|keine)\s+küche']
+    positive = [
+        r'einbauküche',
+        r'küche\s+(inkl|vorhanden|inklusive)',
+        r'küche\s+mit\s+geräten',
+        r'möblierte\s+küche',
+    ]
+    if _any_match(text, negative):
+        return False
+    if _any_match(text, positive):
+        return True
+    return None
+
+
+def extract_window_type(text: str) -> Optional[str]:
+    """Returns window type: 'kastenfenster'|'kunststoff'|'holz-alu'|'isolierverglasung'|None."""
+    checks = [
+        ('kastenfenster', [r'kastenfenster']),
+        ('kunststoff', [r'kunststofffenster', r'kunststoff.{0,10}fenster']),
+        ('holz-alu', [r'holz-?alu.{0,10}fenster', r'fenster.{0,20}holz-?alu']),
+        ('isolierverglasung', [r'isolierverglasung', r'3-scheiben', r'dreifach.{0,10}verglas']),
+    ]
+    for label, patterns in checks:
+        if _any_match(text, patterns):
+            return label
     return None

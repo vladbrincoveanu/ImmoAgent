@@ -9,6 +9,8 @@ from Application.scraping.field_extractors import (
     extract_facade_renovated,
     extract_parifizierung_complete,
     extract_roof_renovated,
+    extract_kitchen_included,
+    extract_window_type,
 )
 
 
@@ -69,6 +71,37 @@ class TestExtractRoofRenovated(unittest.TestCase):
 
     def test_absent_returns_none(self):
         self.assertIsNone(extract_roof_renovated("ruhige lage, u-bahn nähe"))
+
+
+class TestExtractKitchenIncluded(unittest.TestCase):
+    def test_positive_einbaukueche(self):
+        self.assertTrue(extract_kitchen_included("wohnung mit einbauküche und parkett"))
+
+    def test_positive_moeblierte_kueche(self):
+        self.assertTrue(extract_kitchen_included("möblierte küche inklusive aller geräte"))
+
+    def test_negative_ohne_kueche(self):
+        self.assertFalse(extract_kitchen_included("ohne küche, selbst einzurichten"))
+
+    def test_absent_returns_none(self):
+        self.assertIsNone(extract_kitchen_included("schöne 3-zimmer-wohnung mit parkett"))
+
+
+class TestExtractWindowType(unittest.TestCase):
+    def test_kastenfenster(self):
+        self.assertEqual(extract_window_type("originale kastenfenster aus dem baujahr"), "kastenfenster")
+
+    def test_kunststoff(self):
+        self.assertEqual(extract_window_type("neue kunststofffenster eingebaut"), "kunststoff")
+
+    def test_holz_alu(self):
+        self.assertEqual(extract_window_type("holz-alu-fenster dreifach verglast"), "holz-alu")
+
+    def test_isolierverglasung(self):
+        self.assertEqual(extract_window_type("3-scheiben-isolierverglasung"), "isolierverglasung")
+
+    def test_absent_returns_none(self):
+        self.assertIsNone(extract_window_type("schöne 3-zimmer-wohnung mit parkett"))
 
 
 if __name__ == '__main__':
