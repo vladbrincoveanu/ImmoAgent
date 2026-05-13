@@ -11,7 +11,7 @@ import argparse
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 import sys
 import os
@@ -62,8 +62,8 @@ def rescrape_listing(url: str, source_enum: str) -> Optional[Dict]:
         return None
 
 
-def process_listing(listing: Dict, dry_run: bool, scrapers: dict) -> Optional[str]:
-    """Process one listing. Returns reason string if deleted, None if kept."""
+def process_listing(listing: Dict, dry_run: bool, scrapers: dict) -> Optional[Tuple[str, str]]:
+    """Process one listing. Returns (url, reason) tuple if deleted, None if kept."""
     url = listing.get('url', '')
     title = listing.get('title', '')
     price_per_m2 = listing.get('price_per_m2')
@@ -78,11 +78,11 @@ def process_listing(listing: Dict, dry_run: bool, scrapers: dict) -> Optional[st
 
     # Delete reasons
     if not title or title in ('', None):
-        return "empty title"
+        return (url, "empty title")
     if price_per_m2 is not None and price_per_m2 < 2500:
-        return f"price_per_m2 {price_per_m2:.0f} < 2500"
+        return (url, f"price_per_m2 {price_per_m2:.0f} < 2500")
     if '/neubauprojekt/' in url:
-        return "neubauprojekt aggregate page"
+        return (url, "neubauprojekt aggregate page")
     return None
 
 
@@ -122,8 +122,11 @@ def main():
     to_delete: List[str] = []
     audit_entries: List[str] = []
 
+    def process_one(candidate: Dict) -> Optional[Tuple[str, str]]:
+        return process_listing(candidate, dry_run, scrapers)
+
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        futures = {executor.submit(process_one := lambda c: process_listing(c, dry_run, scrapers), c): c for c in candidates}
+        futures = {executor.submit(process_one, c): c for c in candidates}
         for future in as_completed(futures):
             result = future.result()
             if result:

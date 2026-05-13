@@ -80,7 +80,7 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                 </div>
               )}
 
-              <h2 className="text-xl font-bold text-gray-900">{listing.title || 'No title'}</h2>
+              <h2 className="text-xl font-bold text-gray-900">{listing.title || listing.address || 'Untitled Property'}</h2>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {listing.price_total && (
