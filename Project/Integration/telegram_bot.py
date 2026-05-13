@@ -349,6 +349,10 @@ class TelegramBot:
         if address and price:
             message_parts.append(f"🏠 <b>{address}</b> - {price}")
         
+        # 🔥 Score (after address+price, per approved design)
+        if score is not None:
+            message_parts.append(f"🔥 Score: {score:.0f}")
+
         # Year built (moved to top for maximum prominence)
         if year_built:
             message_parts.append(f"🏗️ <b>Year of Construction: {year_built}</b>")
@@ -392,9 +396,7 @@ class TelegramBot:
         if rooms:
             message_parts.append(f"🛏️ {rooms} Rooms")
         
-        # Score (REMOVED - no longer displayed in Telegram messages)
-        # if score is not None:
-        #     message_parts.append(f"🔥 <b>Score:</b> <b>{score}</b>")
+        
         
         # Transport
         if transport_lines:
