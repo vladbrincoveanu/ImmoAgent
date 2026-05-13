@@ -67,8 +67,9 @@ export async function GET(request: NextRequest) {
         { url_is_valid: { $ne: false } },
         { price_total: { $gt: 0 } },
         { area_m2: { $gt: 0 } },
-        { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 1000] } },
+        { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
         { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
+        { title: { $nin: [null, ""] } },
       ],
     };
 
