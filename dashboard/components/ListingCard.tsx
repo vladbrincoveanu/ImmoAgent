@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ListingBase } from '@/lib/types';
 import { SOURCE_LABELS, formatPrice } from '@/lib/utils';
+import { EquityBadge } from './EquityBadge';
 
 interface ListingCardProps {
   listing: ListingBase;
@@ -58,6 +59,13 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
         <p className="font-bold text-heading text-base mb-1">
           {formatPrice(listing.price_total, listing.price_is_estimated)}
         </p>
+        <div className="mb-1">
+          <EquityBadge
+            downPct={listing.estimated_down_pct}
+            equityEur={listing.estimated_equity_eur}
+            confidence={listing.bank_score_confidence}
+          />
+        </div>
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-muted">
