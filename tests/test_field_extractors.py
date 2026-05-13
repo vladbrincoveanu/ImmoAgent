@@ -15,6 +15,7 @@ from Application.scraping.field_extractors import (
     extract_maklerprovision_pct,
     extract_sonderumlage_risk,
     extract_doppelmakler,
+    extract_document_urls,
 )
 
 
@@ -75,6 +76,42 @@ class TestExtractRoofRenovated(unittest.TestCase):
 
     def test_absent_returns_none(self):
         self.assertIsNone(extract_roof_renovated("ruhige lage, u-bahn nähe"))
+
+
+class TestExtractDocumentUrls(unittest.TestCase):
+    def _make_soup(self, html):
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(html, 'html.parser')
+
+    def test_all_four_documents(self):
+        soup = self._make_soup("""
+        <html><body>
+        <a data-testid="documents-item-anchor-0" href="https://storage.justimmo.at/file/abc.pdf">Exposé</a>
+        <a data-testid="documents-item-anchor-1" href="https://storage.justimmo.at/file/def.pdf">Preisliste</a>
+        <a data-testid="documents-item-anchor-2" href="https://storage.justimmo.at/file/ghi.pdf">Planmappe</a>
+        <a data-testid="documents-item-anchor-3" href="https://storage.justimmo.at/file/jkl.pdf">Lagereport</a>
+        </body></html>
+        """)
+        docs = extract_document_urls(soup)
+        self.assertEqual(docs.get('expose'), 'https://storage.justimmo.at/file/abc.pdf')
+        self.assertEqual(docs.get('preisliste'), 'https://storage.justimmo.at/file/def.pdf')
+        self.assertEqual(docs.get('planmappe'), 'https://storage.justimmo.at/file/ghi.pdf')
+        self.assertEqual(docs.get('lagereport'), 'https://storage.justimmo.at/file/jkl.pdf')
+
+    def test_empty_when_no_documents(self):
+        soup = self._make_soup("<html><body><p>no documents here</p></body></html>")
+        docs = extract_document_urls(soup)
+        self.assertEqual(docs, {})
+
+    def test_partial_documents(self):
+        soup = self._make_soup("""
+        <html><body>
+        <a data-testid="documents-item-anchor-0" href="https://storage.justimmo.at/file/abc.pdf">Exposé</a>
+        </body></html>
+        """)
+        docs = extract_document_urls(soup)
+        self.assertEqual(docs.get('expose'), 'https://storage.justimmo.at/file/abc.pdf')
+        self.assertIsNone(docs.get('preisliste'))
 
 
 class TestExtractSonderumlageRisk(unittest.TestCase):

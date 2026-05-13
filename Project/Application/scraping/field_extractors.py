@@ -5,6 +5,7 @@ Input: soup.get_text().lower() — full page text, pre-lowercased.
 """
 import re
 from typing import Dict, Optional
+from bs4 import BeautifulSoup
 
 
 def _any_match(text: str, patterns: list) -> bool:
@@ -152,3 +153,22 @@ def extract_doppelmakler(text: str) -> Optional[bool]:
     if re.search(r'doppelmakler', text):
         return True
     return None
+
+
+def extract_document_urls(soup: BeautifulSoup) -> Dict[str, str]:
+    """Extract PDF document links from listing page documents box.
+    Returns dict with keys: expose|preisliste|planmappe|lagereport."""
+    label_map = {
+        'exposé': 'expose',
+        'expose': 'expose',
+        'preisliste': 'preisliste',
+        'planmappe': 'planmappe',
+        'lagereport': 'lagereport',
+    }
+    result = {}
+    for anchor in soup.select('a[data-testid^="documents-item-anchor"]'):
+        text = anchor.get_text(strip=True).lower()
+        href = anchor.get('href', '')
+        if text in label_map and href:
+            result[label_map[text]] = href
+    return result
