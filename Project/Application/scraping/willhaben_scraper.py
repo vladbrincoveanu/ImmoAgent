@@ -1793,7 +1793,17 @@ class WillhabenScraper:
                     print("No more listings found on this page.")
                     break
 
+                # Expand neubauprojekt project pages into individual unit URLs
+                expanded_urls: List[str] = []
                 for listing_url in listing_urls:
+                    if self.is_project_url(listing_url):
+                        unit_urls = self.expand_project_to_units(listing_url)
+                        print(f"🏗️  Expanding project {listing_url} → {len(unit_urls)} units")
+                        expanded_urls.extend(unit_urls)
+                    else:
+                        expanded_urls.append(listing_url)
+
+                for listing_url in expanded_urls:
                     if self.mongo.listing_exists(listing_url):
                         print(f"⏭️  Skipping already processed: {listing_url}")
                         continue
