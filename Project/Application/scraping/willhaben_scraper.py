@@ -18,7 +18,15 @@ from Application.helpers.utils import calculate_ubahn_proximity, format_currency
 from Application.scraping.field_extractors import (
     extract_lift_present, extract_facade_renovated,
     extract_parifizierung_complete, extract_roof_renovated,
+    extract_kitchen_included, extract_window_type,
+    extract_ruecklage_eur_month, extract_sonderumlage_risk,
+    extract_doppelmakler, extract_maklerprovision_pct,
+    extract_document_urls,
 )
+
+
+def _strip_html_to_text(val: str) -> str:
+    return BeautifulSoup(val, 'html.parser').get_text(' ', strip=True).lower() if val else ''
 
 @dataclass
 class Amenity:
@@ -183,6 +191,40 @@ class WillhabenScraper:
                 unique_urls.append(url)
         
         return unique_urls
+
+    def is_project_url(self, url: str) -> bool:
+        """Return True if the URL is a Neubauprojekt project page (not an individual unit)."""
+        return '/d/neubauprojekt/' in url
+
+    def expand_project_to_units(self, url: str) -> List[str]:
+        """Fetch a Neubauprojekt page and return individual unit listing URLs."""
+        time.sleep(1.0)
+        response = self._fetch_with_retry(url)
+        if not response:
+            logging.warning(f"⚠️  Failed to expand project page: {url}")
+            return []
+        soup = BeautifulSoup(response.content, 'html.parser')
+        all_urls = self.extract_listing_urls(soup)
+        return [u for u in all_urls if '/d/neubauprojekt/' not in u]
+
+    def _get_advert_details(self, soup: BeautifulSoup) -> Dict:
+        """Parse __NEXT_DATA__ and return the advertDetails dict, or {} on failure."""
+        try:
+            script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
+            if not script_tag or not script_tag.string:
+                return {}
+            json_data = json.loads(str(script_tag.string))
+            return (json_data.get('props', {})
+                             .get('pageProps', {})
+                             .get('advertDetails', {}))
+        except Exception:
+            return {}
+
+    def extract_attributes_dict(self, soup: BeautifulSoup) -> Dict[str, List[str]]:
+        """Parse __NEXT_DATA__ attributes array into a flat {name: [values]} dict."""
+        advert_details = self._get_advert_details(soup)
+        attrs = advert_details.get('attributes', {}).get('attribute', [])
+        return {a['name']: a.get('values', []) for a in attrs if 'name' in a}
 
     def extract_special_features(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract special features"""
@@ -373,7 +415,36 @@ class WillhabenScraper:
             listing.facade_renovated = extract_facade_renovated(_full_text)
             listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
             listing.roof_renovated = extract_roof_renovated(_full_text)
-            
+
+            _advert = self._get_advert_details(soup)
+            _attrs = {a['name']: a.get('values', []) for a in _advert.get('attributes', {}).get('attribute', []) if 'name' in a}
+
+            _ausstattung = _strip_html_to_text((_attrs.get('GENERAL_TEXT_ADVERT/Ausstattung') or [''])[0])
+            _preis_detail = _strip_html_to_text((_attrs.get('GENERAL_TEXT_ADVERT/Preis - Detailinformation') or [''])[0])
+            _zusatz = _strip_html_to_text((_attrs.get('GENERAL_TEXT_ADVERT/Zusatzinformationen') or [''])[0])
+            _combined = ' '.join([_ausstattung, _zusatz, _preis_detail])
+
+            listing.building_condition = (_attrs.get('BUILDING_CONDITION') or [None])[0]
+            listing.floor_surface = (_attrs.get('FLOOR_SURFACE') or [None])[0]
+            listing.unit_number = (_attrs.get('UNIT_NUMBER') or [None])[0]
+            _raw_area = (_attrs.get('FREE_AREA/FREE_AREA_AREA') or [None])[0]
+            if _raw_area:
+                try:
+                    listing.free_area_m2 = float(str(_raw_area).replace(',', '.'))
+                except (ValueError, TypeError):
+                    pass
+
+            listing.kitchen_included = extract_kitchen_included(_ausstattung)
+            listing.window_type = extract_window_type(_ausstattung)
+            listing.ruecklage_eur_month = extract_ruecklage_eur_month(_preis_detail)
+            listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
+            listing.doppelmakler = extract_doppelmakler(_combined)
+            listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+
+            _doc_urls = extract_document_urls(soup)
+            listing.document_urls = _doc_urls if _doc_urls else None
+            listing.parent_project_id = _advert.get('parentAdId')
+
             # Monatsrate and other financial details
             listing.monatsrate = self.extract_monatsrate(soup)
             listing.own_funds = self.extract_own_funds(soup)
@@ -1715,7 +1786,17 @@ class WillhabenScraper:
                     print("No more listings found on this page.")
                     break
 
+                # Expand neubauprojekt project pages into individual unit URLs
+                expanded_urls: List[str] = []
                 for listing_url in listing_urls:
+                    if self.is_project_url(listing_url):
+                        unit_urls = self.expand_project_to_units(listing_url)
+                        print(f"🏗️  Expanding project {listing_url} → {len(unit_urls)} units")
+                        expanded_urls.extend(unit_urls)
+                    else:
+                        expanded_urls.append(listing_url)
+
+                for listing_url in expanded_urls:
                     if self.mongo.listing_exists(listing_url):
                         print(f"⏭️  Skipping already processed: {listing_url}")
                         continue

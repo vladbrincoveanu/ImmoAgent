@@ -23,6 +23,8 @@ from urllib.parse import urljoin
 from Application.scraping.field_extractors import (
     extract_lift_present, extract_facade_renovated,
     extract_parifizierung_complete, extract_roof_renovated,
+    extract_kitchen_included, extract_window_type,
+    extract_sonderumlage_risk, extract_doppelmakler,
 )
 
 from Domain.listing import Listing
@@ -681,6 +683,10 @@ class DerStandardScraper:
                 listing.facade_renovated = extract_facade_renovated(_full_text)
                 listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
                 listing.roof_renovated = extract_roof_renovated(_full_text)
+                listing.kitchen_included = extract_kitchen_included(_full_text)
+                listing.window_type = extract_window_type(_full_text)
+                listing.sonderumlage_risk = extract_sonderumlage_risk(_full_text)
+                listing.doppelmakler = extract_doppelmakler(_full_text)
 
                 # Validate that we have essential data
                 if self.validate_listing_data(listing):

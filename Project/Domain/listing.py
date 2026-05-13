@@ -56,3 +56,15 @@ class Listing:
     facade_renovated: Optional[bool] = None
     parifizierung_complete: Optional[bool] = None
     roof_renovated: Optional[bool] = None
+    building_condition:    Optional[str]        = None
+    floor_surface:         Optional[str]        = None
+    free_area_m2:          Optional[float]      = None
+    unit_number:           Optional[str]        = None
+    ruecklage_eur_month:   Optional[float]      = None
+    kitchen_included:      Optional[bool]       = None
+    window_type:           Optional[str]        = None
+    sonderumlage_risk:     Optional[bool]       = None
+    doppelmakler:          Optional[bool]       = None
+    maklerprovision_pct:   Optional[float]      = None
+    document_urls:         Optional[Dict[str, str]] = None
+    parent_project_id:     Optional[int]        = None
