@@ -11,6 +11,9 @@ export interface ListingBase {
   processed_at: number | null;
   image_url: string | null;
   price_is_estimated?: boolean;
+  estimated_down_pct?: number | null;
+  estimated_equity_eur?: number | null;
+  bank_score_confidence?: string | null;
 }
 
 export type CoordinateSource = 'exact' | 'landmark' | 'district' | 'none';
@@ -53,6 +56,8 @@ export interface ListingDetail extends ListingBase {
   url_is_valid?: boolean;
   coordinate_source?: CoordinateSource;
   landmark_hint?: string | null;
+  estimated_down_pct_kimv?: number | null;
+  belehnungswert_factor?: number | null;
 }
 
 export interface TopListingsResponse {
