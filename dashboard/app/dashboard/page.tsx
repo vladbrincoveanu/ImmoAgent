@@ -15,6 +15,8 @@ export default function DashboardPage() {
   const [district, setDistrict] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [maxPrice, setMaxPrice] = useState('500000');
+  const [showUnfinanceable, setShowUnfinanceable] = useState(false);
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
@@ -36,6 +38,17 @@ export default function DashboardPage() {
 
   React.useEffect(() => { fetchListings(); }, [fetchListings]);
 
+  const filteredListings = listings.filter((l) => {
+    if (maxPrice && l.price_total != null && l.price_total > Number(maxPrice)) return false;
+    if (
+      !showUnfinanceable &&
+      l.estimated_down_pct != null &&
+      l.estimated_down_pct > 30 &&
+      l.bank_score_confidence !== 'low'
+    ) return false;
+    return true;
+  });
+
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-24 md:pb-6">
       <div className="max-w-6xl mx-auto">
@@ -54,6 +67,10 @@ export default function DashboardPage() {
             onRefresh={fetchListings}
             sortBy={sortBy}
             onSortChange={setSortBy}
+            maxPrice={maxPrice}
+            onMaxPriceChange={setMaxPrice}
+            showUnfinanceable={showUnfinanceable}
+            onShowUnfinanceableChange={setShowUnfinanceable}
           />
         </div>
 
@@ -63,7 +80,7 @@ export default function DashboardPage() {
           <p className="text-gray-400">No listings found.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {listings.map((l) => (
+            {filteredListings.map((l) => (
               <ListingCard key={l._id} listing={l} onClick={setSelectedId} />
             ))}
           </div>
@@ -92,6 +109,10 @@ export default function DashboardPage() {
         onRefresh={fetchListings}
         sortBy={sortBy}
         onSortChange={setSortBy}
+        maxPrice={maxPrice}
+        onMaxPriceChange={setMaxPrice}
+        showUnfinanceable={showUnfinanceable}
+        onShowUnfinanceableChange={setShowUnfinanceable}
       />
 
       {selectedId && (
