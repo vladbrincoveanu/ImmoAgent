@@ -68,3 +68,8 @@ class Listing:
     maklerprovision_pct:   Optional[float]      = None
     document_urls:         Optional[Dict[str, str]] = None
     parent_project_id:     Optional[int]        = None
+    belehnungswert_factor:   Optional[float]    = None
+    estimated_down_pct:      Optional[float]    = None  # 80% LTV standard
+    estimated_down_pct_kimv: Optional[float]    = None  # 90% LTV KIM-V program
+    estimated_equity_eur:    Optional[int]      = None
+    bank_score_confidence:   Optional[str]      = None  # "low" | "medium" | "high"
