@@ -326,9 +326,15 @@ def scrape_willhaben(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
         max_pages = willhaben_config.get('max_pages', max_pages)
         
         alert_url = config.get('alert_url', "https://www.willhaben.at/iad/searchagent/alert?verticalId=2&searchId=101&alertId=59840387")
-        listings = scraper.scrape_search_agent_page(alert_url, max_pages=max_pages)
-        logging.info(f"✅ Willhaben scraping complete: {len(listings)} matching listings found")
-        return listings, "willhaben"
+        all_listings = scraper.scrape_search_agent_page(alert_url, max_pages=max_pages)
+
+        for extra_url in willhaben_config.get('search_url_extra', []):
+            logging.info(f"🏗️  Scraping extra URL: {extra_url}")
+            extra_listings = scraper.scrape_search_agent_page(extra_url, max_pages=max_pages)
+            all_listings.extend(extra_listings)
+
+        logging.info(f"✅ Willhaben scraping complete: {len(all_listings)} matching listings found")
+        return all_listings, "willhaben"
     except Exception as e:
         logging.error(f"❌ Willhaben scraping failed: {e}")
         return [], "willhaben"
@@ -392,6 +398,9 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         return 0
 
     try:
+        from Integration.mongodb_handler import MongoDBHandler
+        mongodb_handler = MongoDBHandler(uri=mongo_uri)
+
         client = pymongo.MongoClient(mongo_uri)
         db = client[db_name]
         collection = db[collection_name]
@@ -436,6 +445,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 if geocoded.get('coordinate_source') != 'none':
                     mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
         
+        mongodb_handler.close()
         client.close()
         
         logging.info(f"💾 MongoDB save complete: {saved_count} new, {duplicate_count} updated")
@@ -443,6 +453,8 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         
     except Exception as e:
         logging.error(f"❌ Error saving to MongoDB: {e}")
+        if 'mongodb_handler' in dir():
+            mongodb_handler.close()
         return 0
 
 
