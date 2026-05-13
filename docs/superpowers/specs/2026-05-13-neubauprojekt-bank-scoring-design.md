@@ -65,7 +65,9 @@ Adjustments (additive, capped at 1.0 total):
 | window_type = 'kastenfenster' | −0.04 |
 | window_type = 'kunststoff'/'holz-alu'/'isolierverglasung' | +0.02 |
 
-Confidence scoring (count of None inputs from the 5 adjustment signals: energy_class, year_built, facade_renovated, roof_renovated, window_type):
+Note on year_built interaction: when `energy_class=None`, `year_built` selects the base factor (0.72 / 0.95 / 0.82) AND applies its adjustment delta (−0.05 / +0.05 / +0.02 / 0). Both apply independently — this is intentional: an old Altbau with no energy cert is penalized twice because both facts are negative signals. For the calibration case (`energy_class='E'`), the base comes from energy class alone; year_built only contributes the adjustment.
+
+Confidence scoring (count of None inputs from the 5 input signals: energy_class, year_built, facade_renovated, roof_renovated, window_type):
 - 0–1 None → `"high"`
 - 2–3 None → `"medium"`
 - 4–5 None → `"low"`
@@ -177,8 +179,9 @@ Safe: reads and writes single fields only, never deletes. Idempotent: `estimated
 
 ### Module: Dashboard card equity badge
 - **Responsibility:** Show estimated equity on each listing card
-- **Interface:** New `EquityBadge` component, rendered below price
+- **Interface:** New `EquityBadge` component, rendered below price in `ListingCard.tsx`
 - **Dependencies:** `estimated_down_pct`, `estimated_equity_eur`, `bank_score_confidence` fields
+- **Pattern:** Follow `ScoreBadge.tsx` (existing component, same repo) for structure and style conventions
 - **Size target:** ~30 lines (component + styles)
 
 Display logic:
@@ -196,13 +199,13 @@ Format: `~{round to nearest 1%}% (~€{round to nearest 1k}k equity)`
 
 ### Module: Dashboard filters
 - **Responsibility:** Max price slider + show-unfinanceable toggle
-- **Interface:** Two new controls in the existing filter bar (alongside Min Score / District)
+- **Interface:** Two new controls wired in 3 places: state in `dashboard/app/dashboard/page.tsx`, desktop UI in `dashboard/components/FilterBar.tsx`, mobile UI in `dashboard/components/FilterDrawer.tsx`
 - **Dependencies:** Existing filter state; `estimated_down_pct` and `price_total` fields
-- **Size target:** ~40 lines (state + filter logic)
+- **Size target:** ~15 lines in page.tsx (state + pass-through), ~15 lines each in FilterBar + FilterDrawer (UI controls)
 
-Max price: slider or input, default 500000, applies client-side to `listing.price_total`.
+Max price: input field (matches existing Min Score input style), default 500000, filters `listing.price_total` client-side.
 
-Show-unfinanceable toggle: default OFF. When OFF: hide listings where `estimated_down_pct > 30` AND `bank_score_confidence != "low"`. When ON: show all. (Low confidence listings always shown — they're hidden from the rule because the estimate isn't reliable enough to justify hiding them.)
+Show-unfinanceable toggle: default OFF. When OFF: hide listings where `estimated_down_pct > 30` AND `bank_score_confidence != "low"`. When ON: show all. (Low confidence listings always shown — estimate unreliable, hiding would discard unknown-but-viable properties.)
 
 ---
 
@@ -277,15 +280,18 @@ Dashboard filters
 | `Project/Application/scraping/immo_kurier_scraper.py` | Wire bank_scoring | +5 |
 | `Project/Application/scraping/derstandard_scraper.py` | Wire bank_scoring | +5 |
 | `Project/scripts/backfill_bank_scores.py` | New migration script | ~50 |
-| `dashboard/components/EquityBadge.tsx` | New component | ~30 |
+| `dashboard/components/EquityBadge.tsx` | New component (follow ScoreBadge.tsx pattern) | ~30 |
+| `dashboard/components/ListingCard.tsx` | Render EquityBadge below price | ~5 |
 | `dashboard/components/ListingDetail.tsx` | Add financing section | ~40 |
-| `dashboard/app/page.tsx` (or listings component) | Max price filter + toggle | ~40 |
+| `dashboard/app/dashboard/page.tsx` | maxPrice + showUnfinanceable state + filter logic | ~15 |
+| `dashboard/components/FilterBar.tsx` | Max price input + toggle (desktop) | ~15 |
+| `dashboard/components/FilterDrawer.tsx` | Max price input + toggle (mobile) | ~15 |
 
 ---
 
 ## Success Criteria
 
-1. `python Project/scripts/backfill_bank_scores.py` completes without error; at least 50% of DB listings get non-null `estimated_down_pct`
+1. `python Project/scripts/backfill_bank_scores.py` completes without error; zero listings have `estimated_down_pct=null` when `price_total` is not null
 2. Willhaben scraper processes at least one neubauprojekt unit per run (log: `🏗️ Expanding project...`)
 3. A Neubau listing (energy B/A, year ≥ 2015) shows green badge ≤15% in dashboard
 4. An Altbau energy E listing shows orange/red badge or is hidden by default
