@@ -3,6 +3,8 @@ import json
 import time
 import re
 import math
+from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
@@ -10,6 +12,7 @@ from dataclasses import dataclass
 from Domain.listing import Listing
 from Domain.sources import Source
 from Application.analyzer import StructuredAnalyzer
+from Application.bank_scoring import compute_bank_score
 from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.geocoding import ViennaGeocoder
@@ -298,7 +301,7 @@ class WillhabenScraper:
                         if year_match:
                             year = int(year_match.group(1))
                             # Improved validation: reject future years and very old years
-                            if 1960 <= year <= 2024:
+                            if 1960 <= year <= datetime.now().year:
                                 extracted_data['year_built'] = year
             return extracted_data
             
@@ -482,12 +485,20 @@ class WillhabenScraper:
                     listing.calculated_monatsrate, listing.betriebskosten
                 )
 
+            # Bank scoring — Belehnungswert estimate stored at scrape time
+            _bank = compute_bank_score(listing)
+            listing.belehnungswert_factor   = _bank.belehnungswert_factor
+            listing.estimated_down_pct      = _bank.estimated_down_pct
+            listing.estimated_down_pct_kimv = _bank.estimated_down_pct_kimv
+            listing.estimated_equity_eur    = _bank.estimated_equity_eur
+            listing.bank_score_confidence   = _bank.bank_score_confidence
+
             # Ensure source fields are strings, not Enum objects
             if hasattr(listing.source, 'value'):
                 listing.source = listing.source.value
             if hasattr(listing.source_enum, 'value'):
                 listing.source_enum = listing.source_enum.value
-        
+
             return listing
 
         except requests.exceptions.RequestException as e:
@@ -591,7 +602,7 @@ class WillhabenScraper:
                     if match:
                         try:
                             return float(match.group(1).replace('.', '').replace(',', '.'))
-                        except:
+                        except (ValueError, IndexError):
                             continue
         return None
 
@@ -1180,7 +1191,7 @@ class WillhabenScraper:
                 if match:
                     try:
                         return float(match.group(1).replace(',', '.'))
-                    except:
+                    except (ValueError, IndexError):
                         continue
         
         return None
@@ -1201,7 +1212,7 @@ class WillhabenScraper:
                 if match:
                     try:
                         return float(match.group(1).replace(',', '.'))
-                    except:
+                    except (ValueError, IndexError):
                         continue
         
         return None
@@ -1624,8 +1635,9 @@ class WillhabenScraper:
                                 return src
                         except ValueError:
                             pass
-                    else:
-                        # If no size info, assume it's a main image if it has a reasonable URL
+                    # If no size info, only accept if URL doesn't look like a thumbnail/icon
+                    skip_patterns = ['icon', 'logo', 'avatar', 'profile', 'placeholder', 'thumb', 'small', 'tiny']
+                    if not any(p in src.lower() for p in skip_patterns):
                         return src
             
             return None
@@ -1771,7 +1783,12 @@ class WillhabenScraper:
         max_telegram_messages = 5  # Limit Telegram messages to avoid spam
         
         for page in range(1, max_pages + 1):
-            url = f"{alert_url}&page={page}"
+            _parsed = urlparse(alert_url)
+            _qs = parse_qs(_parsed.query, keep_blank_values=True)
+            _qs['page'] = [str(page)]
+            url = urlunparse(_parsed._replace(
+                query=urlencode({k: v[0] for k, v in _qs.items()})
+            ))
             print(f"📄 Scraping page {page}: {url}")
 
             try:

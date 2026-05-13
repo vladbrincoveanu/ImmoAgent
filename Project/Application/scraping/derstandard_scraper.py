@@ -32,6 +32,7 @@ from Domain.sources import Source
 from Integration.telegram_bot import TelegramBot
 from Integration.mongodb_handler import MongoDBHandler
 from Application.analyzer import StructuredAnalyzer
+from Application.bank_scoring import compute_bank_score
 from Application.helpers.geocoding import ViennaGeocoder
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten
 from Application.buyer_profiles import GLOBAL_VALIDATION
@@ -162,7 +163,7 @@ class DerStandardScraper:
         if self.driver:
             try:
                 self.driver.quit()
-            except:
+            except Exception:
                 pass
     
     def extract_listing_urls_from_page(self, html_content: str) -> List[str]:
@@ -690,6 +691,12 @@ class DerStandardScraper:
 
                 # Validate that we have essential data
                 if self.validate_listing_data(listing):
+                    _bank = compute_bank_score(listing)
+                    listing.belehnungswert_factor   = _bank.belehnungswert_factor
+                    listing.estimated_down_pct      = _bank.estimated_down_pct
+                    listing.estimated_down_pct_kimv = _bank.estimated_down_pct_kimv
+                    listing.estimated_equity_eur    = _bank.estimated_equity_eur
+                    listing.bank_score_confidence   = _bank.bank_score_confidence
                     logging.info(f"✅ Successfully scraped listing: {listing.title}")
                     return listing
                 else:
@@ -1145,6 +1152,12 @@ class DerStandardScraper:
             
             # Check if we have enough data to consider this a valid listing
             if listing.title and listing.price_total and listing.area_m2:
+                _bank = compute_bank_score(listing)
+                listing.belehnungswert_factor   = _bank.belehnungswert_factor
+                listing.estimated_down_pct      = _bank.estimated_down_pct
+                listing.estimated_down_pct_kimv = _bank.estimated_down_pct_kimv
+                listing.estimated_equity_eur    = _bank.estimated_equity_eur
+                listing.bank_score_confidence   = _bank.bank_score_confidence
                 logging.info("✅ Successfully extracted data using HTML selectors")
                 return listing
             else:

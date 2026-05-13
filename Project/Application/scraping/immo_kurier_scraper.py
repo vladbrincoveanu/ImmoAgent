@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from Domain.listing import Listing
 from Domain.sources import Source
 from Application.analyzer import StructuredAnalyzer
+from Application.bank_scoring import compute_bank_score
 from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
 from Application.scraping.field_extractors import (
@@ -305,12 +306,19 @@ class ImmoKurierScraper:
                     listing.calculated_monatsrate, listing.betriebskosten
                 )
 
+            _bank = compute_bank_score(listing)
+            listing.belehnungswert_factor   = _bank.belehnungswert_factor
+            listing.estimated_down_pct      = _bank.estimated_down_pct
+            listing.estimated_down_pct_kimv = _bank.estimated_down_pct_kimv
+            listing.estimated_equity_eur    = _bank.estimated_equity_eur
+            listing.bank_score_confidence   = _bank.bank_score_confidence
+
             # Ensure source fields are strings, not Enum objects
             if hasattr(listing.source, 'value'):
                 listing.source = listing.source.value
             if hasattr(listing.source_enum, 'value'):
                 listing.source_enum = listing.source_enum.value
-        
+
             return listing
 
         except requests.exceptions.RequestException as e:
