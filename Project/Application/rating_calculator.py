@@ -157,22 +157,26 @@ def calculate_renovation_needed_rating(listing: Dict[str, Any]) -> int:
             # Lower values get 0 points
         
         # Condition factor (0-1 point)
-        condition = listing.get('condition', '').lower()
-        if 'sanierungsbedürftig' in condition or 'renovierungsbedürftig' in condition:
-            score += 1
-        elif 'altbau' in condition and 'renoviert' not in condition:
-            score += 0.7
-        elif 'schlecht' in condition or 'mangelhaft' in condition:
-            score += 0.8
-        elif 'erstbezug' in condition or 'neu' in condition:
-            score += 0  # No renovation needed
-        
+        condition = listing.get('condition') or ''
+        if condition:
+            condition_lower = condition.lower()
+            if 'sanierungsbedürftig' in condition_lower or 'renovierungsbedürftig' in condition_lower:
+                score += 1
+            elif 'altbau' in condition_lower and 'renoviert' not in condition_lower:
+                score += 0.7
+            elif 'schlecht' in condition_lower or 'mangelhaft' in condition_lower:
+                score += 0.8
+            elif 'erstbezug' in condition_lower or 'neu' in condition_lower:
+                score += 0
+
         # Heating type factor (0-0.5 points)
-        heating_type = listing.get('heating_type', '').lower()
-        if 'kohle' in heating_type or 'öl' in heating_type:
-            score += 0.5
-        elif 'gas' in heating_type and 'kondens' not in heating_type:
-            score += 0.3
+        heating_type = listing.get('heating_type') or ''
+        if heating_type:
+            heating_lower = heating_type.lower()
+            if 'kohle' in heating_lower or 'öl' in heating_lower:
+                score += 0.5
+            elif 'gas' in heating_lower and 'kondens' not in heating_lower:
+                score += 0.3
         # Modern heating systems get 0 points
         
         # Convert to 1-5 scale (inverted - higher score = more renovation needed)

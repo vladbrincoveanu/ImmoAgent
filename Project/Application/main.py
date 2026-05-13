@@ -649,7 +649,7 @@ def main():
         for listing in all_listings:
             # 7-day Telegram dedup cooldown — check BEFORE scoring to skip CPU for recently-sent listings
             SEVEN_DAYS = 7 * 86400
-            if mongo.collection:
+            if mongo.collection is not None:
                 doc = mongo.collection.find_one({"url": listing.url}, {"sent_to_telegram_at": 1})
                 last_sent = doc.get("sent_to_telegram_at") if doc else None
                 if last_sent and (time.time() - last_sent) < SEVEN_DAYS:
