@@ -8,7 +8,9 @@ import time
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint
 from Application.buyer_profiles import GLOBAL_VALIDATION
+from Domain.constants import RENTAL_KEYWORDS, PRICE_ON_REQUEST_KEYWORDS
 import logging
+logger = logging.getLogger(__name__)
 
 
 def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
@@ -16,7 +18,7 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     Validate listing data against GLOBAL_VALIDATION thresholds.
     Returns (is_valid, reason). Lenient: missing price/area passes.
     """
-    config = GLOBAL_VALIDATION
+    config = GLOBAL_VALIDATION  # noqa: F811 - imported from buyer_profiles at module level
     price = listing.get('price_total')
     area = listing.get('area_m2')
 
@@ -76,6 +78,10 @@ class MongoDBHandler:
         try:
             self.collection.create_index("url", unique=True)
             self.collection.create_index([("content_fingerprint", 1), ("source_enum", 1)])
+            self.collection.create_index([("source_enum", 1), ("score", -1)])
+            self.collection.create_index([("bezirk", 1), ("price_per_m2", 1)])
+            self.collection.create_index([("url_is_valid", 1), ("processed_at", -1)])
+            self.collection.create_index([("sent_to_telegram", 1), ("processed_at", -1)])
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 print(f"⚠️  MongoDB authentication required, skipping index creation: {e}")
@@ -200,6 +206,10 @@ class MongoDBHandler:
             )
 
             logging.info(f"✅ Marked {result.modified_count} listings as sent to Telegram")
+            
+            expected_count = len(urls)
+            if result.modified_count < expected_count:
+                logging.warning(f"⚠️ Only {result.modified_count}/{expected_count} listings marked as sent (some may not exist)")
 
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
@@ -419,7 +429,7 @@ class MongoDBHandler:
             for listing in listings:
                 self._add_monthly_payment_calculation(listing)
             
-            # Apply additional filters for rental properties and expensive properties
+                # Apply additional filters for rental properties and expensive properties
             filtered_listings = []
             for listing in listings:
                 # Skip rental properties
@@ -427,21 +437,8 @@ class MongoDBHandler:
                 description = (listing.get('description') or '').lower()
                 special_features = listing.get('special_features', []) or []
                 
-                rental_keywords = [
-                    'unbefristet vermietet', 'unbefristet vermietete', 'unbefristet zum', 'unbefristet an',
-                    'vermietet', 'vermietete', 'vermietung', 'vermietungs', 'vermietbar',
-                    'bereits vermietet', 'aktuell vermietet', 'ist vermietet', 'wird vermietet',
-                    'miete', 'mieter', 'mietzins', 'mietvertrag', 'mietobjekt', 'mietwohnung',
-                    'mieteinnahmen', 'mietertrag', 'mietrendite',
-                    'rented', 'rental', 'tenant', 'tenancy', 'lease', 'leasing',
-                    'kat.a mietzins', 'kategorie a mietzins', 'kategorie-a mietzins',
-                    'mietzins kat.a', 'mietzins kategorie a', 'mietzins kategorie-a',
-                    'zum mietzins', 'an mietzins', 'mit mietzins', 'bei mietzins',
-                    'unbefristet', 'befristet', 'mietdauer', 'mietzeitraum'
-                ]
-                
                 is_rental = False
-                for keyword in rental_keywords:
+                for keyword in RENTAL_KEYWORDS:
                     if keyword in title or keyword in description:
                         is_rental = True
                         break
@@ -453,7 +450,7 @@ class MongoDBHandler:
                 if special_features:
                     for feature in special_features:
                         feature_lower = str(feature).lower()
-                        for keyword in rental_keywords:
+                        for keyword in RENTAL_KEYWORDS:
                             if keyword in feature_lower:
                                 is_rental = True
                                 break
@@ -469,15 +466,8 @@ class MongoDBHandler:
                     continue
 
                 # Filter out "Preis auf Anfrage" (price on request) properties
-                price_on_request_keywords = [
-                    'preis auf anfrage', 'price on request', 'auf anfrage', 'on request',
-                    'preis nach vereinbarung', 'price by arrangement', 'nach vereinbarung',
-                    'preis n.v.', 'price n.v.', 'n.v.', 'n/a', 'na', 'tba', 'to be announced',
-                    'preis wird bekanntgegeben', 'price to be announced', 'wird bekanntgegeben'
-                ]
-                
                 is_price_on_request = False
-                for keyword in price_on_request_keywords:
+                for keyword in PRICE_ON_REQUEST_KEYWORDS:
                     if keyword in title or keyword in description:
                         is_price_on_request = True
                         break
@@ -489,7 +479,7 @@ class MongoDBHandler:
                 if special_features:
                     for feature in special_features:
                         feature_lower = str(feature).lower()
-                        for keyword in price_on_request_keywords:
+                        for keyword in PRICE_ON_REQUEST_KEYWORDS:
                             if keyword in feature_lower:
                                 is_price_on_request = True
                                 break
@@ -610,11 +600,11 @@ class MongoDBHandler:
                     'adjusted_price': 0
                 }
             
-            # Fix score calculation: multiply by 100 if below 0
+            # Fix score calculation: clamp negative scores to 0
             score = listing.get('score', 0)
             if score is not None and score < 0:
-                listing['score'] = score * 100
-                logging.info(f"Fixed score from {score} to {listing['score']}")
+                listing['score'] = max(0.0, score)
+                logging.info(f"Fixed negative score from {score} to {listing['score']}")
             
         except Exception as e:
             logging.error(f"Error calculating monthly payment for listing: {e}")

@@ -312,9 +312,17 @@ def print_all_profiles():
                 print(f"   {i+1}. {criterion.replace('_', ' ').title()}: {percentage:.0f}%")
 
 GLOBAL_VALIDATION = {
-    "min_price_per_m2": 2500,
+    "min_price_per_m2": 1000,
     "max_price_per_m2": 20000,
 }
+
+
+def _validate_weights():
+    for key, profile in BUYER_PROFILES.items():
+        total = sum(profile['weights'].values())
+        assert abs(total - 1.0) < 0.001, f"{key} weights sum to {total}"
+    print("All profile weights sum to 1.0")
+
 
 if __name__ == "__main__":
     # Test the module

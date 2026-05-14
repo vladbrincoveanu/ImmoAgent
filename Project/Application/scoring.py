@@ -4,7 +4,7 @@ Apartment Scoring System
 Calculates weighted scores for apartments based on multiple criteria
 """
 
-# --- Global Configuration for Apartment Scoring ---
+import math
 
 # Define the minimum and maximum values for normalization for each criterion.
 # These ranges should reflect what you consider "ideal" (score 100) and "acceptable worst" (score 0).
@@ -29,8 +29,8 @@ NORMALIZATION_RANGES = {
     'roof_renovated': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
 }
 
-# Default weights (will be overridden by buyer profile)
-CRITERIA_WEIGHTS = {
+# Default weights (used as fallback when no profile is set)
+_DEFAULT_WEIGHTS = {
     'price_per_m2': 0.20,
     'hwb_value': 0.05,
     'year_built': 0.15,
@@ -44,37 +44,45 @@ CRITERIA_WEIGHTS = {
     'area_m2': 0.05,
 }
 
-# Global variable to track current profile
-_current_profile = 'diy_renovator'
+# Thread-safe per-thread weight storage via contextvars
+from contextvars import ContextVar
+_current_weights: ContextVar[dict] = ContextVar('_current_weights', default=_DEFAULT_WEIGHTS.copy())
+_current_profile: ContextVar[str] = ContextVar('_current_profile', default='diy_renovator')
+
+# Legacy module-level globals (kept for backward compatibility with direct access)
+CRITERIA_WEIGHTS = _DEFAULT_WEIGHTS.copy()
 
 # Ensure weights sum to 1.0 for validation
-def validate_weights():
+def validate_weights(weights: dict) -> None:
     """Validate that weights sum to 1.0"""
-    total_weight = sum(CRITERIA_WEIGHTS.values())
+    total_weight = sum(weights.values())
     if abs(total_weight - 1.0) > 0.001:
         raise ValueError(f"Weights must sum to 1.0, but sum to {total_weight}")
 
 def set_buyer_profile(profile_name: str):
     """
-    Set the buyer profile to use for scoring.
+    Set the buyer profile to use for scoring (thread-safe).
     
     Args:
         profile_name: Name of the profile to use
     """
-    global CRITERIA_WEIGHTS, _current_profile
-    
     try:
         from Application.buyer_profiles import get_profile, BuyerPersona
-        # Allow passing enums directly for safer switching
         if isinstance(profile_name, BuyerPersona):
             profile_key = profile_name.value
         else:
             profile_key = profile_name
 
         profile = get_profile(profile_key)
-        CRITERIA_WEIGHTS = profile['weights'].copy()
-        _current_profile = profile_key
-        validate_weights()
+        weights = profile['weights'].copy()
+        validate_weights(weights)
+        _current_weights.set(weights)
+        _current_profile.set(profile_key)
+        
+        # Also update legacy global for backward compatibility
+        global CRITERIA_WEIGHTS
+        CRITERIA_WEIGHTS = weights
+        
         print(f"✅ Set buyer profile to: {profile['name']}")
     except Exception as e:
         print(f"❌ Error setting profile '{profile_name}': {e}")
@@ -87,26 +95,32 @@ def get_current_profile() -> str:
     Returns:
         str: Name of the current profile
     """
-    return _current_profile
+    return _current_profile.get()
 
 def get_current_weights() -> dict:
     """
-    Get the current criteria weights.
+    Get the current criteria weights (thread-safe).
     
     Returns:
-        dict: Current criteria weights
+        dict: Current criteria weights (per-thread context)
     """
-    return CRITERIA_WEIGHTS.copy()
+    return _current_weights.get().copy()
+
+def _get_weights(weights: dict | None) -> dict:
+    """Internal helper: return provided weights or fetch from thread context."""
+    if weights is not None:
+        return weights
+    return _current_weights.get().copy()
 
 # Initialize with DIY Renovator profile by default
 try:
     from Application.buyer_profiles import get_profile
     profile = get_profile('diy_renovator')
     CRITERIA_WEIGHTS = profile['weights'].copy()
-    validate_weights()
+    _current_weights.set(CRITERIA_WEIGHTS.copy())
+    validate_weights(CRITERIA_WEIGHTS)
 except Exception as e:
-    # If there's an error, keep the default weights and validate them
-    validate_weights()
+    validate_weights(CRITERIA_WEIGHTS)
 
 def normalize_value(criterion_name, actual_value):
     """
@@ -123,6 +137,10 @@ def normalize_value(criterion_name, actual_value):
 
     if actual_value is None:
         return 0.0
+    if not isinstance(actual_value, (int, float)) or (isinstance(actual_value, float) and (math.isnan(actual_value) or math.isinf(actual_value))):
+        return 0.0
+    if max_val == min_val:
+        return 50.0
 
     if direction == 'lower_is_better':
         if actual_value <= min_val:
@@ -148,10 +166,9 @@ def score_apartment(apartment_data, weights=None):
 
     Args:
         apartment_data: Listing dict with scoring criteria
-        weights: Criteria weights dict. If None, uses global CRITERIA_WEIGHTS.
+        weights: Criteria weights dict. If None, uses thread-local context weights.
     """
-    if weights is None:
-        weights = CRITERIA_WEIGHTS
+    weights = _get_weights(weights)
 
     apartment_id = apartment_data.get('_id', 'Unknown')
     weighted_scores_breakdown = {}
@@ -185,14 +202,11 @@ def score_apartment(apartment_data, weights=None):
 def score_apartment_simple(apartment_data, weights=None):
     """
     Simple version that just returns the score without breakdown.
-    Fixes score by multiplying by 100 if below 0.
+    Clamps negative scores to 0 (shouldn't happen with normalization, but guard).
     """
+    weights = _get_weights(weights)
     score, _ = score_apartment(apartment_data, weights)
-
-    if score < 0:
-        score = score * 100
-
-    return score
+    return max(0.0, score)
 
 def print_apartment_score(apartment_data):
     """
@@ -222,6 +236,7 @@ def score_multiple_apartments(apartments_list, weights=None):
     """
     Scores multiple apartments and returns them sorted by score.
     """
+    weights = _get_weights(weights)
     apartment_results = []
 
     for apartment in apartments_list:
@@ -232,7 +247,6 @@ def score_multiple_apartments(apartments_list, weights=None):
             'details': breakdown
         })
 
-    # Sort apartments by total score (highest first)
     apartment_results.sort(key=lambda x: x['total_score'], reverse=True)
     
     return apartment_results

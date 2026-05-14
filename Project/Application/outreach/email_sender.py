@@ -7,6 +7,11 @@ import smtplib
 import logging
 import time
 import os
+import ssl
+import socket
+import hashlib
+import secrets
+import base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, Optional, List
@@ -14,6 +19,24 @@ from dataclasses import dataclass
 from datetime import datetime
 import re
 import email.utils
+
+
+UNSUBSCRIBE_BASE_URL = "https://immo-scouter.com/unsubscribe"
+
+
+def _generate_unsubscribe_token(recipient_email: str) -> str:
+    """Generate a one-time unsubscribe token for GDPR compliance."""
+    token_data = f"{recipient_email}:{secrets.token_hex(16)}"
+    return base64.urlsafe_b64encode(token_data.encode()).decode()
+
+
+def _verify_unsubscribe_token(token: str, recipient_email: str) -> bool:
+    """Verify unsubscribe token matches recipient."""
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        return decoded.startswith(f"{recipient_email}:")
+    except Exception:
+        return False
 
 
 def _is_valid_email(email_addr: str) -> bool:

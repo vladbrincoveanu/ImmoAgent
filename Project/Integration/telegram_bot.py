@@ -1,10 +1,21 @@
 import requests
 import json
+import re
 from typing import Dict, List
 import logging
 from Application.helpers.utils import load_config
 from Application.scoring import score_apartment_simple
 import time
+
+telegram_logger = logging.getLogger(__name__)
+telegram_logger.addFilter(TelegramTokenFilter())
+
+class TelegramTokenFilter(logging.Filter):
+    TOKEN_PATTERN = re.compile(r'(\d{8,10}:[\w-]{30,50})')
+    def filter(self, record):
+        if record.msg and isinstance(record.msg, str):
+            record.msg = self.TOKEN_PATTERN.sub('<TELEGRAM_TOKEN_REDACTED>', record.msg)
+        return True
 
 def clean_utf8_text(text: str) -> str:
     """Clean text to ensure UTF-8 compatibility and proper formatting"""
@@ -228,7 +239,7 @@ class TelegramBot:
             # Convert Listing object to dict if needed
             try:
                 listing = listing.__dict__ if hasattr(listing, '__dict__') else dict(listing)
-            except:
+            except (AttributeError, TypeError):
                 return "⚠️ Error: Invalid listing data format"
 
         # Clean all text fields to prevent UTF-8 encoding issues
