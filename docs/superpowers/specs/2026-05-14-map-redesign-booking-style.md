@@ -37,8 +37,14 @@ map/page.tsx
 New state added:
 
 ```ts
+// Defined in map/page.tsx — avoids importing Leaflet in a SSR-rendered file.
+// L.LatLngBounds from MapView (client-only) satisfies this interface at runtime.
+interface ViewportBounds {
+  contains: (latlng: [number, number]) => boolean;
+}
+
 const [hoveredId, setHoveredId] = useState<string | null>(null);
-const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
+const [bounds, setBounds] = useState<ViewportBounds | null>(null);
 ```
 
 Existing state kept: `highlightedId`, `detailId`, `listings`, `filteredListings`, `loading`, `minScore`, `district`, `sortBy`, `maxPrice`, `showUnfinanceable`.
@@ -62,7 +68,7 @@ Before first `moveend` fires (`bounds` is null), sidebar shows all `filteredList
 
 - **Responsibility:** Renders Leaflet map with price-label divIcon pins; fires hover, select, and bounds-change events upward; owns no state.
 - **Interface:**
-  - Props in: `listings: MapListing[]`, `highlightedId: string | null`, `hoveredId: string | null`, `onPinClick: (l: MapListing) => void`, `onHover: (id: string) => void`, `onHoverEnd: () => void`, `onBoundsChange: (b: L.LatLngBounds) => void`, `onMapClick: () => void`
+  - Props in: `listings: MapListing[]`, `highlightedId: string | null`, `hoveredId: string | null`, `onPinClick: (l: MapListing) => void`, `onHover: (id: string) => void`, `onHoverEnd: () => void`, `onBoundsChange: (b: ViewportBounds) => void`, `onMapClick: () => void`
   - Props removed: `selectedListing: MapListing | null` (replaced by `highlightedId` string — MapView looks up the listing itself)
 - **Dependencies:** `leaflet`, `react-leaflet`, `MapListing` type
 - **Size target:** ~200 lines; `BoundsTracker` and `MapClickHandler` are small inner components
@@ -89,8 +95,8 @@ function createPriceIcon(listing: MapListing, state: 'default' | 'hovered' | 'se
 
   return L.divIcon({
     html: `<div style="background:${color};color:white;padding:3px 7px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);transform:${scale};transform-origin:center bottom;border:1.5px solid rgba(255,255,255,0.4)">${price}</div>`,
-    iconSize: [56, 22],
-    iconAnchor: [28, 22],
+    iconSize: [80, 24],   // wide enough for any Austrian price (€1,289k = ~72px)
+    iconAnchor: [40, 24],
     className: '',
   });
 }
@@ -99,13 +105,13 @@ function createPriceIcon(listing: MapListing, state: 'default' | 'hovered' | 'se
 ### BoundsTracker (inner component)
 
 ```tsx
-function BoundsTracker({ onBoundsChange }: { onBoundsChange: (b: L.LatLngBounds) => void }) {
+function BoundsTracker({ onBoundsChange }: { onBoundsChange: (b: ViewportBounds) => void }) {
   const map = useMap();
   useMapEvents({
     moveend: () => onBoundsChange(map.getBounds()),
     zoomend: () => onBoundsChange(map.getBounds()),
   });
-  useEffect(() => { onBoundsChange(map.getBounds()); }, []);
+  useEffect(() => { onBoundsChange(map.getBounds()); }, [map, onBoundsChange]);
   return null;
 }
 ```
@@ -118,21 +124,35 @@ Fires once on mount (initial bounds), then on every `moveend`/`zoomend`. No debo
 
 ### Hover + selected icon update
 
+Only update the 2 affected markers per change (O(1) DOM ops, not O(n)):
+
 ```tsx
+const prevHoveredIdRef = useRef<string | null>(null);
+const prevHighlightedIdRef = useRef<string | null>(null);
+
 useEffect(() => {
-  listings.forEach((l) => {
-    const marker = markerRefs.current.get(l._id);
-    if (!marker) return;
+  const idsToRefresh = new Set([
+    prevHoveredIdRef.current, prevHighlightedIdRef.current,
+    hoveredId, highlightedId,
+  ].filter(Boolean) as string[]);
+
+  idsToRefresh.forEach((id) => {
+    const marker = markerRefs.current.get(id);
+    const listing = listings.find((l) => l._id === id);
+    if (!marker || !listing) return;
     const state =
-      l._id === highlightedId ? 'selected'
-      : l._id === hoveredId ? 'hovered'
+      id === highlightedId ? 'selected'
+      : id === hoveredId ? 'hovered'
       : 'default';
-    marker.setIcon(createPriceIcon(l, state));
+    marker.setIcon(createPriceIcon(listing, state));
   });
+
+  prevHoveredIdRef.current = hoveredId;
+  prevHighlightedIdRef.current = highlightedId;
 }, [listings, highlightedId, hoveredId]);
 ```
 
-Runs on every `highlightedId` or `hoveredId` change. Iterates all markers to reset previous states correctly (no stale hovered icon left behind).
+On hover, updates ≤4 markers (prev hovered, new hovered, prev highlighted, new highlighted). Avoids O(n) DOM writes per mouseenter.
 
 ---
 
