@@ -1,3 +1,5 @@
+'use client';
+
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -78,6 +80,11 @@ export interface ViewportBounds {
   west: number;
 }
 
+function MapClickHandler({ onMapClick }: { onMapClick?: () => void }) {
+  useMapEvents({ click: () => { onMapClick?.(); } });
+  return null;
+}
+
 function BoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: ViewportBounds) => void }) {
   const map = useMap();
 
@@ -105,6 +112,71 @@ function BoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: ViewportB
   return null;
 }
 
+function MarkerLayer({
+  listings,
+  highlightedId,
+  hoveredId,
+  onPinClick,
+  onHover,
+  onHoverEnd,
+}: {
+  listings: MapListing[];
+  highlightedId: string | null;
+  hoveredId?: string | null;
+  onPinClick: (listing: MapListing) => void;
+  onHover?: (id: string) => void;
+  onHoverEnd?: () => void;
+}) {
+  const map = useMap();
+  const markerInstances = useRef<Map<string, L.Marker>>(new Map());
+  const layerGroupRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    if (!layerGroupRef.current) {
+      layerGroupRef.current = L.layerGroup().addTo(map);
+    }
+    const layer = layerGroupRef.current;
+
+    const toRemove: string[] = [];
+    markerInstances.current.forEach((_, id) => {
+      if (!listings.find((l) => l._id === id)) {
+        toRemove.push(id);
+      }
+    });
+    toRemove.forEach((id) => {
+      const marker = markerInstances.current.get(id);
+      if (marker) {
+        layer.removeLayer(marker);
+        markerInstances.current.delete(id);
+      }
+    });
+
+    listings.forEach((listing) => {
+      if (!listing.coordinates) return;
+
+      const state = getPinState(listing, highlightedId ?? null, hoveredId ?? null);
+      const color = getPinColor(state);
+      const size = getPinSize(state);
+      const icon = createPriceIcon(listing.price_total ?? 0, color, size);
+
+      let marker = markerInstances.current.get(listing._id);
+      if (marker) {
+        marker.setLatLng([listing.coordinates.lat, listing.coordinates.lon]);
+        marker.setIcon(icon);
+      } else {
+        marker = L.marker([listing.coordinates.lat, listing.coordinates.lon], { icon });
+        marker.on('click', () => onPinClick(listing));
+        marker.on('mouseover', () => onHover?.(listing._id));
+        marker.on('mouseout', () => onHoverEnd?.());
+        layer.addLayer(marker);
+        markerInstances.current.set(listing._id, marker);
+      }
+    });
+  }, [map, listings, highlightedId, hoveredId, onPinClick, onHover, onHoverEnd]);
+
+  return null;
+}
+
 export const MapView = memo(function MapView({
   listings,
   highlightedId,
@@ -116,69 +188,7 @@ export const MapView = memo(function MapView({
   onMapClick,
 }: MapViewProps) {
   const viennaCenter: [number, number] = [48.2082, 16.3738];
-  const markerLayerRef = useRef<L.LayerGroup | null>(null);
-  const markerInstances = useRef<Map<string, L.Marker>>(new Map());
-  const prevHoveredIdRef = useRef<string | null>(null);
-  const prevHighlightedIdRef = useRef<string | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-
-  const updatePin = useCallback((listing: MapListing, marker: L.Marker) => {
-    const state = getPinState(listing, highlightedId ?? null, hoveredId ?? null);
-    const color = getPinColor(state);
-    const size = getPinSize(state);
-    const icon = createPriceIcon(listing.price_total ?? 0, color, size);
-    marker.setIcon(icon);
-  }, [highlightedId, hoveredId]);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const layer = markerLayerRef.current;
-    if (!layer) return;
-
-    const prevHovered = prevHoveredIdRef.current;
-    const currHovered = hoveredId ?? null;
-
-    if (prevHovered && prevHovered !== currHovered) {
-      const marker = markerInstances.current.get(prevHovered);
-      const listing = listings.find((l) => l._id === prevHovered);
-      if (marker && listing) updatePin(listing, marker);
-    }
-    if (currHovered && currHovered !== prevHovered) {
-      const marker = markerInstances.current.get(currHovered);
-      const listing = listings.find((l) => l._id === currHovered);
-      if (marker && listing) updatePin(listing, marker);
-    }
-    prevHoveredIdRef.current = currHovered;
-  }, [hoveredId, listings, updatePin]);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const layer = markerLayerRef.current;
-    if (!layer) return;
-
-    const prevHighlighted = prevHighlightedIdRef.current;
-    const currHighlighted = highlightedId ?? null;
-
-    if (prevHighlighted && prevHighlighted !== currHighlighted) {
-      const marker = markerInstances.current.get(prevHighlighted);
-      const listing = listings.find((l) => l._id === prevHighlighted);
-      if (marker && listing) updatePin(listing, marker);
-    }
-    if (currHighlighted && currHighlighted !== prevHighlighted) {
-      const marker = markerInstances.current.get(currHighlighted);
-      const listing = listings.find((l) => l._id === currHighlighted);
-      if (marker && listing) updatePin(listing, marker);
-    }
-    prevHighlightedIdRef.current = currHighlighted;
-  }, [highlightedId, listings, updatePin]);
-
-  const handleMarkerMouseOver = useCallback((listingId: string) => {
-    onHover?.(listingId);
-  }, [onHover]);
-
-  const handleMarkerMouseOut = useCallback(() => {
-    onHoverEnd?.();
-  }, [onHoverEnd]);
 
   return (
     <MapContainer
@@ -194,35 +204,15 @@ export const MapView = memo(function MapView({
       />
 
       <BoundsTracker onBoundsChange={onBoundsChange} />
-
-      <useMapEvents
-        click={() => { onMapClick?.(); }}
+      <MapClickHandler onMapClick={onMapClick} />
+      <MarkerLayer
+        listings={listings}
+        highlightedId={highlightedId}
+        hoveredId={hoveredId}
+        onPinClick={onPinClick}
+        onHover={onHover}
+        onHoverEnd={onHoverEnd}
       />
-
-      <TileLayer /> {/* extra TileLayer for layer container */}
-
-      <TileLayer /> {/* extra TileLayer for layer container */}
-
-      <L.LayerGroup ref={markerLayerRef}>
-        {listings.map((listing) => {
-          if (!listing.coordinates) return null;
-
-          const state = getPinState(listing, highlightedId ?? null, hoveredId ?? null);
-          const color = getPinColor(state);
-          const size = getPinSize(state);
-          const icon = createPriceIcon(listing.price_total ?? 0, color, size);
-
-          const marker = L.marker([listing.coordinates.lat, listing.coordinates.lon], { icon });
-
-          marker.on('click', () => onPinClick(listing));
-          marker.on('mouseover', () => handleMarkerMouseOver(listing._id));
-          marker.on('mouseout', () => handleMarkerMouseOut());
-
-          markerInstances.current.set(listing._id, marker);
-
-          return marker;
-        })}
-      </L.LayerGroup>
     </MapContainer>
   );
 });

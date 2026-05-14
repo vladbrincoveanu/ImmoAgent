@@ -9,6 +9,8 @@ import { SortOption } from '@/components/FilterBar';
 import { MapListing } from '@/lib/types';
 import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
+import { SelectedCard } from '@/components/SelectedCard';
+import type { ViewportBounds } from '@/components/MapView';
 
 const MapView = dynamic(
   () => import('@/components/MapView').then((m) => m.MapView),
@@ -27,6 +29,8 @@ export default function MapPage() {
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [bounds, setBounds] = useState<ViewportBounds | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [minScore, setMinScore] = useState('0');
   const [district, setDistrict] = useState('');
@@ -77,6 +81,15 @@ export default function MapPage() {
     return true;
   }), [listings, maxPrice, showUnfinanceable]);
 
+  const viewportListings = useMemo(() => {
+    if (!bounds) return filteredListings;
+    return filteredListings.filter((l) => {
+      if (!l.coordinates) return false;
+      const { lat, lon } = l.coordinates;
+      return lat >= bounds.south && lat <= bounds.north && lon >= bounds.west && lon <= bounds.east;
+    });
+  }, [filteredListings, bounds]);
+
   const highlightedListing = useMemo(
     () => filteredListings.find((l) => l._id === highlightedId) ?? null,
     [filteredListings, highlightedId]
@@ -112,7 +125,7 @@ export default function MapPage() {
         {/* Desktop sidebar — hidden on mobile */}
         <div className="hidden md:block w-[280px] h-full shrink-0">
           <ListingSidebar
-            listings={filteredListings}
+            listings={viewportListings}
             minScore={minScore}
             onMinScoreChange={setMinScore}
             district={district}
@@ -122,6 +135,10 @@ export default function MapPage() {
             onSelect={handleSidebarSelect}
             sortBy={sortBy}
             onSortChange={setSortBy}
+            viewportCount={viewportListings.length}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onHoverEnd={() => setHoveredId(null)}
           />
         </div>
 
@@ -226,9 +243,18 @@ export default function MapPage() {
             <>
               <MapView
                 listings={listings}
-                selectedListing={highlightedListing}
+                highlightedId={highlightedId}
+                hoveredId={hoveredId}
+                onHover={setHoveredId}
+                onHoverEnd={() => setHoveredId(null)}
+                onBoundsChange={setBounds}
                 onPinClick={handlePinClick}
                 onMapClick={handleCloseDetail}
+              />
+              <SelectedCard
+                listing={highlightedListing}
+                onClose={handleCloseDetail}
+                onViewDetails={setDetailId}
               />
               <MapLegend />
             </>
