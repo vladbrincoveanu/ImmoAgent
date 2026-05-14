@@ -53,7 +53,7 @@ def ensure_config_json_on_path():
 
 ensure_config_json_on_path()
 
-from Application.helpers.utils import load_config
+from Application.helpers.utils import load_config, smart_sleep
 from Application.helpers.listing_validator import filter_valid_listings
 from Application.outreach.contact_extractor import ContactExtractor, ContactType
 from Application.outreach.email_sender import EmailSender, OutreachMessage
@@ -344,7 +344,7 @@ Configuration:
             print(f"    ❌ No contact found")
         
         # Small delay between page loads
-        time.sleep(1)
+        smart_sleep(1)
     
     contact_extractor.cleanup()
     

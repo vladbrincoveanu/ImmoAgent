@@ -4,6 +4,7 @@ import json
 import time
 from bs4 import BeautifulSoup
 from typing import Optional, Dict, Any
+from Application.helpers.utils import smart_sleep
 
 def parse_listing_html(html: str, url: str) -> Dict[str, Any]:
     """
@@ -245,6 +246,6 @@ def scrape_multiple_listings(urls: list) -> list:
             results.append(listing_data)
         
         # Be respectful - add delay between requests
-        time.sleep(1)
+        smart_sleep(1)
     
     return results

@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 import requests
 from dataclasses import dataclass
 from enum import Enum
+from Application.helpers.utils import smart_sleep
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -119,7 +120,7 @@ class ContactExtractor:
             if self.driver:
                 try:
                     self.driver.get(url)
-                    time.sleep(2)  # Wait for dynamic content
+                    smart_sleep(2)  # Wait for dynamic content
                     return self.driver.page_source
                 except Exception as e:
                     logging.warning(f"⚠️ Selenium failed for {url}: {e}")

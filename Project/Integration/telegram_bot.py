@@ -3,7 +3,7 @@ import json
 import re
 from typing import Dict, List
 import logging
-from Application.helpers.utils import load_config
+from Application.helpers.utils import load_config, smart_sleep
 from Application.scoring import score_apartment_simple
 import time
 
@@ -550,7 +550,7 @@ class TelegramBot:
                         logging.error(f"❌ Failed to send listing {i}/{len(top_listings)}")
                     
                     # Small delay between messages to avoid rate limiting
-                    time.sleep(1)
+                    smart_sleep(1)
                         
                 except Exception as e:
                     logging.error(f"Error sending listing {i}: {e}")

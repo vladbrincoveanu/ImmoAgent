@@ -21,7 +21,7 @@ from Application.scraping.field_extractors import (
 )
 from Application.helpers.geocoding import ViennaGeocoder
 import logging
-from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, load_config
+from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, load_config, smart_sleep
 
 @dataclass
 class Amenity:
@@ -1348,7 +1348,7 @@ class ImmoKurierScraper:
                         invalid_count += 1
                         logging.info(f"❌ Failed to scrape listing")
                     
-                    time.sleep(0.5)  # Be nice to the server
+                    smart_sleep(0.5)  # Be nice to the server
                     
             except Exception as e:
                 logging.error(f"❌ Error scraping search results page {page}: {e}")

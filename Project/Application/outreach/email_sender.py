@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import re
 import email.utils
+from Application.helpers.utils import smart_sleep
 
 
 UNSUBSCRIBE_BASE_URL = "https://immo-scouter.com/unsubscribe"
@@ -368,13 +369,7 @@ Objektreferenz: {listing_url}
         """
         results = []
         sent_count = 0
-
-        if not listings_with_contacts:
-            return results
-
-        context = ssl.create_default_context()
-
-        try:
+try:
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 if self.use_tls:
                     server.starttls(context=context)
@@ -409,11 +404,11 @@ Objektreferenz: {listing_url}
                         sent_count += 1
 
                     if sent_count < len(listings_with_contacts):
-                        time.sleep(self.delay_between_emails)
+                        smart_sleep(self.delay_between_emails)
 
         except smtplib.SMTPException as e:
             logging.error(f"❌ SMTP connection error: {e}")
-
+        
         logging.info(f"📊 Batch complete: {sent_count}/{len(listings_with_contacts)} emails sent")
         return results
 

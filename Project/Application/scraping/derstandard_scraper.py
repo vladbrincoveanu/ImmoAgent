@@ -34,7 +34,7 @@ from Integration.mongodb_handler import MongoDBHandler
 from Application.analyzer import StructuredAnalyzer
 from Application.bank_scoring import compute_bank_score
 from Application.helpers.geocoding import ViennaGeocoder
-from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten
+from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, smart_sleep
 from Application.buyer_profiles import GLOBAL_VALIDATION
 
 class DerStandardScraper:
@@ -460,7 +460,7 @@ class DerStandardScraper:
             )
             # Additional wait for dynamic content
             import time
-            time.sleep(3)
+            smart_sleep(3)
             return self.driver.page_source
         except Exception as e:
             # If Selenium session is invalid, disable and fallback
@@ -1863,7 +1863,7 @@ class DerStandardScraper:
                 invalid_count += 1
             
             # Rate limiting
-            time.sleep(1)
+            smart_sleep(1)
         
         # Count high-score listings
         score_threshold = 40  # Default threshold
