@@ -56,8 +56,8 @@ function createPriceIcon(price: number, color: string, tier: MarkerTier): L.DivI
   const label = `€${formatPrice(price)}`;
   return L.divIcon({
     html: `<div style="background:${color};color:white;font-size:${s.fontSize};font-weight:700;padding:${s.padding};border-radius:999px;white-space:nowrap;box-shadow:${s.shadow};border:${s.border};font-family:system-ui,-apple-system,sans-serif;">${label}</div>`,
-    iconSize: [label.length * 7 + 8, s.h],
-    iconAnchor: [(label.length * 7 + 8) / 2, s.h / 2],
+    iconSize: [Math.max(40, label.length * 7 + 8), s.h],
+    iconAnchor: [Math.max(40, label.length * 7 + 8) / 2, s.h / 2],
     className: '',
   });
 }
