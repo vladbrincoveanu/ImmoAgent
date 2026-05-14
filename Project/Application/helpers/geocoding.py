@@ -1,17 +1,47 @@
 import requests
 import math
 import time
+import threading
 from typing import Dict, List, Optional, Tuple
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from Domain.location import Coordinates, Amenity
 from .utils import get_project_root, DataLoader, smart_sleep
 from .landmark_extractor import extract_landmark_hint
+
+_nominatim_lock = threading.Semaphore(1)
+
+def _rate_limited_get(session, url, **kwargs) -> requests.Response:
+    """Nominatim requires max 1 req/sec — enforce via semaphore"""
+    _nominatim_lock.acquire()
+    try:
+        kwargs.setdefault('headers', {})
+        kwargs['headers']['User-Agent'] = 'ImmoScouter/1.0 (real-estate-scraper; contact@vladbrincoveanu.com)'
+        response = session.get(url, **kwargs)
+        if response.status_code == 429:
+            sleep_time = int(response.headers.get('Retry-After', 2))
+            time.sleep(sleep_time)
+            response = session.get(url, **kwargs)
+    finally:
+        time.sleep(1.1)
+        _nominatim_lock.release()
+    return response
 
 class ViennaGeocoder:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'ImmoScouter/1.0 (real-estate-scraper; contact@vladbrincoveanu.com)'
         })
+
+        retry_strategy = Retry(
+            total=2,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy, timeout=10)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
         
         # Load Vienna U-Bahn stations from JSON data
         self.ubahn_stations = DataLoader.load_ubahn_stations()
@@ -85,7 +115,7 @@ class ViennaGeocoder:
                 'countrycodes': 'at'
             }
             
-            response = self.session.get(url, params=params, timeout=10)
+            response = _rate_limited_get(self.session, url, params=params, timeout=10)
             response.raise_for_status()
             
             data = response.json()
