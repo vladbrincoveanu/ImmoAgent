@@ -328,7 +328,8 @@ def scrape_willhaben(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
         alert_url = config.get('alert_url', "https://www.willhaben.at/iad/searchagent/alert?verticalId=2&searchId=101&alertId=59840387")
         all_listings = scraper.scrape_search_agent_page(alert_url, max_pages=max_pages)
 
-        for extra_url in willhaben_config.get('search_url_extra', []):
+        default_extra = ['https://www.willhaben.at/iad/immobilien/neubauprojekt/wien']
+        for extra_url in willhaben_config.get('search_url_extra', default_extra):
             logging.info(f"🏗️  Scraping extra URL: {extra_url}")
             extra_listings = scraper.scrape_search_agent_page(extra_url, max_pages=max_pages)
             all_listings.extend(extra_listings)
