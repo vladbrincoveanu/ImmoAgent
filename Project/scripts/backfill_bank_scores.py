@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Backfill Belehnungswert bank scoring fields for all existing MongoDB listings.
 
-Idempotent: only processes listings where estimated_down_pct does not yet exist.
+Idempotent: only processes listings where belehnungswert_factor does not yet exist.
 Run from the Project/ directory:
     python scripts/backfill_bank_scores.py
 """
@@ -9,10 +9,14 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+from types import SimpleNamespace
+from pymongo import UpdateOne
+
 from Integration.mongodb_handler import MongoDBHandler
 from Application.bank_scoring import compute_bank_score
 from Application.helpers.utils import load_config
-from Domain.listing import Listing
+
+BATCH_SIZE = 500
 
 
 def main():
@@ -20,48 +24,59 @@ def main():
     mongo = MongoDBHandler(uri=config.get('mongodb_uri'))
     col = mongo.collection
 
-    query = {'estimated_down_pct': {'$exists': False}}
+    # Use belehnungswert_factor as idempotency key — written for ALL docs (even price-less).
+    # estimated_down_pct alone would re-process price-less docs forever.
+    query = {'belehnungswert_factor': {'$exists': False}}
     total = col.count_documents(query)
-    print(f"Backfilling {total} listings (estimated_down_pct missing)")
+    print(f"Backfilling {total} listings (belehnungswert_factor missing)")
 
     processed = updated = skipped = 0
+    ops = []
 
-    for doc in col.find(query):
-        processed += 1
-        listing = Listing(
-            url=doc.get('url', ''),
-            source=doc.get('source', 'unknown'),
-            price_total=doc.get('price_total'),
-            energy_class=doc.get('energy_class'),
-            year_built=doc.get('year_built'),
-            facade_renovated=doc.get('facade_renovated'),
-            roof_renovated=doc.get('roof_renovated'),
-            window_type=doc.get('window_type'),
-        )
+    try:
+        cursor = col.find(query, no_cursor_timeout=True).batch_size(BATCH_SIZE)
+        for doc in cursor:
+            processed += 1
 
-        bank = compute_bank_score(listing)
+            listing = SimpleNamespace(
+                price_total=doc.get('price_total'),
+                energy_class=doc.get('energy_class'),
+                year_built=doc.get('year_built'),
+                facade_renovated=doc.get('facade_renovated'),
+                roof_renovated=doc.get('roof_renovated'),
+                window_type=doc.get('window_type'),
+            )
 
-        if bank.estimated_down_pct is None:
-            skipped += 1
-            continue
+            bank = compute_bank_score(listing)
 
-        col.update_one(
-            {'_id': doc['_id']},
-            {'$set': {
-                'belehnungswert_factor':   bank.belehnungswert_factor,
-                'estimated_down_pct':      bank.estimated_down_pct,
-                'estimated_down_pct_kimv': bank.estimated_down_pct_kimv,
-                'estimated_equity_eur':    bank.estimated_equity_eur,
-                'bank_score_confidence':   bank.bank_score_confidence,
-            }}
-        )
-        updated += 1
+            if bank.estimated_down_pct is None:
+                skipped += 1
 
-        if processed % 100 == 0:
-            print(f"  {processed}/{total} — {updated} updated, {skipped} skipped")
+            ops.append(UpdateOne(
+                {'_id': doc['_id']},
+                {'$set': {
+                    'belehnungswert_factor':   bank.belehnungswert_factor,
+                    'estimated_down_pct':      bank.estimated_down_pct,
+                    'estimated_down_pct_kimv': bank.estimated_down_pct_kimv,
+                    'estimated_equity_eur':    bank.estimated_equity_eur,
+                    'bank_score_confidence':   bank.bank_score_confidence,
+                }}
+            ))
 
-    print(f"\nDone: {processed} processed | {updated} updated | {skipped} skipped (no price_total)")
-    mongo.close()
+            if len(ops) >= BATCH_SIZE:
+                col.bulk_write(ops)
+                updated += len(ops)
+                ops = []
+                print(f"  {processed}/{total} — {updated} written")
+
+        if ops:
+            col.bulk_write(ops)
+            updated += len(ops)
+
+    finally:
+        mongo.close()
+
+    print(f"\nDone: {processed} processed | {updated} written | {skipped} skipped (no price_total)")
 
 
 if __name__ == '__main__':
