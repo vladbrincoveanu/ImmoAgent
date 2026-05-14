@@ -47,23 +47,27 @@ def deep_cleanup_database(mongo_handler: MongoDBHandler) -> Dict[str, int]:
     all_listings = list(mongo_handler.collection.find(
         {"url": {"$exists": True, "$ne": None, "$ne": ""}},
         {"price_total": 1, "area_m2": 1, "_id": 1}
-    ))
+    ).limit(1000))
+    from datetime import datetime
     for listing in all_listings:
         is_valid, _ = is_valid_listing_data(listing)
         if not is_valid:
             try:
-                mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                mongo_handler.collection.update_one(
+                    {"_id": listing["_id"]},
+                    {"$set": {"url_is_valid": False, "invalidated_at": datetime.utcnow()}}
+                )
                 invalid_price_per_m2 += 1
             except Exception as e:
-                logging.debug(f"   ⚠️ Failed to delete listing {listing.get('_id')}: {e}")
+                logging.debug(f"   ⚠️ Failed to update listing {listing.get('_id')}: {e}")
     if invalid_price_per_m2 > 0:
-        logging.info(f"   ✅ Removed {invalid_price_per_m2} listings with invalid price_per_m2")
+        logging.info(f"   ✅ Marked {invalid_price_per_m2} listings with invalid price_per_m2 as invalid")
         stats["invalid_data"] += invalid_price_per_m2
 
     derstandard_listings = list(mongo_handler.collection.find(
         {"source": "derstandard"},
         {"url": 1, "_id": 1}
-    ))
+    ).limit(500))
 
     if derstandard_listings:
         logging.info(f"   🔍 Checking {len(derstandard_listings)} derstandard URLs for broken links...")
@@ -179,17 +183,20 @@ def comprehensive_cleanup_all_listings(mongo_handler: MongoDBHandler, max_age_da
     all_listings = list(mongo_handler.collection.find(
         {"url": {"$exists": True, "$ne": None, "$ne": ""}},
         {"price_total": 1, "area_m2": 1, "_id": 1}
-    ))
+    ).limit(1000))
     for listing in all_listings:
         is_valid, _ = is_valid_listing_data(listing)
         if not is_valid:
             try:
-                mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                mongo_handler.collection.update_one(
+                    {"_id": listing["_id"]},
+                    {"$set": {"url_is_valid": False, "invalidated_at": datetime.utcnow()}}
+                )
                 invalid_price_per_m2 += 1
             except Exception as e:
-                logging.debug(f"   ⚠️ Failed to delete listing {listing.get('_id')}: {e}")
+                logging.debug(f"   ⚠️ Failed to update listing {listing.get('_id')}: {e}")
     if invalid_price_per_m2 > 0:
-        logging.info(f"   ✅ Removed {invalid_price_per_m2} listings with invalid price_per_m2")
+        logging.info(f"   ✅ Marked {invalid_price_per_m2} listings with invalid price_per_m2 as invalid")
         stats["invalid_data"] += invalid_price_per_m2
 
     cutoff_ts = time.time() - (max_age_days * 86400)
@@ -228,20 +235,24 @@ def comprehensive_cleanup_all_listings(mongo_handler: MongoDBHandler, max_age_da
                     url_invalid = False
 
                     try:
-                        resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=5)
-                        if resp.status_code != 200:
+                        resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=8)
+                        if resp.status_code == 404 or resp.status_code == 410:
                             url_invalid = True
                             logging.debug(f"💀 Broken URL (HTTP {resp.status_code}): {url}")
-                    except Exception as e:
-                        url_invalid = True
-                        logging.debug(f"💀 Unreachable URL ({type(e).__name__}): {url}")
+                        elif resp.status_code >= 400:
+                            logging.debug(f"⚠️ URL returned {resp.status_code} (not deleting): {url}")
+                    except requests.exceptions.RequestException as e:
+                        logging.debug(f"⚠️ URL check failed (network error, not deleting): {url} — {e}")
 
                     if url_invalid:
                         try:
-                            mongo_handler.collection.delete_one({"_id": listing["_id"]})
+                            mongo_handler.collection.update_one(
+                                {"_id": listing["_id"]},
+                                {"$set": {"url_is_valid": False, "invalidated_at": datetime.utcnow()}}
+                            )
                             broken_count += 1
                         except Exception as exc:
-                            logging.warning(f"⚠️ Failed to delete listing {listing.get('_id')}: {exc}")
+                            logging.warning(f"⚠️ Failed to update listing {listing.get('_id')}: {exc}")
 
                 if total_listings > batch_size:
                     progress = min(100, int((checked / total_listings) * 100))
