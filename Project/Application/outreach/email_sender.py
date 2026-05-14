@@ -369,7 +369,13 @@ Objektreferenz: {listing_url}
         """
         results = []
         sent_count = 0
-try:
+
+        if not listings_with_contacts:
+            return results
+
+        context = ssl.create_default_context()
+
+        try:
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 if self.use_tls:
                     server.starttls(context=context)
@@ -408,7 +414,7 @@ try:
 
         except smtplib.SMTPException as e:
             logging.error(f"❌ SMTP connection error: {e}")
-        
+
         logging.info(f"📊 Batch complete: {sent_count}/{len(listings_with_contacts)} emails sent")
         return results
 
