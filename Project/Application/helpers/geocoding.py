@@ -3,7 +3,7 @@ import math
 import time
 from typing import Dict, List, Optional, Tuple
 from Domain.location import Coordinates, Amenity
-from .utils import get_project_root, DataLoader
+from .utils import get_project_root, DataLoader, smart_sleep
 from .landmark_extractor import extract_landmark_hint
 
 class ViennaGeocoder:
@@ -186,7 +186,7 @@ class ViennaGeocoder:
                             ))
                     
                     # Rate limiting
-                    time.sleep(1)
+                    smart_sleep(1)
                     
                 except Exception as e:
                     print(f"Error finding {amenity_type} amenities: {e}")

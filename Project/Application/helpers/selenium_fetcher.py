@@ -4,6 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
+from Application.helpers.utils import smart_sleep
 
 def fetch_rendered_html(url: str, wait_time: int = 5, timeout: int = 20) -> str:
     """Fetch fully rendered HTML using headless Chrome"""
@@ -22,7 +23,7 @@ def fetch_rendered_html(url: str, wait_time: int = 5, timeout: int = 20) -> str:
             )
         except Exception:
             pass
-        time.sleep(wait_time)
+        smart_sleep(wait_time)  # Wait for page to fully render
         html = driver.page_source
         return html
     finally:

@@ -626,3 +626,10 @@ def get_walking_times(district: str) -> tuple:
         ubahn_times.get(district, 10),
         school_times.get(district, 8)
     )
+
+def smart_sleep(base_seconds: float) -> None:
+    """Sleep with ±30% random jitter to avoid bot detection"""
+    import random
+    import time as time_module
+    jitter = base_seconds * 0.3 * (2 * random.random() - 1)
+    time_module.sleep(max(0.1, base_seconds + jitter))

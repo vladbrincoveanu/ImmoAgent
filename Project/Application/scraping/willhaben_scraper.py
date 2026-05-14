@@ -17,7 +17,7 @@ from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.geocoding import ViennaGeocoder
 import logging
-from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten
+from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, smart_sleep
 from Application.scraping.field_extractors import (
     extract_lift_present, extract_facade_renovated,
     extract_parifizierung_complete, extract_roof_renovated,
@@ -201,7 +201,7 @@ class WillhabenScraper:
 
     def expand_project_to_units(self, url: str) -> List[str]:
         """Fetch a Neubauprojekt page and return individual unit listing URLs."""
-        time.sleep(1.0)
+        smart_sleep(1.0)
         response = self._fetch_with_retry(url)
         if not response:
             logging.warning(f"⚠️  Failed to expand project page: {url}")
@@ -326,7 +326,7 @@ class WillhabenScraper:
                             except (ValueError, TypeError):
                                 pass
                         logging.warning(f"⏱️  Rate limited (429) for {url}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
-                        time.sleep(delay)
+                        smart_sleep(delay)
                         continue
                     else:
                         logging.error(f"❌ Rate limited (429) for {url} after {max_retries} attempts")
@@ -339,7 +339,7 @@ class WillhabenScraper:
                 if attempt < max_retries - 1:
                     delay = base_delay * (2 ** attempt)
                     logging.warning(f"⏱️  Timeout for {url}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
-                    time.sleep(delay)
+                    smart_sleep(delay)
                     continue
                 else:
                     logging.error(f"❌ Timeout for {url} after {max_retries} attempts")
@@ -349,7 +349,7 @@ class WillhabenScraper:
                 if attempt < max_retries - 1:
                     delay = base_delay * (2 ** attempt)
                     logging.warning(f"⚠️  Request error for {url}: {e}, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
-                    time.sleep(delay)
+                    smart_sleep(delay)
                     continue
                 else:
                     logging.error(f"❌ Request error for {url} after {max_retries} attempts: {e}")
@@ -1794,7 +1794,7 @@ class WillhabenScraper:
             try:
                 # Add delay between pages to avoid rate limiting
                 if page > 1:
-                    time.sleep(2.0)  # 2 second delay between pages
+                    smart_sleep(2.0)  # 2 second delay between pages
                 
                 response = self._fetch_with_retry(url)
                 if not response:
@@ -1824,7 +1824,7 @@ class WillhabenScraper:
                         continue
                     
                     # Add delay between requests to avoid rate limiting
-                    time.sleep(1.0)  # 1 second delay between listing requests
+                    smart_sleep(1.0)  # 1 second delay between listing requests
                     
                     listing = self.scrape_single_listing(listing_url)
                     if not listing:

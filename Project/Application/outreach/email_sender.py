@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import re
 import email.utils
+from Application.helpers.utils import smart_sleep
 
 
 def _is_valid_email(email_addr: str) -> bool:
@@ -349,7 +350,7 @@ Objektreferenz: {listing_url}
             
             # Rate limiting
             if sent_count < len(listings_with_contacts) - 1:
-                time.sleep(self.delay_between_emails)
+                smart_sleep(self.delay_between_emails)
         
         logging.info(f"📊 Batch complete: {sent_count}/{len(listings_with_contacts)} emails sent")
         return results

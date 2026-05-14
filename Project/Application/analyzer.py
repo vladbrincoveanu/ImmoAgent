@@ -9,6 +9,7 @@ import re
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from Application.helpers.utils import smart_sleep
 
 # Try to import outlines for structured outputs
 try:
@@ -780,7 +781,7 @@ def fetch_url_with_retries(url, max_retries=3, delay=2):
         except Exception as e:
             logger.error(f"Error fetching {url} (attempt {attempt}): {e}")
             if attempt < max_retries:
-                time.sleep(delay * attempt)
+                smart_sleep(delay * attempt)
             else:
                 logger.error(f"Failed to fetch {url} after {max_retries} attempts.")
     return None
