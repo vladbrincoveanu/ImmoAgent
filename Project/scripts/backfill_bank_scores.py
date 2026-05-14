@@ -45,6 +45,9 @@ def main():
                 facade_renovated=doc.get('facade_renovated'),
                 roof_renovated=doc.get('roof_renovated'),
                 window_type=doc.get('window_type'),
+                hwb_value=doc.get('hwb_value'),
+                condition=doc.get('condition'),
+                title=doc.get('title'),
             )
 
             bank = compute_bank_score(listing)

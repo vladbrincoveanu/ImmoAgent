@@ -14,6 +14,7 @@ export interface ListingBase {
   estimated_down_pct?: number | null;
   estimated_equity_eur?: number | null;
   bank_score_confidence?: string | null;
+  estimated_down_pct_kimv?: number | null;
 }
 
 export type CoordinateSource = 'exact' | 'landmark' | 'district' | 'none';
@@ -36,6 +37,7 @@ export interface MapListing {
   estimated_down_pct?: number | null;
   estimated_equity_eur?: number | null;
   bank_score_confidence?: string | null;
+  estimated_down_pct_kimv?: number | null;
 }
 
 export interface ListingDetail extends ListingBase {
@@ -59,7 +61,6 @@ export interface ListingDetail extends ListingBase {
   url_is_valid?: boolean;
   coordinate_source?: CoordinateSource;
   landmark_hint?: string | null;
-  estimated_down_pct_kimv?: number | null;
   belehnungswert_factor?: number | null;
 }
 

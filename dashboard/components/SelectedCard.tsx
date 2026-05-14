@@ -70,6 +70,7 @@ export function SelectedCard({ listing, onClose, onViewDetails }: SelectedCardPr
             {listing.estimated_down_pct != null && (
               <EquityBadge
                 downPct={listing.estimated_down_pct}
+                downPctKimv={listing.estimated_down_pct_kimv}
                 equityEur={listing.estimated_equity_eur}
                 confidence={listing.bank_score_confidence}
               />

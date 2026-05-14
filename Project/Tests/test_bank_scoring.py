@@ -12,6 +12,9 @@ def make_listing(**kwargs):
     m.facade_renovated = kwargs.get('facade_renovated', None)
     m.roof_renovated = kwargs.get('roof_renovated', None)
     m.window_type = kwargs.get('window_type', None)
+    m.hwb_value = kwargs.get('hwb_value', None)
+    m.condition = kwargs.get('condition', None)
+    m.title = kwargs.get('title', None)
     m.price_total = kwargs.get('price_total', None)
     return m
 
@@ -84,6 +87,87 @@ class TestComputeBankScore(unittest.TestCase):
         )
         score = compute_bank_score(listing)
         self.assertLessEqual(score.belehnungswert_factor, 1.0)
+
+    def test_hwb_subclass_penalty_fires_for_energy_c_high_hwb(self):
+        """Energy C + HWB 84 → penalty -0.03 (84 > 75*0.70=52.5)."""
+        from Application.bank_scoring import compute_bank_score
+        no_hwb = make_listing(energy_class='C', price_total=400000)
+        with_hwb = make_listing(energy_class='C', hwb_value=84.0, price_total=400000)
+        self.assertAlmostEqual(
+            compute_bank_score(no_hwb).belehnungswert_factor -
+            compute_bank_score(with_hwb).belehnungswert_factor,
+            0.03, places=4
+        )
+
+    def test_hwb_subclass_penalty_does_not_fire_for_low_hwb(self):
+        """Energy C + HWB 50 → no penalty (50 <= 52.5)."""
+        from Application.bank_scoring import compute_bank_score
+        no_hwb = make_listing(energy_class='C', price_total=400000)
+        low_hwb = make_listing(energy_class='C', hwb_value=50.0, price_total=400000)
+        self.assertAlmostEqual(
+            compute_bank_score(no_hwb).belehnungswert_factor,
+            compute_bank_score(low_hwb).belehnungswert_factor,
+            places=4
+        )
+
+    def test_ausbaupotential_in_title_applies_penalty(self):
+        """'ausbaupotential' in title → -0.09 adjustment."""
+        from Application.bank_scoring import compute_bank_score
+        base = make_listing(energy_class='C', price_total=400000)
+        titled = make_listing(energy_class='C', title='Altbauwohnung mit Ausbaupotential', price_total=400000)
+        diff = compute_bank_score(base).belehnungswert_factor - compute_bank_score(titled).belehnungswert_factor
+        self.assertAlmostEqual(diff, 0.13, places=4)
+
+    def test_sanierungsbeduerftig_applies_largest_penalty(self):
+        """'sanierungsbedürftig' → -0.12 penalty."""
+        from Application.bank_scoring import compute_bank_score
+        base = make_listing(energy_class='C', price_total=400000)
+        saniert = make_listing(energy_class='C', condition='sanierungsbedürftig', price_total=400000)
+        diff = compute_bank_score(base).belehnungswert_factor - compute_bank_score(saniert).belehnungswert_factor
+        self.assertAlmostEqual(diff, 0.12, places=4)
+
+    def test_altbau_with_renoviert_skips_altbau_penalty(self):
+        """'altbau' + 'renoviert' in same text → no altbau penalty fires."""
+        from Application.bank_scoring import compute_bank_score
+        base = make_listing(energy_class='C', price_total=400000)
+        renovated = make_listing(energy_class='C', condition='Altbau vollständig renoviert', price_total=400000)
+        self.assertAlmostEqual(
+            compute_bank_score(base).belehnungswert_factor,
+            compute_bank_score(renovated).belehnungswert_factor,
+            places=4
+        )
+
+    def test_condition_penalty_capped_at_015(self):
+        """All three keyword tiers fire (0.12+0.09+0.04=0.25) → capped at 0.15."""
+        from Application.bank_scoring import compute_bank_score
+        base = make_listing(energy_class='C', price_total=400000)
+        worst = make_listing(
+            energy_class='C',
+            condition='sanierungsbedürftig Altbau mit Ausbaupotential',
+            price_total=400000
+        )
+        diff = compute_bank_score(base).belehnungswert_factor - compute_bank_score(worst).belehnungswert_factor
+        self.assertAlmostEqual(diff, 0.15, places=4)
+
+    def test_calibration_triggering_listing(self):
+        """The listing that triggered this fix: energy C, HWB 84.4, altbau+ausbaupotential → factor=0.76, down=39.2%."""
+        from Application.bank_scoring import compute_bank_score
+        listing = make_listing(
+            energy_class='C',
+            hwb_value=84.4,
+            title='Großzügige Altbauwohnung mit großem Ausbaupotential',
+            price_total=399000,
+        )
+        score = compute_bank_score(listing)
+        self.assertAlmostEqual(score.belehnungswert_factor, 0.76, places=4)
+        self.assertAlmostEqual(score.estimated_down_pct, 39.2, places=1)
+
+    def test_confidence_hwb_as_sixth_signal(self):
+        """hwb_value counts as 6th signal. energy+hwb known, rest None → 4 Nones → medium."""
+        from Application.bank_scoring import compute_bank_score
+        listing = make_listing(energy_class='C', hwb_value=60.0, price_total=300000)
+        score = compute_bank_score(listing)
+        self.assertEqual(score.bank_score_confidence, 'medium')
 
 
 if __name__ == '__main__':

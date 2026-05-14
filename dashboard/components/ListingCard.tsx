@@ -62,6 +62,7 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
         <div className="mb-1">
           <EquityBadge
             downPct={listing.estimated_down_pct}
+            downPctKimv={listing.estimated_down_pct_kimv}
             equityEur={listing.estimated_equity_eur}
             confidence={listing.bank_score_confidence}
           />

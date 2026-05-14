@@ -11,6 +11,16 @@ ENERGY_BASE: dict[str, float] = {
     'F':   0.65, 'G':  0.65,
 }
 
+# Upper HWB bound per energy class (OIB Richtlinie 6).
+# Penalty fires when HWB > upper * 0.70 (top 30% of class band).
+HWB_CLASS_UPPER: dict[str, float] = {
+    'A++': 25.0, 'A+': 25.0, 'A': 25.0,
+    'B':   50.0,
+    'C':   75.0,
+    'D':  100.0,
+    'E':  150.0,
+}
+
 
 @dataclass
 class BankScore:
@@ -35,16 +45,19 @@ def compute_bank_score(listing) -> BankScore:
     facade_renovated = listing.facade_renovated
     roof_renovated   = listing.roof_renovated
     window_type      = listing.window_type
+    hwb_value        = listing.hwb_value
+    condition        = listing.condition
+    title            = listing.title
     price_total      = listing.price_total
 
-    # Confidence: count None signals
+    # Confidence: 6 signals. ≤2 None → high, ≤4 None → medium, >4 → low.
     none_count = sum(
-        1 for v in [energy_class, year_built, facade_renovated, roof_renovated, window_type]
+        1 for v in [energy_class, year_built, facade_renovated, roof_renovated, window_type, hwb_value]
         if v is None
     )
-    if none_count <= 1:
+    if none_count <= 2:
         confidence = 'high'
-    elif none_count <= 3:
+    elif none_count <= 4:
         confidence = 'medium'
     else:
         confidence = 'low'
@@ -53,8 +66,6 @@ def compute_bank_score(listing) -> BankScore:
     if energy_class is not None:
         factor = ENERGY_BASE.get(str(energy_class).upper().strip(), 0.82)
     else:
-        # year_built fallback — ALSO gets year adjustment below (intentional double-signal:
-        # old Altbau with no energy cert is penalized for both missing cert AND old age).
         if year_built is not None and year_built >= 2010:
             factor = 0.95
         elif year_built is not None and year_built < 1970:
@@ -85,6 +96,24 @@ def compute_bank_score(listing) -> BankScore:
         factor -= 0.04
     elif window_type in ('kunststoff', 'holz-alu', 'isolierverglasung'):
         factor += 0.02
+
+    # HWB sub-class penalty: fires when HWB is in the top 30% of the declared class band.
+    if energy_class is not None and hwb_value is not None:
+        upper = HWB_CLASS_UPPER.get(str(energy_class).upper().strip())
+        if upper is not None and hwb_value > upper * 0.70:
+            factor -= 0.03
+
+    # Condition keyword penalty (scan condition field + title).
+    # Tiers are additive; total capped at 0.15.
+    text = f"{condition or ''} {title or ''}".lower()
+    cond_penalty = 0.0
+    if 'sanierungsbedürftig' in text or 'renovierungsbedürftig' in text:
+        cond_penalty += 0.12
+    if 'ausbaupotential' in text or 'ausbaumöglichkeit' in text:
+        cond_penalty += 0.09
+    if 'altbau' in text and 'renoviert' not in text:
+        cond_penalty += 0.04
+    factor -= min(cond_penalty, 0.15)
 
     factor = min(1.0, round(factor, 4))
 

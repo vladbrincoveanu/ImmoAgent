@@ -1,10 +1,11 @@
 interface EquityBadgeProps {
   downPct: number | null | undefined;
+  downPctKimv: number | null | undefined;
   equityEur: number | null | undefined;
   confidence: string | null | undefined;
 }
 
-export function EquityBadge({ downPct, equityEur, confidence }: EquityBadgeProps) {
+export function EquityBadge({ downPct, downPctKimv, equityEur, confidence }: EquityBadgeProps) {
   if (confidence === 'low') {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-gray-500 bg-gray-100">
@@ -20,7 +21,7 @@ export function EquityBadge({ downPct, equityEur, confidence }: EquityBadgeProps
   const label = eurK != null ? `~${pctRounded}% (~€${eurK}k)` : `~${pctRounded}%`;
 
   let colorClass: string;
-  if (downPct <= 15) {
+  if (downPctKimv != null && downPctKimv <= 15) {
     colorClass = 'text-green-800 bg-green-100';
   } else if (downPct <= 25) {
     colorClass = 'text-yellow-800 bg-yellow-100';
