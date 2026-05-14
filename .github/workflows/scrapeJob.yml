@@ -71,3 +71,33 @@ jobs:
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
 
+  test:
+    runs-on: ubuntu-latest
+    needs: scrape
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r Project/requirements.txt
+          pip install -q pytest pytest-asyncio
+
+      - name: Run core unit tests
+        run: |
+          cd Tests
+          pytest test_buyer_profiles.py test_score_calculation.py test_validation.py \
+                 test_listing_validator.py test_utils.py test_district_extraction.py \
+                 -v --tb=short
+
+      - name: Security audit
+        run: |
+          pip install pip-audit
+          pip-audit --format columns 2>&1 || true
+

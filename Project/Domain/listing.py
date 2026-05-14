@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from Domain.sources import Source
 from Domain.location import Coordinates
 
-@dataclass
+@dataclass(slots=True)
 class Listing:
     """Represents a single real estate listing."""
     url: str

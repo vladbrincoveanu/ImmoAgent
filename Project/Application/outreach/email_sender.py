@@ -13,9 +13,15 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
 import re
+import email.utils
 
 
-@dataclass
+def _is_valid_email(email_addr: str) -> bool:
+    parsed = email.utils.parseaddr(email_addr)
+    return bool(parsed[1] and '@' in parsed[1] and '.' in parsed[1].split('@')[1])
+
+
+@dataclass(slots=True)
 class OutreachMessage:
     """Represents an outreach message to be sent."""
     to_email: str
@@ -239,7 +245,8 @@ Objektreferenz: {listing_url}
             # Create message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
-            msg['From'] = f"{self.sender_name} <{self.sender_email}>"
+            safe_sender_name = self.sender_name.replace('\n', '').replace('\r', '')
+            msg['From'] = f"{safe_sender_name} <{self.sender_email}>"
             msg['To'] = to_email
             
             # Attach both plain text and HTML versions
@@ -255,9 +262,11 @@ Objektreferenz: {listing_url}
             if not self.smtp_user or not self.smtp_password:
                 raise ValueError("SMTP credentials are missing. Set SMTP_USER and SMTP_PASSWORD environment variables.")
             
+            import ssl
+            context = ssl.create_default_context()
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 if self.use_tls:
-                    server.starttls()
+                    server.starttls(context=context)
                 server.login(str(self.smtp_user), str(self.smtp_password))
                 server.sendmail(str(self.sender_email), to_email, msg.as_string())
             
@@ -326,8 +335,7 @@ Objektreferenz: {listing_url}
                 logging.warning(f"⚠️ No contact email for listing: {listing.get('url', 'unknown')}")
                 continue
             
-            # Validate email format
-            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', contact_email):
+            if not _is_valid_email(contact_email):
                 logging.warning(f"⚠️ Invalid email format: {contact_email}")
                 continue
             

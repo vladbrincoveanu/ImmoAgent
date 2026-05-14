@@ -8,7 +8,7 @@ import os
 import jwt
 import bcrypt
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -48,8 +48,8 @@ def create_jwt_token(user_id: str, username: str) -> str:
     payload = {
         'user_id': user_id,
         'username': username,
-        'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
-        'iat': datetime.utcnow()
+        'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+        'iat': datetime.now(timezone.utc)
     }
     return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
 
@@ -109,7 +109,7 @@ def create_default_user():
                 'password_hash': hash_password(admin_password),
                 'email': 'admin@immoscouter.com',
                 'role': 'admin',
-                'created_at': datetime.utcnow(),
+                'created_at': datetime.now(timezone.utc),
                 'last_login': None
             }
             
@@ -148,7 +148,7 @@ def login():
         # Update last login
         users_collection.update_one(
             {'_id': user['_id']},
-            {'$set': {'last_login': datetime.utcnow()}}
+            {'$set': {'last_login': datetime.now(timezone.utc)}}
         )
         
         # Create JWT token
@@ -216,7 +216,7 @@ def register():
             'password_hash': hash_password(password),
             'email': email,
             'role': 'user',
-            'created_at': datetime.utcnow(),
+            'created_at': datetime.now(timezone.utc),
             'last_login': None
         }
         
@@ -259,7 +259,7 @@ def get_properties():
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now(timezone.utc).isoformat()})
 
 if __name__ == '__main__':
     # Create default user on startup

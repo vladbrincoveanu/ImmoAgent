@@ -22,8 +22,8 @@ from Application.helpers.geocoding import geocode_listing
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate
 from Domain.listing import Listing
 import logging
+import logging.handlers
 from bson import ObjectId
-import pymongo
 
 # Try to import PIL for image optimization
 try:
@@ -38,11 +38,23 @@ log_dir = 'log'
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
+os.makedirs(log_dir, exist_ok=True)
+
+rotating = logging.handlers.RotatingFileHandler(
+    'log/immo-scouter.log',
+    maxBytes=10 * 1024 * 1024,  # 10 MB
+    backupCount=5,
+    encoding='utf-8'
+)
+rotating.setFormatter(logging.Formatter(
+    '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+))
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('log/immo-scouter.log'),
+        rotating,
         logging.StreamHandler()
     ]
 )

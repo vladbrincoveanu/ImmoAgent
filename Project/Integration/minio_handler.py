@@ -10,6 +10,10 @@ import requests
 from PIL import Image
 import uuid
 
+DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (compatible; ImmoScouter/1.0; +https://github.com/vladbrincoveanu/immo-scouter)'
+}
+
 class MinIOHandler:
     """Handler for MinIO object storage operations"""
     
@@ -44,7 +48,7 @@ class MinIOHandler:
         """Download image from URL and upload to MinIO"""
         try:
             # Download image from URL
-            response = requests.get(image_url, timeout=30)
+            response = requests.get(image_url, headers=DEFAULT_HEADERS, timeout=30)
             response.raise_for_status()
             
             # Determine file extension

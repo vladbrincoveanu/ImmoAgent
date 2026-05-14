@@ -12,6 +12,10 @@ from Integration.telegram_bot import TelegramBot
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (compatible; ImmoScouter/1.0; +https://github.com/vladbrincoveanu/immo-scouter)'
+}
+
 
 def deep_cleanup_database(mongo_handler: MongoDBHandler) -> Dict[str, int]:
     """One-time comprehensive cleanup: removes invalid data, broken URLs, very old listings, and recalculates scores."""
@@ -70,7 +74,7 @@ def deep_cleanup_database(mongo_handler: MongoDBHandler) -> Dict[str, int]:
                 continue
 
             try:
-                resp = requests.head(url, allow_redirects=True, timeout=3)
+                resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=3)
                 if resp.status_code >= 400:
                     mongo_handler.collection.delete_one({"_id": listing["_id"]})
                     broken_count += 1
@@ -224,7 +228,7 @@ def comprehensive_cleanup_all_listings(mongo_handler: MongoDBHandler, max_age_da
                     url_invalid = False
 
                     try:
-                        resp = requests.head(url, allow_redirects=True, timeout=5)
+                        resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=5)
                         if resp.status_code != 200:
                             url_invalid = True
                             logging.debug(f"💀 Broken URL (HTTP {resp.status_code}): {url}")
@@ -305,7 +309,7 @@ def clean_stale_or_broken_listings(mongo_handler: MongoDBHandler, max_age_days: 
         url_invalid = False
         if verify_urls and url:
             try:
-                resp = requests.head(url, allow_redirects=True, timeout=3)
+                resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=3)
                 url_invalid = resp.status_code >= 400
                 if url_invalid:
                     logging.debug(f"💀 Broken URL (HTTP {resp.status_code}): {url}")
@@ -338,6 +342,7 @@ def check_and_alert_rejection_rate(mongodb: MongoDBHandler, telegram_bot, thresh
     for source, data in metrics.items():
         if data["rate"] > threshold:
             message = f"⚠️ High validation rejection rate for {source}: {data['rate']:.1f}% ({data['failures']}/{data['total']} failed)"
-            telegram_bot.send_message(message)
+            if telegram_bot:
+                telegram_bot.send_message(message)
             logging.warning(message)
     mongodb.reset_validation_metrics()

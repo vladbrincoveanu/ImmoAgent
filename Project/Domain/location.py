@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass
 from typing import Optional
 
-@dataclass
+@dataclass(slots=True)
 class Coordinates:
     """Represents geographic coordinates with utility methods"""
     lat: float

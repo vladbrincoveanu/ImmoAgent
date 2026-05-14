@@ -27,7 +27,7 @@ class ContactType(Enum):
     NONE = "none"
 
 
-@dataclass
+@dataclass(slots=True)
 class ContactInfo:
     """Contact information extracted from a listing page."""
     contact_type: ContactType
@@ -186,7 +186,7 @@ class ContactExtractor:
                 contact.agent_name = name_elem.get_text(strip=True)
         
         # Look for "Anfrage senden" (contact form) button
-        contact_btn = soup.find('button', string=re.compile(r'anfrage|kontakt|nachricht', re.I)) or \
+        contact_btn = soup.find('button', text=re.compile(r'anfrage|kontakt|nachricht', re.I)) or \
                      soup.find('a', href=re.compile(r'contact|anfrage|nachricht', re.I))
         
         if contact_btn and contact.contact_type == ContactType.NONE:

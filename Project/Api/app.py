@@ -12,11 +12,10 @@ from bson import ObjectId
 import json
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 import math
 import sys
-import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from Integration.minio_handler import MinIOHandler
@@ -118,7 +117,7 @@ class PropertyDatabase:
                 'email': 'admin@home.ai',
                 'password_hash': generate_password_hash(admin_password),
                 'role': 'admin',
-                'created_at': datetime.utcnow(),
+                'created_at': datetime.now(timezone.utc),
                 'last_login': None
             }
             self.users_collection.insert_one(admin_user)
@@ -132,7 +131,7 @@ class PropertyDatabase:
             # Update last login
             self.users_collection.update_one(
                 {'_id': user_doc['_id']},
-                {'$set': {'last_login': datetime.utcnow()}}
+                {'$set': {'last_login': datetime.now(timezone.utc)}}
             )
             return User(
                 user_id=str(user_doc['_id']),
@@ -153,7 +152,7 @@ class PropertyDatabase:
             'email': email,
             'password_hash': generate_password_hash(password),
             'role': role,
-            'created_at': datetime.utcnow(),
+            'created_at': datetime.now(timezone.utc),
             'last_login': None
         }
         result = self.users_collection.insert_one(user_doc)
@@ -373,15 +372,24 @@ class PropertyDatabase:
         """Get database statistics"""
         try:
             total_properties = self.collection.count_documents({})
-            avg_price = self.collection.aggregate([
+            if total_properties == 0:
+                return {
+                    'total_properties': 0,
+                    'avg_price': 0,
+                    'avg_area': 0,
+                    'source_breakdown': []
+                }
+            avg_price_result = self.collection.aggregate([
                 {'$match': {'price_total': {'$exists': True, '$ne': None}}},
                 {'$group': {'_id': None, 'avg': {'$avg': '$price_total'}}}
-            ]).next().get('avg', 0)
-            
-            avg_area = self.collection.aggregate([
+            ])
+            avg_price = next(avg_price_result, {'avg': 0}).get('avg', 0)
+
+            avg_area_result = self.collection.aggregate([
                 {'$match': {'area_m2': {'$exists': True, '$ne': None}}},
                 {'$group': {'_id': None, 'avg': {'$avg': '$area_m2'}}}
-            ]).next().get('avg', 0)
+            ])
+            avg_area = next(avg_area_result, {'avg': 0}).get('avg', 0)
             
             # Get source breakdown
             source_stats = list(self.collection.aggregate([
@@ -423,7 +431,7 @@ def datetime_filter(timestamp):
         try:
             from datetime import datetime
             return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M')
-        except:
+        except (ValueError, OSError):
             return str(timestamp)
     return 'N/A'
 
@@ -609,4 +617,21 @@ def serve_image(image_path):
         return "Error serving image", 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001) 
+    app.run(debug=True, host='0.0.0.0', port=5001)
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Kubernetes health check endpoint."""
+    try:
+        mongo_ok = False
+        try:
+            db.collection.find_one({}, {'_id': 1})
+            mongo_ok = True
+        except Exception as e:
+            logging.warning(f"Health check MongoDB failed: {e}")
+        status = "healthy" if mongo_ok else "degraded"
+        http_code = 200 if mongo_ok else 503
+        return jsonify({"status": status, "mongodb": mongo_ok}), http_code
+    except Exception as e:
+        logging.error(f"Health check failed: {e}")
+        return jsonify({"status": "unhealthy", "error": str(e)}), 503 
