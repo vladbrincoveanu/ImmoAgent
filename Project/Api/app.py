@@ -134,6 +134,10 @@ class PropertyDatabase:
     
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """Authenticate user and return User object if valid"""
+        # Development test user
+        if username == 'test' and password == 'test123':
+            return User(user_id='test-001', username='test', email='test@test.com', role='user')
+        
         user_doc = self.users_collection.find_one({'username': username})
         if user_doc and check_password_hash(user_doc['password_hash'], password):
             # Update last login
@@ -442,6 +446,35 @@ def datetime_filter(timestamp):
         except (ValueError, OSError):
             return str(timestamp)
     return 'N/A'
+
+# JSON API auth login endpoint (for NextAuth dashboard)
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    """JSON login endpoint for NextAuth dashboard"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+        
+        user = db.authenticate_user(username, password)
+        if not user:
+            return jsonify({'error': 'Invalid credentials'}), 401
+        
+        return jsonify({
+            'token': f'dev-token-{username}',
+            'user': {
+                'id': str(user.get('_id', '1')),
+                'username': user.username,
+                'email': getattr(user, 'email', None),
+                'role': getattr(user, 'role', 'user')
+            }
+        })
+    except Exception as e:
+        logging.error(f"API login error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
