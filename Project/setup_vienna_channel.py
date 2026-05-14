@@ -7,7 +7,18 @@ import json
 import os
 import sys
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from Application.main import load_config
+
+def _create_session_with_retry() -> requests.Session:
+    """Create requests session with retry strategy"""
+    session = requests.Session()
+    retry_strategy = Retry(total=2, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry_strategy, timeout=10)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 def setup_vienna_channel():
     """Setup ViennaApartmentsLive channel"""
@@ -49,8 +60,9 @@ def setup_vienna_channel():
     
     # Test bot token
     print("🔍 Testing bot token...")
+    session = _create_session_with_retry()
     try:
-        response = requests.get(f"https://api.telegram.org/bot{bot_token}/getMe")
+        response = session.get(f"https://api.telegram.org/bot{bot_token}/getMe")
         if response.status_code == 200:
             bot_info = response.json()
             if bot_info.get('ok'):
@@ -71,7 +83,7 @@ def setup_vienna_channel():
     # Test channel access
     print("\n🔍 Testing channel access...")
     try:
-        response = requests.get(f"https://api.telegram.org/bot{bot_token}/getChat", 
+        response = session.get(f"https://api.telegram.org/bot{bot_token}/getChat", 
                               params={'chat_id': channel_id})
         if response.status_code == 200:
             chat_info = response.json()
@@ -94,7 +106,7 @@ def setup_vienna_channel():
     print("\n📤 Sending test message...")
     try:
         test_message = f"🧪 Test message from ViennaApartmentsBot\n\nThis channel is now configured for apartment notifications!"
-        response = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage",
+        response = session.post(f"https://api.telegram.org/bot{bot_token}/sendMessage",
                                params={
                                    'chat_id': channel_id,
                                    'text': test_message,
