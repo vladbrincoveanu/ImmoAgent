@@ -113,6 +113,11 @@ export default function MapPage() {
     queueMicrotask(() => setHighlightedId(null));
   }, []);
 
+  const handleViewDetails = useCallback((id: string) => {
+    setDetailId(id);
+    setHighlightedId(null);
+  }, []);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-warm-bg">
       {/* Header */}
@@ -254,7 +259,7 @@ export default function MapPage() {
               <SelectedCard
                 listing={highlightedListing}
                 onClose={handleCloseDetail}
-                onViewDetails={setDetailId}
+                onViewDetails={handleViewDetails}
               />
               <MapLegend />
             </>

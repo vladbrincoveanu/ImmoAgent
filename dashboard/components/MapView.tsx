@@ -11,28 +11,21 @@ const LANDMARK_COLOR = '#f97316';
 const DISTRICT_COLOR = '#3B82F6';
 const HIGHLIGHT_COLOR = '#E07A5F';
 const HOVER_COLOR = '#FBBF24';
-const EXACT_SIZE = 14;
-const LANDMARK_SIZE = 14;
-const DISTRICT_SIZE = 14;
-const HIGHLIGHT_SIZE = 20;
-const HOVER_SIZE = 18;
+
+type PinState = 'exact' | 'landmark' | 'district' | 'highlighted' | 'hovered';
+type MarkerTier = 'default' | 'hovered' | 'highlighted';
+
+const TIER_STYLES: Record<MarkerTier, { fontSize: string; padding: string; border: string; shadow: string; h: number }> = {
+  default:     { fontSize: '9px',  padding: '1px 4px', border: '1px solid white',   shadow: '0 1px 3px rgba(0,0,0,0.3)',  h: 16 },
+  hovered:     { fontSize: '10px', padding: '2px 5px', border: '1.5px solid white', shadow: '0 2px 6px rgba(0,0,0,0.35)', h: 20 },
+  highlighted: { fontSize: '12px', padding: '3px 7px', border: '2px solid white',   shadow: '0 3px 8px rgba(0,0,0,0.45)', h: 24 },
+};
 
 function formatPrice(price: number): string {
   if (price >= 1000000) return `${(price / 1000000).toFixed(1)}M`;
   if (price >= 1000) return `${Math.round(price / 1000)}k`;
   return String(price);
 }
-
-function createPriceIcon(price: number, color: string, size: number): L.DivIcon {
-  return L.divIcon({
-    html: `<div style="background:${color};color:white;font-size:10px;font-weight:700;padding:2px 5px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);border:1.5px solid white;font-family:system-ui,-apple-system,sans-serif;">€${formatPrice(price)}</div>`,
-    iconSize: [size * 3, size * 1.5],
-    iconAnchor: [size * 1.5, size * 0.75],
-    className: '',
-  });
-}
-
-type PinState = 'exact' | 'landmark' | 'district' | 'highlighted' | 'hovered';
 
 function getPinState(listing: MapListing, highlightedId: string | null, hoveredId: string | null): PinState {
   if (hoveredId === listing._id) return 'hovered';
@@ -52,14 +45,21 @@ function getPinColor(state: PinState): string {
   }
 }
 
-function getPinSize(state: PinState): number {
-  switch (state) {
-    case 'highlighted': return HIGHLIGHT_SIZE;
-    case 'hovered': return HOVER_SIZE;
-    case 'landmark': return LANDMARK_SIZE;
-    case 'district': return DISTRICT_SIZE;
-    default: return EXACT_SIZE;
-  }
+function getTier(state: PinState): MarkerTier {
+  if (state === 'highlighted') return 'highlighted';
+  if (state === 'hovered') return 'hovered';
+  return 'default';
+}
+
+function createPriceIcon(price: number, color: string, tier: MarkerTier): L.DivIcon {
+  const s = TIER_STYLES[tier];
+  const label = `€${formatPrice(price)}`;
+  return L.divIcon({
+    html: `<div style="background:${color};color:white;font-size:${s.fontSize};font-weight:700;padding:${s.padding};border-radius:999px;white-space:nowrap;box-shadow:${s.shadow};border:${s.border};font-family:system-ui,-apple-system,sans-serif;">${label}</div>`,
+    iconSize: [label.length * 7 + 8, s.h],
+    iconAnchor: [(label.length * 7 + 8) / 2, s.h / 2],
+    className: '',
+  });
 }
 
 interface MapViewProps {
@@ -156,8 +156,8 @@ function MarkerLayer({
 
       const state = getPinState(listing, highlightedId ?? null, hoveredId ?? null);
       const color = getPinColor(state);
-      const size = getPinSize(state);
-      const icon = createPriceIcon(listing.price_total ?? 0, color, size);
+      const tier = getTier(state);
+      const icon = createPriceIcon(listing.price_total ?? 0, color, tier);
 
       let marker = markerInstances.current.get(listing._id);
       if (marker) {
