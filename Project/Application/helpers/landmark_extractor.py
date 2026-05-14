@@ -3,6 +3,23 @@
 import re
 from typing import Optional
 
+_UBAHN_NAHE_PATTERN = re.compile(
+    r'\b(?:nahe|nahen)\s+([A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+(?:\s+[A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+)*)\s+U-Bahn',
+    re.IGNORECASE
+)
+
+_UBAHN_STANDALONE_PATTERN = re.compile(
+    r'\b([A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+(?:\s+[A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+)*)\s+U-Bahn\b',
+    re.IGNORECASE
+)
+
+_STRASSENBAHN_PATTERN1 = re.compile(r'(\w+)\s+Straßenbahn\b', re.IGNORECASE)
+
+_STRASSENBAHN_PATTERN2 = re.compile(
+    r'\bStraßenbahn\s+([A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+(?:\s+[A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+)*)\b',
+    re.IGNORECASE
+)
+
 
 def extract_landmark_hint(text: str) -> Optional[str]:
     """Extract a landmark hint from listing title/description.
@@ -32,21 +49,13 @@ def extract_landmark_hint(text: str) -> Optional[str]:
 
     # U-Bahn patterns
     # Pattern 1: "nahe [Station Name] U-Bahn" or "nahen [Station Name] U-Bahn"
-    ubahn_nahe_pattern = re.compile(
-        r'\b(?:nahe|nahen)\s+([A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+(?:\s+[A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+)*)\s+U-Bahn',
-        re.IGNORECASE
-    )
-    match = ubahn_nahe_pattern.search(text)
+    match = _UBAHN_NAHE_PATTERN.search(text)
     if match:
         station_name = match.group(1).strip()
         return f"{station_name} U-Bahn, Wien, Austria"
 
     # Pattern 2: "[Station Name] U-Bahn" anywhere in string
-    ubahn_standalone_pattern = re.compile(
-        r'\b([A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+(?:\s+[A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+)*)\s+U-Bahn\b',
-        re.IGNORECASE
-    )
-    match = ubahn_standalone_pattern.search(text)
+    match = _UBAHN_STANDALONE_PATTERN.search(text)
     if match:
         station_name = match.group(1).strip()
         return f"{station_name} U-Bahn, Wien, Austria"
@@ -54,18 +63,13 @@ def extract_landmark_hint(text: str) -> Optional[str]:
     # Straßenbahn patterns
     # For "[Name] Straßenbahn", extract just the last word before Straßenbahn
     # This avoids capturing prepositions like "von", "in", "der", "Nähe"
-    strassenbahn_pattern1 = re.compile(r'(\w+)\s+Straßenbahn\b', re.IGNORECASE)
-    match = strassenbahn_pattern1.search(text)
+    match = _STRASSENBAHN_PATTERN1.search(text)
     if match:
         name = match.group(1).strip()
         return f"{name}, Wien, Austria"
 
     # Pattern 2: "Straßenbahn [Name]"
-    strassenbahn_pattern2 = re.compile(
-        r'\bStraßenbahn\s+([A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+(?:\s+[A-Za-zÄäÖöÜüßáàâéèêíìîóòôúùû]+)*)\b',
-        re.IGNORECASE
-    )
-    match = strassenbahn_pattern2.search(text)
+    match = _STRASSENBAHN_PATTERN2.search(text)
     if match:
         name = match.group(1).strip()
         return f"{name}, Wien, Austria"
