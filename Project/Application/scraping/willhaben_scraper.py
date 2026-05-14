@@ -28,6 +28,41 @@ from Application.scraping.field_extractors import (
 )
 
 
+def _is_blocked_page(content: str) -> Tuple[bool, str]:
+    """Detect if page shows captcha, challenge, or access denied"""
+    blocked_indicators = [
+        'access denied',
+        'captcha', 'recaptcha', 'hcaptcha',
+        'radware', 'imperva', 'cloudflare',
+        'bitte bestätigen', 'bestätigen sie',
+        'nicht verfügbar', 'seite gesperrt',
+        '403 forbidden'
+    ]
+    content_lower = content.lower()
+    for indicator in blocked_indicators:
+        if indicator in content_lower:
+            return True, indicator
+    return False, ''
+
+
+def _check_for_block(response) -> None:
+    """Raise exception if page is blocked/captcha"""
+    if not response.ok:
+        blocked, reason = _is_blocked_page(response.text)
+        if blocked:
+            raise RuntimeError(
+                f"Willhaben blocked request (HTTP {response.status_code}): "
+                f"detected '{reason}'. Consider: 1) rotating proxy, 2) waiting longer, "
+                f"3) checking if IP is banned"
+            )
+    blocked, reason = _is_blocked_page(response.text)
+    if blocked:
+        raise RuntimeError(
+            f"Willhaben returned captcha/challenge page: '{reason}'. "
+            f"IP may be temporarily banned."
+        )
+
+
 def _strip_html_to_text(val: str) -> str:
     return BeautifulSoup(val, 'html.parser').get_text(' ', strip=True).lower() if val else ''
 
@@ -314,7 +349,8 @@ class WillhabenScraper:
         for attempt in range(max_retries):
             try:
                 response = self.session.get(url, headers=self.headers, timeout=30)
-                
+                _check_for_block(response)
+
                 # Handle 429 Too Many Requests with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
