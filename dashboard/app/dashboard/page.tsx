@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { ListingCard } from '@/components/ListingCard';
 import { FilterBar, SortOption } from '@/components/FilterBar';
 import { FilterDrawer } from '@/components/FilterDrawer';
@@ -36,18 +36,21 @@ export default function DashboardPage() {
     }
   }, [minScore, district, sortBy]);
 
-  React.useEffect(() => { fetchListings(); }, [fetchListings]);
+  useEffect(() => { fetchListings(); }, [fetchListings]);
 
-  const filteredListings = listings.filter((l) => {
-    if (maxPrice && l.price_total != null && l.price_total > Number(maxPrice)) return false;
-    if (
-      !showUnfinanceable &&
-      l.estimated_down_pct != null &&
-      l.estimated_down_pct > 30 &&
-      l.bank_score_confidence !== 'low'
-    ) return false;
-    return true;
-  });
+  const filteredListings = useMemo(() => {
+    const maxPriceNum = maxPrice ? Number(maxPrice) : null;
+    return listings.filter((l) => {
+      if (maxPriceNum != null && Number.isFinite(maxPriceNum) && l.price_total != null && l.price_total > maxPriceNum) return false;
+      if (
+        !showUnfinanceable &&
+        l.estimated_down_pct != null &&
+        l.estimated_down_pct > 30 &&
+        l.bank_score_confidence !== 'low'
+      ) return false;
+      return true;
+    });
+  }, [listings, maxPrice, showUnfinanceable]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-24 md:pb-6">
@@ -76,8 +79,8 @@ export default function DashboardPage() {
 
         {loading ? (
           <p className="text-gray-500">Loading...</p>
-        ) : listings.length === 0 ? (
-          <p className="text-gray-400">No listings found.</p>
+        ) : filteredListings.length === 0 ? (
+          <p className="text-gray-400">{listings.length === 0 ? 'No listings found.' : 'All listings filtered out.'}</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredListings.map((l) => (
