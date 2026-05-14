@@ -37,3 +37,9 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           python Project/scripts/cleanup_empty_titles.py --confirm
+
+      - name: Backfill bank scores
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          python Project/scripts/backfill_bank_scores.py
