@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 import math
 import sys
+import atexit
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from Integration.minio_handler import MinIOHandler
@@ -100,6 +101,13 @@ class PropertyDatabase:
         
         # Initialize admin user if not exists
         self._init_admin_user()
+        atexit.register(self._cleanup)
+    
+    def _cleanup(self):
+        """Close MongoDB connection on process exit"""
+        if hasattr(self, 'client') and self.client:
+            self.client.close()
+            logging.info("MongoDB connection closed via atexit")
     
     def _init_admin_user(self):
         """Initialize admin user if not exists"""
@@ -240,8 +248,8 @@ class PropertyDatabase:
             # If sorting by score, fetch all documents, calculate scores, sort, then paginate
             if sort_by == 'score':
                 total = self.collection.count_documents(query)
-                # Fetch all documents that match the query
-                cursor = self.collection.find(query)
+                # Fetch all documents that match the query - limit to prevent OOM
+                cursor = self.collection.find(query).limit(10000)
                 properties = []
                 for doc in cursor:
                     score = score_apartment(doc)

@@ -12,6 +12,7 @@ import socket
 import hashlib
 import secrets
 import base64
+import bleach
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, Optional, List
@@ -227,14 +228,18 @@ Objektreferenz: {listing_url}
             altbau_note = ". Bei Altbauten sind erfahrungsgemäß erhöhte Instandhaltungskosten sowie potenzielle versteckte Mängel einzukalkulieren"
         
         # Build template variables
+        safe_title = bleach.clean(listing.get('title', '') or '', tags=[], strip=True)
+        safe_address = bleach.clean(listing.get('address', '') or '', tags=[], strip=True)
+        safe_sender_name = bleach.clean(self.sender_name, tags=[], strip=True)
+
         template_vars = {
-            'title': listing.get('title', 'Ihre Immobilie'),
-            'address': listing.get('address', listing.get('bezirk', 'Wien')),
+            'title': safe_title,
+            'address': safe_address,
             'listing_price': listing_price,
             'offer_price': offer_price,
             'source': listing.get('source', 'Ihrer Webseite').title(),
             'listing_url': listing.get('url', ''),
-            'sender_name': self.sender_name,
+            'sender_name': safe_sender_name,
             'sender_email': self.sender_email,
             'area_m2': listing.get('area_m2', 'N/A'),
             'rooms': listing.get('rooms', 'N/A'),
@@ -262,55 +267,75 @@ Objektreferenz: {listing_url}
             'offer_price': offer_price
         }
     
-    def send_email(self, to_email: str, subject: str, body_text: str, body_html: str) -> bool:
+    def send_email(self, to_email: str, subject: str, body_text: str, body_html: str,
+                   listing: Dict[str, Any] = None, unsubscribe_url: str = None) -> bool:
         """Send an email via SMTP."""
         try:
-            # Create message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
             safe_sender_name = self.sender_name.replace('\n', '').replace('\r', '')
             msg['From'] = f"{safe_sender_name} <{self.sender_email}>"
             msg['To'] = to_email
-            
-            # Attach both plain text and HTML versions
+
+            if listing:
+                listing_url = listing.get('url', '')
+                listing_url_hash = hashlib.sha256(listing_url.encode()).hexdigest()[:12]
+                thread_id = f"<immo-scouter-{listing_url_hash}@{socket.gethostname()}>"
+                msg['Reply-To'] = self.sender_email
+                msg['References'] = thread_id
+                msg['In-Reply-To'] = thread_id
+
+            if unsubscribe_url:
+                msg['List-Unsubscribe'] = f'<{unsubscribe_url}>'
+                msg['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+
             part1 = MIMEText(body_text, 'plain', 'utf-8')
             part2 = MIMEText(body_html, 'html', 'utf-8')
             msg.attach(part1)
             msg.attach(part2)
-            
-            # Connect and send
+
+            email_hash = hashlib.sha256(to_email.encode()).hexdigest()[:8]
             logging.info(f"📤 Connecting to SMTP server {self.smtp_host}:{self.smtp_port}...")
-            
-            # Ensure credentials are not None
+
             if not self.smtp_user or not self.smtp_password:
                 raise ValueError("SMTP credentials are missing. Set SMTP_USER and SMTP_PASSWORD environment variables.")
-            
-            import ssl
-            context = ssl.create_default_context()
+
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 if self.use_tls:
-                    server.starttls(context=context)
+                    server.starttls(context=ssl.create_default_context())
                 server.login(str(self.smtp_user), str(self.smtp_password))
                 server.sendmail(str(self.sender_email), to_email, msg.as_string())
-            
-            logging.info(f"✅ Email sent successfully to {to_email}")
+
+            logging.info(f"✅ Email sent successfully to {email_hash}...")
             return True
             
         except smtplib.SMTPAuthenticationError as e:
-            logging.error(f"❌ SMTP Authentication failed: {e}")
+            email_hash = hashlib.sha256(to_email.encode()).hexdigest()[:8]
+            logging.error(f"❌ SMTP Auth failed for {email_hash}...: {e}")
             logging.error("💡 For Gmail: Use an App Password (https://myaccount.google.com/apppasswords)")
             return False
         except smtplib.SMTPException as e:
-            logging.error(f"❌ SMTP error sending to {to_email}: {e}")
+            email_hash = hashlib.sha256(to_email.encode()).hexdigest()[:8]
+            logging.error(f"❌ SMTP error for {email_hash}...: {e}")
             return False
         except Exception as e:
-            logging.error(f"❌ Failed to send email to {to_email}: {e}")
+            email_hash = hashlib.sha256(to_email.encode()).hexdigest()[:8]
+            logging.error(f"❌ Failed to send to {email_hash}...: {e}")
             return False
     
     def send_offer(self, listing: Dict[str, Any], contact_email: str) -> OutreachMessage:
         """Send an offer email for a listing."""
         formatted = self.format_message(listing)
-        
+
+        unsub_token = _generate_unsubscribe_token(contact_email)
+        unsub_url = f"{UNSUBSCRIBE_BASE_URL}?token={unsub_token}&email={contact_email}"
+
+        footer_html = f'<br><br><small><a href="{unsub_url}">Unsubscribe</a> | <a href="https://immo-scouter.com">Immo-Scouter</a></small>'
+        footer_text = f'\n\n---\nUnsubscribe: {unsub_url}'
+
+        formatted['body_html'] = formatted['body_html'].replace('</body></html>', f'{footer_html}</body></html>')
+        formatted['body_text'] += footer_text
+
         message = OutreachMessage(
             to_email=contact_email,
             subject=formatted['subject'],
@@ -320,62 +345,132 @@ Objektreferenz: {listing_url}
             listing_price=formatted['listing_price'],
             offer_price=formatted['offer_price']
         )
-        
+
         success = self.send_email(
             to_email=contact_email,
             subject=formatted['subject'],
             body_text=formatted['body_text'],
-            body_html=formatted['body_html']
+            body_html=formatted['body_html'],
+            listing=listing,
+            unsubscribe_url=unsub_url
         )
-        
+
         message.sent_at = datetime.now()
         message.success = success
         if not success:
             message.error_message = "Failed to send email"
-        
+
         return message
     
     def send_offers_batch(self, listings_with_contacts: List[Dict[str, Any]]) -> List[OutreachMessage]:
         """
-        Send offer emails to a batch of listings.
-        
-        Each item in listings_with_contacts should have:
-            - listing: Dict with listing data
-            - contact_email: str with email address
+        Send offer emails to a batch of listings with SMTP connection reuse.
         """
         results = []
         sent_count = 0
-        
-        for item in listings_with_contacts:
-            if sent_count >= self.max_emails_per_run:
-                logging.warning(f"⚠️ Reached max emails per run ({self.max_emails_per_run})")
-                break
-            
-            listing = item.get('listing', {})
-            contact_email = item.get('contact_email')
-            
-            if not contact_email:
-                logging.warning(f"⚠️ No contact email for listing: {listing.get('url', 'unknown')}")
-                continue
-            
-            if not _is_valid_email(contact_email):
-                logging.warning(f"⚠️ Invalid email format: {contact_email}")
-                continue
-            
-            logging.info(f"📧 Sending offer to {contact_email} for {listing.get('url', 'unknown')}")
-            
-            result = self.send_offer(listing, contact_email)
-            results.append(result)
-            
-            if result.success:
-                sent_count += 1
-            
-            # Rate limiting
-            if sent_count < len(listings_with_contacts) - 1:
-                time.sleep(self.delay_between_emails)
-        
+
+        if not listings_with_contacts:
+            return results
+
+        context = ssl.create_default_context()
+
+        try:
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                if self.use_tls:
+                    server.starttls(context=context)
+                server.login(str(self.smtp_user), str(self.smtp_password))
+
+                for item in listings_with_contacts:
+                    if sent_count >= self.max_emails_per_run:
+                        logging.warning(f"⚠️ Reached max emails per run ({self.max_emails_per_run})")
+                        break
+
+                    listing = item.get('listing', {})
+                    contact_email = item.get('contact_email')
+
+                    if not contact_email:
+                        logging.warning(f"⚠️ No contact email for listing: {listing.get('url', 'unknown')}")
+                        continue
+
+                    if not _is_valid_email(contact_email):
+                        logging.warning(f"⚠️ Invalid email format")
+                        continue
+
+                    email_hash = hashlib.sha256(contact_email.encode()).hexdigest()[:8]
+                    logging.info(f"📧 Sending offer to {email_hash}... for {listing.get('url', 'unknown')}")
+
+                    unsub_token = _generate_unsubscribe_token(contact_email)
+                    unsub_url = f"{UNSUBSCRIBE_BASE_URL}?token={unsub_token}&email={contact_email}"
+
+                    result = self._send_single_email_via_server(server, listing, contact_email, unsub_url)
+                    results.append(result)
+
+                    if result.success:
+                        sent_count += 1
+
+                    if sent_count < len(listings_with_contacts):
+                        time.sleep(self.delay_between_emails)
+
+        except smtplib.SMTPException as e:
+            logging.error(f"❌ SMTP connection error: {e}")
+
         logging.info(f"📊 Batch complete: {sent_count}/{len(listings_with_contacts)} emails sent")
         return results
+
+    def _send_single_email_via_server(self, server, listing: Dict[str, Any], contact_email: str, unsubscribe_url: str) -> OutreachMessage:
+        """Send one email using an existing SMTP server connection."""
+        formatted = self.format_message(listing)
+
+        footer_html = f'<br><br><small><a href="{unsubscribe_url}">Unsubscribe</a> | <a href="https://immo-scouter.com">Immo-Scouter</a></small>'
+        footer_text = f'\n\n---\nUnsubscribe: {unsubscribe_url}'
+        formatted['body_html'] = formatted['body_html'].replace('</body></html>', f'{footer_html}</body></html>')
+        formatted['body_text'] += footer_text
+
+        message = OutreachMessage(
+            to_email=contact_email,
+            subject=formatted['subject'],
+            body_html=formatted['body_html'],
+            body_text=formatted['body_text'],
+            listing_url=listing.get('url', ''),
+            listing_price=formatted['listing_price'],
+            offer_price=formatted['offer_price']
+        )
+
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = formatted['subject']
+            safe_sender_name = self.sender_name.replace('\n', '').replace('\r', '')
+            msg['From'] = f"{safe_sender_name} <{self.sender_email}>"
+            msg['To'] = contact_email
+
+            listing_url = listing.get('url', '')
+            listing_url_hash = hashlib.sha256(listing_url.encode()).hexdigest()[:12]
+            thread_id = f"<immo-scouter-{listing_url_hash}@{socket.gethostname()}>"
+            msg['Reply-To'] = self.sender_email
+            msg['References'] = thread_id
+            msg['In-Reply-To'] = thread_id
+            msg['List-Unsubscribe'] = f'<{unsubscribe_url}>'
+            msg['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+
+            part1 = MIMEText(formatted['body_text'], 'plain', 'utf-8')
+            part2 = MIMEText(formatted['body_html'], 'html', 'utf-8')
+            msg.attach(part1)
+            msg.attach(part2)
+
+            server.sendmail(str(self.sender_email), contact_email, msg.as_string())
+
+            message.sent_at = datetime.now()
+            message.success = True
+            email_hash = hashlib.sha256(contact_email.encode()).hexdigest()[:8]
+            logging.info(f"✅ Email sent successfully to {email_hash}...")
+        except Exception as e:
+            message.sent_at = datetime.now()
+            message.success = False
+            message.error_message = str(e)
+            email_hash = hashlib.sha256(contact_email.encode()).hexdigest()[:8]
+            logging.error(f"❌ Failed to send to {email_hash}...: {e}")
+
+        return message
     
     def test_connection(self) -> bool:
         """Test SMTP connection without sending an email."""

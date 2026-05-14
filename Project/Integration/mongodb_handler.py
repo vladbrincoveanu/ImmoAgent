@@ -63,7 +63,8 @@ class MongoDBHandler:
             self.db = self.client[db_name]
             self.collection = self.db[collection_name]
             self.metrics_collection = self.db["validation_metrics"]
-            
+            self.outreach_collection = self.db["outreach_jobs"]
+
             # Test the connection
             self.client.admin.command('ping')
             logging.info("✅ MongoDB connection successful!")
@@ -82,6 +83,10 @@ class MongoDBHandler:
             self.collection.create_index([("bezirk", 1), ("price_per_m2", 1)])
             self.collection.create_index([("url_is_valid", 1), ("processed_at", -1)])
             self.collection.create_index([("sent_to_telegram", 1), ("processed_at", -1)])
+            self.collection.create_index("price_total")
+            self.collection.create_index("processed_at")
+            self.collection.create_index([("score", -1), ("processed_at", -1)], name='score_processed_idx')
+            self.collection.create_index("year_built")
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 print(f"⚠️  MongoDB authentication required, skipping index creation: {e}")
@@ -89,6 +94,13 @@ class MongoDBHandler:
                 print(f"⚠️  Could not create MongoDB index: {e}")
         except Exception as e:
             print(f"⚠️  MongoDB initialization warning: {e}")
+
+        # Create outreach job queue indexes
+        try:
+            self.outreach_collection.create_index([('status', 1), ('next_retry', 1)])
+            self.outreach_collection.create_index([('recipient_email', 1)])
+        except Exception as e:
+            logging.warning(f"Could not create outreach indexes: {e}")
 
     def close(self):
         """Close the MongoDB connection"""
@@ -674,3 +686,58 @@ class MongoDBHandler:
         """Reset metrics for a source or all sources."""
         query = {"source": source} if source else {}
         self.metrics_collection.delete_many(query)
+
+    def create_outreach_jobs(self, jobs: List[Dict]) -> int:
+        """Create pending outreach jobs in MongoDB for tracking and retry."""
+        if not jobs:
+            return 0
+        from datetime import datetime, timezone
+        job_docs = []
+        for job in jobs:
+            job_docs.append({
+                'recipient_email': job['contact_email'],
+                'listing_url': job['listing_url'],
+                'listing_title': job.get('title', ''),
+                'status': 'pending',
+                'attempts': 0,
+                'created_at': datetime.now(timezone.utc),
+                'last_attempt': None,
+                'next_retry': None,
+                'error_message': None
+            })
+        result = self.outreach_collection.insert_many(job_docs)
+        return len(result.inserted_ids)
+
+    def get_pending_outreach_jobs(self, limit: int = 10) -> List[Dict]:
+        """Get jobs ready for sending (pending or retry-eligible)."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        return list(self.outreach_collection.find({
+            '$or': [
+                {'status': 'pending'},
+                {'status': 'retry', 'next_retry': {'$lte': now}}
+            ]
+        }).limit(limit))
+
+    def mark_outreach_job_sent(self, job_id, sent_at: datetime = None) -> None:
+        from datetime import datetime, timezone
+        self.outreach_collection.update_one(
+            {'_id': job_id},
+            {'$set': {
+                'status': 'sent',
+                'sent_at': sent_at or datetime.now(timezone.utc)
+            }}
+        )
+
+    def mark_outreach_job_failed(self, job_id, error: str, retry_at: datetime = None) -> None:
+        from datetime import datetime, timezone
+        self.outreach_collection.update_one(
+            {'_id': job_id},
+            {'$inc': {'attempts': 1},
+             '$set': {
+                 'last_attempt': datetime.now(timezone.utc),
+                 'error_message': error,
+                 'next_retry': retry_at,
+                 'status': 'retry' if retry_at else 'failed'
+             }}
+        )
