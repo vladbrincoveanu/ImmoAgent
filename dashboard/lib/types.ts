@@ -34,6 +34,7 @@ export interface MapListing {
   landmark_hint: string | null;
   price_is_estimated?: boolean;
   estimated_down_pct?: number | null;
+  estimated_equity_eur?: number | null;
   bank_score_confidence?: string | null;
 }
 
