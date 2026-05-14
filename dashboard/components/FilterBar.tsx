@@ -20,10 +20,10 @@ interface FilterBarProps {
   onRefresh: () => void;
   sortBy?: SortOption;
   onSortChange?: (sort: SortOption) => void;
-  maxPrice: string;
-  onMaxPriceChange: (v: string) => void;
-  showUnfinanceable: boolean;
-  onShowUnfinanceableChange: (v: boolean) => void;
+  maxPrice?: string;
+  onMaxPriceChange?: (v: string) => void;
+  showUnfinanceable?: boolean;
+  onShowUnfinanceableChange?: (v: boolean) => void;
 }
 
 export function FilterBar({
@@ -46,14 +46,16 @@ export function FilterBar({
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">Max Price €</label>
-        <input
-          type="number" min="0" step="10000" value={maxPrice}
-          onChange={(e) => onMaxPriceChange(e.target.value)}
-          className="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      {maxPrice != null && onMaxPriceChange && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Max Price €</label>
+          <input
+            type="number" min="0" step="10000" value={maxPrice}
+            onChange={(e) => onMaxPriceChange(e.target.value)}
+            className="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium text-gray-700">District</label>
@@ -84,15 +86,17 @@ export function FilterBar({
         </select>
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={showUnfinanceable}
-          onChange={(e) => onShowUnfinanceableChange(e.target.checked)}
-          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-        />
-        <span className="text-sm font-medium text-gray-700">Show unfinanceable</span>
-      </label>
+      {showUnfinanceable != null && onShowUnfinanceableChange && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showUnfinanceable}
+            onChange={(e) => onShowUnfinanceableChange(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-gray-700">Show unfinanceable</span>
+        </label>
+      )}
     </div>
   );
 }

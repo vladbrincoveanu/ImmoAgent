@@ -32,6 +32,8 @@ export default function MapPage() {
   const [district, setDistrict] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [maxPrice, setMaxPrice] = useState('500000');
+  const [showUnfinanceable, setShowUnfinanceable] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
 
   useEffect(() => {
@@ -64,9 +66,20 @@ export default function MapPage() {
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
+  const filteredListings = useMemo(() => listings.filter((l) => {
+    if (maxPrice && l.price_total != null && l.price_total > Number(maxPrice)) return false;
+    if (
+      !showUnfinanceable &&
+      l.estimated_down_pct != null &&
+      l.estimated_down_pct > 30 &&
+      l.bank_score_confidence !== 'low'
+    ) return false;
+    return true;
+  }), [listings, maxPrice, showUnfinanceable]);
+
   const highlightedListing = useMemo(
-    () => listings.find((l) => l._id === highlightedId) ?? null,
-    [listings, highlightedId]
+    () => filteredListings.find((l) => l._id === highlightedId) ?? null,
+    [filteredListings, highlightedId]
   );
 
   const handlePinClick = useCallback((listing: MapListing) => {
@@ -99,7 +112,7 @@ export default function MapPage() {
         {/* Desktop sidebar — hidden on mobile */}
         <div className="hidden md:block w-[280px] h-full shrink-0">
           <ListingSidebar
-            listings={listings}
+            listings={filteredListings}
             minScore={minScore}
             onMinScoreChange={setMinScore}
             district={district}
@@ -117,18 +130,18 @@ export default function MapPage() {
           <BottomSheet
             snapPoints={snapPoints}
             defaultState="half"
-            count={listings.length}
+            count={filteredListings.length}
             scrollToId={highlightedId}
           >
             <div className="p-3">
               <div className="text-xs text-gray-500 font-medium mb-2">
-                LISTINGS ({listings.length})
+                LISTINGS ({filteredListings.length})
               </div>
               <div className="flex flex-col gap-1.5">
-                {listings.length === 0 ? (
+                {filteredListings.length === 0 ? (
                   <p className="text-gray-400 text-sm text-center py-4">No listings match your filters.</p>
                 ) : (
-                  listings.map((l) => (
+                  filteredListings.map((l) => (
                     <div
                       key={l._id}
                       data-listing-id={l._id}
@@ -193,6 +206,10 @@ export default function MapPage() {
             onRefresh={fetchListings}
             sortBy={sortBy}
             onSortChange={setSortBy}
+            maxPrice={maxPrice}
+            onMaxPriceChange={setMaxPrice}
+            showUnfinanceable={showUnfinanceable}
+            onShowUnfinanceableChange={setShowUnfinanceable}
           />
         </div>
 
