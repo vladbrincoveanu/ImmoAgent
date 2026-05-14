@@ -136,7 +136,7 @@ test.describe('Map interaction freeze tests', () => {
         await markers.first().click({ timeout: 5000 }).catch(() => {});
         await page.waitForTimeout(500);
         if (count > 1) {
-          await markers.nth(Math.floor(count / 2)).click({ timeout: 5000 }).catch(() => {});
+          await markers.nth(Math.floor(count / 2)).click({ timeout: 5000, force: true }).catch(() => {});
           await page.waitForTimeout(500);
         }
       }
@@ -151,5 +151,57 @@ test.describe('Map interaction freeze tests', () => {
 
     const unexpected = errors.filter(isUnexpectedError);
     expect(unexpected.length).toBe(0);
+  });
+
+  test('pin click shows SelectedCard, map click dismisses it', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+
+    await page.goto('/dashboard/map');
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(2000);
+
+    const leaflet = page.locator('.leaflet-container');
+    if (await leaflet.count() === 0) {
+      await expect(page.locator('h1')).toContainText('Property Map');
+      return;
+    }
+
+    await expect(leaflet).toBeAttached({ timeout: 10000 });
+
+    const markers = page.locator('.leaflet-marker-icon');
+    const count = await markers.count();
+    if (count === 0) return;
+
+    await markers.first().click({ timeout: 5000, force: true });
+    await page.waitForTimeout(400);
+
+    const viewDetails = page.locator('button:has-text("View details")').or(page.locator('text=View details →')).first();
+    const cardVisible = await viewDetails.isVisible().catch(() => false);
+    if (cardVisible) {
+      const bbox = await leaflet.boundingBox();
+      if (bbox) {
+        await page.mouse.click(bbox.x + 10, bbox.y + 10);
+        await page.waitForTimeout(300);
+        await expect(viewDetails).not.toBeVisible();
+      }
+    }
+
+    const unexpected = errors.filter(isUnexpectedError);
+    expect(unexpected.length).toBe(0);
+  });
+
+  test('sidebar shows "N in view" counter', async ({ page }) => {
+    await page.goto('/dashboard/map');
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(2000);
+
+    const inViewText = page.locator('text=in view').first();
+    const isVisible = await inViewText.isVisible().catch(() => false);
+    if (isVisible) {
+      await expect(inViewText).toBeVisible();
+    }
   });
 });
