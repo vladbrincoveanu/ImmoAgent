@@ -10,6 +10,7 @@ import { MapListing } from '@/lib/types';
 import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { SelectedCard } from '@/components/SelectedCard';
+import { useListingsSSE } from '@/lib/sse';
 import type { ViewportBounds } from '@/components/MapView';
 
 const MapView = dynamic(
@@ -39,6 +40,35 @@ export default function MapPage() {
   const [maxPrice, setMaxPrice] = useState('500000');
   const [showUnfinanceable, setShowUnfinanceable] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
+
+  const { newListings } = useListingsSSE();
+
+  useEffect(() => {
+    if (newListings.length === 0) return;
+    setListings((prev) => {
+      const existingIds = new Set(prev.map((l) => l._id));
+      const merged = newListings
+        .filter((l) => !existingIds.has(l._id))
+        .map((l): MapListing => ({
+          _id: l._id,
+          title: l.title ?? '',
+          url: l.url ?? '',
+          source_enum: l.source_enum as MapListing['source_enum'],
+          bezirk: l.bezirk ?? '',
+          price_total: l.price_total ?? null,
+          area_m2: l.area_m2 ?? null,
+          rooms: l.rooms ?? null,
+          score: l.score ?? null,
+          image_url: l.image_url ?? null,
+          coordinates: null,
+          coordinate_source: 'district',
+          price_is_estimated: false,
+          landmark_hint: null,
+        }));
+      if (merged.length === 0) return prev;
+      return [...merged, ...prev];
+    });
+  }, [newListings]);
 
   useEffect(() => {
     const handleResize = () => {
