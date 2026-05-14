@@ -33,6 +33,8 @@ export interface MapListing {
   coordinate_source: CoordinateSource;
   landmark_hint: string | null;
   price_is_estimated?: boolean;
+  estimated_down_pct?: number | null;
+  bank_score_confidence?: string | null;
 }
 
 export interface ListingDetail extends ListingBase {
