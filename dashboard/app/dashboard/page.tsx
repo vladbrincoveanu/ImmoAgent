@@ -1,22 +1,67 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ListingCard } from '@/components/ListingCard';
 import { FilterBar, SortOption } from '@/components/FilterBar';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { ListingDetail } from '@/components/ListingDetail';
 import { ListingBase } from '@/lib/types';
+import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [listings, setListings] = useState<ListingBase[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [minScore, setMinScore] = useState('0');
-  const [district, setDistrict] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [maxPrice, setMaxPrice] = useState('500000');
-  const [showUnfinanceable, setShowUnfinanceable] = useState(false);
+
+  const [minScore, setMinScore] = useState<string>('0');
+  const [district, setDistrict] = useState<string>('');
+  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
+  const [maxPrice, setMaxPrice] = useState<string>('500000');
+  const [showUnfinanceable, setShowUnfinanceable] = useState<boolean>(false);
+
+  useEffect(() => {
+    const filters = filtersFromParams(searchParams);
+    setMinScore(filters.minScore);
+    setDistrict(filters.district);
+    setSortBy(filters.sortBy as SortOption);
+    setMaxPrice(filters.maxPrice);
+    setShowUnfinanceable(filters.showUnfinanceable);
+  }, [searchParams]);
+
+  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean }) => {
+    const params = paramsFromFilters(filters);
+    router.push(`/dashboard?${params.toString()}`);
+  }, [router]);
+
+  const handleMinScoreChange = (v: string) => {
+    setMinScore(v);
+    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable });
+  };
+
+  const handleDistrictChange = (v: string) => {
+    setDistrict(v);
+    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable });
+  };
+
+  const handleSortChange = (v: SortOption) => {
+    setSortBy(v);
+    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable });
+  };
+
+  const handleMaxPriceChange = (v: string) => {
+    setMaxPrice(v);
+    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable });
+  };
+
+  const handleShowUnfinanceableChange = (v: boolean) => {
+    setShowUnfinanceable(v);
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v });
+  };
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
@@ -64,16 +109,16 @@ export default function DashboardPage() {
         <div className="hidden md:block">
           <FilterBar
             minScore={minScore}
-            onMinScoreChange={setMinScore}
+            onMinScoreChange={handleMinScoreChange}
             district={district}
-            onDistrictChange={setDistrict}
+            onDistrictChange={handleDistrictChange}
             onRefresh={fetchListings}
             sortBy={sortBy}
-            onSortChange={setSortBy}
+            onSortChange={handleSortChange}
             maxPrice={maxPrice}
-            onMaxPriceChange={setMaxPrice}
+            onMaxPriceChange={handleMaxPriceChange}
             showUnfinanceable={showUnfinanceable}
-            onShowUnfinanceableChange={setShowUnfinanceable}
+            onShowUnfinanceableChange={handleShowUnfinanceableChange}
           />
         </div>
 
@@ -106,16 +151,16 @@ export default function DashboardPage() {
         open={filterDrawerOpen}
         onClose={() => setFilterDrawerOpen(false)}
         minScore={minScore}
-        onMinScoreChange={setMinScore}
+        onMinScoreChange={handleMinScoreChange}
         district={district}
-        onDistrictChange={setDistrict}
+        onDistrictChange={handleDistrictChange}
         onRefresh={fetchListings}
         sortBy={sortBy}
-        onSortChange={setSortBy}
+        onSortChange={handleSortChange}
         maxPrice={maxPrice}
-        onMaxPriceChange={setMaxPrice}
+        onMaxPriceChange={handleMaxPriceChange}
         showUnfinanceable={showUnfinanceable}
-        onShowUnfinanceableChange={setShowUnfinanceable}
+        onShowUnfinanceableChange={handleShowUnfinanceableChange}
       />
 
       {selectedId && (
