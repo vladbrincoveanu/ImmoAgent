@@ -17,6 +17,10 @@ interface ListingSidebarProps {
   onSelect: (listing: MapListing) => void;
   sortBy?: SortOption;
   onSortChange?: (sort: SortOption) => void;
+  viewportCount: number;
+  hoveredId: string | null;
+  onHover: (id: string) => void;
+  onHoverEnd: () => void;
 }
 
 export function ListingSidebar({
@@ -26,6 +30,8 @@ export function ListingSidebar({
   onRefresh,
   selectedId, onSelect,
   sortBy, onSortChange,
+  viewportCount,
+  hoveredId, onHover, onHoverEnd,
 }: ListingSidebarProps) {
   return (
     <div className="w-[280px] h-full flex flex-col border-r border-gray-200 bg-gray-50 overflow-hidden">
@@ -42,7 +48,7 @@ export function ListingSidebar({
       </div>
 
       <div className="px-3 py-2 text-xs text-gray-500 font-medium">
-        LISTINGS ({listings.length})
+        {viewportCount} in view
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-1.5">
@@ -53,13 +59,16 @@ export function ListingSidebar({
             <div
               key={l._id}
               onClick={() => onSelect(l)}
+              onMouseEnter={() => onHover(l._id)}
+              onMouseLeave={onHoverEnd}
               className={`flex gap-3 bg-white rounded-lg border p-2 cursor-pointer transition-all text-xs ${
                 selectedId === l._id
                   ? 'border-accent ring-1 ring-accent'
+                  : hoveredId === l._id
+                  ? 'border-blue-400 shadow-sm'
                   : 'border-border hover:border-muted'
               }`}
             >
-              {/* Thumbnail */}
               <div className="w-16 h-16 rounded-md overflow-hidden bg-border shrink-0 flex items-center justify-center">
                 {l.image_url ? (
                   <img src={l.image_url} alt="" className="w-full h-full object-cover" />
@@ -70,7 +79,6 @@ export function ListingSidebar({
                 )}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className={`font-medium line-clamp-1 leading-tight ${selectedId === l._id ? 'text-accent' : 'text-text'}`}>
                   {l.title || 'Untitled'}{selectedId === l._id && <span className="ml-1">→</span>}
