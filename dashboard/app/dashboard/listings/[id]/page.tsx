@@ -28,44 +28,44 @@ export default async function ListingDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{listing.title || 'Listing'}</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">{listing.address || listing.bezirk || 'Vienna'}</p>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h1 className="text-2xl font-bold mb-2 text-[#3D405B]">{listing.title || 'Listing'}</h1>
+        <p className="text-[#8B8B8B] mb-4">{listing.address || listing.bezirk || 'Vienna'}</p>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Price</span>
-            <p className="font-semibold text-gray-900 dark:text-white">
+          <div className="p-3 bg-[#F9F7F4] rounded">
+            <span className="text-sm text-[#8B8B8B]">Price</span>
+            <p className="font-semibold text-[#3D405B]">
               {listing.price_total ? `€${listing.price_total.toLocaleString()}` : 'N/A'}
             </p>
           </div>
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Area</span>
-            <p className="font-semibold text-gray-900 dark:text-white">
+          <div className="p-3 bg-[#F9F7F4] rounded">
+            <span className="text-sm text-[#8B8B8B]">Area</span>
+            <p className="font-semibold text-[#3D405B]">
               {listing.area_m2 ? `${listing.area_m2}m²` : 'N/A'}
             </p>
           </div>
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Rooms</span>
-            <p className="font-semibold text-gray-900 dark:text-white">
+          <div className="p-3 bg-[#F9F7F4] rounded">
+            <span className="text-sm text-[#8B8B8B]">Rooms</span>
+            <p className="font-semibold text-[#3D405B]">
               {listing.rooms || 'N/A'}
             </p>
           </div>
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-            <span className="text-sm text-gray-500 dark:text-gray-400">District</span>
-            <p className="font-semibold text-gray-900 dark:text-white">
+          <div className="p-3 bg-[#F9F7F4] rounded">
+            <span className="text-sm text-[#8B8B8B]">District</span>
+            <p className="font-semibold text-[#3D405B]">
               {listing.bezirk || 'N/A'}
             </p>
           </div>
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Score</span>
+          <div className="p-3 bg-[#F9F7F4] rounded">
+            <span className="text-sm text-[#8B8B8B]">Score</span>
             <p className="font-semibold text-green-600">
               {listing.score ? `${listing.score}/100` : 'N/A'}
             </p>
           </div>
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Energy Class</span>
-            <p className="font-semibold text-gray-900 dark:text-white">
+          <div className="p-3 bg-[#F9F7F4] rounded">
+            <span className="text-sm text-[#8B8B8B]">Energy Class</span>
+            <p className="font-semibold text-[#3D405B]">
               {listing.energy_class || listing.hwb_value ? `${listing.energy_class || 'HWB: ' + listing.hwb_value}` : 'N/A'}
             </p>
           </div>
@@ -73,19 +73,19 @@ export default async function ListingDetailPage({ params }: Props) {
 
         {breakdownEntries.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Score Breakdown</h2>
+            <h2 className="text-lg font-semibold mb-3 text-[#3D405B]">Score Breakdown</h2>
             <div className="space-y-2">
               {breakdownEntries.map(([key, data]: [string, any]) => (
-                <div key={key} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <span className="text-gray-700 dark:text-gray-300 capitalize">{key.replace(/_/g, ' ')}</span>
+                <div key={key} className="flex justify-between items-center p-2 bg-[#F9F7F4] rounded">
+                  <span className="text-[#2D2D2D] capitalize">{key.replace(/_/g, ' ')}</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="w-24 h-2 bg-[#E8E4E0] rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500"
                         style={{ width: `${typeof data === 'object' ? (data.normalized_score || 0) : 0}%` }}
                       />
                     </div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="text-sm font-medium text-[#3D405B]">
                       {typeof data === 'object' ? (data.normalized_score || 0) : 0}
                     </span>
                   </div>
@@ -106,7 +106,7 @@ export default async function ListingDetailPage({ params }: Props) {
           </a>
           <Link
             href="/dashboard"
-            className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white px-4 py-2 rounded transition-colors"
+            className="bg-[#E8E4E0] hover:bg-[#D0CCC8] text-[#3D405B] px-4 py-2 rounded transition-colors"
           >
             Back to Dashboard
           </Link>
