@@ -1,34 +1,42 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const errorParam = searchParams.get('error')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    const result = await signIn('credentials', {
-      username,
-      password,
-      redirect: false
-    })
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        body: new URLSearchParams({ username, password }),
+      })
 
-    setLoading(false)
-
-    if (result?.error) {
+      if (res.redirected) {
+        router.push('/dashboard')
+        router.refresh()
+      } else if (res.ok) {
+        router.push('/dashboard')
+        router.refresh()
+      } else {
+        setError('Invalid username or password')
+      }
+    } catch {
       setError('Invalid username or password')
-    } else {
-      router.push('/dashboard')
-      router.refresh()
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -44,9 +52,9 @@ export default function LoginPage() {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
+          {(error || errorParam) && (
             <div className="bg-red-50 dark:bg-red-900/20 text-red-500 text-sm rounded p-3">
-              {error}
+              {error || 'Invalid username or password'}
             </div>
           )}
           <div>

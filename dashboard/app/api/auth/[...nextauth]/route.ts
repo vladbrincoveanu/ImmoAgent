@@ -6,8 +6,6 @@ if (!process.env.NEXTAUTH_SECRET) {
 }
 
 const handler = NextAuth({
-  // @ts-ignore - trustHost required for Vercel
-  trustHost: true,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
