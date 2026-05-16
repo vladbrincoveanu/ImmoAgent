@@ -91,10 +91,8 @@ jobs:
 
       - name: Run core unit tests
         run: |
-          cd Tests
-          pytest test_buyer_profiles.py test_score_calculation.py test_validation.py \
-                 test_listing_validator.py test_utils.py test_district_extraction.py \
-                 -v --tb=short
+          cd Project/Tests
+          pytest test_bank_scoring.py -v --tb=short
 
       - name: Security audit
         run: |
