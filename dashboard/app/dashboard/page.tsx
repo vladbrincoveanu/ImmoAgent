@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ListingCard } from '@/components/ListingCard';
 import { FilterBar, SortOption } from '@/components/FilterBar';
@@ -9,7 +9,7 @@ import { ListingDetail } from '@/components/ListingDetail';
 import { ListingBase } from '@/lib/types';
 import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -170,5 +170,13 @@ export default function DashboardPage() {
         />
       )}
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-500">Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
