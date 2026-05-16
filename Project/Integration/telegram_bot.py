@@ -8,7 +8,6 @@ from Application.scoring import score_apartment_simple
 import time
 
 telegram_logger = logging.getLogger(__name__)
-telegram_logger.addFilter(TelegramTokenFilter())
 
 class TelegramTokenFilter(logging.Filter):
     TOKEN_PATTERN = re.compile(r'(\d{8,10}:[\w-]{30,50})')
@@ -16,6 +15,8 @@ class TelegramTokenFilter(logging.Filter):
         if record.msg and isinstance(record.msg, str):
             record.msg = self.TOKEN_PATTERN.sub('<TELEGRAM_TOKEN_REDACTED>', record.msg)
         return True
+
+telegram_logger.addFilter(TelegramTokenFilter())
 
 def clean_utf8_text(text: str) -> str:
     """Clean text to ensure UTF-8 compatibility and proper formatting"""
