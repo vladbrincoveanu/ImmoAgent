@@ -73,3 +73,4 @@ class Listing:
     estimated_down_pct_kimv: Optional[float]    = None  # 90% LTV KIM-V program
     estimated_equity_eur:    Optional[int]      = None
     bank_score_confidence:   Optional[str]      = None  # "low" | "medium" | "high"
+    betriebskosten_breakdown: Optional[Dict[str, Any]] = field(default_factory=dict)
