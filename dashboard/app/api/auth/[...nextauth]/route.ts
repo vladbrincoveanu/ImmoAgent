@@ -6,7 +6,6 @@ if (!process.env.NEXTAUTH_SECRET) {
 }
 
 const handler = NextAuth({
-  trustHost: true,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
