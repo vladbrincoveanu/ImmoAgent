@@ -48,10 +48,18 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading...</div>
+          <div className="p-8 text-center text-gray-500 relative">
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            >
+              &times;
+            </button>
+            Loading...
+          </div>
         ) : listing ? (
           <>
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
@@ -197,7 +205,15 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
             </div>
           </>
         ) : (
-          <div className="p-8 text-center text-gray-500">Listing not found</div>
+          <div className="p-8 text-center text-gray-500 relative">
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            >
+              &times;
+            </button>
+            Listing not found
+          </div>
         )}
       </div>
     </div>
