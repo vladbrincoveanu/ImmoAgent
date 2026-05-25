@@ -7,7 +7,7 @@ const config = require('../../../../config.json');
 
 type ListingDocument = Document;
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -33,11 +33,7 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/top] Invalid district rejected:', searchParams.get('district'));
     }
-    const cutoff = Date.now() - SEVEN_DAYS_MS;
-
-    const filter: Record<string, unknown> = {
-      processed_at: { $gte: cutoff / 1000 },
-    };
+    const filter: Record<string, unknown> = {};
 
     const andConditions: Record<string, unknown>[] = [
       { $and: [
