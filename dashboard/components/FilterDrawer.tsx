@@ -17,6 +17,10 @@ interface FilterDrawerProps {
   onMaxPriceChange: (v: string) => void;
   showUnfinanceable: boolean;
   onShowUnfinanceableChange: (v: boolean) => void;
+  equity?: string;
+  onEquityChange?: (v: string) => void;
+  rate?: string;
+  onRateChange?: (v: string) => void;
 }
 
 export function FilterDrawer({
@@ -26,12 +30,16 @@ export function FilterDrawer({
   onRefresh, sortBy, onSortChange,
   maxPrice, onMaxPriceChange,
   showUnfinanceable, onShowUnfinanceableChange,
+  equity, onEquityChange,
+  rate, onRateChange,
 }: FilterDrawerProps) {
   const [localMinScore, setLocalMinScore] = useState(minScore);
   const [localDistrict, setLocalDistrict] = useState(district);
   const [localSortBy, setLocalSortBy] = useState(sortBy);
   const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice);
   const [localShowUnfinanceable, setLocalShowUnfinanceable] = useState(showUnfinanceable);
+  const [localEquity, setLocalEquity] = useState(equity ?? '100000');
+  const [localRate, setLocalRate] = useState(rate ?? '3.8');
 
   useEffect(() => {
     setLocalMinScore(minScore);
@@ -39,7 +47,9 @@ export function FilterDrawer({
     setLocalSortBy(sortBy);
     setLocalMaxPrice(maxPrice);
     setLocalShowUnfinanceable(showUnfinanceable);
-  }, [minScore, district, sortBy, maxPrice, showUnfinanceable]);
+    setLocalEquity(equity ?? '100000');
+    setLocalRate(rate ?? '3.8');
+  }, [minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate]);
 
   if (!open) return null;
 
@@ -49,6 +59,8 @@ export function FilterDrawer({
     onSortChange(localSortBy);
     onMaxPriceChange(localMaxPrice);
     onShowUnfinanceableChange(localShowUnfinanceable);
+    onEquityChange?.(localEquity);
+    onRateChange?.(localRate);
     onRefresh();
     onClose();
   };
@@ -59,6 +71,8 @@ export function FilterDrawer({
     setLocalSortBy('score_desc');
     setLocalMaxPrice('500000');
     setLocalShowUnfinanceable(false);
+    setLocalEquity('100000');
+    setLocalRate('3.8');
   };
 
   return (
@@ -90,7 +104,7 @@ export function FilterDrawer({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-text">Max Price €</label>
+            <label className="text-sm font-medium text-text">Max Price EUR</label>
             <input
               type="number" min="0" step="10000" value={localMaxPrice}
               onChange={(e) => setLocalMaxPrice(e.target.value)}
@@ -131,6 +145,24 @@ export function FilterDrawer({
             />
             <span className="text-sm font-medium text-text">Show unfinanceable listings</span>
           </label>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text">Equity (EUR)</label>
+            <input
+              type="number" min="0" step="1000" value={localEquity}
+              onChange={(e) => setLocalEquity(e.target.value)}
+              className="w-full rounded-lg border border-border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text">Rate (%)</label>
+            <input
+              type="number" min="0" step="0.1" value={localRate}
+              onChange={(e) => setLocalRate(e.target.value)}
+              className="w-full rounded-lg border border-border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
         </div>
 
         <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">

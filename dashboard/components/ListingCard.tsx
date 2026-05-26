@@ -10,6 +10,14 @@ interface ListingCardProps {
   onClick: (id: string) => void;
 }
 
+function formatEur(value: number | null | undefined, suffix = ''): string {
+  if (value == null) return '';
+  if (value >= 1000) {
+    return `EUR ${Math.round(value / 1000)}k${suffix}`;
+  }
+  return `EUR ${value}${suffix}`;
+}
+
 export function ListingCard({ listing, onClick }: ListingCardProps) {
   const [imageError, setImageError] = useState(false);
 
@@ -66,6 +74,19 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
             equityEur={listing.estimated_equity_eur}
             confidence={listing.bank_score_confidence}
           />
+        </div>
+
+        <div className="flex items-center gap-3 text-xs mb-2">
+          {listing.monatsrate != null && (
+            <span className="text-[#3D405B] font-medium">
+              {formatEur(listing.monatsrate, '/mo')}
+            </span>
+          )}
+          {listing.cashNeeded != null && (
+            <span className="text-[#3D405B] font-medium">
+              {formatEur(listing.cashNeeded)} cash
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between">

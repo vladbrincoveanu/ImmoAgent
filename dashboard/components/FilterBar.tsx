@@ -24,6 +24,10 @@ interface FilterBarProps {
   onMaxPriceChange?: (v: string) => void;
   showUnfinanceable?: boolean;
   onShowUnfinanceableChange?: (v: boolean) => void;
+  equity?: string;
+  onEquityChange?: (v: string) => void;
+  rate?: string;
+  onRateChange?: (v: string) => void;
 }
 
 export function FilterBar({
@@ -32,6 +36,8 @@ export function FilterBar({
   onRefresh, sortBy, onSortChange,
   maxPrice, onMaxPriceChange,
   showUnfinanceable, onShowUnfinanceableChange,
+  equity, onEquityChange,
+  rate, onRateChange,
 }: FilterBarProps) {
   const effectiveSort = sortBy ?? 'score_desc';
 
@@ -48,7 +54,7 @@ export function FilterBar({
 
       {maxPrice != null && onMaxPriceChange && (
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">Max Price €</label>
+          <label className="text-sm font-medium text-gray-700">Max Price EUR</label>
           <input
             type="number" min="0" step="10000" value={maxPrice}
             onChange={(e) => onMaxPriceChange(e.target.value)}
@@ -96,6 +102,28 @@ export function FilterBar({
           />
           <span className="text-sm font-medium text-gray-700">Show unfinanceable</span>
         </label>
+      )}
+
+      {equity != null && onEquityChange && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Equity (EUR)</label>
+          <input
+            type="number" min="0" step="1000" value={equity}
+            onChange={(e) => onEquityChange(e.target.value)}
+            className="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      )}
+
+      {rate != null && onRateChange && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Rate (%)</label>
+          <input
+            type="number" min="0" step="0.1" value={rate}
+            onChange={(e) => onRateChange(e.target.value)}
+            className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       )}
     </div>
   );

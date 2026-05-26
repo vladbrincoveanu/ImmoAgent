@@ -4,6 +4,8 @@ export type FilterState = {
   sortBy: string;
   maxPrice: string;
   showUnfinanceable: boolean;
+  equity: string;
+  rate: string;
 };
 
 export function filtersFromParams(searchParams: URLSearchParams): FilterState {
@@ -13,6 +15,8 @@ export function filtersFromParams(searchParams: URLSearchParams): FilterState {
     sortBy: searchParams.get('sort') ?? 'score_desc',
     maxPrice: searchParams.get('max_price') ?? '500000',
     showUnfinanceable: searchParams.get('unfinanceable') === 'true',
+    equity: searchParams.get('equity') ?? '100000',
+    rate: searchParams.get('rate') ?? '3.8',
   };
 }
 
@@ -23,5 +27,7 @@ export function paramsFromFilters(filters: FilterState): URLSearchParams {
   if (filters.sortBy && filters.sortBy !== 'score_desc') params.set('sort', filters.sortBy);
   if (filters.maxPrice && filters.maxPrice !== '500000') params.set('max_price', filters.maxPrice);
   if (filters.showUnfinanceable) params.set('unfinanceable', 'true');
+  if (filters.equity && filters.equity !== '100000') params.set('equity', filters.equity);
+  if (filters.rate && filters.rate !== '3.8') params.set('rate', filters.rate);
   return params;
 }
