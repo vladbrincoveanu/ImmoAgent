@@ -34,17 +34,18 @@ class MortgageCalculator:
     
     @staticmethod
     def calculate_monthly_payment(loan_amount: float, annual_rate: float, years: int, include_fees: bool = True) -> float:
-        """
-        Calculate monthly mortgage payment using new formula
-        Based on €1,166 monthly rate for €304,570 loan at 2.89% for 35 years
-        This gives us a ratio of approximately 0.00383
-        """
+        """Calculate monthly mortgage payment using standard annuity formula."""
         if loan_amount <= 0:
             return 0
         
-        # Use new ratio from the provided formula
-        new_ratio = 0.00383  # Based on €304,570 → €1,166 monthly (2.89% rate, 35 years)
-        monthly_payment = loan_amount * new_ratio
+        r = (annual_rate / 100) / 12
+        n = years * 12
+        
+        if r == 0:
+            return round(loan_amount / n, 2)
+        
+        factor = (1 + r) ** n
+        monthly_payment = loan_amount * r * factor / (factor - 1)
         
         return round(monthly_payment, 2)
     
@@ -68,19 +69,25 @@ class MortgageCalculator:
     
     @staticmethod
     def get_payment_breakdown(loan_amount: float, annual_rate: float, years: int) -> Dict:
-        """Get detailed breakdown of monthly payment components using new formula"""
+        """Get detailed breakdown of monthly payment components using annuity formula"""
         if loan_amount <= 0:
             return {}
         
-        # Use new ratio from the provided formula
-        new_ratio = 0.00383  # Based on €304,570 → €1,166 monthly (2.89% rate, 35 years)
-        monthly_payment = loan_amount * new_ratio
+        r = (annual_rate / 100) / 12
+        n = years * 12
+        
+        if r == 0:
+            monthly_payment = loan_amount / n
+        else:
+            factor = (1 + r) ** n
+            monthly_payment = loan_amount * r * factor / (factor - 1)
         
         return {
-            'base_payment': round(monthly_payment * 0.85, 2),  # 85% of total is base loan
-            'extra_fees': round(monthly_payment * 0.15, 2),    # 15% of total is extra fees
+            'base_payment': round(monthly_payment, 2),
             'total_monthly': round(monthly_payment, 2),
-            'loan_amount': round(loan_amount, 2)
+            'loan_amount': round(loan_amount, 2),
+            'interest_rate': annual_rate,
+            'years': years
         }
 
 class ImmoKurierScraper:
@@ -289,22 +296,6 @@ class ImmoKurierScraper:
                 listing.betriebskosten = betriebskosten_breakdown['total_incl_vat']
                 listing.betriebskosten_breakdown = betriebskosten_breakdown
                 listing.betriebskosten_estimated = True
-            
-            if listing.price_total:
-                down_payment = self.estimate_down_payment(listing.price_total)
-                loan_amount = self.mortgage_calc.calculate_loan_amount(listing.price_total, down_payment)
-                interest_rate = self.mortgage_calc.estimate_interest_rate()
-                years = 30  # Default 30 years
-                
-                listing.calculated_monatsrate = self.mortgage_calc.calculate_monthly_payment(
-                    loan_amount, interest_rate, years
-                )
-                listing.mortgage_details = self.mortgage_calc.get_payment_breakdown(
-                    loan_amount, interest_rate, years
-                )
-                listing.total_monthly_cost = self.calculate_total_monthly_cost(
-                    listing.calculated_monatsrate, listing.betriebskosten
-                )
 
             _bank = compute_bank_score(listing)
             listing.belehnungswert_factor   = _bank.belehnungswert_factor

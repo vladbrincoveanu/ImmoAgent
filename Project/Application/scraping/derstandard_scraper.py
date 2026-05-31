@@ -34,7 +34,7 @@ from Integration.mongodb_handler import MongoDBHandler
 from Application.analyzer import StructuredAnalyzer
 from Application.bank_scoring import compute_bank_score
 from Application.helpers.geocoding import ViennaGeocoder
-from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, smart_sleep
+from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, smart_sleep
 from Application.buyer_profiles import GLOBAL_VALIDATION
 
 class DerStandardScraper:
@@ -638,9 +638,7 @@ class DerStandardScraper:
                 listing.parking = property_data.get('parking', '')
                 listing.fgee_value = property_data.get('fgee_value')
                 listing.special_features = property_data.get('special_features', [])
-                listing.monatsrate = property_data.get('monatsrate')
-                listing.own_funds = property_data.get('own_funds')
-                
+
                 # Extract image URL if not already set
                 if not listing.image_url:
                     listing.image_url = self.extract_image_url(soup)
@@ -655,22 +653,11 @@ class DerStandardScraper:
                     listing.ubahn_walk_minutes = ubahn_minutes
                     listing.school_walk_minutes = school_minutes
                 
-                # Handle Betriebskosten - estimate based on area
-                if listing.area_m2:
-                    betriebskosten_breakdown = estimate_betriebskosten(listing.area_m2)
-                    listing.betriebskosten = betriebskosten_breakdown['total_incl_vat']
-                    listing.betriebskosten_breakdown = betriebskosten_breakdown
-                    listing.betriebskosten_estimated = True
-                
-                # Calculate mortgage details if price is available
-                if listing.price_total:
-                    listing.calculated_monatsrate = self.calculate_monthly_rate(listing.price_total)
-                    listing.mortgage_details = self.get_mortgage_breakdown(listing.price_total)
-                    # Add Betriebskosten to total monthly cost
-                    total_monthly = listing.calculated_monatsrate
-                    if listing.betriebskosten:
-                        total_monthly += listing.betriebskosten
-                    listing.total_monthly_cost = total_monthly
+                # Handle Betriebskosten - extract from page if available
+                extracted_bk = self.extract_betriebskosten(soup)
+                if extracted_bk is not None:
+                    listing.betriebskosten = extracted_bk
+                    listing.betriebskosten_estimated = False
 
                 # New fields for prime_new_build profile
                 listing.street_view = self.extract_street_view(soup)
@@ -1129,23 +1116,12 @@ class DerStandardScraper:
                 listing.ubahn_walk_minutes = ubahn_minutes
                 listing.school_walk_minutes = school_minutes
             
-            # Handle Betriebskosten - estimate based on area
-            if listing.area_m2:
-                betriebskosten_breakdown = estimate_betriebskosten(listing.area_m2)
-                listing.betriebskosten = betriebskosten_breakdown['total_incl_vat']
-                listing.betriebskosten_breakdown = betriebskosten_breakdown
-                listing.betriebskosten_estimated = True
-            
-            # Calculate mortgage details if price is available
-            if listing.price_total:
-                listing.calculated_monatsrate = self.calculate_monthly_rate(listing.price_total)
-                listing.mortgage_details = self.get_mortgage_breakdown(listing.price_total)
-                # Add Betriebskosten to total monthly cost
-                total_monthly = listing.calculated_monatsrate
-                if listing.betriebskosten:
-                    total_monthly += listing.betriebskosten
-                listing.total_monthly_cost = total_monthly
-            
+            # Handle Betriebskosten - extract from page if available
+            extracted_bk = self.extract_betriebskosten(soup)
+            if extracted_bk is not None:
+                listing.betriebskosten = extracted_bk
+                listing.betriebskosten_estimated = False
+
             # Calculate price per m² if we have both price and area
             if listing.price_total is not None and listing.area_m2 is not None:
                 listing.price_per_m2 = listing.price_total / listing.area_m2
@@ -1621,6 +1597,35 @@ class DerStandardScraper:
             return 0
         except Exception as e:
             logging.error(f"Error extracting balcony/terrace: {e}")
+            return None
+
+    def extract_betriebskosten(self, soup: BeautifulSoup) -> Optional[float]:
+        """Extract Betriebskosten (operating costs) from 'Monatliche Kosten inkl. Ust'"""
+        try:
+            all_text = soup.get_text()
+
+            patterns = [
+                r'Monatliche\s+Kosten\s+inkl\.?\s*Ust[:\s]*[\d.,]+',
+                r'Monatliche\s+Kosten[:\s]*EUR\s*([\d.,]+)',
+                r'Betriebskosten[:\s]*EUR\s*([\d.,]+)',
+                r'Betriebskosten[:\s]*€\s*([\d.,]+)',
+            ]
+
+            for pattern in patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    nums = re.findall(r'[\d.,]+', match.group(0))
+                    if nums:
+                        cost_str = nums[-1].replace('.', '').replace(',', '.')
+                        try:
+                            cost = float(cost_str)
+                            if 10 <= cost <= 2000:
+                                return cost
+                        except ValueError:
+                            continue
+            return None
+        except Exception as e:
+            logging.debug(f"Could not extract betriebskosten: {e}")
             return None
 
     def get_walking_times(self, district: str) -> tuple:
