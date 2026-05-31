@@ -33,18 +33,14 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/top] Invalid district rejected:', searchParams.get('district'));
     }
-    const filter: Record<string, unknown> = {};
-
     const andConditions: Record<string, unknown>[] = [
-      { $and: [
-        { url_is_valid: { $ne: false } },
-        { listing_status: { $ne: "taken" } },
-        { price_total: { $gt: 0 } },
-        { area_m2: { $gt: 0 } },
-        { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
-        { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
-        { title: { $nin: [null, ""] } },
-      ]},
+      { url_is_valid: { $ne: false } },
+      { listing_status: { $ne: "taken" } },
+      { price_total: { $gt: 0 } },
+      { area_m2: { $gt: 0 } },
+      { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
+      { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
+      { title: { $nin: [null, ""] } },
     ];
 
     if (minScore > 0) {
@@ -69,7 +65,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    filter.$and = andConditions;
+    const filter: Record<string, unknown> = { $and: andConditions };
 
     const listings = await db
       .collection<ListingDocument>('listings')
