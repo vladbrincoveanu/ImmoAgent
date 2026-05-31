@@ -1,0 +1,32 @@
+name: Daily Listing Revalidation
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 06:00 UTC daily
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  revalidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd Project
+          pip install pymongo requests python-dotenv
+      - name: Run daily revalidation
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          cd Project
+          python -c "
+from Application.cleanup import daily_revalidation
+from Integration.mongodb_handler import MongoDBHandler
+m = MongoDBHandler()
+result = daily_revalidation(m)
+print(f'Checked: {result[\"checked\"]}, Newly taken: {result[\"newly_taken\"]}')
+"

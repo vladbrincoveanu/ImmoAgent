@@ -88,6 +88,9 @@ class MongoDBHandler:
             self.collection.create_index("processed_at")
             self.collection.create_index([("score", -1), ("processed_at", -1)], name='score_processed_idx')
             self.collection.create_index("year_built")
+            self.collection.create_index([("listing_status", 1), ("processed_at", -1)])
+            self.collection.create_index([("listing_status", 1), ("source_enum", 1)])
+            self.collection.create_index([("listing_status", 1), ("bezirk", 1)])
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 print(f"⚠️  MongoDB authentication required, skipping index creation: {e}")
@@ -147,6 +150,106 @@ class MongoDBHandler:
             return False
         except Exception as e:
             print(f"MongoDB insert error: {e}")
+            return False
+
+    def upsert_listing_with_history(self, listing: Dict) -> bool:
+        """Insert or update listing with price history tracking.
+
+        On new listing: set first_scraped_at = processed_at, price_at_scrape = price_total
+        On existing listing with price change: push old price to price_history
+        Returns True on success, False on validation failure.
+        """
+        price_val = listing.get('price_total')
+        if not isinstance(price_val, (int, float)) or price_val <= 0:
+            logging.info(f"🚫 Skipping: invalid price_total ({price_val})")
+            return False
+
+        valid, reason = is_valid_listing_data(listing)
+        if not valid:
+            logging.info(f"🚫 Skipping: validation failed — {reason}")
+            return False
+
+        fingerprint = compute_content_fingerprint(listing)
+        listing['content_fingerprint'] = fingerprint
+
+        try:
+            from datetime import datetime
+            now = datetime.utcnow()
+
+            existing = self.collection.find_one({
+                "content_fingerprint": fingerprint,
+                "source_enum": listing.get('source_enum', listing.get('source'))
+            })
+
+            if existing:
+                old_price = existing.get('price_total')
+                price_history = existing.get('price_history', [])
+
+                if old_price and old_price != price_val:
+                    price_history.append({
+                        'price_total': old_price,
+                        'recorded_at': now
+                    })
+
+                update_set = {
+                    'price_total': price_val,
+                    'price_history': price_history,
+                    'processed_at': listing.get('processed_at', now.timestamp()),
+                }
+                if existing.get('price_at_scrape') is None:
+                    update_set['price_at_scrape'] = old_price or price_val
+
+                self.collection.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": update_set}
+                )
+                return True
+
+            listing['first_scraped_at'] = listing.get('processed_at') or now.timestamp()
+            listing['price_at_scrape'] = price_val
+            listing['price_history'] = []
+            listing['listing_status'] = 'active'
+
+            self.collection.insert_one(listing)
+            return True
+
+        except pymongo.errors.DuplicateKeyError:
+            existing = self.collection.find_one({"url": listing.get('url')})
+            if existing:
+                old_price = existing.get('price_total')
+                price_history = existing.get('price_history', [])
+                if old_price and old_price != price_val:
+                    price_history.append({'price_total': old_price, 'recorded_at': datetime.utcnow()})
+                self.collection.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {
+                        'price_total': price_val,
+                        'price_history': price_history,
+                        'processed_at': listing.get('processed_at', datetime.utcnow().timestamp()),
+                        'price_at_scrape': existing.get('price_at_scrape') or old_price or price_val,
+                        'listing_status': 'active'
+                    }}
+                )
+            return True
+        except Exception as e:
+            logging.error(f"❌ upsert_listing_with_history error: {e}")
+            return False
+
+    def mark_listing_taken(self, url: str) -> bool:
+        """Mark a listing as taken (offline/404)."""
+        try:
+            from datetime import datetime
+            result = self.collection.update_one(
+                {"url": url, "listing_status": {"$ne": "taken"}},
+                {"$set": {
+                    "listing_status": "taken",
+                    "taken_at": datetime.utcnow(),
+                    "url_is_valid": False
+                }}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logging.error(f"❌ mark_listing_taken error for {url}: {e}")
             return False
 
     def update_listing_coordinates(self, url: str, geocoded_listing: Dict) -> bool:
@@ -650,7 +753,7 @@ class MongoDBHandler:
                 else:
                     listing_dict = listing
                 
-                if handler.insert_listing(listing_dict):
+                if handler.upsert_listing_with_history(listing_dict):
                     saved_count += 1
             
             handler.close()

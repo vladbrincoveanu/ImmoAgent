@@ -37,3 +37,9 @@ export function validateObjectId(input: string | null): string | null {
   if (!input) return null;
   return /^[a-fA-F0-9]{24}$/.test(input) ? input : null;
 }
+
+export type StatusOption = 'all' | 'active' | 'taken';
+export function validateStatus(input: string | null): StatusOption {
+  if (!input) return 'all';
+  return (['all', 'active', 'taken'].includes(input)) ? input as StatusOption : 'all';
+}

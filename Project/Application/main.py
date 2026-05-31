@@ -19,7 +19,7 @@ from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint
 from Application.helpers.geocoding import geocode_listing
-from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate
+from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
 from Domain.listing import Listing
 import logging
 import logging.handlers
@@ -628,6 +628,18 @@ def main():
                 scraping_results[source] = {'listings': listings, 'count': len(listings)}
                 all_listings.extend(listings)
                 logging.info(f"✅ {scraper_name} completed: {len(listings)} listings")
+                # Lightweight revalidation of source's active listings
+                try:
+                    source_enum_map = {
+                        'willhaben': 'willhaben',
+                        'immo_kurier': 'immo_kurier',
+                        'derstandard': 'derstandard'
+                    }
+                    source_enum = source_enum_map.get(source, source)
+                    rev_stats = mark_taken_listings(mongo, source_filter=[source_enum])
+                    logging.info(f"   🔍 Revalidation: {rev_stats['newly_taken']} newly taken, {rev_stats['already_taken']} already marked")
+                except Exception as rev_e:
+                    logging.warning(f"   ⚠️ Revalidation failed for {source}: {rev_e}")
             except Exception as e:
                 logging.error(f"❌ {scraper_name} failed: {e}")
                 scraping_results[scraper_name] = {'listings': [], 'count': 0, 'error': str(e)}

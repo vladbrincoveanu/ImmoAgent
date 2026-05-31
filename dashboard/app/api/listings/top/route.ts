@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
 
     const andConditions: Record<string, unknown>[] = [
       { $and: [
+        { url_is_valid: { $ne: false } },
+        { listing_status: { $ne: "taken" } },
         { price_total: { $gt: 0 } },
         { area_m2: { $gt: 0 } },
         { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
@@ -56,6 +58,16 @@ export async function GET(request: NextRequest) {
 
     if (district) {
       andConditions.push({ bezirk: district });
+    }
+
+    const { validateStatus } = await import('@/lib/validators');
+    const status = validateStatus(searchParams.get('status'));
+    if (status !== 'all') {
+      if (status === 'active') {
+        andConditions.push({ listing_status: { $ne: "taken" } });
+      } else if (status === 'taken') {
+        andConditions.push({ listing_status: "taken" });
+      }
     }
 
     filter.$and = andConditions;

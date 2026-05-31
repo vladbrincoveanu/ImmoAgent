@@ -357,3 +357,117 @@ def check_and_alert_rejection_rate(mongodb: MongoDBHandler, telegram_bot, thresh
                 telegram_bot.send_message(message)
             logging.warning(message)
     mongodb.reset_validation_metrics()
+
+
+SOFT_404_PATTERNS = [
+    'verkauft', 'vergeben', 'inaktiv', 'nicht mehr verfügbar',
+    'reserviert', 'abgelaufen',
+    'nicht gefunden', 'seite nicht', '404',
+    'anzeige wurde entfernt', 'objekt nicht mehr', 'ist nicht mehr aktiv',
+    'listing not found', 'page not found',
+]
+
+DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (compatible; ImmoScouter/1.0; +https://github.com/vladbrincoveanu/immo-scouter)'
+}
+
+def mark_taken_listings(
+    mongo_handler,
+    source_filter: list = None,
+    timeout: int = 5
+) -> Dict[str, int]:
+    """Lightweight post-scrape revalidation: check active listings for a source.
+
+    Uses HEAD request first. For derstandard, if HEAD returns 200, does body scan.
+    Marks 404/410 as taken. Skips already-taken listings.
+    Returns dict with checked, newly_taken, already_taken counts.
+    """
+    stats = {"checked": 0, "newly_taken": 0, "already_taken": 0}
+
+    query = {"listing_status": {"$ne": "taken"}}
+    if source_filter:
+        query["source_enum"] = {"$in": source_filter}
+
+    cursor = mongo_handler.collection.find(query, {"url": 1, "source_enum": 1, "_id": 1})
+    listings = list(cursor)
+
+    for doc in listings:
+        url = doc.get('url')
+        source = doc.get('source_enum')
+        if not url:
+            continue
+
+        stats["checked"] += 1
+        url_invalid = False
+
+        try:
+            resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=timeout)
+            if resp.status_code in (404, 410):
+                url_invalid = True
+            elif resp.status_code == 200 and source == 'derstandard':
+                try:
+                    get_resp = requests.get(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=timeout, stream=True)
+                    chunk = b''
+                    for c in get_resp.iter_content(8192):
+                        chunk += c
+                        if len(chunk) > 51200:
+                            break
+                    body = chunk.decode('utf-8', errors='ignore').lower()
+                    if any(p in body for p in SOFT_404_PATTERNS):
+                        url_invalid = True
+                except Exception:
+                    pass
+        except requests.exceptions.RequestException:
+            url_invalid = True
+
+        if url_invalid:
+            was_updated = mongo_handler.mark_listing_taken(url)
+            if was_updated:
+                stats["newly_taken"] += 1
+            else:
+                stats["already_taken"] += 1
+
+    logging.info(f"🔍 mark_taken_listings: checked={stats['checked']}, newly_taken={stats['newly_taken']}, already_taken={stats['already_taken']}")
+    return stats
+
+
+def daily_revalidation(
+    mongo_handler,
+    batch_size: int = 50,
+    timeout: int = 8
+) -> Dict[str, int]:
+    """Thorough daily revalidation of ALL active listings.
+
+    Batch processing to avoid rate limiting.
+    Logs progress every 10%.
+    Returns stats dict.
+    """
+    stats = {"checked": 0, "newly_taken": 0, "already_taken": 0, "batches": 0}
+
+    query = {"listing_status": {"$ne": "taken"}}
+    cursor = mongo_handler.collection.find(query, {"url": 1, "source_enum": 1, "_id": 1})
+    listings = list(cursor)
+    total = len(listings)
+
+    if total == 0:
+        logging.info("✅ daily_revalidation: no active listings to check")
+        return stats
+
+    logging.info(f"🔍 daily_revalidation: checking {total} active listings...")
+
+    for i in range(0, total, batch_size):
+        batch_stats = mark_taken_listings(mongo_handler, source_filter=None, timeout=timeout)
+        stats['checked'] += batch_stats['checked']
+        stats['newly_taken'] += batch_stats['newly_taken']
+        stats['already_taken'] += batch_stats['already_taken']
+        stats['batches'] += 1
+
+        time.sleep(0.5)
+
+        if total > batch_size:
+            progress = min(100, int(((i + batch_size) / total) * 100))
+            if progress % 10 == 0 or progress == 100:
+                logging.info(f"   📊 Progress: {i + batch_size}/{total} ({progress}%)")
+
+    logging.info(f"✅ daily_revalidation complete: checked={stats['checked']}, newly_taken={stats['newly_taken']}, batches={stats['batches']}")
+    return stats
