@@ -374,7 +374,8 @@ DEFAULT_HEADERS = {
 def mark_taken_listings(
     mongo_handler,
     source_filter: list = None,
-    timeout: int = 5
+    timeout: int = 5,
+    rate_limit_delay: float = 0.0
 ) -> Dict[str, int]:
     """Lightweight post-scrape revalidation: check active listings for a source.
 
@@ -391,7 +392,7 @@ def mark_taken_listings(
     cursor = mongo_handler.collection.find(query, {"url": 1, "source_enum": 1, "_id": 1})
     listings = list(cursor)
 
-    for doc in listings:
+    for idx, doc in enumerate(listings):
         url = doc.get('url')
         source = doc.get('source_enum')
         if not url:
@@ -427,47 +428,24 @@ def mark_taken_listings(
             else:
                 stats["already_taken"] += 1
 
+        if rate_limit_delay > 0 and idx < len(listings) - 1:
+            time.sleep(rate_limit_delay)
+
     logging.info(f"🔍 mark_taken_listings: checked={stats['checked']}, newly_taken={stats['newly_taken']}, already_taken={stats['already_taken']}")
     return stats
 
 
 def daily_revalidation(
     mongo_handler,
-    batch_size: int = 50,
     timeout: int = 8
 ) -> Dict[str, int]:
     """Thorough daily revalidation of ALL active listings.
 
-    Batch processing to avoid rate limiting.
+    Checks all active listings with rate limiting (0.5s between requests).
     Logs progress every 10%.
     Returns stats dict.
     """
-    stats = {"checked": 0, "newly_taken": 0, "already_taken": 0, "batches": 0}
-
-    query = {"listing_status": {"$ne": "taken"}}
-    cursor = mongo_handler.collection.find(query, {"url": 1, "source_enum": 1, "_id": 1})
-    listings = list(cursor)
-    total = len(listings)
-
-    if total == 0:
-        logging.info("✅ daily_revalidation: no active listings to check")
-        return stats
-
-    logging.info(f"🔍 daily_revalidation: checking {total} active listings...")
-
-    for i in range(0, total, batch_size):
-        batch_stats = mark_taken_listings(mongo_handler, source_filter=None, timeout=timeout)
-        stats['checked'] += batch_stats['checked']
-        stats['newly_taken'] += batch_stats['newly_taken']
-        stats['already_taken'] += batch_stats['already_taken']
-        stats['batches'] += 1
-
-        time.sleep(0.5)
-
-        if total > batch_size:
-            progress = min(100, int(((i + batch_size) / total) * 100))
-            if progress % 10 == 0 or progress == 100:
-                logging.info(f"   📊 Progress: {i + batch_size}/{total} ({progress}%)")
-
-    logging.info(f"✅ daily_revalidation complete: checked={stats['checked']}, newly_taken={stats['newly_taken']}, batches={stats['batches']}")
+    logging.info(f"🔍 daily_revalidation: starting...")
+    stats = mark_taken_listings(mongo_handler, source_filter=None, timeout=timeout, rate_limit_delay=0.5)
+    logging.info(f"✅ daily_revalidation complete: checked={stats['checked']}, newly_taken={stats['newly_taken']}")
     return stats
