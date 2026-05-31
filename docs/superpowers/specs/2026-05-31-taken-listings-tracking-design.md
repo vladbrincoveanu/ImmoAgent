@@ -241,7 +241,12 @@ mark_taken_listings(mongo, source_filter=[source_enum])
 
 ## 7. Implementation Order
 
-1. **Schema + price history** — `mongodb_handler.py` changes, first_scraped_at, price_history
+**Prerequisite:** Current `insert_listing` does NOT update existing listings on re-scrape (URL unique index + content fingerprint dedup means re-scrapes are silently skipped or fail). Implementation MUST add `upsert_listing_with_history()` that:
+- On new URL → insert with `first_scraped_at = processed_at`
+- On existing URL → push price to `price_history` if price changed, then `$set` other fields
+- This is a prerequisite for price history to work at all
+
+1. **Schema + price history** — `mongodb_handler.py` changes, first_scraped_at, price_history, `upsert_listing_with_history()`
 2. **Re-validation jobs** — `cleanup.py` functions (mark_taken_listings, daily_revalidation)
 3. **Stats API** — `/api/stats/taken`, `/api/stats/timeline`, `/api/stats/taken-listings`
 4. **Dashboard filters** — map + top route status filter
