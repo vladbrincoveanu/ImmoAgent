@@ -174,7 +174,7 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                   <h3 className="font-medium text-gray-700 mb-1">Score Breakdown</h3>
                   <div className="text-sm text-gray-600">
                     {Object.entries(listing.score_breakdown).map(([k, v]) => (
-                      <p key={k}>{k}: {typeof v === 'number' ? v.toFixed(1) : v}</p>
+                      <p key={k}>{k}: {typeof v === 'number' ? (v as any).toFixed(1) : v}</p>
                     ))}
                   </div>
                 </div>

@@ -10,16 +10,15 @@ export interface ListingBase {
   score: number | null;
   processed_at: number | null;
   image_url: string | null;
+  url_is_valid: boolean;
   price_is_estimated?: boolean;
-  estimated_down_pct?: number | null;
-  estimated_equity_eur?: number | null;
-  bank_score_confidence?: string | null;
-  estimated_down_pct_kimv?: number | null;
-  monatsrate?: number | null;
-  cashNeeded?: number | null;
+  monatsrate?: number;
+  cashNeeded?: number;
+  estimated_down_pct?: number;
+  estimated_down_pct_kimv?: number;
+  estimated_equity_eur?: number;
+  bank_score_confidence?: 'low' | 'medium' | 'high';
 }
-
-export type CoordinateSource = 'exact' | 'landmark' | 'district' | 'none';
 
 export interface MapListing {
   _id: string;
@@ -33,42 +32,33 @@ export interface MapListing {
   score: number | null;
   image_url: string | null;
   coordinates: { lat: number; lon: number } | null;
-  coordinate_source: CoordinateSource;
+  coordinate_source: string;
   landmark_hint: string | null;
   price_is_estimated?: boolean;
-  estimated_down_pct?: number | null;
-  estimated_equity_eur?: number | null;
-  bank_score_confidence?: string | null;
-  estimated_down_pct_kimv?: number | null;
-  monatsrate?: number | null;
-  cashNeeded?: number | null;
+  estimated_down_pct?: number;
+  estimated_down_pct_kimv?: number;
+  estimated_equity_eur?: number;
+  bank_score_confidence?: 'low' | 'medium' | 'high';
 }
 
-export interface ListingDetail extends ListingBase {
-  address: string | null;
-  year_built: number | null;
-  floor: number | null;
-  condition: string | null;
-  heating: string | null;
-  parking: string | null;
-  betriebskosten: number | null;
-  energy_class: string | null;
-  hwb_value: number | null;
-  fgee_value: number | null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ListingDetail = any;
+
+export interface MapListing {
+  _id: string;
+  title: string | null;
+  url: string;
+  source_enum: string;
+  bezirk: string | null;
+  price_total: number | null;
+  area_m2: number | null;
   rooms: number | null;
-  calculated_monatsrate: number | null;
-  total_monthly_cost: number | null;
-  ubahn_walk_minutes: number | null;
-  school_walk_minutes: number | null;
-  infrastructure_distances: Record<string, unknown>;
-  score_breakdown?: Record<string, number>;
-  url_is_valid?: boolean;
-  coordinate_source?: CoordinateSource;
-  landmark_hint?: string | null;
-  belehnungswert_factor?: number | null;
-}
-
-export interface TopListingsResponse {
-  listings: ListingBase[];
-  total: number;
+  score: number | null;
+  image_url: string | null;
+  coordinates: { lat: number; lon: number } | null;
+  coordinate_source: string;
+  landmark_hint: string | null;
+  price_is_estimated?: boolean;
+  estimated_down_pct?: number;
+  bank_score_confidence?: 'low' | 'medium' | 'high';
 }

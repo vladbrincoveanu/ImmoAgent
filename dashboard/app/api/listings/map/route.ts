@@ -128,6 +128,10 @@ export async function GET(request: NextRequest) {
         coordinate_source: coordinate_source as MapListing['coordinate_source'],
         landmark_hint: l.landmark_hint || null,
         price_is_estimated,
+        estimated_down_pct: l.estimated_down_pct ?? undefined,
+        estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
+        estimated_equity_eur: l.estimated_equity_eur ?? undefined,
+        bank_score_confidence: l.bank_score_confidence ?? undefined,
       };
     });
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { Document, WithId } from 'mongodb';
-import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
+import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -60,7 +60,6 @@ export async function GET(request: NextRequest) {
       andConditions.push({ bezirk: district });
     }
 
-    const { validateStatus } = await import('@/lib/validators');
     const status = validateStatus(searchParams.get('status'));
     if (status !== 'all') {
       if (status === 'active') {
@@ -104,6 +103,10 @@ export async function GET(request: NextRequest) {
         image_url: l.image_url || l.minio_image_path || null,
         url_is_valid: l.url_is_valid !== false,
         price_is_estimated,
+        estimated_down_pct: l.estimated_down_pct ?? undefined,
+        estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
+        estimated_equity_eur: l.estimated_equity_eur ?? undefined,
+        bank_score_confidence: l.bank_score_confidence ?? undefined,
       };
     });
 
