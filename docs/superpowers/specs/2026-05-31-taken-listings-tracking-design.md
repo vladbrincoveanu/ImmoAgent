@@ -261,3 +261,48 @@ mark_taken_listings(mongo, source_filter=[source_enum])
 - **Separate collection?** No — same collection with `listing_status` flag
 - **Re-validation frequency?** Both — lightweight post-scrape + thorough daily
 - **Stats needed?** Volume, timing, price, price alterations, timeline
+
+---
+
+## Grill-Me Resolved Decisions
+
+### Schema
+- No `archived` status — use `hidden_by_user: true` for manual hiding
+- Listings that come back online → new document on re-scrape (content fingerprint dedup)
+- `taken_at` = exact `datetime.utcnow()` (not midnight)
+- `price_history` snapshots `price_total` only, keeps ALL snapshots
+- `price_at_scrape` stored as denormalized field (fast access), `price_history` for audit trail
+
+### Re-validation
+- HEAD first for all sources (fast path)
+- GET body scan only when HEAD returns 200 (for soft 404)
+- Soft 404 body scan **source-specific**: only `source: "derstandard"`, not Willhaben/ImmoKurier
+- Soft 404 keywords: `verkauft`, `vergeben`, `inaktiv`, `nicht mehr verfügbar`, `reserviert`, `abgelaufen`
+
+### Stats
+- Timing calculation: `taken_at - processed_at` when `first_scraped_at` is null (acceptable proxy)
+- Timeline: day-level buckets only
+- `taken-listings` pagination: exclude `price_history` from list (separate endpoint for detail)
+
+### Dashboard
+- `/dashboard/taken` accessible to all authenticated users (not admin-only)
+- Backwards compat: `listing_status: null` treated as active
+- Both `url_is_valid !== false` AND `listing_status !== "taken"` required for active filter
+
+### Data Retention
+- Taken listings kept forever (no auto-deletion)
+- `listing_status: "taken"` + `url_is_valid: false` both set when marking taken (sync on writes)
+
+### Call Sites (Updates Required)
+| Component | Change |
+|-----------|--------|
+| Dashboard `/api/listings/map` | Add `listing_status: {$ne: "taken"}` |
+| Dashboard `/api/listings/top` | Add BOTH `url_is_valid !== false` AND `listing_status !== "taken"` (fixes existing gap) |
+| `MongoDBHandler.get_top_listings()` | Add `listing_status: {$ne: "taken"}` to base_query |
+| `Application/main.py` | Call `mark_taken_listings(mongo, source_filter=[source])` per source inside parallel loop (lines 624-633) |
+| `run_top5.py` (via `get_top_listings()`) | Handled by MongoDBHandler update |
+
+### Post-Scrape Integration
+- Call site: inside `for future in as_completed()` loop, after each source scrape result is collected
+- Per-source, not after all sources complete
+- Fast HEAD-only check per listing from that source
