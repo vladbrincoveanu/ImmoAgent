@@ -13,7 +13,7 @@ set -e
 
 PROVIDER="${1:-fireworks}"
 MODEL="${2:-accounts/fireworks/routers/kimi-k2p5-turbo}"
-API_KEY="${3:-fw_Lv7Z5vCrqqWAyBvtsdQCtd}"
+API_KEY="${3:-fw_REDACTED}"
 MAX_TOKENS=500
 PROMPT="Write exactly 400 words about distributed systems architecture. Be detailed and technical."
 

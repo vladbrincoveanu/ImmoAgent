@@ -2,11 +2,14 @@
 """
 Token Speed Benchmark — model-agnostic, multi-provider
 Usage:
+    export FIREWORKS_API_KEY=fw_...
+    export MINIMAX_API_KEY=sk-...
     python3 token_benchmark.py                          # compare all providers
     python3 token_benchmark.py fireworks               # test specific provider
     python3 token_benchmark.py minimax                 # test minimax only
 """
 
+import os
 import urllib.request
 import json
 import time
@@ -15,21 +18,21 @@ import sys
 PROVIDERS = {
     "fireworks-k2p5": {
         "url": "https://api.fireworks.ai/inference/v1/chat/completions",
-        "api_key": "fw_Lv7Z5vCrqqWAyBvtsdQCtd",
+        "api_key_env": "FIREWORKS_API_KEY",
         "model": "accounts/fireworks/routers/kimi-k2p5-turbo",
         "is_reasoning": False,
     },
     "fireworks-k2p6": {
         "url": "https://api.fireworks.ai/inference/v1/chat/completions",
-        "api_key": "fw_Lv7Z5vCrqqWAyBvtsdQCtd",
+        "api_key_env": "FIREWORKS_API_KEY",
         "model": "accounts/fireworks/models/kimi-k2p6",
         "is_reasoning": False,
     },
     "minimax": {
         "url": "https://api.minimax.io/v1/text/chatcompletion_v2",
-        "api_key": "sk-cp-47dYVe9QJIj732X68hINusCgJhqXz6_XFcy1WIGQpl5N6cPL28EjF4dLl9Iqu3BR5NKNBw1WhiNn1oh-Gsk4MNLq_dN2AlmLDojSShq7RFwsNtMPuYCMzgk",
-        "model": "MiniMax-M2.7-highspeed",
-        "is_reasoning": True,  # output in reasoning_content, not content
+        "api_key_env": "MINIMAX_API_KEY",
+        "model": "MiniMax-M3",
+        "is_reasoning": True,
     },
 }
 
@@ -42,6 +45,11 @@ def benchmark(name: str, cfg: dict, max_tokens: int = MAX_TOKENS) -> dict:
     print(f"  {name.upper()} — {cfg['model']}")
     print(f"{'='*60}")
 
+    api_key = os.environ.get(cfg["api_key_env"], "")
+    if not api_key:
+        print(f"  SKIP: env var {cfg['api_key_env']!r} is not set")
+        return {"provider": name, "model": cfg["model"], "elapsed": 0, "tokens": 0, "tps": 0}
+
     payload = {
         "model": cfg["model"],
         "messages": [{"role": "user", "content": PROMPT}],
@@ -53,7 +61,7 @@ def benchmark(name: str, cfg: dict, max_tokens: int = MAX_TOKENS) -> dict:
         cfg["url"],
         data=json.dumps(payload).encode(),
         headers={
-            "Authorization": f"Bearer {cfg['api_key']}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
         method="POST",
