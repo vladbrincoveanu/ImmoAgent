@@ -1,18 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
-
-async function login(page: Page) {
-  await page.goto('/login');
-  await page.fill('input[id="username"]', 'test');
-  await page.fill('input[id="password"]', 'test123');
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/dashboard/, { timeout: 10000 });
-}
+import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Smoke Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
-  });
-
   test('root page redirects to /dashboard', async ({ page }) => {
     const serverErrors: string[] = [];
     page.on('response', response => {

@@ -121,8 +121,7 @@ python test_github_actions_simple.py
 
 ### API Server
 ```bash
-cd Project
-python run_api.py                        # Start Flask API server
+# Removed: Flask API server deprecated. Dashboard uses Next.js API routes (dashboard/app/api/).
 ```
 
 ## Architecture

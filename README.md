@@ -173,10 +173,7 @@ python run_top5.py --buyer-profile=retiree
 ```
 
 ### API Server
-```bash
-cd Project
-python run_api.py
-```
+Dashboard uses Next.js API routes under `dashboard/app/api/`. The legacy Flask `Project/Api/` server has been removed.
 
 ## 🔍 Features
 
