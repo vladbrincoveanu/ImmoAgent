@@ -10,6 +10,7 @@ export type FilterState = {
   rate: string;
   maxEquity: string;
   profile: string;
+  belowAvgPct: string;
 };
 
 export function filtersFromParams(searchParams: URLSearchParams): FilterState {
@@ -24,6 +25,7 @@ export function filtersFromParams(searchParams: URLSearchParams): FilterState {
     rate: searchParams.get('rate') ?? '3.8',
     maxEquity: searchParams.get('max_equity') ?? '',
     profile: isValidProfile(rawProfile) ? (rawProfile as string) : DEFAULT_PROFILE,
+    belowAvgPct: searchParams.get('below_avg_pct') ?? '',
   };
 }
 
@@ -37,6 +39,7 @@ export function paramsFromFilters(filters: FilterState): URLSearchParams {
   if (filters.equity && filters.equity !== '100000') params.set('equity', filters.equity);
   if (filters.rate && filters.rate !== '3.8') params.set('rate', filters.rate);
   if (filters.maxEquity) params.set('max_equity', filters.maxEquity);
+  if (filters.belowAvgPct) params.set('below_avg_pct', filters.belowAvgPct);
   // Always set profile so URL is shareable
   if (filters.profile && filters.profile !== DEFAULT_PROFILE) params.set('profile', filters.profile);
   return params;

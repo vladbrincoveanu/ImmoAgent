@@ -31,6 +31,8 @@ interface FilterBarProps {
   onRateChange?: (v: string) => void;
   maxEquity?: string;
   onMaxEquityChange?: (v: string) => void;
+  belowAvgPct?: string;
+  onBelowAvgPctChange?: (v: string) => void;
 }
 
 export function FilterBar({
@@ -42,6 +44,7 @@ export function FilterBar({
   equity, onEquityChange,
   rate, onRateChange,
   maxEquity, onMaxEquityChange,
+  belowAvgPct, onBelowAvgPctChange,
 }: FilterBarProps) {
   const effectiveSort = sortBy ?? 'score_desc';
 
@@ -139,6 +142,19 @@ export function FilterBar({
             value={maxEquity}
             onChange={(e) => onMaxEquityChange(e.target.value)}
             className="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      )}
+
+      {belowAvgPct != null && onBelowAvgPctChange && (
+        <div className="flex items-center gap-2" data-testid="below-avg-filter">
+          <label className="text-sm font-medium text-gray-700">Below zone avg by %</label>
+          <input
+            type="number" min="0" max="100" step="5" placeholder="e.g. 10"
+            value={belowAvgPct}
+            onChange={(e) => onBelowAvgPctChange(e.target.value)}
+            className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Show only listings priced at least this % below their district's average"
           />
         </div>
       )}

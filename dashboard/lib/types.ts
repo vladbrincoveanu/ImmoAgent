@@ -28,6 +28,8 @@ export interface ListingBase {
   estimated_equity_eur?: number;
   bank_score_confidence?: BankScoreConfidence;
   coordinate_source?: CoordinateSource;
+  price_vs_avg_pct?: number | null;
+  ubahn_walk_minutes?: number | null;
 }
 
 export interface MapListing {
@@ -49,6 +51,8 @@ export interface MapListing {
   estimated_down_pct_kimv?: number;
   estimated_equity_eur?: number;
   bank_score_confidence?: BankScoreConfidence;
+  price_vs_avg_pct?: number | null;
+  ubahn_walk_minutes?: number | null;
 }
 
 export interface MortgageDetails {

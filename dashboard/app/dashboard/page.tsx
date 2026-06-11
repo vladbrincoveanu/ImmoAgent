@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { ListingCard } from '@/components/ListingCard';
 import { FilterBar, SortOption } from '@/components/FilterBar';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { ListingDetail } from '@/components/ListingDetail';
+import { ProfileSelector } from '@/components/ProfileSelector';
+import { SmartInsightsPanel } from '@/components/SmartInsightsPanel';
+import { SaveSearchButton } from '@/components/SaveSearchButton';
 import { ListingBase } from '@/lib/types';
 import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
@@ -36,6 +39,7 @@ function DashboardContent() {
   const [rate, setRate] = useState<string>('3.8');
   const [maxEquity, setMaxEquity] = useState<string>('');
   const [profile, setProfile] = useState<string>(DEFAULT_PROFILE);
+  const [belowAvgPct, setBelowAvgPct] = useState<string>('');
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
   useEffect(() => {
@@ -49,51 +53,57 @@ function DashboardContent() {
     setRate(filters.rate);
     setMaxEquity(filters.maxEquity);
     setProfile(filters.profile);
+    setBelowAvgPct(filters.belowAvgPct);
   }, [searchParams]);
 
-  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string; profile: string }) => {
+  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string; profile: string; belowAvgPct: string }) => {
     const params = paramsFromFilters(filters);
     router.push(`/dashboard?${params.toString()}`);
   }, [router]);
 
   const handleMinScoreChange = (v: string) => {
     setMinScore(v);
-    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile });
+    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
   };
 
   const handleDistrictChange = (v: string) => {
     setDistrict(v);
-    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile });
+    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
   };
 
   const handleSortChange = (v: SortOption) => {
     setSortBy(v);
-    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile });
+    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
   };
 
   const handleMaxPriceChange = (v: string) => {
     setMaxPrice(v);
-    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity, profile });
+    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
   };
 
   const handleShowUnfinanceableChange = (v: boolean) => {
     setShowUnfinanceable(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity, profile });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity, profile, belowAvgPct });
   };
 
   const handleEquityChange = (v: string) => {
     setEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity, profile });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity, profile, belowAvgPct });
   };
 
   const handleRateChange = (v: string) => {
     setRate(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity, profile });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity, profile, belowAvgPct });
   };
 
   const handleMaxEquityChange = (v: string) => {
     setMaxEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v, profile });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v, profile, belowAvgPct });
+  };
+
+  const handleBelowAvgPctChange = (v: string) => {
+    setBelowAvgPct(v);
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct: v });
   };
 
   const fetchListings = useCallback(async () => {
@@ -104,6 +114,9 @@ function DashboardContent() {
       if (district) params.set('district', district);
       params.set('sort', sortBy);
       if (profile !== DEFAULT_PROFILE) params.set('profile', profile);
+      if (maxPrice && maxPrice !== '500000') params.set('max_price', maxPrice);
+      if (maxEquity) params.set('max_equity', maxEquity);
+      if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/top?${params.toString()}`);
       const data = await res.json();
@@ -119,7 +132,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -159,6 +172,7 @@ function DashboardContent() {
   const filteredListings = useMemo(() => {
     const maxPriceNum = maxPrice ? Number(maxPrice) : null;
     const maxEquityNum = maxEquity ? Number(maxEquity) : null;
+    const belowAvgNum = belowAvgPct ? Number(belowAvgPct) : null;
     return enrichedListings.filter((l) => {
       if (maxPriceNum != null && Number.isFinite(maxPriceNum) && l.price_total != null && l.price_total > maxPriceNum) return false;
       if (maxEquityNum != null && Number.isFinite(maxEquityNum) && l.estimated_equity_eur != null && l.estimated_equity_eur > maxEquityNum) return false;
@@ -168,17 +182,41 @@ function DashboardContent() {
         l.estimated_down_pct > 30 &&
         l.bank_score_confidence !== 'low'
       ) return false;
+      if (belowAvgNum != null && Number.isFinite(belowAvgNum)) {
+        const lAvg = (l as ListingBase & { price_vs_avg_pct?: number | null }).price_vs_avg_pct;
+        if (lAvg == null || lAvg > -belowAvgNum) return false;
+      }
       return true;
     });
-  }, [enrichedListings, maxPrice, showUnfinanceable, maxEquity]);
+  }, [enrichedListings, maxPrice, showUnfinanceable, maxEquity, belowAvgPct]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-24 md:pb-6">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Top Property Picks</h1>
-          <p className="text-sm text-gray-500 mt-1">Sorted by score</p>
+        <header className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Top Property Picks</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {filteredListings.length} listing{filteredListings.length === 1 ? '' : 's'} matching your filters
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <ProfileSelector />
+            <SaveSearchButton />
+            <a
+              href={`/dashboard/map${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-muted transition-colors"
+              data-testid="open-map"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              Map view
+            </a>
+          </div>
         </header>
+
+        <SmartInsightsPanel />
 
         {/* Desktop-only filter bar */}
         <div className="hidden md:block">
@@ -200,6 +238,8 @@ function DashboardContent() {
             onRateChange={handleRateChange}
             maxEquity={maxEquity}
             onMaxEquityChange={handleMaxEquityChange}
+            belowAvgPct={belowAvgPct}
+            onBelowAvgPctChange={handleBelowAvgPctChange}
           />
         </div>
 

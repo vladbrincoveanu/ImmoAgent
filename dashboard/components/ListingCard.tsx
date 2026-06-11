@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ListingBase } from '@/lib/types';
 import { SOURCE_LABELS, formatPrice } from '@/lib/utils';
 import { EquityBadge } from './EquityBadge';
+import { ZoneVsAvgBadge } from './ZoneVsAvgBadge';
+import { DealScoreBadge } from './DealScoreBadge';
 
 interface ListingCardProps {
   listing: ListingBase;
@@ -100,25 +102,39 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
             </span>
           )}
         </div>
-        {listing.coordinate_source && listing.coordinate_source !== 'none' && (
-          <div className="mt-1 flex items-center gap-1">
-            {listing.coordinate_source === 'exact' && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded" title="Exact address geocoded">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Exact
-              </span>
-            )}
-            {listing.coordinate_source === 'landmark' && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded" title="Geocoded to a nearby landmark">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Landmark
-              </span>
-            )}
-            {listing.coordinate_source === 'district' && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded" title="District centroid only — address not geocodable">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> District
-              </span>
-            )}
-          </div>
-        )}
+        <div className="mt-1.5 flex items-center gap-1 flex-wrap">
+          {listing.coordinate_source === 'exact' && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded" title="Exact address geocoded">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Exact
+            </span>
+          )}
+          {listing.coordinate_source === 'landmark' && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded" title="Geocoded to a nearby landmark">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Landmark
+            </span>
+          )}
+          {listing.coordinate_source === 'district' && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded" title="District centroid only — address not geocodable">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> District
+            </span>
+          )}
+          {listing.price_vs_avg_pct != null && (
+            <ZoneVsAvgBadge pct={listing.price_vs_avg_pct} />
+          )}
+          {listing.ubahn_walk_minutes != null && (
+            <span
+              className={`inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                listing.ubahn_walk_minutes <= 5 ? 'text-green-700 bg-green-50' :
+                listing.ubahn_walk_minutes <= 10 ? 'text-yellow-700 bg-yellow-50' :
+                'text-gray-600 bg-gray-50'
+              }`}
+              title={`~${listing.ubahn_walk_minutes} min walk to nearest U-Bahn`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" /> {listing.ubahn_walk_minutes}m U-Bahn
+            </span>
+          )}
+          <DealScoreBadge listing={listing as unknown as import('@/lib/types').MapListing} />
+        </div>
       </div>
     </div>
   );

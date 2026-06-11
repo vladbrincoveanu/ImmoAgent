@@ -36,6 +36,20 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
   const [urlValid, setUrlValid] = useState<boolean | null>(null);
   const [imageError, setImageError] = useState(false);
   const [zoneStats, setZoneStats] = useState<ZoneStats | null>(null);
+  const [comparables, setComparables] = useState<Array<{
+    _id: string;
+    title: string | null;
+    url: string;
+    price_total: number | null;
+    area_m2: number | null;
+    rooms: number | null;
+    bezirk: string | null;
+    score: number | null;
+    image_url: string | null;
+    source_enum: string | null;
+    price_per_m2: number;
+    better_deal: boolean;
+  }> | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -49,6 +63,7 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
     setImageError(false);
     setUrlValid(null);
     setZoneStats(null);
+    setComparables(null);
     fetch(`/api/listings/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -60,6 +75,10 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
       .then((r) => r.json())
       .then(setZoneStats)
       .catch(() => {});
+    fetch(`/api/listings/${id}/comparables`)
+      .then((r) => r.json())
+      .then((d) => setComparables(d.comparables ?? []))
+      .catch(() => setComparables([]));
   }, [id]);
 
   const handleRecheck = async () => {
@@ -286,6 +305,53 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                   </span>
                 )}
               </div>
+
+              {comparables && comparables.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-gray-200" data-testid="comparables-section">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                    Comparable listings
+                    <span className="text-xs text-muted font-normal ml-2">Same district · similar area &amp; price</span>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {comparables.map((c) => (
+                      <a
+                        key={c._id}
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                      >
+                        <div className="w-14 h-14 rounded overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
+                          {c.image_url ? (
+                            <img src={c.image_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-1">
+                            <span className="font-bold text-sm text-gray-900">
+                              {c.price_total ? `€${c.price_total.toLocaleString('de-AT')}` : '—'}
+                            </span>
+                            {c.better_deal && (
+                              <span className="text-[9px] font-bold rounded px-1.5 py-0.5 bg-green-100 text-green-800" title={`€${c.price_per_m2}/m² vs this listing's €${comparables?.[0]?.price_per_m2 ?? '?'}/m²`}>
+                                BETTER
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-600 line-clamp-1">{c.title || 'Untitled'}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {c.area_m2}m² · {c.rooms}rms · €{c.price_per_m2}/m²
+                            {c.score != null && <span className="ml-1 font-semibold text-gray-700">· {c.score}</span>}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (

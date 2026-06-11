@@ -73,6 +73,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const belowAvgPct = Math.max(0, Math.min(100, Number(searchParams.get('below_avg_pct') ?? 0)));
+    if (belowAvgPct > 0) {
+      andConditions.push({ bezirk: { $exists: true, $ne: null } });
+    }
+
     const filter: Record<string, unknown> = { $and: andConditions };
 
     const listings = await db
@@ -81,6 +86,25 @@ export async function GET(request: NextRequest) {
       .sort(sortBy)
       .limit(limit)
       .toArray();
+
+    // Compute district avg prices for zone-vs-avg calculation
+    const districts = Array.from(new Set(listings.map((l) => l.bezirk).filter((d): d is string => typeof d === 'string' && d.length > 0)));
+    const zoneAvgMap: Record<string, number> = {};
+    if (districts.length > 0) {
+      const zoneStats = await db.collection('listings').aggregate<{ _id: string; avg_price: number; avg_price_per_m2: number }>([
+        {
+          $match: {
+            bezirk: { $in: districts },
+            url_is_valid: { $ne: false },
+            listing_status: { $ne: 'taken' },
+            price_total: { $gt: 0 },
+            area_m2: { $gt: 0 },
+          },
+        },
+        { $group: { _id: '$bezirk', avg_price: { $avg: '$price_total' }, avg_price_per_m2: { $avg: { $divide: ['$price_total', '$area_m2'] } } } },
+      ]).toArray();
+      for (const z of zoneStats) zoneAvgMap[z._id] = z.avg_price;
+    }
 
     const PRICE_PER_SQM = (config?.PRICE_PER_SQM as number | undefined) ?? 7000;
 
@@ -94,6 +118,11 @@ export async function GET(request: NextRequest) {
           : null;
 
       const scores = (l as { scores?: Record<string, number | null> }).scores;
+      const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
+      const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
+      const priceVsAvgPct = price_total != null && zoneAvg && zoneAvg > 0
+        ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
+        : null;
       return {
         _id: l._id.toString(),
         title: l.title,
@@ -115,10 +144,16 @@ export async function GET(request: NextRequest) {
         estimated_equity_eur: l.estimated_equity_eur ?? undefined,
         bank_score_confidence: l.bank_score_confidence ?? undefined,
         coordinate_source: l.coordinate_source ?? undefined,
+        price_vs_avg_pct: priceVsAvgPct,
+        ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
       };
     });
 
-    return NextResponse.json({ listings: result, total: result.length });
+    const finalResult = belowAvgPct > 0
+      ? result.filter((l) => l.price_vs_avg_pct != null && l.price_vs_avg_pct <= -belowAvgPct)
+      : result;
+
+    return NextResponse.json({ listings: finalResult, total: finalResult.length });
   } catch (err) {
     console.error('[/api/listings/top]', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
