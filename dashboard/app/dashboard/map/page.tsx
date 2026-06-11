@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { ListingSidebar } from '@/components/ListingSidebar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { MapLegend } from '@/components/MapLegend';
@@ -11,6 +12,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { SelectedCard } from '@/components/SelectedCard';
 import { useListingsSSE } from '@/lib/sse';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import type { ViewportBounds } from '@/components/MapView';
 
 const MapView = dynamic(
@@ -26,7 +28,7 @@ function MapLoadingState() {
   );
 }
 
-export default function MapPage() {
+function MapPage() {
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -40,6 +42,15 @@ export default function MapPage() {
   const [maxPrice, setMaxPrice] = useState('500000');
   const [showUnfinanceable, setShowUnfinanceable] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
+  const [profile, setProfile] = useState<string>(DEFAULT_PROFILE);
+  const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
+
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const p = searchParams.get('profile');
+    if (isValidProfile(p)) setProfile(p);
+    else setProfile(DEFAULT_PROFILE);
+  }, [searchParams]);
 
   const { newListings } = useListingsSSE();
 
@@ -87,18 +98,38 @@ export default function MapPage() {
       if (minScore !== '0') params.set('min_score', minScore);
       if (district) params.set('district', district);
       params.set('sort', sortBy);
+      if (profile !== DEFAULT_PROFILE) params.set('profile', profile);
 
       const res = await fetch(`/api/listings/map?${params}`);
       const data = await res.json();
-      setListings(data.listings ?? []);
+      const items = (data.listings ?? []) as Array<MapListing & { scores?: Record<string, number | null> | null }>;
+      setListings(items);
+      const map: Record<string, Record<string, number | null>> = {};
+      for (const l of items) {
+        map[l._id] = (l.scores && typeof l.scores === 'object') ? l.scores : { [profile]: l.score ?? null };
+      }
+      setScoresById(map);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy]);
+  }, [minScore, district, sortBy, profile]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
+
+  // Re-sort locally on profile change (no network)
+  useEffect(() => {
+    if (Object.keys(scoresById).length === 0) return;
+    setListings((prev) => {
+      const sorted = [...prev].sort((a, b) => {
+        const sa = scoresById[a._id]?.[profile] ?? a.score ?? 0;
+        const sb = scoresById[b._id]?.[profile] ?? b.score ?? 0;
+        return sb - sa;
+      });
+      return sorted;
+    });
+  }, [profile, scoresById]);
 
   const filteredListings = useMemo(() => listings.filter((l) => {
     if (maxPrice && l.price_total != null && l.price_total > Number(maxPrice)) return false;
@@ -306,3 +337,13 @@ export default function MapPage() {
     </div>
   );
 }
+
+function MapPageWrapper() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-gray-100"><p className="text-gray-500">Loading map...</p></div>}>
+      <MapPage />
+    </Suspense>
+  );
+}
+
+export default MapPageWrapper;

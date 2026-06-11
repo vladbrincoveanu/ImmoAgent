@@ -8,6 +8,7 @@ import { FilterDrawer } from '@/components/FilterDrawer';
 import { ListingDetail } from '@/components/ListingDetail';
 import { ListingBase } from '@/lib/types';
 import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 
 function calcMonatsrate(loanAmount: number, rate: number): number {
   if (loanAmount <= 0 || rate <= 0) return 0;
@@ -34,6 +35,8 @@ function DashboardContent() {
   const [equity, setEquity] = useState<string>('100000');
   const [rate, setRate] = useState<string>('3.8');
   const [maxEquity, setMaxEquity] = useState<string>('');
+  const [profile, setProfile] = useState<string>(DEFAULT_PROFILE);
+  const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
   useEffect(() => {
     const filters = filtersFromParams(searchParams);
@@ -45,51 +48,52 @@ function DashboardContent() {
     setEquity(filters.equity);
     setRate(filters.rate);
     setMaxEquity(filters.maxEquity);
+    setProfile(filters.profile);
   }, [searchParams]);
 
-  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string }) => {
+  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string; profile: string }) => {
     const params = paramsFromFilters(filters);
     router.push(`/dashboard?${params.toString()}`);
   }, [router]);
 
   const handleMinScoreChange = (v: string) => {
     setMinScore(v);
-    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity });
+    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile });
   };
 
   const handleDistrictChange = (v: string) => {
     setDistrict(v);
-    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity });
+    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile });
   };
 
   const handleSortChange = (v: SortOption) => {
     setSortBy(v);
-    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity });
+    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile });
   };
 
   const handleMaxPriceChange = (v: string) => {
     setMaxPrice(v);
-    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity });
+    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity, profile });
   };
 
   const handleShowUnfinanceableChange = (v: boolean) => {
     setShowUnfinanceable(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity, profile });
   };
 
   const handleEquityChange = (v: string) => {
     setEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity, profile });
   };
 
   const handleRateChange = (v: string) => {
     setRate(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity, profile });
   };
 
   const handleMaxEquityChange = (v: string) => {
     setMaxEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v, profile });
   };
 
   const fetchListings = useCallback(async () => {
@@ -99,18 +103,38 @@ function DashboardContent() {
       if (minScore !== '0') params.set('min_score', minScore);
       if (district) params.set('district', district);
       params.set('sort', sortBy);
+      if (profile !== DEFAULT_PROFILE) params.set('profile', profile);
 
       const res = await fetch(`/api/listings/top?${params.toString()}`);
       const data = await res.json();
-      setListings(data.listings ?? []);
+      const items = (data.listings ?? []) as Array<ListingBase & { scores?: Record<string, number | null> | null }>;
+      setListings(items);
+      const map: Record<string, Record<string, number | null>> = {};
+      for (const l of items) {
+        map[l._id] = (l.scores && typeof l.scores === 'object') ? l.scores : { [profile]: l.score ?? null };
+      }
+      setScoresById(map);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy]);
+  }, [minScore, district, sortBy, profile]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
+
+  // Re-sort locally when profile changes (no network call)
+  useEffect(() => {
+    if (Object.keys(scoresById).length === 0) return;
+    setListings((prev) => {
+      const sorted = [...prev].sort((a, b) => {
+        const sa = scoresById[a._id]?.[profile] ?? a.score ?? 0;
+        const sb = scoresById[b._id]?.[profile] ?? b.score ?? 0;
+        return sb - sa;
+      });
+      return sorted;
+    });
+  }, [profile, scoresById]);
 
   const equityNum = Number(equity) || 100000;
   const rateNum = Number(rate) || 3.8;
