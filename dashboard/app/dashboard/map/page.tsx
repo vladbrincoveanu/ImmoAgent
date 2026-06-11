@@ -314,7 +314,10 @@ function MapPage() {
                 onHover={setHoveredId}
                 onHoverEnd={() => setHoveredId(null)}
                 onBoundsChange={setBounds}
-                onPinClick={handlePinClick}
+                onPinClick={(id) => {
+                  const found = listings.find((l) => l._id === id);
+                  if (found) handlePinClick(found);
+                }}
                 onMapClick={handleCloseDetail}
               />
               <SelectedCard
