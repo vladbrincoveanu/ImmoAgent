@@ -383,3 +383,7 @@ See README.md for example GitHub Actions workflow.
 7. **URL validation**: Always use `listing_validator.py` before sending listings to users
 8. **Outreach emails**: Templates are in German, located in `outreach/email_sender.py`
 9. **Validation**: Use `is_valid_listing_data()` from `mongodb_handler.py` - NEVER inline `> 0` checks
+
+## Codebase Exploration
+
+Default to `graphify query "<question>"` over `grep` for codebase exploration questions. Full rule (with freshness check + fallback conditions): see global `~/.claude/CLAUDE.md` §"Graph-First Codebase Exploration". Build the graph for any project >50 files with `/graphify .` — one-time cost amortized across all future questions.
