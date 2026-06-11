@@ -28,5 +28,5 @@ jobs:
           from Integration.mongodb_handler import MongoDBHandler
           m = MongoDBHandler()
           result = daily_revalidation(m)
-          print(f"Checked: {result['checked']}, Newly taken: {result['newly_taken']}")
+          print('Checked:', result['checked'], ', Newly taken:', result['newly_taken'])
           "
