@@ -19,6 +19,12 @@ When trigger fires: re-brainstorm per `brainstorming` skill. Use this spec as th
 
 ## Candidate UI skills (build only what's needed)
 
+### 0. `frontend-design` — BUILT 2026-06-11 ✅
+- **Source:** anthropics/skills (official) + visual-verification augmentation
+- **What:** distinctive UI design guidance + mandatory Playwright screenshot loop
+- **Trigger:** user said "ui skill when designing should use something like playwright to always test everything how it appears" — direct trigger
+- **Augmentation:** added `Visual verification loop` section with Playwright screenshot script, graphify component discovery, pixel-diff regression guard
+
 ### 1. `visual-companion-bridge`
 - **Responsibility:** wrap the `~/.claude/skills/brainstorming/visual-companion.md` browser-based mockup server; auto-start it when brainstorming touches UI topics
 - **When to build:** if `visual-companion.md` is missing OR broken (the brainstorming skill currently references it but the file is absent in some plugin caches per recent audit)
