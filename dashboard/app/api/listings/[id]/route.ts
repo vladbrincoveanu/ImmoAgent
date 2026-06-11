@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { validateObjectId } from '@/lib/validators';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const validId = validateObjectId(params.id);
@@ -24,6 +25,13 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    // Per-profile score override (?profile=...)
+    const { searchParams } = new URL(req.url);
+    const profileParam = searchParams.get('profile');
+    const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
+    const scores = (listing as { scores?: Record<string, number | null> }).scores;
+    const profileScore = (scores?.[profile] ?? listing.score ?? null) as number | null;
+
     // Flatten for response
     const result: Record<string, unknown> = { _id: listing._id.toString() };
     for (const [key, value] of Object.entries(listing)) {
@@ -34,6 +42,9 @@ export async function GET(
         result[key] = value;
       }
     }
+    // Override the score field to reflect the active profile
+    result['score'] = profileScore;
+    result['profile'] = profile;
 
     return NextResponse.json(result);
   } catch (err) {
