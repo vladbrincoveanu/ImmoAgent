@@ -6,6 +6,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { ListingSidebar } from '@/components/ListingSidebar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { MapLegend } from '@/components/MapLegend';
+import { MapGuide } from '@/components/MapGuide';
 import { SortOption } from '@/components/FilterBar';
 import { ProfileSelector } from '@/components/ProfileSelector';
 import { MapListing } from '@/lib/types';
@@ -295,6 +296,7 @@ function MapPage() {
                   onViewDetails={handleViewDetails}
                 />
                 <MapLegend />
+                <MapGuide />
               </>
             )}
           </div>

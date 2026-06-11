@@ -1,6 +1,6 @@
 'use client';
 
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
@@ -213,20 +213,53 @@ function InfrastructureLayer({ show }: { show: boolean }) {
       {features.map((f, i) => {
         const [lon, lat] = f.geometry.coordinates;
         const color = f.properties.kind === 'ubahn' ? UBAHN_COLOR : SCHOOL_COLOR;
-        const radius = f.properties.kind === 'ubahn' ? 6 : 4;
+        const radius = f.properties.kind === 'ubahn' ? 7 : 5;
+        const isUbahn = f.properties.kind === 'ubahn';
+        const tooltipText = isUbahn
+          ? `U-Bahn ${f.properties.name}${f.properties.district ? ` (${f.properties.district})` : ''}`
+          : `School: ${f.properties.name}`;
         return (
           <CircleMarker
             key={`${f.properties.kind}-${i}`}
             center={[lat, lon]}
             radius={radius}
-            pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 1 }}
+            pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 2 }}
+            data-testid={`infra-${f.properties.kind}-${i}`}
+            data-infra-kind={f.properties.kind}
+            data-infra-name={f.properties.name}
           >
+            {isUbahn && (
+              <Tooltip
+                permanent
+                direction="right"
+                offset={[6, 0]}
+                className="leaflet-infra-label"
+                opacity={1}
+                sticky
+              >
+                <span className="text-[10px] font-semibold text-[#1d4ed8]">
+                  {f.properties.name}
+                </span>
+              </Tooltip>
+            )}
+            {!isUbahn && (
+              <Tooltip direction="top" offset={[0, -4]} opacity={1}>
+                <span className="text-[10px] font-medium">
+                  {f.properties.name}
+                  {f.properties.type ? ` · ${f.properties.type}` : ''}
+                </span>
+              </Tooltip>
+            )}
             <Popup>
               <div className="text-sm">
                 <div className="font-medium">{f.properties.name}</div>
                 <div className="text-gray-500 text-xs">
-                  {f.properties.kind === 'ubahn' ? 'U-Bahn' : 'School'}
+                  {f.properties.kind === 'ubahn' ? 'U-Bahn station' : 'School'}
                   {f.properties.district ? ` · ${f.properties.district}` : ''}
+                  {f.properties.type ? ` · ${f.properties.type}` : ''}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {f.properties.kind === 'ubahn' ? '🚇 transit' : '🏫 education'}
                 </div>
               </div>
             </Popup>

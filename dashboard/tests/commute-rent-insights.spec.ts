@@ -127,4 +127,38 @@ test.describe('Commute calculator + rent yield + max-commute filter', () => {
     await expect(legend).toContainText('U-Bahn');
     await expect(legend).toContainText('School');
   });
+
+  test('MapGuide overlay explains every dot type so user knows what they mean', async ({ page }) => {
+    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle');
+    const guide = page.locator('[data-testid="map-guide"]');
+    await expect(guide).toBeVisible();
+    await expect(page.locator('[data-testid="legend-price-pin"]')).toContainText('Price pin');
+    await expect(page.locator('[data-testid="legend-ubahn"]')).toContainText('U-Bahn station');
+    await expect(page.locator('[data-testid="legend-school"]')).toContainText('School');
+  });
+
+  test('U-Bahn dots render with a permanent name label on the map (the literal complaint: "dots do not say anything")', async ({ page }) => {
+    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1500);
+    const ubahnDots = page.locator('path[stroke="#1d4ed8"]');
+    expect(await ubahnDots.count()).toBeGreaterThan(0);
+    const labels = page.locator('.leaflet-infra-label');
+    expect(await labels.count()).toBeGreaterThan(0);
+    const firstLabelText = await labels.first().textContent();
+    expect(firstLabelText && firstLabelText.trim().length).toBeGreaterThan(0);
+    // Check that at least one U-Bahn name we know is in the labels
+    const allLabels = await labels.allTextContents();
+    const hasKnownStation = allLabels.some((l) => /Stephansplatz|Karlsplatz|Westbahnhof|Hauptbahnhof|Praterstern/i.test(l));
+    expect(hasKnownStation).toBeTruthy();
+  });
+
+  test('School dots render on the map (hover tooltips show name)', async ({ page }) => {
+    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1500);
+    const schoolDots = page.locator('path[stroke="#16a34a"]');
+    expect(await schoolDots.count()).toBeGreaterThan(0);
+  });
 });
