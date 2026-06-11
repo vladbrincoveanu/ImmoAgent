@@ -44,6 +44,7 @@ def run_backfill(dry_run: bool = False, batch: int = 500, only_profile: str | No
         try:
             new_scores = score_all_profiles(full)
             if only_profile:
+                # Single-profile mode: keep existing scores, refresh only the target
                 merged = dict(existing_scores)
                 merged[only_profile] = new_scores.get(only_profile)
                 new_scores = merged
