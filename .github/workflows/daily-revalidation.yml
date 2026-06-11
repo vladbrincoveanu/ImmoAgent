@@ -24,9 +24,9 @@ jobs:
         run: |
           cd Project
           python -c "
-from Application.cleanup import daily_revalidation
-from Integration.mongodb_handler import MongoDBHandler
-m = MongoDBHandler()
-result = daily_revalidation(m)
-print(f'Checked: {result[\"checked\"]}, Newly taken: {result[\"newly_taken\"]}')
-"
+          from Application.cleanup import daily_revalidation
+          from Integration.mongodb_handler import MongoDBHandler
+          m = MongoDBHandler()
+          result = daily_revalidation(m)
+          print(f"Checked: {result['checked']}, Newly taken: {result['newly_taken']}")
+          "
