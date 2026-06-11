@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ListingDetail as ListingDetailType } from '@/lib/types';
 import { ScoreBadge } from './ScoreBadge';
+import { CommuteAndRentPanel } from './CommuteAndRentPanel';
 
 interface ListingDetailProps {
   id: string;
@@ -305,6 +307,8 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                   </span>
                 )}
               </div>
+
+              <CommuteAndRentPanel listing={listing} />
 
               {comparables && comparables.length > 0 && (
                 <div className="mt-5 pt-4 border-t border-gray-200" data-testid="comparables-section">

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ProfileSelector } from './ProfileSelector';
+import { CommuteFilter } from './CommuteFilter';
 
 const SORT_OPTIONS = [
   { value: 'score_desc', label: 'Score (high to low)' },
@@ -158,6 +159,8 @@ export function FilterBar({
           />
         </div>
       )}
+
+      <CommuteFilter />
     </div>
   );
 }

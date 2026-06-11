@@ -6,10 +6,15 @@ import { SOURCE_LABELS, formatPrice } from '@/lib/utils';
 import { EquityBadge } from './EquityBadge';
 import { ZoneVsAvgBadge } from './ZoneVsAvgBadge';
 import { DealScoreBadge } from './DealScoreBadge';
+import { RentYieldBadge } from './RentYieldBadge';
+import { CommuteBadge } from './CommuteBadge';
 
 interface ListingCardProps {
   listing: ListingBase;
   onClick: (id: string) => void;
+  destLat?: number;
+  destLon?: number;
+  destName?: string;
 }
 
 function formatEur(value: number | null | undefined, suffix = ''): string {
@@ -20,7 +25,7 @@ function formatEur(value: number | null | undefined, suffix = ''): string {
   return `EUR ${value}${suffix}`;
 }
 
-export function ListingCard({ listing, onClick }: ListingCardProps) {
+export function ListingCard({ listing, onClick, destLat, destLon, destName }: ListingCardProps) {
   const [imageError, setImageError] = useState(false);
 
   const hasImage = listing.image_url && !imageError;
@@ -134,6 +139,10 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
             </span>
           )}
           <DealScoreBadge listing={listing as unknown as import('@/lib/types').MapListing} />
+          <RentYieldBadge area_m2={listing.area_m2} price_total={listing.price_total} bezirk={listing.bezirk} />
+          {destLat && destLon && destName && (
+            <CommuteBadge lat={listing.coordinates?.lat} lon={listing.coordinates?.lon} destLat={destLat} destLon={destLon} destName={destName} />
+          )}
         </div>
       </div>
     </div>

@@ -11,6 +11,10 @@ export type FilterState = {
   maxEquity: string;
   profile: string;
   belowAvgPct: string;
+  destName: string;
+  destLat: string;
+  destLon: string;
+  maxCommute: string;
 };
 
 export function filtersFromParams(searchParams: URLSearchParams): FilterState {
@@ -26,6 +30,10 @@ export function filtersFromParams(searchParams: URLSearchParams): FilterState {
     maxEquity: searchParams.get('max_equity') ?? '',
     profile: isValidProfile(rawProfile) ? (rawProfile as string) : DEFAULT_PROFILE,
     belowAvgPct: searchParams.get('below_avg_pct') ?? '',
+    destName: searchParams.get('dest_name') ?? '',
+    destLat: searchParams.get('dest_lat') ?? '',
+    destLon: searchParams.get('dest_lon') ?? '',
+    maxCommute: searchParams.get('max_commute') ?? '',
   };
 }
 
@@ -40,6 +48,12 @@ export function paramsFromFilters(filters: FilterState): URLSearchParams {
   if (filters.rate && filters.rate !== '3.8') params.set('rate', filters.rate);
   if (filters.maxEquity) params.set('max_equity', filters.maxEquity);
   if (filters.belowAvgPct) params.set('below_avg_pct', filters.belowAvgPct);
+  if (filters.destName) {
+    params.set('dest_name', filters.destName);
+    if (filters.destLat) params.set('dest_lat', filters.destLat);
+    if (filters.destLon) params.set('dest_lon', filters.destLon);
+  }
+  if (filters.maxCommute) params.set('max_commute', filters.maxCommute);
   // Always set profile so URL is shareable
   if (filters.profile && filters.profile !== DEFAULT_PROFILE) params.set('profile', filters.profile);
   return params;

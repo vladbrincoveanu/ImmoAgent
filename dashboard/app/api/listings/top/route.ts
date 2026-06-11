@@ -3,6 +3,7 @@ import { getDb } from '@/lib/mongodb';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { resolveCoordinates } from '@/lib/district-centroids';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -146,6 +147,7 @@ export async function GET(request: NextRequest) {
         coordinate_source: l.coordinate_source ?? undefined,
         price_vs_avg_pct: priceVsAvgPct,
         ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
+        coordinates: resolveCoordinates(l.coordinates as { lat: number; lon: number } | null | undefined, l.bezirk as string | null | undefined),
       };
     });
 

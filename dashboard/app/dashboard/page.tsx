@@ -40,6 +40,10 @@ function DashboardContent() {
   const [maxEquity, setMaxEquity] = useState<string>('');
   const [profile, setProfile] = useState<string>(DEFAULT_PROFILE);
   const [belowAvgPct, setBelowAvgPct] = useState<string>('');
+  const [destName, setDestName] = useState<string>('');
+  const [destLat, setDestLat] = useState<string>('');
+  const [destLon, setDestLon] = useState<string>('');
+  const [maxCommute, setMaxCommute] = useState<string>('');
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
   useEffect(() => {
@@ -54,56 +58,72 @@ function DashboardContent() {
     setMaxEquity(filters.maxEquity);
     setProfile(filters.profile);
     setBelowAvgPct(filters.belowAvgPct);
+    setDestName(filters.destName);
+    setDestLat(filters.destLat);
+    setDestLon(filters.destLon);
+    setMaxCommute(filters.maxCommute);
   }, [searchParams]);
 
-  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string; profile: string; belowAvgPct: string }) => {
+  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string; profile: string; belowAvgPct: string; destName: string; destLat: string; destLon: string; maxCommute: string }) => {
     const params = paramsFromFilters(filters);
     router.push(`/dashboard?${params.toString()}`);
   }, [router]);
 
   const handleMinScoreChange = (v: string) => {
     setMinScore(v);
-    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleDistrictChange = (v: string) => {
     setDistrict(v);
-    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleSortChange = (v: SortOption) => {
     setSortBy(v);
-    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleMaxPriceChange = (v: string) => {
     setMaxPrice(v);
-    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleShowUnfinanceableChange = (v: boolean) => {
     setShowUnfinanceable(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleEquityChange = (v: string) => {
     setEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleRateChange = (v: string) => {
     setRate(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity, profile, belowAvgPct });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleMaxEquityChange = (v: string) => {
     setMaxEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v, profile, belowAvgPct });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
   };
 
   const handleBelowAvgPctChange = (v: string) => {
     setBelowAvgPct(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct: v });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct: v, destName, destLat, destLon, maxCommute });
+  };
+
+  const handleDestChange = (name: string, lat: string, lon: string) => {
+    setDestName(name);
+    setDestLat(lat);
+    setDestLon(lon);
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName: name, destLat: lat, destLon: lon, maxCommute });
+  };
+
+  const handleMaxCommuteChange = (v: string) => {
+    setMaxCommute(v);
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute: v });
   };
 
   const fetchListings = useCallback(async () => {
@@ -173,6 +193,19 @@ function DashboardContent() {
     const maxPriceNum = maxPrice ? Number(maxPrice) : null;
     const maxEquityNum = maxEquity ? Number(maxEquity) : null;
     const belowAvgNum = belowAvgPct ? Number(belowAvgPct) : null;
+    const maxCommuteNum = maxCommute ? Number(maxCommute) : null;
+    const destLatNum = destLat ? Number(destLat) : null;
+    const destLonNum = destLon ? Number(destLon) : null;
+    const WALK_KMH = 4.8;
+    function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+      const R = 6371;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLon = (b.lon - a.lon) * Math.PI / 180;
+      const lat1 = a.lat * Math.PI / 180;
+      const lat2 = b.lat * Math.PI / 180;
+      const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    }
     return enrichedListings.filter((l) => {
       if (maxPriceNum != null && Number.isFinite(maxPriceNum) && l.price_total != null && l.price_total > maxPriceNum) return false;
       if (maxEquityNum != null && Number.isFinite(maxEquityNum) && l.estimated_equity_eur != null && l.estimated_equity_eur > maxEquityNum) return false;
@@ -186,9 +219,17 @@ function DashboardContent() {
         const lAvg = (l as ListingBase & { price_vs_avg_pct?: number | null }).price_vs_avg_pct;
         if (lAvg == null || lAvg > -belowAvgNum) return false;
       }
+      if (maxCommuteNum != null && Number.isFinite(maxCommuteNum) && destLatNum != null && destLonNum != null) {
+        const lcoords = (l as ListingBase & { coordinates?: { lat: number; lon: number } | null }).coordinates;
+        if (lcoords) {
+          const km = haversineKm(lcoords, { lat: destLatNum, lon: destLonNum });
+          const walkMin = Math.round((km / WALK_KMH) * 60);
+          if (walkMin > maxCommuteNum) return false;
+        }
+      }
       return true;
     });
-  }, [enrichedListings, maxPrice, showUnfinanceable, maxEquity, belowAvgPct]);
+  }, [enrichedListings, maxPrice, showUnfinanceable, maxEquity, belowAvgPct, maxCommute, destLat, destLon]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-24 md:pb-6">
@@ -250,7 +291,7 @@ function DashboardContent() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredListings.map((l) => (
-              <ListingCard key={l._id} listing={l} onClick={setSelectedId} />
+              <ListingCard key={l._id} listing={l} onClick={setSelectedId} destLat={destLat ? Number(destLat) : undefined} destLon={destLon ? Number(destLon) : undefined} destName={destName || undefined} />
             ))}
           </div>
         )}

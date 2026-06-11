@@ -30,6 +30,7 @@ export interface ListingBase {
   coordinate_source?: CoordinateSource;
   price_vs_avg_pct?: number | null;
   ubahn_walk_minutes?: number | null;
+  coordinates?: Coordinates | null;
 }
 
 export interface MapListing {
