@@ -68,7 +68,7 @@ test.describe('Map page structure', () => {
     await expect(page.locator('input[type="number"]').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('input[placeholder="e.g. 02"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('button:has-text("Refresh")')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('select')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('select').first()).toBeVisible({ timeout: 5000 });
 
     const unexpected = errors.filter(isUnexpectedError);
     expect(unexpected).toHaveLength(0);
@@ -156,11 +156,11 @@ test.describe('Sidebar interactions', () => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
     await waitForMapReady(page);
 
-    const select = page.locator('select').first();
-    await expect(select).toBeVisible({ timeout: 10000 });
-    await select.selectOption('price_asc');
+    const sortSelect = page.getByLabel('Sort');
+    await expect(sortSelect).toBeVisible({ timeout: 10000 });
+    await sortSelect.selectOption('price_asc');
     await page.waitForTimeout(1500);
-    await expect(select).toHaveValue('price_asc');
+    await expect(sortSelect).toHaveValue('price_asc');
 
     const unexpected = errors.filter(isUnexpectedError);
     expect(unexpected).toHaveLength(0);
