@@ -405,6 +405,20 @@ def normalize_listing_schema(listing: Listing) -> Listing:
     
     return listing
 
+def _persist_profile_scores(mongodb_handler, listing_dict: dict) -> None:
+    """Compute and persist per-profile scores for a listing.
+
+    Best-effort: a single failing profile must not block the scrape.
+    """
+    try:
+        from Application.profile_scoring import score_all_profiles
+        all_scores = score_all_profiles(listing_dict)
+        if all_scores and listing_dict.get('_id') is not None:
+            mongodb_handler.update_profile_scores(listing_dict['_id'], all_scores)
+    except Exception as e:
+        logging.warning(f"_persist_profile_scores failed for {listing_dict.get('url', '<no-url>')}: {e}")
+
+
 def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb://localhost:27017/",
                            db_name: str = "immo", collection_name: str = "listings") -> int:
     """Save listings to MongoDB with deduplication"""
@@ -440,6 +454,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 collection.replace_one({"_id": existing_by_url['_id']}, listing_dict)
                 duplicate_count += 1
                 logging.debug(f"🔄 Updated existing listing: {listing.title}")
+                _persist_profile_scores(mongodb_handler, listing_dict)
             else:
                 existing_by_fingerprint = collection.find_one(
                     {"content_fingerprint": fingerprint, "source_enum": source_enum}
@@ -455,6 +470,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 listing_dict['_id'] = result.inserted_id
                 saved_count += 1
                 logging.debug(f"💾 Saved new listing: {listing.title}")
+                _persist_profile_scores(mongodb_handler, listing_dict)
 
                 geocoded = geocode_listing(listing_dict)
                 if geocoded.get('coordinate_source') != 'none':
