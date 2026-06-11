@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SortOption } from './FilterBar';
+import { ProfileSelector } from './ProfileSelector';
 
 interface FilterDrawerProps {
   open: boolean;
@@ -94,6 +95,11 @@ export function FilterDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text">Buyer Profile</label>
+            <ProfileSelector />
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-text">Minimum Score</label>
             <input

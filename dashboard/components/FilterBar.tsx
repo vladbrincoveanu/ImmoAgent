@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { ProfileSelector } from './ProfileSelector';
 
 const SORT_OPTIONS = [
   { value: 'score_desc', label: 'Score (high to low)' },
@@ -46,6 +47,7 @@ export function FilterBar({
 
   return (
     <div className="hidden md:flex flex-wrap gap-3 mb-6 items-center">
+      <ProfileSelector />
       <div className="flex items-center gap-2 ml-auto">
         <label className="text-sm font-medium text-gray-700">Min Score</label>
         <input
@@ -130,7 +132,7 @@ export function FilterBar({
       )}
 
       {maxEquity != null && onMaxEquityChange && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" data-testid="max-equity-filter">
           <label className="text-sm font-medium text-gray-700">Max Equity Req'd</label>
           <input
             type="number" min="0" step="1000" placeholder="e.g. 200000"
