@@ -100,6 +100,25 @@ export function ListingCard({ listing, onClick }: ListingCardProps) {
             </span>
           )}
         </div>
+        {listing.coordinate_source && listing.coordinate_source !== 'none' && (
+          <div className="mt-1 flex items-center gap-1">
+            {listing.coordinate_source === 'exact' && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded" title="Exact address geocoded">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Exact
+              </span>
+            )}
+            {listing.coordinate_source === 'landmark' && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded" title="Geocoded to a nearby landmark">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Landmark
+              </span>
+            )}
+            {listing.coordinate_source === 'district' && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded" title="District centroid only — address not geocodable">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> District
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

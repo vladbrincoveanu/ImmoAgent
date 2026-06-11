@@ -28,6 +28,8 @@ interface FilterBarProps {
   onEquityChange?: (v: string) => void;
   rate?: string;
   onRateChange?: (v: string) => void;
+  maxEquity?: string;
+  onMaxEquityChange?: (v: string) => void;
 }
 
 export function FilterBar({
@@ -38,6 +40,7 @@ export function FilterBar({
   showUnfinanceable, onShowUnfinanceableChange,
   equity, onEquityChange,
   rate, onRateChange,
+  maxEquity, onMaxEquityChange,
 }: FilterBarProps) {
   const effectiveSort = sortBy ?? 'score_desc';
 
@@ -122,6 +125,18 @@ export function FilterBar({
             type="number" min="0" step="0.1" value={rate}
             onChange={(e) => onRateChange(e.target.value)}
             className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      )}
+
+      {maxEquity != null && onMaxEquityChange && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Max Equity Req'd</label>
+          <input
+            type="number" min="0" step="1000" placeholder="e.g. 200000"
+            value={maxEquity}
+            onChange={(e) => onMaxEquityChange(e.target.value)}
+            className="w-28 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       )}

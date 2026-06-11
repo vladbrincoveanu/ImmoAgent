@@ -33,6 +33,7 @@ function DashboardContent() {
   const [showUnfinanceable, setShowUnfinanceable] = useState<boolean>(false);
   const [equity, setEquity] = useState<string>('100000');
   const [rate, setRate] = useState<string>('3.8');
+  const [maxEquity, setMaxEquity] = useState<string>('');
 
   useEffect(() => {
     const filters = filtersFromParams(searchParams);
@@ -43,46 +44,52 @@ function DashboardContent() {
     setShowUnfinanceable(filters.showUnfinanceable);
     setEquity(filters.equity);
     setRate(filters.rate);
+    setMaxEquity(filters.maxEquity);
   }, [searchParams]);
 
-  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string }) => {
+  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string }) => {
     const params = paramsFromFilters(filters);
     router.push(`/dashboard?${params.toString()}`);
   }, [router]);
 
   const handleMinScoreChange = (v: string) => {
     setMinScore(v);
-    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate });
+    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity });
   };
 
   const handleDistrictChange = (v: string) => {
     setDistrict(v);
-    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate });
+    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity });
   };
 
   const handleSortChange = (v: SortOption) => {
     setSortBy(v);
-    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate });
+    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity });
   };
 
   const handleMaxPriceChange = (v: string) => {
     setMaxPrice(v);
-    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate });
+    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity });
   };
 
   const handleShowUnfinanceableChange = (v: boolean) => {
     setShowUnfinanceable(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity });
   };
 
   const handleEquityChange = (v: string) => {
     setEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity });
   };
 
   const handleRateChange = (v: string) => {
     setRate(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v });
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity });
+  };
+
+  const handleMaxEquityChange = (v: string) => {
+    setMaxEquity(v);
+    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v });
   };
 
   const fetchListings = useCallback(async () => {
@@ -93,7 +100,7 @@ function DashboardContent() {
       if (district) params.set('district', district);
       params.set('sort', sortBy);
 
-      const res = await fetch(`/api/listings/top?${params}`);
+      const res = await fetch(`/api/listings/top?${params.toString()}`);
       const data = await res.json();
       setListings(data.listings ?? []);
     } catch (err) {
@@ -127,8 +134,10 @@ function DashboardContent() {
 
   const filteredListings = useMemo(() => {
     const maxPriceNum = maxPrice ? Number(maxPrice) : null;
+    const maxEquityNum = maxEquity ? Number(maxEquity) : null;
     return enrichedListings.filter((l) => {
       if (maxPriceNum != null && Number.isFinite(maxPriceNum) && l.price_total != null && l.price_total > maxPriceNum) return false;
+      if (maxEquityNum != null && Number.isFinite(maxEquityNum) && l.estimated_equity_eur != null && l.estimated_equity_eur > maxEquityNum) return false;
       if (
         !showUnfinanceable &&
         l.estimated_down_pct != null &&
@@ -137,7 +146,7 @@ function DashboardContent() {
       ) return false;
       return true;
     });
-  }, [enrichedListings, maxPrice, showUnfinanceable]);
+  }, [enrichedListings, maxPrice, showUnfinanceable, maxEquity]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-24 md:pb-6">
@@ -165,6 +174,8 @@ function DashboardContent() {
             onEquityChange={handleEquityChange}
             rate={rate}
             onRateChange={handleRateChange}
+            maxEquity={maxEquity}
+            onMaxEquityChange={handleMaxEquityChange}
           />
         </div>
 

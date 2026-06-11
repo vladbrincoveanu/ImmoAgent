@@ -9,12 +9,33 @@ interface ListingDetailProps {
   onClose: () => void;
 }
 
+interface ZoneStats {
+  district: string;
+  total_in_district: number;
+  avg_price: number | null;
+  avg_price_per_m2: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  avg_area: number | null;
+  avg_rooms: number | null;
+  this_listing: {
+    price: number | null;
+    price_per_m2: number | null;
+    price_vs_avg_pct: number | null;
+    price_per_m2_vs_avg_pct: number | null;
+  };
+  matching_budget: number;
+  avg_ubahn_minutes: number | null;
+  avg_school_minutes: number | null;
+}
+
 export function ListingDetail({ id, onClose }: ListingDetailProps) {
   const [listing, setListing] = useState<ListingDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [urlValid, setUrlValid] = useState<boolean | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [zoneStats, setZoneStats] = useState<ZoneStats | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,6 +48,7 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
   useEffect(() => {
     setImageError(false);
     setUrlValid(null);
+    setZoneStats(null);
     fetch(`/api/listings/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -34,6 +56,10 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
         setUrlValid(data.url_is_valid ?? null);
       })
       .finally(() => setLoading(false));
+    fetch(`/api/listings/${id}/zone-stats`)
+      .then((r) => r.json())
+      .then(setZoneStats)
+      .catch(() => {});
   }, [id]);
 
   const handleRecheck = async () => {
@@ -176,6 +202,64 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                     {Object.entries(listing.score_breakdown).map(([k, v]) => (
                       <p key={k}>{k}: {typeof v === 'number' ? (v as any).toFixed(1) : v}</p>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {zoneStats && zoneStats.total_in_district > 0 && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                  <h3 className="font-medium text-gray-700 mb-2">
+                    Zone Analytics — {zoneStats.district}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <div className="text-gray-500">Listings in zone</div>
+                    <div className="text-right font-medium text-gray-900">{zoneStats.total_in_district}</div>
+                    <div className="text-gray-500">Avg price</div>
+                    <div className="text-right font-medium text-gray-900">
+                      {zoneStats.avg_price != null ? `€${zoneStats.avg_price.toLocaleString('de-AT')}` : '—'}
+                    </div>
+                    <div className="text-gray-500">Avg €/m²</div>
+                    <div className="text-right font-medium text-gray-900">
+                      {zoneStats.avg_price_per_m2 != null ? `€${zoneStats.avg_price_per_m2.toLocaleString('de-AT')}` : '—'}
+                    </div>
+                    <div className="text-gray-500">Price range</div>
+                    <div className="text-right font-medium text-gray-900 text-xs">
+                      {zoneStats.min_price != null && zoneStats.max_price != null
+                        ? `€${zoneStats.min_price.toLocaleString('de-AT')} – €${zoneStats.max_price.toLocaleString('de-AT')}`
+                        : '—'}
+                    </div>
+                    {zoneStats.this_listing.price_vs_avg_pct != null && (
+                      <>
+                        <div className="text-gray-500">This listing vs avg</div>
+                        <div className={`text-right font-medium ${zoneStats.this_listing.price_vs_avg_pct > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                          {zoneStats.this_listing.price_vs_avg_pct > 0 ? '+' : ''}{zoneStats.this_listing.price_vs_avg_pct}%
+                        </div>
+                      </>
+                    )}
+                    {zoneStats.this_listing.price_per_m2_vs_avg_pct != null && (
+                      <>
+                        <div className="text-gray-500">€/m² vs avg</div>
+                        <div className={`text-right font-medium ${zoneStats.this_listing.price_per_m2_vs_avg_pct > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                          {zoneStats.this_listing.price_per_m2_vs_avg_pct > 0 ? '+' : ''}{zoneStats.this_listing.price_per_m2_vs_avg_pct}%
+                        </div>
+                      </>
+                    )}
+                    <div className="text-gray-500 border-t border-blue-200 pt-1 mt-1">Matching ≤ €500k</div>
+                    <div className="text-right font-medium text-gray-900 border-t border-blue-200 pt-1 mt-1">
+                      {zoneStats.matching_budget}
+                    </div>
+                    {zoneStats.avg_ubahn_minutes != null && (
+                      <>
+                        <div className="text-gray-500">Avg U-Bahn walk (zone)</div>
+                        <div className="text-right font-medium text-gray-900">{zoneStats.avg_ubahn_minutes} min</div>
+                      </>
+                    )}
+                    {zoneStats.avg_school_minutes != null && (
+                      <>
+                        <div className="text-gray-500">Avg school walk (zone)</div>
+                        <div className="text-right font-medium text-gray-900">{zoneStats.avg_school_minutes} min</div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

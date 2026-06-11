@@ -1,15 +1,17 @@
 'use client';
 
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
-import { useEffect, useRef, memo, useCallback } from 'react';
+import { useEffect, useRef, useState, memo, useCallback } from 'react';
 
 const EXACT_COLOR = '#ef4444';
 const LANDMARK_COLOR = '#f97316';
 const DISTRICT_COLOR = '#3B82F6';
 const HIGHLIGHT_COLOR = '#E07A5F';
+const UBAHN_COLOR = '#1d4ed8';
+const SCHOOL_COLOR = '#16a34a';
 const HOVER_COLOR = '#FBBF24';
 
 type PinState = 'exact' | 'landmark' | 'district' | 'highlighted' | 'hovered';
@@ -177,16 +179,85 @@ function MarkerLayer({
   return null;
 }
 
+interface InfraFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: { kind: 'ubahn' | 'school'; name: string; type?: string; district?: string };
+}
+
+function InfrastructureLayer({ show }: { show: boolean }) {
+  const [features, setFeatures] = useState<InfraFeature[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!show) {
+      setFeatures([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetch('/api/geo/infrastructure')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.features) setFeatures(d.features);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [show]);
+
+  if (!show || loading || features.length === 0) return null;
+
+  return (
+    <>
+      {features.map((f, i) => {
+        const [lon, lat] = f.geometry.coordinates;
+        const color = f.properties.kind === 'ubahn' ? UBAHN_COLOR : SCHOOL_COLOR;
+        const radius = f.properties.kind === 'ubahn' ? 6 : 4;
+        return (
+          <CircleMarker
+            key={`${f.properties.kind}-${i}`}
+            center={[lat, lon]}
+            radius={radius}
+            pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 1 }}
+          >
+            <Popup>
+              <div className="text-sm">
+                <div className="font-medium">{f.properties.name}</div>
+                <div className="text-gray-500 text-xs">
+                  {f.properties.kind === 'ubahn' ? 'U-Bahn' : 'School'}
+                  {f.properties.district ? ` · ${f.properties.district}` : ''}
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
 export const MapView = memo(function MapView({
   listings,
   highlightedId,
   hoveredId,
   onHover,
   onHoverEnd,
-  onBoundsChange,
   onPinClick,
   onMapClick,
-}: MapViewProps) {
+  onBoundsChange,
+  showInfrastructure = true,
+}: {
+  listings: MapListing[];
+  highlightedId?: string | null;
+  hoveredId?: string | null;
+  onHover?: (id: string) => void;
+  onHoverEnd?: () => void;
+  onPinClick?: (id: string) => void;
+  onMapClick?: () => void;
+  onBoundsChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
+  showInfrastructure?: boolean;
+}) {
   const viennaCenter: [number, number] = [48.2082, 16.3738];
   const mapRef = useRef<L.Map | null>(null);
 
@@ -205,11 +276,12 @@ export const MapView = memo(function MapView({
 
       <BoundsTracker onBoundsChange={onBoundsChange} />
       <MapClickHandler onMapClick={onMapClick} />
+      <InfrastructureLayer show={showInfrastructure} />
       <MarkerLayer
         listings={listings}
-        highlightedId={highlightedId}
-        hoveredId={hoveredId}
-        onPinClick={onPinClick}
+        highlightedId={highlightedId ?? null}
+        hoveredId={hoveredId ?? null}
+        onPinClick={(l) => onPinClick?.(l._id)}
         onHover={onHover}
         onHoverEnd={onHoverEnd}
       />

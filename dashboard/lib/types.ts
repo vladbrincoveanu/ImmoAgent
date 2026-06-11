@@ -27,6 +27,7 @@ export interface ListingBase {
   estimated_down_pct_kimv?: number;
   estimated_equity_eur?: number;
   bank_score_confidence?: BankScoreConfidence;
+  coordinate_source?: CoordinateSource;
 }
 
 export interface MapListing {

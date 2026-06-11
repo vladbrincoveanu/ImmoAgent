@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
         estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
         estimated_equity_eur: l.estimated_equity_eur ?? undefined,
         bank_score_confidence: l.bank_score_confidence ?? undefined,
+        coordinate_source: l.coordinate_source ?? undefined,
       };
     });
 
