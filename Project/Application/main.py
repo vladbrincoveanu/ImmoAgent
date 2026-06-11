@@ -19,6 +19,7 @@ from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint
 from Application.helpers.geocoding import geocode_listing
+from Application.feasibility import derive_profile_fields
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
 from Domain.listing import Listing
 import logging
@@ -426,6 +427,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         for listing in listings:
             listing = normalize_listing_schema(listing)
             listing_dict = asdict(listing)
+            listing_dict = derive_profile_fields(listing_dict)
 
             fingerprint = compute_content_fingerprint(listing_dict)
             listing_dict['content_fingerprint'] = fingerprint

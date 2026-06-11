@@ -103,7 +103,10 @@ export async function GET(request: NextRequest) {
 
       // Use actual coordinates if available, otherwise fall back to district centroid
       let coordinates = l.coordinates as { lat: number; lon: number } | null | undefined;
-      let coordinate_source: string = (l.coordinate_source as string) || 'none';
+      const COORD_SOURCES = new Set(['exact', 'landmark', 'district', 'none']);
+      const rawSource = (l.coordinate_source as string) || 'none';
+      let coordinate_source: 'exact' | 'landmark' | 'district' | 'none' =
+        COORD_SOURCES.has(rawSource) ? (rawSource as 'exact' | 'landmark' | 'district' | 'none') : 'none';
 
       if (!coordinates) {
         const centroid = getDistrictCentroid(l.bezirk as string | null);
@@ -125,7 +128,7 @@ export async function GET(request: NextRequest) {
         score: l.score,
         image_url: l.image_url || null,
         coordinates: coordinates ?? null,
-        coordinate_source: coordinate_source as MapListing['coordinate_source'],
+        coordinate_source,
         landmark_hint: l.landmark_hint || null,
         price_is_estimated,
         estimated_down_pct: l.estimated_down_pct ?? undefined,

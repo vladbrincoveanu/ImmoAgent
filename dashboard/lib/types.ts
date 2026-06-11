@@ -139,7 +139,7 @@ export interface ListingDetail {
   estimated_equity_eur: number | null;
   bank_score_confidence: BankScoreConfidence | null;
   betriebskosten_breakdown: Record<string, number> | null;
-  score_breakdown: Record<string, number> | null;
+  score_breakdown: Record<string, unknown> | null;
   ubahn_walk_minutes: number | null;
   school_walk_minutes: number | null;
   infrastructure_distances: Record<string, number | string>;

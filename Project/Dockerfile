@@ -1,3 +1,8 @@
+# DEPRECATED: This Dockerfile targets the legacy Flask stack (Project/Api/, run_production.py).
+# The Flask app was removed in 2026-06. The dashboard is now deployed on Vercel (see .vercel/).
+# Scraper entry points (run.py, run_top5.py, run_outreach.py) can be invoked directly with Python.
+# Kept for reference / future use with a different image (e.g., a Next.js standalone build).
+#
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
@@ -32,12 +37,10 @@ USER app
 # Create log directory
 RUN mkdir -p /var/log/home-ai
 
-# Expose port
-EXPOSE 5001
+# DEPRECATED: port 5001/healthcheck were for the Flask app
+# EXPOSE 5001
+# HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+#     CMD curl -f http://localhost:5001/api/stats || exit 1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5001/api/stats || exit 1
-
-# Run the application
-CMD ["python", "run_production.py"] 
+# Default: run the scraper pipeline. Override with `docker run <image> python run_top5.py` etc.
+CMD ["python", "run.py"]
