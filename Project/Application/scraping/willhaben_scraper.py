@@ -133,7 +133,10 @@ class MortgageCalculator:
             'total_monthly': round(monthly_payment, 2),
             'loan_amount': round(loan_amount, 2),
             'interest_rate': annual_rate,
-            'years': years
+            'years': years,
+            'life_insurance': 0.0,
+            'property_insurance': 0.0,
+            'admin_fees': 0.0,
         }
 
 class WillhabenScraper:

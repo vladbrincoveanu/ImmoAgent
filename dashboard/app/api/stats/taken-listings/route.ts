@@ -20,6 +20,14 @@ export async function GET(request: NextRequest) {
     const pipeline = [
       { $match: { listing_status: 'taken' } },
       {
+        $addFields: {
+          taken_at_date: { $toDate: '$taken_at' },
+          first_seen_date: {
+            $toDate: { $ifNull: ['$first_scraped_at', '$processed_at'] }
+          }
+        }
+      },
+      {
         $project: {
           title: 1,
           url: 1,
@@ -29,7 +37,7 @@ export async function GET(request: NextRequest) {
           price_at_scrape: 1,
           days_active: {
             $divide: [
-              { $subtract: ['$taken_at', { $ifNull: ['$first_scraped_at', '$processed_at'] }] },
+              { $subtract: ['$taken_at_date', '$first_seen_date'] },
               86400000
             ]
           },
