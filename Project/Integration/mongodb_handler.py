@@ -8,10 +8,13 @@ import json
 import time
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint
-from Application.buyer_profiles import GLOBAL_VALIDATION
+from Application.buyer_profiles import GLOBAL_VALIDATION, BUYER_PROFILES
 from Domain.constants import RENTAL_KEYWORDS, PRICE_ON_REQUEST_KEYWORDS
 import logging
 logger = logging.getLogger(__name__)
+
+# Per-profile precalculation support
+PROFILE_NAMES: list[str] = list(BUYER_PROFILES.keys())
 
 
 def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
@@ -91,6 +94,15 @@ class MongoDBHandler:
             self.collection.create_index([("listing_status", 1), ("processed_at", -1)])
             self.collection.create_index([("listing_status", 1), ("source_enum", 1)])
             self.collection.create_index([("listing_status", 1), ("bezirk", 1)])
+            # Per-profile score indexes (compound with processed_at for stable tiebreak)
+            for _profile in PROFILE_NAMES:
+                try:
+                    self.collection.create_index(
+                        [(f"scores.{_profile}", -1), ("processed_at", -1)],
+                        name=f"scores_{_profile}_idx",
+                    )
+                except Exception as e:
+                    logging.warning(f"Could not create index scores.{_profile}: {e}")
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 print(f"⚠️  MongoDB authentication required, skipping index creation: {e}")
@@ -151,6 +163,31 @@ class MongoDBHandler:
         except Exception as e:
             print(f"MongoDB insert error: {e}")
             return False
+
+    def update_profile_scores(self, listing_id, scores: dict) -> None:
+        """Persist per-profile scores subdoc for a listing.
+
+        Idempotent: $set is a no-op if values are unchanged.
+        Skips silently if collection not initialized (e.g., when no Mongo connection).
+        """
+        if not scores:
+            return
+        if self.collection is None:
+            logging.warning("update_profile_scores: collection unavailable; skipping")
+            return
+        try:
+            from datetime import datetime, timezone
+            self.collection.update_one(
+                {"_id": listing_id},
+                {
+                    "$set": {
+                        "scores": scores,
+                        "scores_updated_at": datetime.now(timezone.utc),
+                    }
+                },
+            )
+        except Exception as e:
+            logging.warning(f"update_profile_scores failed for _id={listing_id}: {e}")
 
     def upsert_listing_with_history(self, listing: Dict) -> bool:
         """Insert or update listing with price history tracking.
@@ -410,12 +447,13 @@ class MongoDBHandler:
             print(f"MongoDB query error: {e}")
             return None
     
-    def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30, 
-                        excluded_districts: List[str] = None, min_rooms: float = 0.0, 
-                        exclude_recently_sent: bool = True, recently_sent_days: int = 7) -> List[Dict]:
+    def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30,
+                        excluded_districts: List[str] = None, min_rooms: float = 0.0,
+                        exclude_recently_sent: bool = True, recently_sent_days: int = 7,
+                        profile: str = "default") -> List[Dict]:
         """
-        Get top listings from MongoDB sorted by score with additional filters
-        
+        Get top listings from MongoDB sorted by score with additional filters.
+
         Args:
             limit: Maximum number of listings to return
             min_score: Minimum score threshold
@@ -424,7 +462,8 @@ class MongoDBHandler:
             min_rooms: Minimum number of rooms required
             exclude_recently_sent: Whether to exclude listings sent to Telegram in recent days
             recently_sent_days: Number of days to look back for recently sent listings
-            
+            profile: Which precalculated score to sort by. "default" uses legacy `score` field.
+
         Returns:
             List of listing dictionaries sorted by score (highest first)
         """
@@ -484,11 +523,17 @@ class MongoDBHandler:
                 query = base_query
             
             # Sort by score descending, then by processed_at descending
-            # Use a projection to handle null scores (treat as 0 for sorting)
-            sort_criteria = [
-                ("score", -1),  # Highest score first (nulls will be last)
-                ("processed_at", -1)  # Most recent first for same scores
-            ]
+            # When profile != "default", sort by the precalculated scores.<profile> subdoc
+            if profile == "default":
+                sort_criteria = [
+                    ("score", -1),
+                    ("processed_at", -1),
+                ]
+            else:
+                sort_criteria = [
+                    (f"scores.{profile}", -1),
+                    ("processed_at", -1),
+                ]
             
             # Execute query
             cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit * 3)  # Get more to filter
