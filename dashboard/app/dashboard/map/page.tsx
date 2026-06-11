@@ -2,17 +2,20 @@
 
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { ListingSidebar } from '@/components/ListingSidebar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { MapLegend } from '@/components/MapLegend';
 import { SortOption } from '@/components/FilterBar';
+import { ProfileSelector } from '@/components/ProfileSelector';
 import { MapListing } from '@/lib/types';
 import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { SelectedCard } from '@/components/SelectedCard';
+import { CompactListingStrip } from '@/components/CompactListingStrip';
 import { useListingsSSE } from '@/lib/sse';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
 import type { ViewportBounds } from '@/components/MapView';
 
 const MapView = dynamic(
@@ -29,28 +32,53 @@ function MapLoadingState() {
 }
 
 function MapPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [bounds, setBounds] = useState<ViewportBounds | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [minScore, setMinScore] = useState('0');
-  const [district, setDistrict] = useState('');
-  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [maxPrice, setMaxPrice] = useState('500000');
-  const [showUnfinanceable, setShowUnfinanceable] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
-  const [profile, setProfile] = useState<string>(DEFAULT_PROFILE);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
-  const searchParams = useSearchParams();
+  const initial = useMemo(() => filtersFromParams(searchParams), [searchParams]);
+  const [minScore, setMinScore] = useState(initial.minScore);
+  const [district, setDistrict] = useState(initial.district);
+  const [sortBy, setSortBy] = useState<SortOption>(initial.sortBy as SortOption);
+  const [maxPrice, setMaxPrice] = useState(initial.maxPrice);
+  const [showUnfinanceable, setShowUnfinanceable] = useState(initial.showUnfinanceable);
+  const [equity, setEquity] = useState(initial.equity);
+  const [rate, setRate] = useState(initial.rate);
+  const [maxEquity, setMaxEquity] = useState(initial.maxEquity);
+  const [profile, setProfile] = useState(initial.profile);
+  const [belowAvgPct, setBelowAvgPct] = useState(initial.belowAvgPct);
+
+  // React to external URL changes (browser back/forward, link clicks)
   useEffect(() => {
-    const p = searchParams.get('profile');
-    if (isValidProfile(p)) setProfile(p);
-    else setProfile(DEFAULT_PROFILE);
+    const f = filtersFromParams(searchParams);
+    setMinScore(f.minScore);
+    setDistrict(f.district);
+    setSortBy(f.sortBy as SortOption);
+    setMaxPrice(f.maxPrice);
+    setShowUnfinanceable(f.showUnfinanceable);
+    setEquity(f.equity);
+    setRate(f.rate);
+    setMaxEquity(f.maxEquity);
+    setProfile(f.profile);
+    setBelowAvgPct(f.belowAvgPct);
   }, [searchParams]);
+
+  const pushFilters = useCallback((next: Partial<ReturnType<typeof filtersFromParams>>) => {
+    const merged = { minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, ...next };
+    const params = paramsFromFilters(merged);
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  }, [router, pathname, minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct]);
 
   const { newListings } = useListingsSSE();
 
@@ -99,6 +127,12 @@ function MapPage() {
       if (district) params.set('district', district);
       params.set('sort', sortBy);
       if (profile !== DEFAULT_PROFILE) params.set('profile', profile);
+      if (maxPrice) params.set('max_price', maxPrice);
+      if (maxEquity) params.set('max_equity', maxEquity);
+      if (equity) params.set('equity', equity);
+      if (rate) params.set('rate', rate);
+      if (showUnfinanceable) params.set('unfinanceable', 'true');
+      if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/map?${params}`);
       const data = await res.json();
@@ -114,11 +148,11 @@ function MapPage() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
-  // Re-sort locally on profile change (no network)
+  // Re-sort locally on profile change
   useEffect(() => {
     if (Object.keys(scoresById).length === 0) return;
     setListings((prev) => {
@@ -139,8 +173,12 @@ function MapPage() {
       l.estimated_down_pct > 30 &&
       l.bank_score_confidence !== 'low'
     ) return false;
+    if (belowAvgPct) {
+      const threshold = Number(belowAvgPct);
+      if (Number.isFinite(threshold) && l.price_vs_avg_pct != null && l.price_vs_avg_pct > -threshold) return false;
+    }
     return true;
-  }), [listings, maxPrice, showUnfinanceable]);
+  }), [listings, maxPrice, showUnfinanceable, belowAvgPct]);
 
   const viewportListings = useMemo(() => {
     if (!bounds) return filteredListings;
@@ -181,155 +219,119 @@ function MapPage() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-warm-bg">
-      {/* Header */}
-      <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 shrink-0">
+      {/* Header — ProfileSelector + nav to /dashboard */}
+      <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-4 shrink-0">
+        <a href={`/dashboard${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+           className="text-sm text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          List
+        </a>
         <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
+        <div className="ml-auto">
+          <ProfileSelector />
+        </div>
       </header>
 
-      {/* Body */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Desktop sidebar — hidden on mobile */}
-        <div className="hidden md:block w-[280px] h-full shrink-0">
-          <ListingSidebar
-            listings={viewportListings}
-            minScore={minScore}
-            onMinScoreChange={setMinScore}
-            district={district}
-            onDistrictChange={setDistrict}
-            onRefresh={fetchListings}
-            selectedId={highlightedId}
-            onSelect={handleSidebarSelect}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-            viewportCount={viewportListings.length}
+      {/* Body — split: top (map+sidebar) / bottom (listings strip) */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 flex overflow-hidden">
+          {/* Desktop sidebar — filter controls only, compact */}
+          <div className="hidden md:block w-[260px] h-full shrink-0">
+            <ListingSidebar
+              listings={viewportListings}
+              minScore={minScore}
+              onMinScoreChange={(v) => { setMinScore(v); pushFilters({ minScore: v }); }}
+              district={district}
+              onDistrictChange={(v) => { setDistrict(v); pushFilters({ district: v }); }}
+              onRefresh={fetchListings}
+              selectedId={highlightedId}
+              onSelect={handleSidebarSelect}
+              sortBy={sortBy}
+              onSortChange={(v) => { setSortBy(v); pushFilters({ sortBy: v }); }}
+              viewportCount={viewportListings.length}
+              hoveredId={hoveredId}
+              onHover={setHoveredId}
+              onHoverEnd={() => setHoveredId(null)}
+            />
+          </div>
+
+          <div className="flex-1 relative">
+            {loading ? (
+              <div className="h-full flex items-center justify-center bg-gray-50">
+                <p className="text-gray-500">Loading...</p>
+              </div>
+            ) : listings.length === 0 ? (
+              <div className="h-full flex items-center justify-center bg-gray-50">
+                <p className="text-gray-400">No listings match your filters.</p>
+              </div>
+            ) : (
+              <>
+                <MapView
+                  listings={listings}
+                  highlightedId={highlightedId}
+                  hoveredId={hoveredId}
+                  onHover={setHoveredId}
+                  onHoverEnd={() => setHoveredId(null)}
+                  onBoundsChange={setBounds}
+                  onPinClick={(id) => {
+                    const found = listings.find((l) => l._id === id);
+                    if (found) handlePinClick(found);
+                  }}
+                  onMapClick={handleCloseDetail}
+                />
+                <SelectedCard
+                  listing={highlightedListing}
+                  onClose={handleCloseDetail}
+                  onViewDetails={handleViewDetails}
+                />
+                <MapLegend />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom strip — listings grid that fits the rest of the viewport */}
+        <div className="h-[42vh] min-h-[260px] border-t border-gray-200 bg-white overflow-y-auto shrink-0">
+          <CompactListingStrip
+            listings={filteredListings}
             hoveredId={hoveredId}
+            highlightedId={highlightedId}
             onHover={setHoveredId}
             onHoverEnd={() => setHoveredId(null)}
+            onClick={handleSidebarSelect}
           />
-        </div>
-
-        {/* Mobile bottom sheet */}
-        <div className="md:hidden flex-1 relative">
-          <BottomSheet
-            snapPoints={snapPoints}
-            defaultState="half"
-            count={filteredListings.length}
-            scrollToId={highlightedId}
-          >
-            <div className="p-3">
-              <div className="text-xs text-gray-500 font-medium mb-2">
-                LISTINGS ({filteredListings.length})
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {filteredListings.length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-4">No listings match your filters.</p>
-                ) : (
-                  filteredListings.map((l) => (
-                    <div
-                      key={l._id}
-                      data-listing-id={l._id}
-                      onClick={() => handleSidebarSelect(l)}
-                      className={`flex gap-3 bg-white rounded-lg border p-2 cursor-pointer transition-all text-xs ${
-                        highlightedId === l._id
-                          ? 'border-accent ring-1 ring-accent'
-                          : 'border-border hover:border-muted'
-                      }`}
-                    >
-                      <div className="w-16 h-16 rounded-md overflow-hidden bg-border shrink-0 flex items-center justify-center">
-                        {l.image_url ? (
-                          <img src={l.image_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <svg className="w-4 h-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-text line-clamp-1 leading-tight">{l.title || 'Untitled'}</p>
-                        <p className="font-bold text-heading mt-0.5">
-                          {l.price_total ? `€${l.price_total.toLocaleString('de-AT')}` : '—'}
-                        </p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className={`px-1 py-0.5 rounded text-[9px] font-medium text-white ${
-                            l.coordinate_source === 'exact' ? 'bg-red-500' : l.coordinate_source === 'landmark' ? 'bg-orange-500' : 'bg-muted'
-                          }`}>
-                            {l.coordinate_source === 'exact' ? 'Pin' : l.coordinate_source === 'landmark' ? '~' : '—'}
-                          </span>
-                          {l.score && (
-                            <span className="px-1 py-0.5 rounded bg-accent text-white text-[9px] font-medium">{l.score}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </BottomSheet>
-
-          {/* Mobile filter FAB */}
-          <button
-            onClick={() => setFilterDrawerOpen(true)}
-            className="md:hidden absolute bottom-6 right-6 w-14 h-14 rounded-full bg-accent text-white shadow-lg flex items-center justify-center z-[1100] hover:opacity-90 transition-opacity"
-            aria-label="Open filters"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-          </button>
-
-          {/* Filter drawer modal */}
-          <FilterDrawer
-            open={filterDrawerOpen}
-            onClose={() => setFilterDrawerOpen(false)}
-            minScore={minScore}
-            onMinScoreChange={setMinScore}
-            district={district}
-            onDistrictChange={setDistrict}
-            onRefresh={fetchListings}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-            maxPrice={maxPrice}
-            onMaxPriceChange={setMaxPrice}
-            showUnfinanceable={showUnfinanceable}
-            onShowUnfinanceableChange={setShowUnfinanceable}
-          />
-        </div>
-
-        <div className="flex-1 relative">
-          {loading ? (
-            <div className="h-full flex items-center justify-center bg-gray-50">
-              <p className="text-gray-500">Loading...</p>
-            </div>
-          ) : listings.length === 0 ? (
-            <div className="h-full flex items-center justify-center bg-gray-50">
-              <p className="text-gray-400">No listings match your filters.</p>
-            </div>
-          ) : (
-            <>
-              <MapView
-                listings={listings}
-                highlightedId={highlightedId}
-                hoveredId={hoveredId}
-                onHover={setHoveredId}
-                onHoverEnd={() => setHoveredId(null)}
-                onBoundsChange={setBounds}
-                onPinClick={(id) => {
-                  const found = listings.find((l) => l._id === id);
-                  if (found) handlePinClick(found);
-                }}
-                onMapClick={handleCloseDetail}
-              />
-              <SelectedCard
-                listing={highlightedListing}
-                onClose={handleCloseDetail}
-                onViewDetails={handleViewDetails}
-              />
-              <MapLegend />
-            </>
-          )}
         </div>
       </div>
+
+      {/* Mobile filter FAB */}
+      <button
+        onClick={() => setFilterDrawerOpen(true)}
+        className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-accent text-white shadow-lg flex items-center justify-center z-[1100] hover:opacity-90 transition-opacity"
+        aria-label="Open filters"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        </svg>
+      </button>
+
+      {/* Filter drawer (mobile) */}
+      <FilterDrawer
+        open={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        minScore={minScore}
+        onMinScoreChange={(v) => { setMinScore(v); pushFilters({ minScore: v }); }}
+        district={district}
+        onDistrictChange={(v) => { setDistrict(v); pushFilters({ district: v }); }}
+        onRefresh={fetchListings}
+        sortBy={sortBy}
+        onSortChange={(v) => { setSortBy(v); pushFilters({ sortBy: v }); }}
+        maxPrice={maxPrice}
+        onMaxPriceChange={(v) => { setMaxPrice(v); pushFilters({ maxPrice: v }); }}
+        showUnfinanceable={showUnfinanceable}
+        onShowUnfinanceableChange={(v) => { setShowUnfinanceable(v); pushFilters({ showUnfinanceable: v }); }}
+      />
 
       {detailId && (
         <ListingDetail
