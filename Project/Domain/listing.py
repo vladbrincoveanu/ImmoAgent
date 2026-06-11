@@ -75,3 +75,5 @@ class Listing:
     estimated_equity_eur:    Optional[int]      = None
     bank_score_confidence:   Optional[str]      = None  # "low" | "medium" | "high"
     betriebskosten_breakdown: Optional[Dict[str, Any]] = field(default_factory=dict)
+    is_provisionsfrei:      Optional[bool]       = None
+    bezirk_score:           Optional[float]      = None

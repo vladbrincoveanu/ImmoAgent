@@ -27,6 +27,8 @@ NORMALIZATION_RANGES = {
     'facade_renovated': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
     'parifizierung_complete': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
     'roof_renovated': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
+    'bezirk_score': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
+    'is_provisionsfrei': {'min_val': 0, 'max_val': 1, 'direction': 'higher_is_better'},
 }
 
 # Default weights (used as fallback when no profile is set)

@@ -25,6 +25,46 @@ DEFAULT_CONFIG = {
 
 BAD_ENERGY_CLASSES = {'D', 'E', 'F', 'G'}
 
+
+def derive_profile_fields(listing: dict) -> dict:
+    """
+    Compute is_provisionsfrei and bezirk_score from existing listing fields
+    if not already set. Mutates and returns the listing dict.
+    """
+    if listing.get('is_provisionsfrei') is None:
+        prov_pct = listing.get('maklerprovision_pct')
+        if prov_pct is not None:
+            listing['is_provisionsfrei'] = prov_pct == 0
+        else:
+            listing['is_provisionsfrei'] = False
+    if listing.get('bezirk_score') is None:
+        bezirk = listing.get('bezirk')
+        if bezirk is not None:
+            try:
+                district_num = int(str(bezirk).strip().split()[0])
+                if 1 <= district_num <= 23:
+                    listing['bezirk_score'] = max(0.0, 1.0 - abs(district_num - 1) / 22.0)
+                else:
+                    listing['bezirk_score'] = 0.0
+            except (ValueError, IndexError):
+                listing['bezirk_score'] = 0.0
+        else:
+            listing['bezirk_score'] = 0.0
+    return listing
+
+
+def is_provisionsfrei(listing: dict) -> bool:
+    """True iff listing is commission-free. Handles bool, int 0/1, and missing."""
+    val = listing.get('is_provisionsfrei')
+    if val is None:
+        prov_pct = listing.get('maklerprovision_pct')
+        if prov_pct is None:
+            return False
+        return prov_pct == 0
+    if isinstance(val, bool):
+        return val
+    return val == 1
+
 MONTH_MAP = {
     'jan': '01', 'jän': '01', 'jänner': '01', 'januar': '01',
     'feb': '02', 'februar': '02',
@@ -185,7 +225,7 @@ def passes_hard_gates(listing: dict, cfg: Optional[dict] = None) -> bool:
 
     price = listing.get('price_total')
     if price is not None:
-        is_prov = listing.get('is_provisionsfrei') == 1
+        is_prov = is_provisionsfrei(listing)
         ceiling = c['provisionsfrei_price_ceiling'] if is_prov else c['standard_price_ceiling']
         if price > ceiling:
             return False
@@ -210,7 +250,7 @@ def compute_feasibility(listing: dict, cfg: Optional[dict] = None) -> Feasibilit
         avail = listing.get('availability_status')
         rental_end = listing.get('rental_end_date')
         price = listing.get('price_total')
-        is_prov = listing.get('is_provisionsfrei') == 1
+        is_prov = is_provisionsfrei(listing)
         ceiling = c['provisionsfrei_price_ceiling'] if is_prov else c['standard_price_ceiling']
 
         if hwb is not None and hwb > 80:
@@ -229,7 +269,7 @@ def compute_feasibility(listing: dict, cfg: Optional[dict] = None) -> Feasibilit
     if price is None:
         return FeasibilityResult(None, None, None, None, None)
 
-    is_prov = listing.get('is_provisionsfrei') == 1
+    is_prov = is_provisionsfrei(listing)
     
     rate = float(c['rate_annual'])
     if rate > 1.0:

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
+import { coerceDateExpr } from '@/lib/mongo-date';
 
 export async function GET(request: NextRequest) {
   const db = getDb();
@@ -18,13 +19,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const pipeline = [
-      { $match: { listing_status: 'taken' } },
+      { $match: { listing_status: 'taken', taken_at: { $exists: true } } },
       {
         $addFields: {
-          taken_at_date: { $toDate: '$taken_at' },
-          first_seen_date: {
-            $toDate: { $ifNull: ['$first_scraped_at', '$processed_at'] }
-          }
+          taken_at_date: coerceDateExpr({ $ifNull: ['$taken_at', null] }),
+          first_seen_date: coerceDateExpr({ $ifNull: ['$first_scraped_at', '$processed_at'] })
         }
       },
       {
