@@ -5,6 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import { ListingDetail as ListingDetailType } from '@/lib/types';
 import { ScoreBadge } from './ScoreBadge';
 import { CommuteAndRentPanel } from './CommuteAndRentPanel';
+import { AddressBlock } from './AddressBlock';
+import { BankFinancingPanel } from './BankFinancingPanel';
+import { InvestmentMetricsPanel } from './InvestmentMetricsPanel';
+import { DistrictTrendChart } from './DistrictTrendChart';
+import { TimeOnMarketBadge, PriceDropBadge } from './MarketBadges';
 
 interface ListingDetailProps {
   id: string;
@@ -32,6 +37,10 @@ interface ZoneStats {
 }
 
 export function ListingDetail({ id, onClose }: ListingDetailProps) {
+  const searchParams = useSearchParams();
+  const destLat = searchParams.get('dest_lat');
+  const destLon = searchParams.get('dest_lon');
+  const destName = searchParams.get('dest_name') ?? '';
   const [listing, setListing] = useState<ListingDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -137,6 +146,11 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
 
               <h2 className="text-xl font-bold text-gray-900">{listing.title || listing.address || 'Untitled Property'}</h2>
 
+              <div className="flex flex-wrap gap-2">
+                <TimeOnMarketBadge processedAt={listing.processed_at} />
+                <PriceDropBadge priceHistory={listing.price_history} currentPrice={listing.price_total} />
+              </div>
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {listing.price_total && (
                   <div><span className="font-medium">Price:</span> €{listing.price_total.toLocaleString('de-AT')}</div>
@@ -153,6 +167,27 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                 {listing.betriebskosten && <div><span className="font-medium">Betriebskosten:</span> €{listing.betriebskosten}</div>}
                 {listing.ubahn_walk_minutes != null && <div><span className="font-medium">U-Bahn:</span> {listing.ubahn_walk_minutes} min</div>}
               </div>
+
+              <AddressBlock
+                address={listing.address}
+                bezirk={listing.bezirk}
+                coordinateSource={listing.coordinate_source}
+                coordinates={listing.coordinates ?? null}
+                destLat={destLat ? Number(destLat) : undefined}
+                destLon={destLon ? Number(destLon) : undefined}
+                destName={destName}
+                variant="detail"
+              />
+
+              <BankFinancingPanel priceTotal={listing.price_total} />
+
+              <InvestmentMetricsPanel
+                priceTotal={listing.price_total}
+                areaM2={listing.area_m2}
+                bezirk={listing.bezirk}
+              />
+
+              {listing.bezirk && <DistrictTrendChart bezirk={listing.bezirk} />}
 
               {listing.estimated_down_pct != null && (
                 <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">

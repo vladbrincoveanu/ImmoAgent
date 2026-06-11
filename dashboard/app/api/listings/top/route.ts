@@ -148,6 +148,8 @@ export async function GET(request: NextRequest) {
         price_vs_avg_pct: priceVsAvgPct,
         ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
         coordinates: resolveCoordinates(l.coordinates as { lat: number; lon: number } | null | undefined, l.bezirk as string | null | undefined),
+        price_history: (l as { price_history?: Array<{ price_total: number; date: number }> }).price_history ?? null,
+        address: (l as { address?: string | null }).address ?? null,
       };
     });
 

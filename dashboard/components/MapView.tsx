@@ -121,6 +121,7 @@ function MarkerLayer({
   onPinClick,
   onHover,
   onHoverEnd,
+  showPins = true,
 }: {
   listings: MapListing[];
   highlightedId: string | null;
@@ -128,12 +129,20 @@ function MarkerLayer({
   onPinClick: (listing: MapListing) => void;
   onHover?: (id: string) => void;
   onHoverEnd?: () => void;
+  showPins?: boolean;
 }) {
   const map = useMap();
   const markerInstances = useRef<Map<string, L.Marker>>(new Map());
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
+    if (!showPins) {
+      if (layerGroupRef.current) {
+        layerGroupRef.current.clearLayers();
+      }
+      markerInstances.current.clear();
+      return;
+    }
     if (!layerGroupRef.current) {
       layerGroupRef.current = L.layerGroup().addTo(map);
     }
@@ -174,7 +183,7 @@ function MarkerLayer({
         markerInstances.current.set(listing._id, marker);
       }
     });
-  }, [map, listings, highlightedId, hoveredId, onPinClick, onHover, onHoverEnd]);
+  }, [map, listings, highlightedId, hoveredId, onPinClick, onHover, onHoverEnd, showPins]);
 
   return null;
 }
@@ -185,7 +194,7 @@ interface InfraFeature {
   properties: { kind: 'ubahn' | 'school'; name: string; type?: string; district?: string };
 }
 
-function InfrastructureLayer({ show }: { show: boolean }) {
+function InfrastructureLayer({ show, filter }: { show: boolean; filter?: { ubahn: boolean; schools: boolean; pins: boolean } }) {
   const [features, setFeatures] = useState<InfraFeature[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -207,10 +216,16 @@ function InfrastructureLayer({ show }: { show: boolean }) {
   }, [show]);
 
   if (!show || loading || features.length === 0) return null;
+  const showUbahn = !filter || filter.ubahn;
+  const showSchools = !filter || filter.schools;
+  const visibleFeatures = features.filter((f) =>
+    (f.properties.kind === 'ubahn' && showUbahn) ||
+    (f.properties.kind === 'school' && showSchools)
+  );
 
   return (
     <>
-      {features.map((f, i) => {
+      {visibleFeatures.map((f, i) => {
         const [lon, lat] = f.geometry.coordinates;
         const color = f.properties.kind === 'ubahn' ? UBAHN_COLOR : SCHOOL_COLOR;
         const radius = f.properties.kind === 'ubahn' ? 7 : 5;
@@ -280,6 +295,7 @@ export const MapView = memo(function MapView({
   onMapClick,
   onBoundsChange,
   showInfrastructure = true,
+  layerFilter,
 }: {
   listings: MapListing[];
   highlightedId?: string | null;
@@ -290,6 +306,7 @@ export const MapView = memo(function MapView({
   onMapClick?: () => void;
   onBoundsChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
   showInfrastructure?: boolean;
+  layerFilter?: { ubahn: boolean; schools: boolean; pins: boolean };
 }) {
   const viennaCenter: [number, number] = [48.2082, 16.3738];
   const mapRef = useRef<L.Map | null>(null);
@@ -309,7 +326,7 @@ export const MapView = memo(function MapView({
 
       <BoundsTracker onBoundsChange={onBoundsChange} />
       <MapClickHandler onMapClick={onMapClick} />
-      <InfrastructureLayer show={showInfrastructure} />
+      <InfrastructureLayer show={showInfrastructure} filter={layerFilter} />
       <MarkerLayer
         listings={listings}
         highlightedId={highlightedId ?? null}
@@ -317,6 +334,7 @@ export const MapView = memo(function MapView({
         onPinClick={(l) => onPinClick?.(l._id)}
         onHover={onHover}
         onHoverEnd={onHoverEnd}
+        showPins={!layerFilter || layerFilter.pins}
       />
     </MapContainer>
   );
