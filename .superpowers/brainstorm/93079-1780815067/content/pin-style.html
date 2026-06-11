@@ -1,0 +1,77 @@
+<h2>Smart pin style — pick one</h2>
+<p class="subtitle">Goal: at a glance, see price + €/m² + how "good a deal" it is. Same 3 sample listings shown for each option. Color scale: green = cheap, yellow = median, red = expensive (city-wide percentile).</p>
+
+<div class="mockup" style="background:#F9F7F4;padding:24px;border-radius:8px">
+  <div class="mockup-header" style="background:#3D405B;color:#fff">Sample pins — 3 listings</div>
+  <div class="mockup-body" style="display:flex;justify-content:space-around;align-items:center;padding:32px 16px;background:#e8e4df;min-height:200px">
+
+    <!-- Listing 1: cheap, district 10 -->
+    <div style="text-align:center">
+      <div style="background:#3DA572;color:white;font-size:18px;font-weight:700;padding:6px 14px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:1.5px solid white;font-family:system-ui">€450k</div>
+      <div style="font-size:11px;color:#666;margin-top:6px">1050 · 65m² · <b style="color:#3DA572">€6.9k/m²</b></div>
+    </div>
+
+    <!-- Listing 2: median, district 8 -->
+    <div style="text-align:center">
+      <div style="background:#E0A93B;color:white;font-size:18px;font-weight:700;padding:6px 14px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:1.5px solid white;font-family:system-ui">€680k</div>
+      <div style="font-size:11px;color:#666;margin-top:6px">1080 · 75m² · <b style="color:#E0A93B">€9.1k/m²</b></div>
+    </div>
+
+    <!-- Listing 3: expensive, district 1 -->
+    <div style="text-align:center">
+      <div style="background:#D14B3F;color:white;font-size:18px;font-weight:700;padding:6px 14px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:1.5px solid white;font-family:system-ui">€1.2M</div>
+      <div style="font-size:11px;color:#666;margin-top:6px">1010 · 80m² · <b style="color:#D14B3F">€15k/m²</b></div>
+    </div>
+
+  </div>
+</div>
+
+<h3 style="margin-top:32px">Pick the style that matches your daily use</h3>
+<div class="cards">
+
+  <div class="card" data-choice="single-line" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F9F7F4;padding:20px;display:flex;justify-content:center;gap:10px">
+      <div style="background:#3DA572;color:white;font-size:15px;font-weight:700;padding:5px 12px;border-radius:999px;font-family:system-ui">€450k</div>
+      <div style="background:#E0A93B;color:white;font-size:15px;font-weight:700;padding:5px 12px;border-radius:999px;font-family:system-ui">€680k</div>
+      <div style="background:#D14B3F;color:white;font-size:15px;font-weight:700;padding:5px 12px;border-radius:999px;font-family:system-ui">€1.2M</div>
+    </div>
+    <div class="card-body">
+      <h3>A1: Single line, color = €/m²</h3>
+      <p>Cleanest. Color tells the story. €/m² revealed only on click. Best for many pins on screen.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="two-line" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F9F7F4;padding:20px;display:flex;justify-content:center;gap:10px">
+      <div style="text-align:center">
+        <div style="background:#3DA572;color:white;font-size:14px;font-weight:700;padding:4px 10px;border-radius:8px 8px 0 0;font-family:system-ui">€450k</div>
+        <div style="background:#2D8F5E;color:white;font-size:10px;font-weight:600;padding:2px 10px;border-radius:0 0 8px 8px;font-family:system-ui">€6.9k/m²</div>
+      </div>
+      <div style="text-align:center">
+        <div style="background:#E0A93B;color:white;font-size:14px;font-weight:700;padding:4px 10px;border-radius:8px 8px 0 0;font-family:system-ui">€680k</div>
+        <div style="background:#C28C20;color:white;font-size:10px;font-weight:600;padding:2px 10px;border-radius:0 0 8px 8px;font-family:system-ui">€9.1k/m²</div>
+      </div>
+      <div style="text-align:center">
+        <div style="background:#D14B3F;color:white;font-size:14px;font-weight:700;padding:4px 10px;border-radius:8px 8px 0 0;font-family:system-ui">€1.2M</div>
+        <div style="background:#B03A2F;color:white;font-size:10px;font-weight:600;padding:2px 10px;border-radius:0 0 8px 8px;font-family:system-ui">€15k/m²</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A2: Two-line, stacked €/m²</h3>
+      <p>More info at a glance. €/m² always visible. Slightly bigger pins, more screen clutter.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="color-only" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F9F7F4;padding:20px;display:flex;justify-content:center;gap:10px;align-items:center">
+      <div style="width:22px;height:22px;background:#3DA572;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>
+      <div style="width:22px;height:22px;background:#E0A93B;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>
+      <div style="width:22px;height:22px;background:#D14B3F;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>
+    </div>
+    <div class="card-body">
+      <h3>A3: Color dots only (no text)</h3>
+      <p>Minimal. Color = €/m². Click pin reveals price + everything. Best at low zoom, busiest districts.</p>
+    </div>
+  </div>
+
+</div>

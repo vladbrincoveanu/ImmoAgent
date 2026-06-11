@@ -57,6 +57,10 @@ function MapPage() {
   const [maxEquity, setMaxEquity] = useState(initial.maxEquity);
   const [profile, setProfile] = useState(initial.profile);
   const [belowAvgPct, setBelowAvgPct] = useState(initial.belowAvgPct);
+  const [destName, setDestName] = useState(initial.destName);
+  const [destLat, setDestLat] = useState(initial.destLat);
+  const [destLon, setDestLon] = useState(initial.destLon);
+  const [maxCommute, setMaxCommute] = useState(initial.maxCommute);
 
   // React to external URL changes (browser back/forward, link clicks)
   useEffect(() => {
@@ -71,14 +75,18 @@ function MapPage() {
     setMaxEquity(f.maxEquity);
     setProfile(f.profile);
     setBelowAvgPct(f.belowAvgPct);
+    setDestName(f.destName);
+    setDestLat(f.destLat);
+    setDestLon(f.destLon);
+    setMaxCommute(f.maxCommute);
   }, [searchParams]);
 
   const pushFilters = useCallback((next: Partial<ReturnType<typeof filtersFromParams>>) => {
-    const merged = { minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, ...next };
-    const params = paramsFromFilters(merged);
+    const merged = { minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute, ...next };
+    const params = paramsFromFilters(merged as Parameters<typeof paramsFromFilters>[0]);
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
-  }, [router, pathname, minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct]);
+  }, [router, pathname, minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute]);
 
   const { newListings } = useListingsSSE();
 

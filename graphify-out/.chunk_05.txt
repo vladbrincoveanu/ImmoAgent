@@ -1,0 +1,4 @@
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard-after-auth-drop.png
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/login-fresh.png
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/map-after-auth-drop.png
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/map-page.png

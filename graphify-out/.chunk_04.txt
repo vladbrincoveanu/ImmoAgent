@@ -1,0 +1,12 @@
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/CLAUDE.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/Project/OUTREACH_SETUP.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/Project/SETUP_GMAIL.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/Project/docker-compose.prod.yml
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/Project/docker-compose.yml
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/Project/requirements.txt
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard/.vercel/README.txt
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard/test-results/map-full-Map-page-structur-e199f--LISTINGS-header-with-count-chromium/error-context.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard/test-results/map-full-Sidebar-interacti-89cb0-count-updates-after-refresh-chromium/error-context.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard/test-results/pin-click-Pin-click-→-side-9e4a9--zoom-does-NOT-lock-the-map-chromium/error-context.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard/test-results/pin-click-Pin-click-→-side-ee154-ting-on-map-and-popup-opens-chromium/error-context.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/dashboard/app/icon.svg

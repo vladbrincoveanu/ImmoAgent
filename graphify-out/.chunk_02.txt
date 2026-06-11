@@ -1,0 +1,13 @@
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-05-13-dashboard-filters-telegram-score-dedup-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-05-13-neubauprojekt-bank-scoring-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-05-14-bank-scoring-altbau-fix-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-05-14-map-redesign-booking-style.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-05-28-bank-loan-ready-feasibility-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-05-31-taken-listings-tracking-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-07-map-overhaul-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-09-draw-search-clustering-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-09-dual-mode-living-investor-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-09-gratzl-micro-locations-15min-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-09-green-infrastructure-wieneu-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-09-rent-regulated-layer-design.md
+/Users/vladbrincoveanu/Desktop/Startup/immo-scouter/docs/superpowers/specs/2026-06-10-repo-audit.md
