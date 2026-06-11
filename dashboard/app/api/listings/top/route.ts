@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
 type ListingDocument = Document;
-
-
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -16,8 +15,17 @@ export async function GET(request: NextRequest) {
   const district = validateDistrict(searchParams.get('district'));
   const sort = validateSort(searchParams.get('sort'));
 
+  const profileParam = searchParams.get('profile');
+  const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
+  if (profileParam && !isValidProfile(profileParam)) {
+    console.warn('[/api/listings/top] Invalid profile rejected:', profileParam);
+  }
+
   const sortOptions: Record<string, Record<string, 1 | -1>> = {
-    score_desc: { score: -1, processed_at: -1 },
+    score_desc:
+      profile === DEFAULT_PROFILE
+        ? { score: -1, processed_at: -1 }
+        : { [`scores.${profile}`]: -1, processed_at: -1 },
     price_asc: { price_total: 1 },
     price_desc: { price_total: -1 },
     date_desc: { processed_at: -1 },
@@ -85,6 +93,7 @@ export async function GET(request: NextRequest) {
           ? Math.round(l.area_m2 * PRICE_PER_SQM)
           : null;
 
+      const scores = (l as { scores?: Record<string, number | null> }).scores;
       return {
         _id: l._id.toString(),
         title: l.title,
@@ -94,7 +103,9 @@ export async function GET(request: NextRequest) {
         price_total,
         area_m2: l.area_m2,
         rooms: l.rooms,
-        score: l.score,
+        score: (scores?.[profile] ?? l.score ?? null) as number | null,
+        scores: scores ?? null,
+        profile,
         processed_at: l.processed_at,
         image_url: l.image_url || l.minio_image_path || null,
         url_is_valid: l.url_is_valid !== false,
