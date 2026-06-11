@@ -218,7 +218,7 @@ function MapPage() {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-warm-bg">
+    <div className="h-[calc(100dvh-48px)] max-h-[calc(100dvh-48px)] flex flex-col overflow-hidden bg-warm-bg">
       {/* Header — ProfileSelector + nav to /dashboard */}
       <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-4 shrink-0">
         <a href={`/dashboard${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
@@ -235,7 +235,7 @@ function MapPage() {
       </header>
 
       {/* Body — split: top (map+sidebar) / bottom (listings strip) */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex overflow-hidden">
           {/* Desktop sidebar — filter controls only, compact */}
           <div className="hidden md:block w-[260px] h-full shrink-0">
@@ -293,7 +293,7 @@ function MapPage() {
         </div>
 
         {/* Bottom strip — listings grid that fits the rest of the viewport */}
-        <div className="h-[42vh] min-h-[260px] border-t border-gray-200 bg-white overflow-y-auto shrink-0">
+        <div className="h-[40vh] min-h-[220px] max-h-[50vh] border-t border-gray-200 bg-white overflow-y-auto shrink-0">
           <CompactListingStrip
             listings={filteredListings}
             hoveredId={hoveredId}

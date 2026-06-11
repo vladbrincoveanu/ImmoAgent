@@ -17,7 +17,7 @@ interface CompactListingStripProps {
 
 export function CompactListingStrip({ listings, hoveredId, highlightedId, onHover, onHoverEnd, onClick }: CompactListingStripProps) {
   return (
-    <div className="p-3">
+    <div className="p-3" data-testid="compact-listings-strip">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
           {listings.length} listing{listings.length === 1 ? '' : 's'}

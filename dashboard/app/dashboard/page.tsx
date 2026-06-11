@@ -7,6 +7,8 @@ import { FilterBar, SortOption } from '@/components/FilterBar';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { ListingDetail } from '@/components/ListingDetail';
 import { ProfileSelector } from '@/components/ProfileSelector';
+import { SmartInsightsPanel } from '@/components/SmartInsightsPanel';
+import { SaveSearchButton } from '@/components/SaveSearchButton';
 import { ListingBase } from '@/lib/types';
 import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
@@ -200,6 +202,7 @@ function DashboardContent() {
           </div>
           <div className="flex items-center gap-2">
             <ProfileSelector />
+            <SaveSearchButton />
             <a
               href={`/dashboard/map${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-muted transition-colors"
@@ -212,6 +215,8 @@ function DashboardContent() {
             </a>
           </div>
         </header>
+
+        <SmartInsightsPanel />
 
         {/* Desktop-only filter bar */}
         <div className="hidden md:block">
