@@ -115,3 +115,11 @@ dashboard/.next/
 
 # MCP tool state
 .playwright-mcp/
+# Debug/QA screenshots at repo root
+/*.png
+
+# Playwright test artifacts
+test-results/
+
+# Session handoffs (local state)
+.claude/handoffs/*.md

@@ -1,392 +1,52 @@
-# CLAUDE.md — 12-rule template
-
-These rules apply to every task in this project unless explicitly overridden.
-Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
-
-## Rule 1 — Think Before Coding
-State assumptions explicitly. If uncertain, ask rather than guess.
-Present multiple interpretations when ambiguity exists.
-Push back when a simpler approach exists.
-Stop when confused. Name what's unclear.
-
-## Rule 2 — Simplicity First
-Minimum code that solves the problem. Nothing speculative.
-No features beyond what was asked. No abstractions for single-use code.
-Test: would a senior engineer say this is overcomplicated? If yes, simplify.
-
-## Rule 3 — Surgical Changes
-Touch only what you must. Clean up only your own mess.
-Don't "improve" adjacent code, comments, or formatting.
-Don't refactor what isn't broken. Match existing style.
-
-## Rule 4 — Goal-Driven Execution
-Define success criteria. Loop until verified.
-Don't follow steps. Define success and iterate.
-Strong success criteria let you loop independently.
-
-## Rule 5 — Use the model only for judgment calls
-Use me for: classification, drafting, summarization, extraction.
-Do NOT use me for: routing, retries, deterministic transforms.
-If code can answer, code answers.
-
-## Rule 6 — Token budgets are not advisory
-Per-task: 4,000 tokens. Per-session: 30,000 tokens.
-If approaching budget, summarize and start fresh.
-Surface the breach. Do not silently overrun.
-
-## Rule 7 — Surface conflicts, don't average them
-If two patterns contradict, pick one (more recent / more tested).
-Explain why. Flag the other for cleanup.
-Don't blend conflicting patterns.
-
-## Rule 8 — Read before you write
-Before adding code, read exports, immediate callers, shared utilities.
-"Looks orthogonal" is dangerous. If unsure why code is structured a way, ask.
-
-## Rule 9 — Tests verify intent, not just behavior
-Tests must encode WHY behavior matters, not just WHAT it does.
-A test that can't fail when business logic changes is wrong.
-
-## Rule 10 — Checkpoint after every significant step
-Summarize what was done, what's verified, what's left.
-Don't continue from a state you can't describe back.
-If you lose track, stop and restate.
-
-## Rule 11 — Match the codebase's conventions, even if you disagree
-Conformance > taste inside the codebase.
-If you genuinely think a convention is harmful, surface it. Don't fork silently.
-
-## Rule 12 — Fail loud
-"Completed" is wrong if anything was skipped silently.
-"Tests pass" is wrong if any were skipped.
-Default to surfacing uncertainty, not hiding it.
-
----
-
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Vienna real-estate scraper/scorer (Willhaben, ImmoKurier, DerStandard) + Telegram notify + Next.js dashboard. Bias: caution over speed on non-trivial work.
 
-## Project Overview
+## Rules (condensed)
+1. Think first: state assumptions; ask, don't guess; push back if simpler exists.
+2. Simplicity: minimum code, no speculative features/abstractions.
+3. Surgical: touch only what you must; match existing style; no drive-by refactors.
+4. Goal-driven: define success criteria, loop until verified.
+5. LLM only for judgment (classify/draft/summarize); code for deterministic work.
+6. Token budgets: 4k/task, 30k/session. At ~80%: write handoff summary, /clear, fresh session. Surface breaches.
+7. Conflicting patterns: pick one (newer/tested), explain, flag the other.
+8. Read exports/callers/shared utils before writing.
+9. Tests encode WHY, not just WHAT.
+10. Checkpoint after each significant step.
+11. Codebase conventions > personal taste; surface disagreement, don't fork.
+12. Fail loud. Never report "done"/"tests pass" if anything was skipped.
 
-Immo-Scouter is a comprehensive real estate scraping and analysis system for Vienna, Austria. It scrapes property listings from multiple sources (Willhaben, ImmoKurier, DerStandard), scores them using configurable buyer profiles, and sends notifications via Telegram.
-
-## Core Commands
-
-### Running the Main Scraper
-```bash
-cd Project
-python run.py                              # Standard scrape (~12 pages/source)
-python run.py --send-to-telegram          # Scrape + send results to Telegram
-python run.py --deep-scan                 # Deep scrape (~20 pages/source)
-python run.py --quick-scan                # Quick scrape (~4 pages/source)
-python run.py --willhaben-only            # Scrape specific source only
-python run.py --buyer-profile=owner_occupier  # Use specific buyer profile
-```
-
-### Top 5 Properties Report
-```bash
-cd Project
-python run_top5.py                        # Send top 5 listings to Telegram
-python run_top5.py --limit=10             # Top N listings
-python run_top5.py --weekly               # Weekly digest mode (top 10, allow resends)
-python run_top5.py --buyer-profile=retiree  # Use specific buyer profile
-python run_top5.py --min-score=30.0       # Minimum score threshold
-python run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220  # Exclude industrial districts
-```
-
-### Outreach System
-```bash
-cd Project
-python run_outreach.py --test-smtp        # Test SMTP connection
-python run_outreach.py --dry-run --limit=2  # Preview emails without sending
-python run_outreach.py --limit=5          # Send offer emails to top 5 listings
-python run_outreach.py --discount=25      # Override default discount percentage
-```
-
-### Full Pipeline
-```bash
-# Run scraper + send top 5 report
-bash Project/run_full_pipeline.sh
-bash Project/run_full_pipeline.sh --max-pages 1 --willhaben-only
-```
-
-### Testing
-```bash
-cd Tests
-python run_tests.py                       # Run all tests
-python test_buyer_profiles.py            # Test specific functionality
-python test_github_actions_simple.py
-```
-
-### API Server
-```bash
-# Removed: Flask API server deprecated. Dashboard uses Next.js API routes (dashboard/app/api/).
-```
+## Commands (run from Project/)
+- Scrape: `python run.py` [--send-to-telegram | --deep-scan | --quick-scan | --willhaben-only | --buyer-profile=X]
+- Top-5: `python run_top5.py` [--limit=N | --weekly | --min-score=X | --exclude-district NNNN ...]
+- Outreach: `python run_outreach.py` [--test-smtp | --dry-run --limit=N | --discount=N]
+- Pipeline: `bash Project/run_full_pipeline.sh [--max-pages 1 --willhaben-only]`
+- Tests: `cd Tests && python run_tests.py`
+- Full command/architecture reference: docs/CLAUDE-full-reference.md (read on demand, not by default)
 
 ## Architecture
+- `Project/Application/` — main.py (orchestration), scoring.py, buyer_profiles.py, analyzer.py, scraping/, outreach/
+- `Project/Integration/` — mongodb_handler.py, telegram_bot.py, minio_handler.py
+- `Project/Domain/` — listing.py, location.py, sources.py
+- `Project/UI/` (Flask), `dashboard/` (Next.js), `Tests/`
+- Buyer profiles: default, owner_occupier, diy_renovator, growing_family, urban_professional, eco_conscious, retiree, budget_buyer. Weights in buyer_profiles.py must sum to 1.0 (`validate_weights()`); ranges in scoring.py NORMALIZATION_RANGES.
 
-### Module Structure
+## Config & security
+- Priority: config.json > env vars > defaults. Required in CI: MONGODB_URI, TELEGRAM_MAIN_BOT_TOKEN, TELEGRAM_MAIN_CHAT_ID.
+- NEVER commit secrets: .env, config.json, secrets.json are gitignored. SMTP password only via SMTP_PASSWORD env var (Gmail app passwords: Project/SETUP_GMAIL.md).
 
-The codebase follows a domain-driven design with clear separation:
+## Hard rules (never violate)
+1. GLOBAL_VALIDATION is the ONLY source of truth for listing-validation thresholds.
+2. URL validation (listing_validator.py) is mandatory before display/send.
+3. Use `is_valid_listing_data()` from mongodb_handler.py — never inline `> 0` checks.
+4. MongoDB access via mongodb_handler.py methods only — no raw queries.
+5. Dedup via `url`/`url_hash`; `sent_to_telegram` flag prevents re-sends.
+6. Telegram formatting: follow telegram_bot.py patterns (4096-char limit). Outreach templates are German (outreach/email_sender.py).
 
-**Project/Application/** - Core business logic
-- `main.py` - Main orchestration, scraping coordination, image download
-- `scoring.py` - Property scoring system with configurable weights
-- `buyer_profiles.py` - Buyer persona definitions and weight profiles
-- `rating_calculator.py` - Rating calculations for properties
-- `analyzer.py` - Structured analysis using OpenAI/Ollama
-- `scraping/` - Source-specific scrapers (Willhaben, ImmoKurier, DerStandard)
-- `outreach/` - Email outreach system (contact extraction, email sending)
-
-**Project/Integration/** - External services
-- `mongodb_handler.py` - MongoDB operations, listing CRUD, duplicate detection
-- `telegram_bot.py` - Telegram notifications and formatting
-- `minio_handler.py` - Image storage (MinIO)
-
-**Project/Domain/** - Data models
-- `listing.py` - Property listing dataclass
-- `location.py` - Location utilities
-- `sources.py` - Data source definitions
-
-**Project/UI/** - Web interface (Flask-based)
-
-**Tests/** - Comprehensive test suite
-
-### Key Data Flow
-
-1. **Scraping Pipeline** (`run.py` → `Application.main`)
-   - Each scraper (`*_scraper.py`) fetches listings from source
-   - Listings are validated using `listing_validator.py`
-   - Duplicates are detected via MongoDB URL/hash checking
-   - Images are downloaded and stored (local or MinIO)
-   - Listings are scored using buyer profiles
-   - Results stored in MongoDB
-
-2. **Top 5 Report** (`run_top5.py`)
-   - Fetches all listings from MongoDB
-   - Filters and validates (removes broken URLs)
-   - Scores using current buyer profile
-   - Selects top N based on score
-   - Sends formatted messages to Telegram
-   - Tracks sent listings to avoid duplicates
-
-3. **Outreach System** (`run_outreach.py`)
-   - Fetches top scored listings
-   - Extracts contact info from listing pages
-   - Generates personalized offer emails (German)
-   - Sends via SMTP with configurable discount
-   - Tracks sent emails in MongoDB
-
-## Buyer Profiles System
-
-The scoring system supports different buyer personas with custom weight distributions:
-
-- `default` - Balanced scoring
-- `owner_occupier` - Prioritizes newer, efficient homes with minimal renovation
-- `diy_renovator` - Investment and renovation focus
-- `growing_family` - Space and schools priority
-- `urban_professional` - Location and lifestyle
-- `eco_conscious` - Energy efficiency focus
-- `retiree` - Comfort and accessibility
-- `budget_buyer` - Lowest price priority
-
-Scoring criteria and weights are defined in:
-- `buyer_profiles.py` - Profile definitions
-- `scoring.py` - Normalization ranges and scoring logic
-
-## Configuration
-
-### Priority Order
-1. `config.json` file (if found)
-2. Environment variables (override config.json)
-3. Default values
-
-### Required Environment Variables (for GitHub Actions/Production)
-```bash
-MONGODB_URI=mongodb://user:pass@host:port/db
-TELEGRAM_MAIN_BOT_TOKEN=your_bot_token
-TELEGRAM_MAIN_CHAT_ID=your_chat_id
-```
-
-### Optional Environment Variables
-```bash
-TELEGRAM_BOT_VIENNA_TOKEN, TELEGRAM_BOT_VIENNA_CHAT_ID
-OLLAMA_BASE_URL, OLLAMA_MODEL
-OPENAI_API_KEY, OPENAI_MODEL
-MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET_NAME
-SMTP_USER, SMTP_PASSWORD, SENDER_EMAIL, SENDER_NAME
-```
-
-### Security - NEVER Commit Secrets
-- `.env` files are in `.gitignore`
-- `config.json` is in `.gitignore`
-- Outreach SMTP passwords MUST use environment variables
-- For Gmail: Use App Passwords (see `Project/SETUP_GMAIL.md`)
-- Never set `smtp_password` in `config.json` - always use `SMTP_PASSWORD` env var
-
-## Important Implementation Details
-
-### MongoDB Schema
-Listings are stored with:
-- Deduplication via `url` and `url_hash` fields
-- `sent_to_telegram` flag to prevent duplicate notifications
-- `sent_outreach_at` timestamp for outreach tracking
-- Scoring fields: `total_score`, `score_breakdown`, `buyer_profile`
-- URL validation: `url_is_valid` boolean flag
-
-### Scraper Behavior
-- Each scraper implements its own page navigation and parsing
-- Uses Selenium for dynamic content
-- Implements rate limiting and retries
-- Validates listings before storage
-- Stores original URLs for deduplication
-
-### Listing Validation
-The `listing_validator.py` module:
-- Checks for required fields (title, url, price, location)
-- Validates URL accessibility (HTTP 200 check)
-- Marks invalid listings in MongoDB
-- Used by run_top5.py to filter out broken listings
-
-### Image Handling
-- Images can be stored locally or in MinIO (S3-compatible)
-- Automatic download and optimization (if PIL available)
-- Path stored in `minio_image_path` or `image_path` field
-
-### Telegram Integration
-- Supports multiple bot configurations (main, dev, vienna)
-- Formatted messages with property details
-- Inline keyboard buttons for listing URLs
-- Handles long messages (4096 char limit)
-
-## Common Development Workflows
-
-### Adding a New Scraper
-1. Create `Project/Application/scraping/new_source_scraper.py`
-2. Implement scraping logic following existing patterns
-3. Add to `Application.main.py` orchestration
-4. Test with isolated script first
-5. Add command-line flag (e.g., `--new-source-only`)
-
-### Adding a New Buyer Profile
-1. Add profile to `BUYER_PROFILES` dict in `buyer_profiles.py`
-2. Ensure weights sum to 1.0
-3. Add to `BuyerPersona` enum if using enum shortcuts
-4. Test with `python show_profiles.py`
-
-### Modifying Scoring Weights
-- Edit `NORMALIZATION_RANGES` in `scoring.py` to adjust score ranges
-- Edit buyer profile weights in `buyer_profiles.py`
-- Use `validate_weights()` to ensure weights sum to 1.0
-
-### Testing Configuration
-- Use `Tests/test_config.json` for test-specific config
-- Set test environment variables before running tests
-- Mock external services (MongoDB, Telegram) when appropriate
-
-### Dashboard UI Testing (After ANY dashboard change)
-**MANDATORY — No exceptions. No ping-pong. Always tested.**
-
-The `.claude/rules/ui-testing.md` rule is auto-loaded and enforces this loop:
-
-1. Start dev server: `cd dashboard && npm run dev &` (background)
-2. Wait ~15 seconds for server to be ready
-3. Run playwright smoke tests: `cd dashboard && npx playwright test --reporter=list`
-4. Read all browser console errors and test failures
-5. If any errors: fix the code, re-run tests
-6. Repeat until all 5 smoke tests pass with 0 console errors
-7. Stop dev server: `pkill -f "next dev"`
-
-**What to test** (all routes in `dashboard/tests/smoke.spec.ts`):
-- `/` → redirects to `/dashboard`
-- `/dashboard` — header, filter bar, listing cards (or empty state)
-- `/dashboard/map` — header nav, leaflet map container, sidebar
-
-**Never commit dashboard changes when tests are failing.**
-
-## CI/CD Integration
-
-The system is designed for GitHub Actions with TWO jobs:
-
-1. **Scraper Job**: `python Project/run.py`
-   - Runs cleanup automatically (removes invalid price_per_m2 listings)
-   - Scrapes all sources
-   - Stores in MongoDB
-
-2. **Top 5 Report Job**: `python Project/run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220`
-   - Excludes industrial districts: 1100, 1160, 1210, 1220
-   - Sends top listings to Telegram
-
-- Environment variables override config.json
-- No local file dependencies
-- Graceful degradation if services unavailable
-- Comprehensive error handling and logging
-
-See README.md for example GitHub Actions workflow.
-
-## File Locations
-
-- Logs: `Project/log/`
-- Temporary files: Use scratchpad directory, not `/tmp`
-- Config: `config.json` (in repo root or Project/)
-- Data files: `Project/data/` (vienna_schools.json, ubahn_coordinates.json)
-
-## Key Dependencies
-
-- `pymongo` - MongoDB operations
-- `selenium` + `webdriver-manager` - Web scraping
-- `python-telegram-bot` - Telegram integration
-- `beautifulsoup4` - HTML parsing
-- `torch` + `transformers` - AI analysis (optional)
-- `minio` - Image storage (optional)
-- `flask` - API server
-- `requests` - HTTP client
-- `python-dotenv` - Environment variable management
-
-## NEVER VIOLATE RULES
-
-1. **GLOBAL_VALIDATION is the ONLY source of truth for listing validation thresholds**
-   - `min_price_per_m2`: €1,000
-   - `max_price_per_m2`: €20,000
-   - Only price_per_m2 is validated - no min_price_total or min_area_m2
-   - ALL code that validates listings MUST use `is_valid_listing_data()` from `mongodb_handler.py`
-   - Cleanup, scrapers, API endpoints - ALL must use the same validation function
-   - If you see inline `> 0` or hardcoded thresholds, THAT'S A BUG - report immediately
-
-2. **URL validation is mandatory before display**
-   - Listings can go offline between scrape and display
-   - Dashboard API routes MUST filter by `url_is_valid !== false`
-   - run_top5.py already does this via `validate_url()` with soft-404 detection
-   - If you see a display/send path that doesn't validate URLs, THAT'S A BUG - report immediately
-
-3. **Extraction refactoring checklist** (never skip):
-   - [ ] Identify all call sites of old function
-   - [ ] Verify new module has same behavior
-   - [ ] ADR covers ALL affected modules, not just primary ones
-   - [ ] Test that new module rejects known bad data
-   - [ ] Run existing tests after refactor
-
-3. **ADR completeness checklist**:
-   - [ ] List EVERY module that implements this decision
-   - [ ] Verify each module actually implements it (read the code)
-   - [ ] If module X uses function Y, and Y changes → X must be updated too
-
-## Notes for Claude Code
-
-1. **Run.py path**: Use `python Project/run.py` from repo root OR `python run.py` from Project/ directory
-2. **Config search**: Scripts automatically search multiple paths for `config.json`
-3. **Buyer profiles**: Can use string keys OR `BuyerPersona` enum members
-4. **Scoring changes**: Always validate weights sum to 1.0 after modifications
-5. **MongoDB queries**: Use `mongodb_handler.py` methods, don't write raw queries
-6. **Telegram formatting**: Follow existing patterns in `telegram_bot.py` for message formatting
-7. **URL validation**: Always use `listing_validator.py` before sending listings to users
-8. **Outreach emails**: Templates are in German, located in `outreach/email_sender.py`
-9. **Validation**: Use `is_valid_listing_data()` from `mongodb_handler.py` - NEVER inline `> 0` checks
-
-## Codebase Exploration
-
-Default to `graphify query "<question>"` over `grep` for codebase exploration questions. Full rule (with freshness check + fallback conditions): see global `~/.claude/CLAUDE.md` §"Graph-First Codebase Exploration". Build the graph for any project >50 files with `/graphify .` — one-time cost amortized across all future questions.
+## Workflow notes
+- New scraper: Application/scraping/<src>_scraper.py → wire into Application/main.py → add --<src>-only flag.
+- Dashboard changes: `.claude/rules/ui-testing.md` applies (targeted spec per iteration, full suite as final gate).
+- Logs: Project/log/. Temp files: scratchpad, not /tmp. Data: Project/data/.
 
 ## graphify
 
