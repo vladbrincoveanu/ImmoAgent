@@ -1,18 +1,18 @@
 'use client';
 
 import React from 'react';
-import { ProfileSelector } from './ProfileSelector';
 import { CommuteFilter } from './CommuteFilter';
+import { type SortOption } from '@/lib/filters';
 
-const SORT_OPTIONS = [
+const SORT_OPTIONS: ReadonlyArray<{ value: SortOption; label: string }> = [
   { value: 'score_desc', label: 'Score (high to low)' },
   { value: 'price_asc', label: 'Price (low to high)' },
   { value: 'price_desc', label: 'Price (high to low)' },
   { value: 'date_desc', label: 'Newest first' },
   { value: 'area_desc', label: 'Largest first' },
-] as const;
+];
 
-export type SortOption = typeof SORT_OPTIONS[number]['value'];
+export type { SortOption };
 
 interface FilterBarProps {
   minScore: string;
@@ -34,6 +34,10 @@ interface FilterBarProps {
   onMaxEquityChange?: (v: string) => void;
   belowAvgPct?: string;
   onBelowAvgPctChange?: (v: string) => void;
+  destName?: string;
+  maxCommute?: string;
+  onDestChange?: (name: string, lat: string, lon: string) => void;
+  onMaxCommuteChange?: (v: string) => void;
 }
 
 export function FilterBar({
@@ -46,12 +50,12 @@ export function FilterBar({
   rate, onRateChange,
   maxEquity, onMaxEquityChange,
   belowAvgPct, onBelowAvgPctChange,
+  destName, maxCommute, onDestChange, onMaxCommuteChange,
 }: FilterBarProps) {
   const effectiveSort = sortBy ?? 'score_desc';
 
   return (
     <div className="hidden md:flex flex-wrap gap-3 mb-6 items-center">
-      <ProfileSelector />
       <div className="flex items-center gap-2 ml-auto">
         <label className="text-sm font-medium text-gray-700">Min Score</label>
         <input
@@ -160,7 +164,12 @@ export function FilterBar({
         </div>
       )}
 
-      <CommuteFilter />
+      <CommuteFilter
+        destName={destName}
+        maxCommute={maxCommute}
+        onDestChange={onDestChange}
+        onMaxChange={onMaxCommuteChange}
+      />
     </div>
   );
 }

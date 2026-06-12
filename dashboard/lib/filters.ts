@@ -1,9 +1,17 @@
 import { DEFAULT_PROFILE, isValidProfile } from './profile';
 
+export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
+
+const SORT_VALUES: readonly SortOption[] = ['score_desc', 'price_asc', 'price_desc', 'date_desc', 'area_desc'] as const;
+
+function parseSort(raw: string | null): SortOption {
+  return SORT_VALUES.includes(raw as SortOption) ? (raw as SortOption) : 'score_desc';
+}
+
 export type FilterState = {
   minScore: string;
   district: string;
-  sortBy: string;
+  sortBy: SortOption;
   maxPrice: string;
   showUnfinanceable: boolean;
   equity: string;
@@ -22,7 +30,7 @@ export function filtersFromParams(searchParams: URLSearchParams): FilterState {
   return {
     minScore: searchParams.get('min_score') ?? '0',
     district: searchParams.get('district') ?? '',
-    sortBy: searchParams.get('sort') ?? 'score_desc',
+    sortBy: parseSort(searchParams.get('sort')),
     maxPrice: searchParams.get('max_price') ?? '500000',
     showUnfinanceable: searchParams.get('unfinanceable') === 'true',
     equity: searchParams.get('equity') ?? '100000',
@@ -54,7 +62,6 @@ export function paramsFromFilters(filters: FilterState): URLSearchParams {
     if (filters.destLon) params.set('dest_lon', filters.destLon);
   }
   if (filters.maxCommute) params.set('max_commute', filters.maxCommute);
-  // Always set profile so URL is shareable
   if (filters.profile && filters.profile !== DEFAULT_PROFILE) params.set('profile', filters.profile);
   return params;
 }

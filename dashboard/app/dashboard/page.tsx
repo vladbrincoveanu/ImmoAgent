@@ -11,7 +11,7 @@ import { SmartInsightsPanel } from '@/components/SmartInsightsPanel';
 import { SaveSearchButton } from '@/components/SaveSearchButton';
 import { EmailAlertsModal } from '@/components/EmailAlertsModal';
 import { ListingBase } from '@/lib/types';
-import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
+import { useFilters } from '@/lib/useFilters';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 
 function calcMonatsrate(loanAmount: number, rate: number): number {
@@ -24,109 +24,19 @@ function calcMonatsrate(loanAmount: number, rate: number): number {
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const {
+    minScore, district, sortBy, maxPrice, showUnfinanceable,
+    equity, rate, maxEquity, profile, belowAvgPct,
+    destName, destLat, destLon, maxCommute,
+    update,
+  } = useFilters();
 
   const [listings, setListings] = useState<ListingBase[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
-
-  const [minScore, setMinScore] = useState<string>('0');
-  const [district, setDistrict] = useState<string>('');
-  const [sortBy, setSortBy] = useState<SortOption>('score_desc');
-  const [maxPrice, setMaxPrice] = useState<string>('500000');
-  const [showUnfinanceable, setShowUnfinanceable] = useState<boolean>(false);
-  const [equity, setEquity] = useState<string>('100000');
-  const [rate, setRate] = useState<string>('3.8');
-  const [maxEquity, setMaxEquity] = useState<string>('');
-  const [profile, setProfile] = useState<string>(DEFAULT_PROFILE);
-  const [belowAvgPct, setBelowAvgPct] = useState<string>('');
-  const [destName, setDestName] = useState<string>('');
-  const [destLat, setDestLat] = useState<string>('');
-  const [destLon, setDestLon] = useState<string>('');
-  const [maxCommute, setMaxCommute] = useState<string>('');
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
-
-  useEffect(() => {
-    const filters = filtersFromParams(searchParams);
-    setMinScore(filters.minScore);
-    setDistrict(filters.district);
-    setSortBy(filters.sortBy as SortOption);
-    setMaxPrice(filters.maxPrice);
-    setShowUnfinanceable(filters.showUnfinanceable);
-    setEquity(filters.equity);
-    setRate(filters.rate);
-    setMaxEquity(filters.maxEquity);
-    setProfile(filters.profile);
-    setBelowAvgPct(filters.belowAvgPct);
-    setDestName(filters.destName);
-    setDestLat(filters.destLat);
-    setDestLon(filters.destLon);
-    setMaxCommute(filters.maxCommute);
-  }, [searchParams]);
-
-  const pushFilters = useCallback((filters: { minScore: string; district: string; sortBy: string; maxPrice: string; showUnfinanceable: boolean; equity: string; rate: string; maxEquity: string; profile: string; belowAvgPct: string; destName: string; destLat: string; destLon: string; maxCommute: string }) => {
-    const params = paramsFromFilters(filters);
-    router.push(`/dashboard?${params.toString()}`);
-  }, [router]);
-
-  const handleMinScoreChange = (v: string) => {
-    setMinScore(v);
-    pushFilters({ minScore: v, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleDistrictChange = (v: string) => {
-    setDistrict(v);
-    pushFilters({ minScore, district: v, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleSortChange = (v: SortOption) => {
-    setSortBy(v);
-    pushFilters({ minScore, district, sortBy: v, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleMaxPriceChange = (v: string) => {
-    setMaxPrice(v);
-    pushFilters({ minScore, district, sortBy, maxPrice: v, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleShowUnfinanceableChange = (v: boolean) => {
-    setShowUnfinanceable(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable: v, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleEquityChange = (v: string) => {
-    setEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity: v, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleRateChange = (v: string) => {
-    setRate(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate: v, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleMaxEquityChange = (v: string) => {
-    setMaxEquity(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity: v, profile, belowAvgPct, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleBelowAvgPctChange = (v: string) => {
-    setBelowAvgPct(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct: v, destName, destLat, destLon, maxCommute });
-  };
-
-  const handleDestChange = (name: string, lat: string, lon: string) => {
-    setDestName(name);
-    setDestLat(lat);
-    setDestLon(lon);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName: name, destLat: lat, destLon: lon, maxCommute });
-  };
-
-  const handleMaxCommuteChange = (v: string) => {
-    setMaxCommute(v);
-    pushFilters({ minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute: v });
-  };
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
@@ -244,7 +154,7 @@ function DashboardContent() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <ProfileSelector />
+            <ProfileSelector value={profile} onChange={(v) => update({ profile: v })} />
             <SaveSearchButton />
             <button
               type="button"
@@ -274,24 +184,28 @@ function DashboardContent() {
         <div className="hidden md:block">
           <FilterBar
             minScore={minScore}
-            onMinScoreChange={handleMinScoreChange}
+            onMinScoreChange={(v) => update({ minScore: v })}
             district={district}
-            onDistrictChange={handleDistrictChange}
+            onDistrictChange={(v) => update({ district: v })}
             onRefresh={fetchListings}
             sortBy={sortBy}
-            onSortChange={handleSortChange}
+            onSortChange={(v) => update({ sortBy: v })}
             maxPrice={maxPrice}
-            onMaxPriceChange={handleMaxPriceChange}
+            onMaxPriceChange={(v) => update({ maxPrice: v })}
             showUnfinanceable={showUnfinanceable}
-            onShowUnfinanceableChange={handleShowUnfinanceableChange}
+            onShowUnfinanceableChange={(v) => update({ showUnfinanceable: v })}
             equity={equity}
-            onEquityChange={handleEquityChange}
+            onEquityChange={(v) => update({ equity: v })}
             rate={rate}
-            onRateChange={handleRateChange}
+            onRateChange={(v) => update({ rate: v })}
             maxEquity={maxEquity}
-            onMaxEquityChange={handleMaxEquityChange}
+            onMaxEquityChange={(v) => update({ maxEquity: v })}
             belowAvgPct={belowAvgPct}
-            onBelowAvgPctChange={handleBelowAvgPctChange}
+            onBelowAvgPctChange={(v) => update({ belowAvgPct: v })}
+            destName={destName}
+            maxCommute={maxCommute}
+            onDestChange={(name, lat, lon) => update({ destName: name, destLat: lat, destLon: lon })}
+            onMaxCommuteChange={(v) => update({ maxCommute: v })}
           />
         </div>
 
@@ -323,21 +237,23 @@ function DashboardContent() {
       <FilterDrawer
         open={filterDrawerOpen}
         onClose={() => setFilterDrawerOpen(false)}
+        profile={profile}
+        onProfileChange={(v) => update({ profile: v })}
         minScore={minScore}
-        onMinScoreChange={handleMinScoreChange}
+        onMinScoreChange={(v) => update({ minScore: v })}
         district={district}
-        onDistrictChange={handleDistrictChange}
+        onDistrictChange={(v) => update({ district: v })}
         onRefresh={fetchListings}
         sortBy={sortBy}
-        onSortChange={handleSortChange}
+        onSortChange={(v) => update({ sortBy: v })}
         maxPrice={maxPrice}
-        onMaxPriceChange={handleMaxPriceChange}
+        onMaxPriceChange={(v) => update({ maxPrice: v })}
         showUnfinanceable={showUnfinanceable}
-        onShowUnfinanceableChange={handleShowUnfinanceableChange}
+        onShowUnfinanceableChange={(v) => update({ showUnfinanceable: v })}
         equity={equity}
-        onEquityChange={handleEquityChange}
+        onEquityChange={(v) => update({ equity: v })}
         rate={rate}
-        onRateChange={handleRateChange}
+        onRateChange={(v) => update({ rate: v })}
       />
 
       {selectedId && (

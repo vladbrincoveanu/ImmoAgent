@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { ListingSidebar } from '@/components/ListingSidebar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { MapLegend } from '@/components/MapLegend';
@@ -18,7 +18,7 @@ import { SelectedCard } from '@/components/SelectedCard';
 import { CompactListingStrip } from '@/components/CompactListingStrip';
 import { useListingsSSE } from '@/lib/sse';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
+import { useFilters } from '@/lib/useFilters';
 import type { ViewportBounds } from '@/components/MapView';
 
 const MapView = dynamic(
@@ -35,9 +35,13 @@ function MapLoadingState() {
 }
 
 function MapPage() {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const {
+    minScore, district, sortBy, maxPrice, showUnfinanceable,
+    equity, rate, maxEquity, profile, belowAvgPct,
+    destName, destLat, destLon, maxCommute,
+    update,
+  } = useFilters();
 
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,54 +52,12 @@ function MapPage() {
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
-
-  const initial = useMemo(() => filtersFromParams(searchParams), [searchParams]);
-  const [minScore, setMinScore] = useState(initial.minScore);
-  const [district, setDistrict] = useState(initial.district);
-  const [sortBy, setSortBy] = useState<SortOption>(initial.sortBy as SortOption);
-  const [maxPrice, setMaxPrice] = useState(initial.maxPrice);
-  const [showUnfinanceable, setShowUnfinanceable] = useState(initial.showUnfinanceable);
-  const [equity, setEquity] = useState(initial.equity);
-  const [rate, setRate] = useState(initial.rate);
-  const [maxEquity, setMaxEquity] = useState(initial.maxEquity);
-  const [profile, setProfile] = useState(initial.profile);
-  const [belowAvgPct, setBelowAvgPct] = useState(initial.belowAvgPct);
-  const [destName, setDestName] = useState(initial.destName);
-  const [destLat, setDestLat] = useState(initial.destLat);
-  const [destLon, setDestLon] = useState(initial.destLon);
-  const [maxCommute, setMaxCommute] = useState(initial.maxCommute);
   const [layers, setLayers] = useState<Record<MapLayer, boolean>>({
     ubahn: true,
-    schools: false,  // off by default — was too noisy
+    schools: false,
     pins: true,
   });
   const [showHeatmap, setShowHeatmap] = useState(false);
-
-  // React to external URL changes (browser back/forward, link clicks)
-  useEffect(() => {
-    const f = filtersFromParams(searchParams);
-    setMinScore(f.minScore);
-    setDistrict(f.district);
-    setSortBy(f.sortBy as SortOption);
-    setMaxPrice(f.maxPrice);
-    setShowUnfinanceable(f.showUnfinanceable);
-    setEquity(f.equity);
-    setRate(f.rate);
-    setMaxEquity(f.maxEquity);
-    setProfile(f.profile);
-    setBelowAvgPct(f.belowAvgPct);
-    setDestName(f.destName);
-    setDestLat(f.destLat);
-    setDestLon(f.destLon);
-    setMaxCommute(f.maxCommute);
-  }, [searchParams]);
-
-  const pushFilters = useCallback((next: Partial<ReturnType<typeof filtersFromParams>>) => {
-    const merged = { minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute, ...next };
-    const params = paramsFromFilters(merged as Parameters<typeof paramsFromFilters>[0]);
-    const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
-  }, [router, pathname, minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate, maxEquity, profile, belowAvgPct, destName, destLat, destLon, maxCommute]);
 
   const { newListings } = useListingsSSE();
 
@@ -255,7 +217,7 @@ function MapPage() {
           {showHeatmap ? 'Hide heatmap' : 'Price heatmap'}
         </button>
         <div className="ml-auto">
-          <ProfileSelector />
+          <ProfileSelector value={profile} onChange={(v) => update({ profile: v })} />
         </div>
       </header>
 
@@ -267,14 +229,14 @@ function MapPage() {
             <ListingSidebar
               listings={viewportListings}
               minScore={minScore}
-              onMinScoreChange={(v) => { setMinScore(v); pushFilters({ minScore: v }); }}
+              onMinScoreChange={(v) => update({ minScore: v })}
               district={district}
-              onDistrictChange={(v) => { setDistrict(v); pushFilters({ district: v }); }}
+              onDistrictChange={(v) => update({ district: v })}
               onRefresh={fetchListings}
               selectedId={highlightedId}
               onSelect={handleSidebarSelect}
               sortBy={sortBy}
-              onSortChange={(v) => { setSortBy(v); pushFilters({ sortBy: v }); }}
+              onSortChange={(v) => update({ sortBy: v })}
               viewportCount={viewportListings.length}
               hoveredId={hoveredId}
               onHover={setHoveredId}
@@ -361,17 +323,19 @@ function MapPage() {
       <FilterDrawer
         open={filterDrawerOpen}
         onClose={() => setFilterDrawerOpen(false)}
+        profile={profile}
+        onProfileChange={(v) => update({ profile: v })}
         minScore={minScore}
-        onMinScoreChange={(v) => { setMinScore(v); pushFilters({ minScore: v }); }}
+        onMinScoreChange={(v) => update({ minScore: v })}
         district={district}
-        onDistrictChange={(v) => { setDistrict(v); pushFilters({ district: v }); }}
+        onDistrictChange={(v) => update({ district: v })}
         onRefresh={fetchListings}
         sortBy={sortBy}
-        onSortChange={(v) => { setSortBy(v); pushFilters({ sortBy: v }); }}
+        onSortChange={(v) => update({ sortBy: v })}
         maxPrice={maxPrice}
-        onMaxPriceChange={(v) => { setMaxPrice(v); pushFilters({ maxPrice: v }); }}
+        onMaxPriceChange={(v) => update({ maxPrice: v })}
         showUnfinanceable={showUnfinanceable}
-        onShowUnfinanceableChange={(v) => { setShowUnfinanceable(v); pushFilters({ showUnfinanceable: v }); }}
+        onShowUnfinanceableChange={(v) => update({ showUnfinanceable: v })}
       />
 
       {detailId && (

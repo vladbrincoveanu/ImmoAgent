@@ -7,6 +7,8 @@ import { ProfileSelector } from './ProfileSelector';
 interface FilterDrawerProps {
   open: boolean;
   onClose: () => void;
+  profile: string;
+  onProfileChange: (v: string) => void;
   minScore: string;
   onMinScoreChange: (v: string) => void;
   district: string;
@@ -26,6 +28,7 @@ interface FilterDrawerProps {
 
 export function FilterDrawer({
   open, onClose,
+  profile, onProfileChange,
   minScore, onMinScoreChange,
   district, onDistrictChange,
   onRefresh, sortBy, onSortChange,
@@ -34,6 +37,7 @@ export function FilterDrawer({
   equity, onEquityChange,
   rate, onRateChange,
 }: FilterDrawerProps) {
+  const [localProfile, setLocalProfile] = useState(profile);
   const [localMinScore, setLocalMinScore] = useState(minScore);
   const [localDistrict, setLocalDistrict] = useState(district);
   const [localSortBy, setLocalSortBy] = useState(sortBy);
@@ -43,6 +47,7 @@ export function FilterDrawer({
   const [localRate, setLocalRate] = useState(rate ?? '3.8');
 
   useEffect(() => {
+    setLocalProfile(profile);
     setLocalMinScore(minScore);
     setLocalDistrict(district);
     setLocalSortBy(sortBy);
@@ -50,11 +55,12 @@ export function FilterDrawer({
     setLocalShowUnfinanceable(showUnfinanceable);
     setLocalEquity(equity ?? '100000');
     setLocalRate(rate ?? '3.8');
-  }, [minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate]);
+  }, [profile, minScore, district, sortBy, maxPrice, showUnfinanceable, equity, rate]);
 
   if (!open) return null;
 
   const handleApply = () => {
+    onProfileChange(localProfile);
     onMinScoreChange(localMinScore);
     onDistrictChange(localDistrict);
     onSortChange(localSortBy);
@@ -67,6 +73,7 @@ export function FilterDrawer({
   };
 
   const handleReset = () => {
+    setLocalProfile('default');
     setLocalMinScore('0');
     setLocalDistrict('');
     setLocalSortBy('score_desc');
@@ -97,7 +104,7 @@ export function FilterDrawer({
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-text">Buyer Profile</label>
-            <ProfileSelector />
+            <ProfileSelector value={localProfile} onChange={setLocalProfile} />
           </div>
 
           <div className="space-y-2">

@@ -1,26 +1,15 @@
 'use client';
 
 import React from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { PROFILES, DEFAULT_PROFILE } from '@/lib/profile';
 
-export function ProfileSelector() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const current = searchParams.get('profile') ?? DEFAULT_PROFILE;
+interface ProfileSelectorProps {
+  value?: string;
+  onChange?: (next: string) => void;
+}
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = e.target.value;
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === DEFAULT_PROFILE) {
-      params.delete('profile');
-    } else {
-      params.set('profile', next);
-    }
-    const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
-  };
+export function ProfileSelector({ value, onChange }: ProfileSelectorProps = {}) {
+  const current = value ?? DEFAULT_PROFILE;
 
   return (
     <div className="flex items-center gap-2">
@@ -28,7 +17,7 @@ export function ProfileSelector() {
       <select
         data-testid="profile-selector"
         value={current}
-        onChange={handleChange}
+        onChange={(e) => onChange?.(e.target.value)}
         className="rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent text-gray-700"
         aria-label="Buyer profile"
       >
