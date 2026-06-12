@@ -11,7 +11,17 @@ const VALID_SORT_OPTIONS: SortOption[] = ['score_desc', 'price_asc', 'price_desc
 export function validateDistrict(input: string | null): string | null {
   if (!input || input.trim() === '') return null;
   const trimmed = input.trim();
-  return VALID_DISTRICTS.has(trimmed) ? trimmed : null;
+  if (VALID_DISTRICTS.has(trimmed)) return trimmed;
+  const SHORT_TO_LONG: Record<string, string> = {
+    '1': '1010', '2': '1020', '3': '1030', '4': '1040', '5': '1050',
+    '6': '1060', '7': '1070', '8': '1080', '9': '1090',
+    '01': '1010', '02': '1020', '03': '1030', '04': '1040', '05': '1050',
+    '06': '1060', '07': '1070', '08': '1080', '09': '1090',
+    '10': '1100', '11': '1110', '12': '1120', '13': '1130', '14': '1140',
+    '15': '1150', '16': '1160', '17': '1170', '18': '1180', '19': '1190',
+    '20': '1200', '21': '1210', '22': '1220', '23': '1230',
+  };
+  return SHORT_TO_LONG[trimmed] ?? null;
 }
 
 export function validateSort(input: string | null): SortOption {

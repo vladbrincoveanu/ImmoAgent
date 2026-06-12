@@ -31,6 +31,9 @@ export interface ListingBase {
   price_vs_avg_pct?: number | null;
   ubahn_walk_minutes?: number | null;
   coordinates?: Coordinates | null;
+  price_history?: Array<{ price_total: number; date: number }> | null;
+  address?: string | null;
+  street_view?: number | null;
 }
 
 export interface MapListing {
@@ -54,6 +57,7 @@ export interface MapListing {
   bank_score_confidence?: BankScoreConfidence;
   price_vs_avg_pct?: number | null;
   ubahn_walk_minutes?: number | null;
+  price_history?: Array<{ price_total: number; date: number }> | null;
 }
 
 export interface MortgageDetails {
@@ -151,6 +155,7 @@ export interface ListingDetail {
   infrastructure_distances: Record<string, number | string>;
   mortgage_details: MortgageDetails | null;
   structured_analysis: Record<string, unknown> | null;
+  price_history: Array<{ price_total: number; date: number }> | null;
   url_is_valid: boolean;
   price_is_estimated: boolean | null;
   regulatory: RegulatoryProfile | null;

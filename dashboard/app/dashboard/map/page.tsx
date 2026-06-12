@@ -7,6 +7,8 @@ import { ListingSidebar } from '@/components/ListingSidebar';
 import { ListingDetail } from '@/components/ListingDetail';
 import { MapLegend } from '@/components/MapLegend';
 import { MapGuide } from '@/components/MapGuide';
+import { MapLayerToggle, type MapLayer } from '@/components/MapLayerToggle';
+import { PriceHeatmap } from '@/components/PriceHeatmap';
 import { SortOption } from '@/components/FilterBar';
 import { ProfileSelector } from '@/components/ProfileSelector';
 import { MapListing } from '@/lib/types';
@@ -62,6 +64,12 @@ function MapPage() {
   const [destLat, setDestLat] = useState(initial.destLat);
   const [destLon, setDestLon] = useState(initial.destLon);
   const [maxCommute, setMaxCommute] = useState(initial.maxCommute);
+  const [layers, setLayers] = useState<Record<MapLayer, boolean>>({
+    ubahn: true,
+    schools: false,  // off by default — was too noisy
+    pins: true,
+  });
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   // React to external URL changes (browser back/forward, link clicks)
   useEffect(() => {
@@ -238,6 +246,14 @@ function MapPage() {
           List
         </a>
         <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
+        <button
+          type="button"
+          onClick={() => setShowHeatmap(!showHeatmap)}
+          className={`px-3 py-1.5 text-sm rounded-md border ${showHeatmap ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-border hover:bg-gray-50'}`}
+          data-testid="heatmap-toggle"
+        >
+          {showHeatmap ? 'Hide heatmap' : 'Price heatmap'}
+        </button>
         <div className="ml-auto">
           <ProfileSelector />
         </div>
@@ -289,6 +305,7 @@ function MapPage() {
                     if (found) handlePinClick(found);
                   }}
                   onMapClick={handleCloseDetail}
+                  layerFilter={layers}
                 />
                 <SelectedCard
                   listing={highlightedListing}
@@ -297,6 +314,20 @@ function MapPage() {
                 />
                 <MapLegend />
                 <MapGuide />
+                <MapLayerToggle
+                  layers={layers}
+                  onToggle={(l) => setLayers((prev) => ({ ...prev, [l]: !prev[l] }))}
+                />
+                <PriceHeatmap
+                  show={showHeatmap}
+                  points={listings
+                    .filter((l) => l.coordinates && l.price_total)
+                    .map((l) => ({
+                      lat: ((l.coordinates!.lat - 48.1) / 0.2) * 100,
+                      lon: ((l.coordinates!.lon - 16.3) / 0.3) * 100,
+                      weight: Math.min(1, l.price_total! / 1_000_000),
+                    }))}
+                />
               </>
             )}
           </div>

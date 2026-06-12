@@ -9,6 +9,7 @@ import { ListingDetail } from '@/components/ListingDetail';
 import { ProfileSelector } from '@/components/ProfileSelector';
 import { SmartInsightsPanel } from '@/components/SmartInsightsPanel';
 import { SaveSearchButton } from '@/components/SaveSearchButton';
+import { EmailAlertsModal } from '@/components/EmailAlertsModal';
 import { ListingBase } from '@/lib/types';
 import { filtersFromParams, paramsFromFilters } from '@/lib/filters';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
@@ -29,6 +30,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const [minScore, setMinScore] = useState<string>('0');
   const [district, setDistrict] = useState<string>('');
@@ -244,6 +246,15 @@ function DashboardContent() {
           <div className="flex items-center gap-2">
             <ProfileSelector />
             <SaveSearchButton />
+            <button
+              type="button"
+              onClick={() => setAlertsOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-muted transition-colors"
+              data-testid="open-alerts"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              Email alerts
+            </button>
             <a
               href={`/dashboard/map${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-muted transition-colors"
@@ -335,6 +346,8 @@ function DashboardContent() {
           onClose={() => setSelectedId(null)}
         />
       )}
+
+      <EmailAlertsModal open={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </main>
   );
 }

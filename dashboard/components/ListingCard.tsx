@@ -8,6 +8,8 @@ import { ZoneVsAvgBadge } from './ZoneVsAvgBadge';
 import { DealScoreBadge } from './DealScoreBadge';
 import { RentYieldBadge } from './RentYieldBadge';
 import { CommuteBadge } from './CommuteBadge';
+import { TimeOnMarketBadge, PriceDropBadge } from './MarketBadges';
+import { AddressBlock } from './AddressBlock';
 
 interface ListingCardProps {
   listing: ListingBase;
@@ -96,6 +98,19 @@ export function ListingCard({ listing, onClick, destLat, destLon, destName }: Li
           )}
         </div>
 
+        {listing.coordinate_source === 'exact' && (
+          <AddressBlock
+            address={listing.address}
+            bezirk={listing.bezirk}
+            coordinateSource={listing.coordinate_source}
+            coordinates={listing.coordinates}
+            destLat={destLat}
+            destLon={destLon}
+            destName={destName}
+            variant="card"
+          />
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-[#8B8B8B]">
             {listing.area_m2 != null && <span>{listing.area_m2}m²</span>}
@@ -140,6 +155,8 @@ export function ListingCard({ listing, onClick, destLat, destLon, destName }: Li
           )}
           <DealScoreBadge listing={listing as unknown as import('@/lib/types').MapListing} />
           <RentYieldBadge area_m2={listing.area_m2} price_total={listing.price_total} bezirk={listing.bezirk} />
+          <TimeOnMarketBadge processedAt={listing.processed_at} />
+          <PriceDropBadge priceHistory={listing.price_history} currentPrice={listing.price_total} />
           {destLat && destLon && destName && (
             <CommuteBadge lat={listing.coordinates?.lat} lon={listing.coordinates?.lon} destLat={destLat} destLon={destLon} destName={destName} />
           )}
