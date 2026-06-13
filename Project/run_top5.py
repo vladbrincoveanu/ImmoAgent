@@ -44,6 +44,7 @@ ensure_config_json_on_path()
 
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats
+from Application.helpers.mortgage import add_monthly_payment_calculation
 from Application.buyer_profiles import BuyerPersona
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
@@ -435,33 +436,19 @@ def calculate_investment_analysis(listing: dict, rent_info: Optional[Dict[str, A
         if price_total <= 0:
             return None
         
-        # Get the real calculated values from the listing
-        # These should be calculated by _add_monthly_payment_calculation in MongoDB handler
-        monthly_payment_data = listing.get('monthly_payment', {})
-        mortgage_details = listing.get('mortgage_details', {})
-        
-        # Use real calculated values if available, otherwise calculate them
-        if monthly_payment_data and isinstance(monthly_payment_data, dict):
-            # Use the real calculated values
-            adjusted_price = monthly_payment_data.get('adjusted_price', price_total * 1.10)
-            down_payment = monthly_payment_data.get('down_payment', adjusted_price * 0.20)
-            loan_amount = monthly_payment_data.get('loan_amount', adjusted_price - down_payment)
-            monthly_loan_payment = monthly_payment_data.get('loan_payment', 0)
-            total_monthly_cost = monthly_payment_data.get('total_monthly', monthly_loan_payment + (monthly_payment_data.get('betriebskosten', 0) or 0))
-        elif mortgage_details and isinstance(mortgage_details, dict):
-            # Use mortgage details if available
-            adjusted_price = mortgage_details.get('adjusted_price', price_total * 1.10)
-            down_payment = mortgage_details.get('down_payment', adjusted_price * 0.20)
-            loan_amount = mortgage_details.get('loan_amount', adjusted_price - down_payment)
-            monthly_loan_payment = mortgage_details.get('monthly_payment', 0)
-            total_monthly_cost = monthly_loan_payment + (listing.get('betriebskosten', 0) or 0)
-        else:
-            # Fallback to manual calculation (same as in MongoDB handler)
-            adjusted_price = price_total * 1.10  # Price + 10% fees
-            down_payment = adjusted_price * 0.20  # 20% down payment
-            loan_amount = adjusted_price - down_payment  # 80% loan
-            monthly_loan_payment = loan_amount * 0.00383  # Realistic ratio
-            total_monthly_cost = monthly_loan_payment + (listing.get('betriebskosten', 0) or 0)
+        # MongoDBHandler.get_top_listings always populates monthly_payment;
+        # call the helper defensively so this function works for any listing.
+        add_monthly_payment_calculation(listing)
+        monthly_payment_data = listing['monthly_payment']
+
+        adjusted_price = monthly_payment_data.get('adjusted_price', price_total * 1.10)
+        down_payment = monthly_payment_data.get('down_payment', adjusted_price * 0.20)
+        loan_amount = monthly_payment_data.get('loan_amount', adjusted_price - down_payment)
+        monthly_loan_payment = monthly_payment_data.get('loan_payment', 0)
+        total_monthly_cost = monthly_payment_data.get(
+            'total_monthly',
+            monthly_loan_payment + (monthly_payment_data.get('betriebskosten', 0) or 0),
+        )
         
         # Investment parameters (can be made configurable)
         annual_mortgage_rate = 0.0289  # 2.89% annual rate (from mortgage details)
