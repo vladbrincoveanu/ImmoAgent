@@ -1,0 +1,12 @@
+import { test, expect } from '@playwright/test';
+
+test('ListingRail renders at 340px width with count + sort header', async ({ page }) => {
+  await page.goto('/dashboard/map');
+  const rail = page.locator('[data-testid="listing-rail"]');
+  await expect(rail).toBeVisible();
+  const box = await rail.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box?.width).toBe(340);
+  await expect(rail.locator('[data-testid="rail-count"]')).toContainText(/\d+ in view/);
+  await expect(rail.locator('[data-testid="rail-sort"]')).toBeVisible();
+});
