@@ -77,3 +77,21 @@ test('T7: price pins use single navy color by default, blue when selected, no ti
   const SELECTED = 'rgb(36, 86, 230)';
   expect(selectedColor, `selected pin color mismatch: ${selectedColor}`).toBe(SELECTED);
 });
+
+test('T8: SelectedCard opens at bottom-left 320px wide with fact chips and View listing CTA', async ({ page }) => {
+  await page.goto('/dashboard/map');
+  await page.locator('.leaflet-marker-icon').first().click();
+  await page.waitForTimeout(300);
+  const card = page.locator('[data-testid="selected-card"]');
+  await expect(card).toBeVisible();
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box?.width).toBe(320);
+  // Bottom-left: left value should be small (< 50), bottom close to viewport bottom
+  expect(box?.x).toBeLessThan(50);
+  expect(box?.y).toBeGreaterThan(400);
+  await expect(card.locator('[data-testid="fact-m2"]')).toBeVisible();
+  await expect(card.locator('[data-testid="fact-eur-m2"]')).toBeVisible();
+  await expect(card.locator('[data-testid="fact-score"]')).toBeVisible();
+  await expect(card.locator('[data-testid="view-listing-cta"]')).toBeVisible();
+});
