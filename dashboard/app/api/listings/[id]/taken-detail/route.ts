@@ -3,12 +3,12 @@ import { getDb, ObjectId } from '@/lib/mongodb';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const listing = await db.collection('listings').findOne(

@@ -5,12 +5,12 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { bezirk: string } }
+  { params }: { params: Promise<{ bezirk: string }> }
 ) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
-  const bezirk = params.bezirk;
+  const { bezirk } = await params;
 
   // Aggregate listings by month over the last 12 months.
   // Uses processed_at (Unix seconds) to bucket.

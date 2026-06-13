@@ -6,9 +6,10 @@ import { resolveCoordinates } from '@/lib/district-centroids';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const validId = validateObjectId(params.id);
+  const { id } = await params;
+  const validId = validateObjectId(id);
   if (!validId) {
     return NextResponse.json({ error: 'Invalid listing ID', field: 'id' }, { status: 400 });
   }

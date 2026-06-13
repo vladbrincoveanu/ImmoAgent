@@ -12,15 +12,16 @@ async function checkUrl(url: string): Promise<boolean> {
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const db = getDb();
     if (!db) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
     }
     const listing = await db.collection('listings').findOne({
-      _id: new ObjectId(params.id),
+      _id: new ObjectId(id),
     });
 
     if (!listing) {
@@ -30,7 +31,7 @@ export async function POST(
     const isValid = await checkUrl(listing.url);
 
     await db.collection('listings').updateOne(
-      { _id: new ObjectId(params.id) },
+      { _id: new ObjectId(id) },
       { $set: { url_is_valid: isValid } }
     );
 

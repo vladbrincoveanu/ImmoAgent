@@ -5,13 +5,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
+  const { id } = await params;
   let oid: ObjectId;
-  try { oid = new ObjectId(params.id); }
+  try { oid = new ObjectId(id); }
   catch { return NextResponse.json({ error: 'Invalid listing ID' }, { status: 400 }); }
 
   const listing = await db.collection('listings').findOne({ _id: oid });
@@ -72,7 +73,7 @@ export async function GET(
   }));
 
   return NextResponse.json({
-    this_listing: { _id: params.id, price_total, area_m2, bezirk, score, price_per_m2: Math.round(thisPpm2) },
+    this_listing: { _id: id, price_total, area_m2, bezirk, score, price_per_m2: Math.round(thisPpm2) },
     comparables: top,
   });
 }

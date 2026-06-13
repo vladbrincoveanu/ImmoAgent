@@ -3,13 +3,14 @@ import { getDb, ObjectId } from '@/lib/mongodb';
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
+  const { id } = await params;
   let oid: ObjectId;
-  try { oid = new ObjectId(params.id); }
+  try { oid = new ObjectId(id); }
   catch { return NextResponse.json({ error: 'Invalid listing ID' }, { status: 400 }); }
 
   const listing = await db.collection('listings').findOne({ _id: oid });
