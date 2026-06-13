@@ -471,214 +471,161 @@ class MongoDBHandler:
             if not self.client:
                 logging.error("MongoDB client not connected")
                 return []
-            
-            # Calculate cutoff date
-            from datetime import datetime, timedelta
-            cutoff_date = datetime.now() - timedelta(days=days_old)
-            cutoff_timestamp = cutoff_date.timestamp()
-            
-            # Build base query — skip listings already confirmed as dead URLs
-            base_query = {
-                "processed_at": {"$gte": cutoff_timestamp},
-                "url_is_valid": {"$ne": False},
-            }
-            
-            # Add score filter if specified (handle both existing scores and null scores)
-            # We'll calculate scores for listings without them later, so don't exclude them here
-            # Include score: 0 in case it's used as a placeholder before scoring
-            if min_score > 0:
-                base_query["$or"] = [
-                    {"score": {"$gte": min_score}},
-                    {"score": {"$exists": False}},
-                    {"score": None},
-                    {"score": 0}  # Include 0 as it may be a placeholder before scoring
-                ]
-            
-            # Add district exclusion filter
-            if excluded_districts and len(excluded_districts) > 0:
-                base_query["bezirk"] = {"$nin": excluded_districts}
-            
-            # Exclude recently sent listings if requested
-            if exclude_recently_sent:
-                recently_sent_urls = self.get_recently_sent_listings(recently_sent_days)
-                if recently_sent_urls:
-                    base_query["url"] = {"$nin": recently_sent_urls}
-                    logging.info(f"🚫 Excluding {len(recently_sent_urls)} recently sent listings")
-            
-            # Build final query with room filter handling
-            if min_rooms > 0:
-                # Handle None values - include properties with None rooms OR rooms >= min_rooms
-                query = {
-                    "$and": [
-                        base_query,
-                        {
-                            "$or": [
-                                {"rooms": {"$gte": min_rooms}},
-                                {"rooms": None}
-                            ]
-                        }
-                    ]
-                }
-            else:
-                query = base_query
-            
-            # Sort by score descending, then by processed_at descending
-            # When profile != "default", sort by the precalculated scores.<profile> subdoc
-            if profile == "default":
-                sort_criteria = [
-                    ("score", -1),
-                    ("processed_at", -1),
-                ]
-            else:
-                sort_criteria = [
-                    (f"scores.{profile}", -1),
-                    ("processed_at", -1),
-                ]
-            
-            # Execute query
-            cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit * 3)  # Get more to filter
-            listings = list(cursor)
-            
-            # Calculate scores for listings that don't have them
-            # Strategy: Only recalculate for None/missing scores to avoid overwriting intentional 0 scores
-            # Score: 0 listings are included in query but only recalculated if very recent (likely placeholders)
-            from Application.scoring import score_apartment_simple
-            scores_calculated = 0
-            for listing in listings:
-                score_value = listing.get('score')
-                
-                # Case 1: Score is None or missing - definitely needs calculation
-                if score_value is None or 'score' not in listing:
-                    try:
-                        score = score_apartment_simple(listing)
-                        listing['score'] = score
-                        scores_calculated += 1
-                        logging.debug(f"📊 Calculated missing score for listing: {score:.1f}")
-                    except Exception as e:
-                        logging.warning(f"⚠️ Could not calculate score for listing: {e}")
-                        listing['score'] = 0.0
-                
-                # Case 2: Score is 0 - could be placeholder or intentional "bad" score
-                # Only recalculate if very recent (within 24h) as those are likely placeholders
-                elif score_value == 0:
-                    processed_at = listing.get('processed_at')
-                    if processed_at and isinstance(processed_at, (int, float)):
-                        age_hours = (time.time() - processed_at) / 3600
-                        if age_hours < 24:
-                            # Recent listing with score 0 - likely a placeholder, recalculate
-                            try:
-                                score = score_apartment_simple(listing)
-                                listing['score'] = score
-                                scores_calculated += 1
-                                logging.debug(f"📊 Recalculated recent score:0 listing (age: {age_hours:.1f}h): {score:.1f}")
-                            except Exception as e:
-                                logging.warning(f"⚠️ Could not recalculate score for listing: {e}")
-                                # Keep score as 0
-                    # If score is 0 and listing is older, treat it as intentional "bad" score and don't recalculate
-            
-            if scores_calculated > 0:
-                logging.info(f"📊 Calculated scores for {scores_calculated} listings that were missing scores")
-            
-            # Filter by min_score after calculating scores
-            if min_score > 0:
-                listings = [l for l in listings if (l.get('score', 0) or 0) >= min_score]
-            
-            # Re-sort by score after calculating missing scores
-            listings = sorted(listings, key=lambda x: (x.get('score', 0) or 0, x.get('processed_at', 0)), reverse=True)
-            
-            # Add monthly payment calculations to each listing
+
+            query = self._build_top_listings_query(
+                days_old, min_score, excluded_districts, min_rooms,
+                exclude_recently_sent, recently_sent_days,
+            )
+            listings = self._fetch_and_score_listings(query, limit, profile, min_score)
             for listing in listings:
                 self._add_monthly_payment_calculation(listing)
-            
-                # Apply additional filters for rental properties and expensive properties
-            filtered_listings = []
-            for listing in listings:
-                # Skip rental properties
-                title = (listing.get('title') or '').lower()
-                description = (listing.get('description') or '').lower()
-                special_features = listing.get('special_features', []) or []
-                
-                is_rental = False
-                for keyword in RENTAL_KEYWORDS:
-                    if keyword in title or keyword in description:
-                        is_rental = True
-                        break
-                
-                if is_rental:
-                    continue
-                
-                # Check special features for rental indicators
-                if special_features:
-                    for feature in special_features:
-                        feature_lower = str(feature).lower()
-                        for keyword in RENTAL_KEYWORDS:
-                            if keyword in feature_lower:
-                                is_rental = True
-                                break
-                        if is_rental:
-                            break
-                
-                if is_rental:
-                    continue
-                
-                # Ensure we have a numeric price; drop "Preis auf Anfrage" / missing prices
-                price_total_value = listing.get('price_total')
-                if not isinstance(price_total_value, (int, float)) or price_total_value <= 0:
-                    continue
-
-                # Filter out "Preis auf Anfrage" (price on request) properties
-                is_price_on_request = False
-                for keyword in PRICE_ON_REQUEST_KEYWORDS:
-                    if keyword in title or keyword in description:
-                        is_price_on_request = True
-                        break
-                
-                if is_price_on_request:
-                    continue
-                
-                # Check special features for price on request indicators
-                if special_features:
-                    for feature in special_features:
-                        feature_lower = str(feature).lower()
-                        for keyword in PRICE_ON_REQUEST_KEYWORDS:
-                            if keyword in feature_lower:
-                                is_price_on_request = True
-                                break
-                        if is_price_on_request:
-                            break
-                
-                if is_price_on_request:
-                    continue
-                
-                # Apply stricter scoring for expensive properties
-                price_total = listing.get('price_total', 0)
-                score = listing.get('score', 0) or 0
-                
-                if price_total > 400000 and score < 40:
-                    continue  # Skip expensive properties with low scores
-                
-                filtered_listings.append(listing)
-                if len(filtered_listings) >= limit:
-                    break
-            
-            if days_old >= 365:
-                logging.info(f"📊 Found {len(filtered_listings)} top listings (score >= {min_score}, all time)")
-            else:
-                logging.info(f"📊 Found {len(filtered_listings)} top listings (score >= {min_score}, last {days_old} days)")
-            if excluded_districts:
-                logging.info(f"🚫 Excluded districts: {excluded_districts}")
-            if min_rooms > 0:
-                logging.info(f"🛏️ Minimum rooms: {min_rooms}")
-            if exclude_recently_sent:
-                logging.info(f"🚫 Excluded recently sent listings (last {recently_sent_days} days)")
-            
-            logging.info(f"🚫 Filtered out {len(listings) - len(filtered_listings)} rental/expensive properties")
-            
-            return filtered_listings
-            
+            filtered = self._apply_top_listings_exclusion_filters(listings, limit)
+            self._log_top_listings_summary(
+                filtered, len(listings), min_score, days_old,
+                excluded_districts, min_rooms, exclude_recently_sent, recently_sent_days,
+            )
+            return filtered
         except Exception as e:
             logging.error(f"Error fetching top listings: {e}")
             return []
+
+    def _build_top_listings_query(self, days_old, min_score, excluded_districts,
+                                   min_rooms, exclude_recently_sent, recently_sent_days) -> Dict:
+        """Build the MongoDB query for top-listing candidates. Pure query construction."""
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=days_old)
+        cutoff_timestamp = cutoff_date.timestamp()
+
+        base_query = {
+            "processed_at": {"$gte": cutoff_timestamp},
+            "url_is_valid": {"$ne": False},
+        }
+
+        if min_score > 0:
+            base_query["$or"] = [
+                {"score": {"$gte": min_score}},
+                {"score": {"$exists": False}},
+                {"score": None},
+                {"score": 0},
+            ]
+
+        if excluded_districts and len(excluded_districts) > 0:
+            base_query["bezirk"] = {"$nin": excluded_districts}
+
+        if exclude_recently_sent:
+            recently_sent_urls = self.get_recently_sent_listings(recently_sent_days)
+            if recently_sent_urls:
+                base_query["url"] = {"$nin": recently_sent_urls}
+                logging.info(f"🚫 Excluding {len(recently_sent_urls)} recently sent listings")
+
+        if min_rooms > 0:
+            return {
+                "$and": [
+                    base_query,
+                    {"$or": [{"rooms": {"$gte": min_rooms}}, {"rooms": None}]},
+                ]
+            }
+        return base_query
+
+    def _fetch_and_score_listings(self, query, limit, profile, min_score) -> List[Dict]:
+        """Fetch candidates, calculate missing scores, filter by min_score, re-sort by score desc."""
+        if profile == "default":
+            sort_criteria = [("score", -1), ("processed_at", -1)]
+        else:
+            sort_criteria = [(f"scores.{profile}", -1), ("processed_at", -1)]
+
+        cursor = self.db.listings.find(query).sort(sort_criteria).limit(limit * 3)
+        listings = list(cursor)
+
+        from Application.scoring import score_apartment_simple
+        scores_calculated = 0
+        for listing in listings:
+            score_value = listing.get('score')
+            # Case 1: score missing/None — always recalculate
+            if score_value is None or 'score' not in listing:
+                try:
+                    listing['score'] = score_apartment_simple(listing)
+                    scores_calculated += 1
+                    logging.debug(f"📊 Calculated missing score: {listing['score']:.1f}")
+                except Exception as e:
+                    logging.warning(f"⚠️ Could not calculate score: {e}")
+                    listing['score'] = 0.0
+            # Case 2: score is 0 — only recalculate if very recent (likely placeholder)
+            elif score_value == 0:
+                processed_at = listing.get('processed_at')
+                if processed_at and isinstance(processed_at, (int, float)):
+                    age_hours = (time.time() - processed_at) / 3600
+                    if age_hours < 24:
+                        try:
+                            listing['score'] = score_apartment_simple(listing)
+                            scores_calculated += 1
+                            logging.debug(f"📊 Recalculated recent score:0 (age: {age_hours:.1f}h): {listing['score']:.1f}")
+                        except Exception as e:
+                            logging.warning(f"⚠️ Could not recalculate score: {e}")
+
+        if scores_calculated > 0:
+            logging.info(f"📊 Calculated scores for {scores_calculated} listings that were missing scores")
+
+        if min_score > 0:
+            listings = [l for l in listings if (l.get('score', 0) or 0) >= min_score]
+
+        return sorted(listings, key=lambda x: (x.get('score', 0) or 0, x.get('processed_at', 0)), reverse=True)
+
+    def _apply_top_listings_exclusion_filters(self, listings, limit) -> List[Dict]:
+        """Drop rentals, price-on-request, and expensive-low-score listings; cap at limit."""
+        filtered = []
+        for listing in listings:
+            title = (listing.get('title') or '').lower()
+            description = (listing.get('description') or '').lower()
+            special_features = listing.get('special_features', []) or []
+
+            # Skip rentals (title/description, then special_features)
+            if any(kw in title or kw in description for kw in RENTAL_KEYWORDS):
+                continue
+            if special_features and any(
+                any(kw in str(f).lower() for kw in RENTAL_KEYWORDS) for f in special_features
+            ):
+                continue
+
+            # Drop "Preis auf Anfrage" / missing prices
+            price_total = listing.get('price_total')
+            if not isinstance(price_total, (int, float)) or price_total <= 0:
+                continue
+
+            # Filter out "Preis auf Anfrage" (title/description, then special_features)
+            if any(kw in title or kw in description for kw in PRICE_ON_REQUEST_KEYWORDS):
+                continue
+            if special_features and any(
+                any(kw in str(f).lower() for kw in PRICE_ON_REQUEST_KEYWORDS) for f in special_features
+            ):
+                continue
+
+            # Apply stricter scoring for expensive properties
+            score = listing.get('score', 0) or 0
+            if price_total > 400000 and score < 40:
+                continue
+
+            filtered.append(listing)
+            if len(filtered) >= limit:
+                break
+
+        return filtered
+
+    def _log_top_listings_summary(self, filtered, total_count, min_score, days_old,
+                                   excluded_districts, min_rooms,
+                                   exclude_recently_sent, recently_sent_days) -> None:
+        """Log summary of top-listing search results."""
+        if days_old >= 365:
+            logging.info(f"📊 Found {len(filtered)} top listings (score >= {min_score}, all time)")
+        else:
+            logging.info(f"📊 Found {len(filtered)} top listings (score >= {min_score}, last {days_old} days)")
+        if excluded_districts:
+            logging.info(f"🚫 Excluded districts: {excluded_districts}")
+        if min_rooms > 0:
+            logging.info(f"🛏️ Minimum rooms: {min_rooms}")
+        if exclude_recently_sent:
+            logging.info(f"🚫 Excluded recently sent listings (last {recently_sent_days} days)")
+        logging.info(f"🚫 Filtered out {total_count - len(filtered)} rental/expensive properties")
 
     def _add_monthly_payment_calculation(self, listing: Dict):
         """
