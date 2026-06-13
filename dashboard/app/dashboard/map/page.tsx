@@ -3,25 +3,24 @@
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { ListingSidebar } from '@/components/ListingSidebar';
+import { MapView, type ViewportBounds, type LayerState } from '@/components/MapView';
+import { MapTopBar } from '@/components/MapTopBar';
+import { MapFilterPopover, type MapFilterState } from '@/components/MapFilterPopover';
+import { MapLayersPopover } from '@/components/MapLayersPopover';
+import { ListingRail } from '@/components/ListingRail';
 import { ListingDetail } from '@/components/ListingDetail';
-import { MapLegend } from '@/components/MapLegend';
-import { MapGuide } from '@/components/MapGuide';
-import { MapLayerToggle, type MapLayer } from '@/components/MapLayerToggle';
-import { PriceHeatmap } from '@/components/PriceHeatmap';
-import { SortOption } from '@/components/FilterBar';
-import { ProfileSelector } from '@/components/ProfileSelector';
-import { MapListing } from '@/lib/types';
+import { SelectedCard } from '@/components/SelectedCard';
 import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
-import { SelectedCard } from '@/components/SelectedCard';
 import { CompactListingStrip } from '@/components/CompactListingStrip';
+import { ProfileSelector } from '@/components/ProfileSelector';
+import { MapListing } from '@/lib/types';
 import { useListingsSSE } from '@/lib/sse';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import { useFilters } from '@/lib/useFilters';
-import type { ViewportBounds } from '@/components/MapView';
+import { SortOption } from '@/lib/filters';
 
-const MapView = dynamic(
+const MapViewDynamic = dynamic(
   () => import('@/components/MapView').then((m) => m.MapView),
   { ssr: false, loading: () => <MapLoadingState /> }
 );
@@ -45,19 +44,22 @@ function MapPage() {
 
   const [listings, setListings] = useState<MapListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [bounds, setBounds] = useState<ViewportBounds | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
-  const [layers, setLayers] = useState<Record<MapLayer, boolean>>({
-    ubahn: true,
+
+  // New layout state
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [layers, setLayers] = useState<LayerState>({
+    listings: true,
+    stations: false,
     schools: false,
-    pins: true,
   });
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
 
   const { newListings } = useListingsSSE();
 
@@ -168,81 +170,125 @@ function MapPage() {
     });
   }, [filteredListings, bounds]);
 
-  const highlightedListing = useMemo(
-    () => filteredListings.find((l) => l._id === highlightedId) ?? null,
-    [filteredListings, highlightedId]
+  // Apply rail sort to viewport listings
+  const sortedRailListings = useMemo(() => {
+    const arr = [...viewportListings];
+    arr.sort((a, b) => {
+      switch (railSort) {
+        case 'price_asc':
+          return (a.price_total ?? Infinity) - (b.price_total ?? Infinity);
+        case 'price_desc':
+          return (b.price_total ?? -1) - (a.price_total ?? -1);
+        case 'area_desc':
+          return (b.area_m2 ?? -1) - (a.area_m2 ?? -1);
+        case 'date_desc':
+          return 0; // no date on MapListing; preserve insertion order
+        case 'score_desc':
+        default:
+          return (b.score ?? -1) - (a.score ?? -1);
+      }
+    });
+    return arr;
+  }, [viewportListings, railSort]);
+
+  const selectedListing = useMemo(
+    () => listings.find((l) => l._id === selectedListingId) ?? null,
+    [listings, selectedListingId]
   );
 
-  const handlePinClick = useCallback((listing: MapListing) => {
-    setHighlightedId(listing._id);
-  }, []);
+  // MapFilterState translation: useFilters (URL) state ↔ MapFilterPopover local state
+  const mapFilterState: MapFilterState = useMemo(() => ({
+    district,
+    minScore: Number(minScore) || 0,
+    maxPrice: Number(maxPrice) || 0,
+    commuteTo: destName,
+  }), [district, minScore, maxPrice, destName]);
 
-  const handleSidebarSelect = useCallback((listing: MapListing) => {
-    if (highlightedId === listing._id) {
-      setDetailId(listing._id);
-    } else {
-      setDetailId(null);
-      setHighlightedId(listing._id);
-    }
-  }, [highlightedId]);
+  const applyMapFilters = useCallback((next: MapFilterState) => {
+    update({
+      district: next.district,
+      minScore: String(next.minScore),
+      maxPrice: String(next.maxPrice),
+      destName: next.commuteTo,
+    });
+  }, [update]);
+
+  // Active filter count for top-bar badge
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (minScore && minScore !== '0') n += 1;
+    if (district) n += 1;
+    if (maxPrice && maxPrice !== '500000') n += 1;
+    if (destName) n += 1;
+    if (showUnfinanceable) n += 1;
+    if (belowAvgPct) n += 1;
+    if (profile !== DEFAULT_PROFILE) n += 1;
+    return n;
+  }, [minScore, district, maxPrice, destName, showUnfinanceable, belowAvgPct, profile]);
+
+  // Layer counts
+  const layerCounts = useMemo(() => ({
+    listings: listings.length,
+    stations: 0,
+    schools: 0,
+  }), [listings]);
+
+  const handlePinClick = useCallback((listing: MapListing) => {
+    setSelectedListingId(listing._id);
+  }, []);
 
   const handleCloseDetail = useCallback(() => {
     setDetailId(null);
-    queueMicrotask(() => setHighlightedId(null));
+    setSelectedListingId(null);
   }, []);
 
   const handleViewDetails = useCallback((id: string) => {
     setDetailId(id);
-    setHighlightedId(null);
+    setSelectedListingId(null);
   }, []);
 
   return (
-    <div className="h-[calc(100dvh-48px)] max-h-[calc(100dvh-48px)] flex flex-col overflow-hidden bg-warm-bg">
-      {/* Header — ProfileSelector + nav to /dashboard */}
-      <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-4 shrink-0">
-        <a href={`/dashboard${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
-           className="text-sm text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          List
-        </a>
-        <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
-        <button
-          type="button"
-          onClick={() => setShowHeatmap(!showHeatmap)}
-          className={`px-3 py-1.5 text-sm rounded-md border ${showHeatmap ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-border hover:bg-gray-50'}`}
-          data-testid="heatmap-toggle"
-        >
-          {showHeatmap ? 'Hide heatmap' : 'Price heatmap'}
-        </button>
-        <div className="ml-auto">
-          <ProfileSelector value={profile} onChange={(v) => update({ profile: v })} />
-        </div>
-      </header>
-
-      {/* Body — split: top (map+sidebar) / bottom (listings strip) */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0 flex overflow-hidden">
-          {/* Desktop sidebar — filter controls only, compact */}
-          <div className="hidden md:block w-[260px] h-full shrink-0">
-            <ListingSidebar
-              listings={viewportListings}
-              minScore={minScore}
-              onMinScoreChange={(v) => update({ minScore: v })}
-              district={district}
-              onDistrictChange={(v) => update({ district: v })}
-              onRefresh={fetchListings}
-              selectedId={highlightedId}
-              onSelect={handleSidebarSelect}
-              sortBy={sortBy}
-              onSortChange={(v) => update({ sortBy: v })}
-              viewportCount={viewportListings.length}
-              hoveredId={hoveredId}
-              onHover={setHoveredId}
-              onHoverEnd={() => setHoveredId(null)}
+    <>
+      {/* DESKTOP — top bar + rail + map */}
+      <div className="hidden md:flex flex-col h-screen map-desktop bg-bg">
+        <MapTopBar
+          activeFilterCount={activeFilterCount}
+          filtersOpen={filtersOpen}
+          onFiltersClick={() => {
+            setFiltersOpen((o) => !o);
+            setLayersOpen(false);
+          }}
+          layersOpen={layersOpen}
+          onLayersClick={() => {
+            setLayersOpen((o) => !o);
+            setFiltersOpen(false);
+          }}
+          profileSlot={
+            <ProfileSelector
+              value={profile}
+              onChange={(v) => {
+                if (isValidProfile(v)) update({ profile: v });
+              }}
             />
-          </div>
+          }
+          filterPopover={
+            <MapFilterPopover
+              open={filtersOpen}
+              onClose={() => setFiltersOpen(false)}
+              initial={mapFilterState}
+              onApply={applyMapFilters}
+            />
+          }
+        />
+
+        <div className="flex flex-1 overflow-hidden">
+          <ListingRail
+            listings={sortedRailListings}
+            selectedId={selectedListingId}
+            onSelect={setSelectedListingId}
+            sortMode={railSort}
+            onSortChange={setRailSort}
+          />
 
           <div className="flex-1 relative">
             {loading ? (
@@ -255,88 +301,123 @@ function MapPage() {
               </div>
             ) : (
               <>
-                <MapView
-                  listings={listings}
-                  highlightedId={highlightedId}
-                  hoveredId={hoveredId}
-                  onHover={setHoveredId}
-                  onHoverEnd={() => setHoveredId(null)}
-                  onBoundsChange={setBounds}
-                  onPinClick={(id) => {
-                    const found = listings.find((l) => l._id === id);
-                    if (found) handlePinClick(found);
-                  }}
-                  onMapClick={handleCloseDetail}
-                  layerFilter={layers}
-                />
-                <SelectedCard
-                  listing={highlightedListing}
-                  onClose={handleCloseDetail}
-                  onViewDetails={handleViewDetails}
-                />
-                <MapLegend />
-                <MapGuide />
-                <MapLayerToggle
+                <MapViewDynamic
+                  listings={viewportListings}
+                  selectedListingId={selectedListingId}
                   layers={layers}
-                  onToggle={(l) => setLayers((prev) => ({ ...prev, [l]: !prev[l] }))}
-                />
-                <PriceHeatmap
-                  show={showHeatmap}
-                  points={listings
-                    .filter((l) => l.coordinates && l.price_total)
-                    .map((l) => ({
-                      lat: ((l.coordinates!.lat - 48.1) / 0.2) * 100,
-                      lon: ((l.coordinates!.lon - 16.3) / 0.3) * 100,
-                      weight: Math.min(1, l.price_total! / 1_000_000),
-                    }))}
+                  layersPopoverSlot={
+                    <MapLayersPopover
+                      open={layersOpen}
+                      onClose={() => setLayersOpen(false)}
+                      layers={layers}
+                      onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
+                      counts={layerCounts}
+                    />
+                  }
+                  onPinClick={handlePinClick}
+                  onMapClick={() => setSelectedListingId(null)}
+                  onBoundsChange={setBounds}
                 />
               </>
             )}
-          </div>
-        </div>
 
-        {/* Bottom strip — listings grid that fits the rest of the viewport */}
-        <div className="h-[40vh] min-h-[220px] max-h-[50vh] border-t border-gray-200 bg-white overflow-y-auto shrink-0">
-          <CompactListingStrip
-            listings={filteredListings}
-            hoveredId={hoveredId}
-            highlightedId={highlightedId}
-            onHover={setHoveredId}
-            onHoverEnd={() => setHoveredId(null)}
-            onClick={handleSidebarSelect}
-          />
+            {selectedListing && !loading && (
+              <div data-testid="selected-card-slot" className="absolute inset-0 pointer-events-none">
+                <div className="pointer-events-auto">
+                  <SelectedCard
+                    listing={selectedListing}
+                    onClose={handleCloseDetail}
+                    onViewDetails={handleViewDetails}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Mobile filter FAB */}
-      <button
-        onClick={() => setFilterDrawerOpen(true)}
-        className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-accent text-white shadow-lg flex items-center justify-center z-[1100] hover:opacity-90 transition-opacity"
-        aria-label="Open filters"
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-        </svg>
-      </button>
+      {/* MOBILE — existing BottomSheet flow */}
+      <div data-testid="mobile-map-fallback" className="md:hidden">
+        <div className="h-[calc(100dvh-48px)] max-h-[calc(100dvh-48px)] flex flex-col overflow-hidden bg-warm-bg">
+          <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-4 shrink-0">
+            <a href={`/dashboard${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+               className="text-sm text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              List
+            </a>
+            <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
+            <div className="ml-auto">
+              <ProfileSelector value={profile} onChange={(v) => update({ profile: v })} />
+            </div>
+          </header>
 
-      {/* Filter drawer (mobile) */}
-      <FilterDrawer
-        open={filterDrawerOpen}
-        onClose={() => setFilterDrawerOpen(false)}
-        profile={profile}
-        onProfileChange={(v) => update({ profile: v })}
-        minScore={minScore}
-        onMinScoreChange={(v) => update({ minScore: v })}
-        district={district}
-        onDistrictChange={(v) => update({ district: v })}
-        onRefresh={fetchListings}
-        sortBy={sortBy}
-        onSortChange={(v) => update({ sortBy: v })}
-        maxPrice={maxPrice}
-        onMaxPriceChange={(v) => update({ maxPrice: v })}
-        showUnfinanceable={showUnfinanceable}
-        onShowUnfinanceableChange={(v) => update({ showUnfinanceable: v })}
-      />
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 flex overflow-hidden">
+              <div className="flex-1 relative">
+                {loading ? (
+                  <div className="h-full flex items-center justify-center bg-gray-50">
+                    <p className="text-gray-500">Loading...</p>
+                  </div>
+                ) : listings.length === 0 ? (
+                  <div className="h-full flex items-center justify-center bg-gray-50">
+                    <p className="text-gray-400">No listings match your filters.</p>
+                  </div>
+                ) : (
+                  <MapViewDynamic
+                    listings={listings}
+                    selectedListingId={selectedListingId}
+                    layers={layers}
+                    onPinClick={handlePinClick}
+                    onMapClick={handleCloseDetail}
+                    onBoundsChange={setBounds}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="h-[40vh] min-h-[220px] max-h-[50vh] border-t border-gray-200 bg-white overflow-y-auto shrink-0">
+              <CompactListingStrip
+                listings={filteredListings}
+                hoveredId={null}
+                highlightedId={selectedListingId}
+                onHover={() => {}}
+                onHoverEnd={() => {}}
+                onClick={(l) => setSelectedListingId(l._id)}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={() => setFilterDrawerOpen(true)}
+            className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-accent text-white shadow-lg flex items-center justify-center z-[1100] hover:opacity-90 transition-opacity"
+            aria-label="Open filters"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+          </button>
+
+          <FilterDrawer
+            open={filterDrawerOpen}
+            onClose={() => setFilterDrawerOpen(false)}
+            profile={profile}
+            onProfileChange={(v) => update({ profile: v })}
+            minScore={minScore}
+            onMinScoreChange={(v) => update({ minScore: v })}
+            district={district}
+            onDistrictChange={(v) => update({ district: v })}
+            onRefresh={fetchListings}
+            sortBy={sortBy}
+            onSortChange={(v) => update({ sortBy: v })}
+            maxPrice={maxPrice}
+            onMaxPriceChange={(v) => update({ maxPrice: v })}
+            showUnfinanceable={showUnfinanceable}
+            onShowUnfinanceableChange={(v) => update({ showUnfinanceable: v })}
+          />
+        </div>
+      </div>
 
       {detailId && (
         <ListingDetail
@@ -344,7 +425,7 @@ function MapPage() {
           onClose={handleCloseDetail}
         />
       )}
-    </div>
+    </>
   );
 }
 

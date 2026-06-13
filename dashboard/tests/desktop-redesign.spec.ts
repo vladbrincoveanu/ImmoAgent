@@ -95,3 +95,16 @@ test('T8: SelectedCard opens at bottom-left 320px wide with fact chips and View 
   await expect(card.locator('[data-testid="fact-score"]')).toBeVisible();
   await expect(card.locator('[data-testid="view-listing-cta"]')).toBeVisible();
 });
+
+test('T9: Desktop layout shows top-bar + rail + map; mobile shows BottomSheet fallback at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/dashboard/map');
+  await expect(page.locator('[data-testid="map-top-bar"]')).toBeVisible();
+  await expect(page.locator('[data-testid="listing-rail"]')).toBeVisible();
+  await expect(page.locator('#map')).toBeVisible();
+
+  // Mobile fallback
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.reload();
+  await expect(page.locator('[data-testid="mobile-map-fallback"]')).toBeVisible();
+});
