@@ -10,3 +10,14 @@ test('ListingRail renders at 340px width with count + sort header', async ({ pag
   await expect(rail.locator('[data-testid="rail-count"]')).toContainText(/\d+ in view/);
   await expect(rail.locator('[data-testid="rail-sort"]')).toBeVisible();
 });
+
+test('MapTopBar shows brand "Immo Scouter", Filters button with badge, Layers button', async ({ page }) => {
+  await page.goto('/dashboard/map');
+  const top = page.locator('[data-testid="map-top-bar"]');
+  await expect(top).toBeVisible();
+  const box = await top.boundingBox();
+  expect(box?.height).toBe(56);
+  await expect(top.locator('[data-testid="brand"]')).toHaveText('Immo Scouter');
+  await expect(top.locator('[data-testid="filters-btn"]')).toBeVisible();
+  await expect(top.locator('[data-testid="layers-btn"]')).toBeVisible();
+});
