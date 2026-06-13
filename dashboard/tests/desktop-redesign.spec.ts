@@ -21,3 +21,14 @@ test('MapTopBar shows brand "Immo Scouter", Filters button with badge, Layers bu
   await expect(top.locator('[data-testid="filters-btn"]')).toBeVisible();
   await expect(top.locator('[data-testid="layers-btn"]')).toBeVisible();
 });
+
+test('MapFilterPopover opens on Filters click, Apply sets badge, closes popover', async ({ page }) => {
+  await page.goto('/dashboard/map');
+  await page.locator('[data-testid="filters-btn"]').click();
+  const pop = page.locator('[data-testid="filter-popover"]');
+  await expect(pop).toBeVisible();
+  await pop.locator('[data-testid="filter-min-score"]').fill('25');
+  await pop.locator('[data-testid="filter-apply"]').click();
+  await expect(pop).toBeHidden();
+  await expect(page.locator('[data-testid="filter-count-badge"]')).toHaveText('1');
+});
