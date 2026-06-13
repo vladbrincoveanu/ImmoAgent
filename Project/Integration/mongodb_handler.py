@@ -486,8 +486,8 @@ class MongoDBHandler:
                 excluded_districts, min_rooms, exclude_recently_sent, recently_sent_days,
             )
             return filtered
-        except Exception as e:
-            logging.error(f"Error fetching top listings: {e}")
+        except pymongo.errors.PyMongoError as e:
+            logging.error(f"MongoDB error fetching top listings: {e}")
             return []
 
     def _build_top_listings_query(self, days_old, min_score, excluded_districts,
