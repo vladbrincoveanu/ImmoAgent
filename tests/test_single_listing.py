@@ -7,7 +7,7 @@ import sys
 import json
 import requests
 from bs4 import BeautifulSoup
-from Project.Application.analyzer import StructuredAnalyzer, OllamaAnalyzer
+from Project.Application.analyzer import StructuredAnalyzer
 import unittest
 
 class TestSingleListing(unittest.TestCase):

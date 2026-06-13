@@ -11,7 +11,9 @@ if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.discover('tests', pattern='test_*.py')
     
-    runner = unittest.TextTestRunner(verbosity=2)
+    # Quiet by default (token-efficient for agents); -v restores verbose output
+    verbosity = 2 if "-v" in sys.argv or "--verbose" in sys.argv else 1
+    runner = unittest.TextTestRunner(verbosity=verbosity)
     result = runner.run(suite)
     
     # Exit with a non-zero status code if any tests failed
