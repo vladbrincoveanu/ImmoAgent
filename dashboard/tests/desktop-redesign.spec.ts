@@ -48,3 +48,32 @@ test('MapLayersPopover toggles U-Bahn + Schools; default state has only Listings
   await page.locator('body').click({ position: { x: 10, y: 10 } });
   await expect(pop).toBeHidden();
 });
+
+test('T7: price pins use single navy color by default, blue when selected, no tier-style variations', async ({ page }) => {
+  await page.goto('/dashboard/map');
+  await page.waitForSelector('.leaflet-marker-icon', { timeout: 10000 });
+  await page.waitForTimeout(500);
+
+  // Collect default pin background colors
+  const defaultColors = await page.evaluate(() => {
+    const icons = Array.from(document.querySelectorAll('.leaflet-marker-icon > div')) as HTMLElement[];
+    return icons.map((el) => window.getComputedStyle(el).backgroundColor);
+  });
+
+  // Every pin should be navy (#16243a → rgb(22, 36, 58)) by default
+  const NAVY = 'rgb(22, 36, 58)';
+  for (const c of defaultColors) {
+    expect(c, `default pin color mismatch: ${c}`).toBe(NAVY);
+  }
+
+  // Click first marker → that pin should turn blue
+  const first = page.locator('.leaflet-marker-icon').first();
+  await first.click();
+  await page.waitForTimeout(400);
+
+  const selectedColor = await first.locator('div').first().evaluate(
+    (el) => window.getComputedStyle(el as HTMLElement).backgroundColor
+  );
+  const SELECTED = 'rgb(36, 86, 230)';
+  expect(selectedColor, `selected pin color mismatch: ${selectedColor}`).toBe(SELECTED);
+});

@@ -4,24 +4,18 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap, useMapEv
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapListing } from '@/lib/types';
-import { useEffect, useRef, useState, memo, useCallback } from 'react';
+import { useEffect, useRef, useState, memo, useCallback, ReactNode } from 'react';
 
-const EXACT_COLOR = '#ef4444';
-const LANDMARK_COLOR = '#f97316';
-const DISTRICT_COLOR = '#3B82F6';
-const HIGHLIGHT_COLOR = '#E07A5F';
-const UBAHN_COLOR = '#1d4ed8';
-const SCHOOL_COLOR = '#16a34a';
-const HOVER_COLOR = '#FBBF24';
+const PIN_COLOR_DEFAULT = '#16243a';
+const PIN_COLOR_SELECTED = '#2456e6';
+const STATION_COLOR = '#3b6fd4';
+const SCHOOL_COLOR = '#2ba56b';
 
-type PinState = 'exact' | 'landmark' | 'district' | 'highlighted' | 'hovered';
-type MarkerTier = 'default' | 'hovered' | 'highlighted';
-
-const TIER_STYLES: Record<MarkerTier, { fontSize: string; padding: string; border: string; shadow: string; h: number }> = {
-  default:     { fontSize: '9px',  padding: '1px 4px', border: '1px solid white',   shadow: '0 1px 3px rgba(0,0,0,0.3)',  h: 16 },
-  hovered:     { fontSize: '10px', padding: '2px 5px', border: '1.5px solid white', shadow: '0 2px 6px rgba(0,0,0,0.35)', h: 20 },
-  highlighted: { fontSize: '12px', padding: '3px 7px', border: '2px solid white',   shadow: '0 3px 8px rgba(0,0,0,0.45)', h: 24 },
-};
+export interface LayerState {
+  listings: boolean;
+  stations: boolean;
+  schools: boolean;
+}
 
 function formatPrice(price: number): string {
   if (price >= 1000000) return `${(price / 1000000).toFixed(1)}M`;
@@ -29,50 +23,20 @@ function formatPrice(price: number): string {
   return String(price);
 }
 
-function getPinState(listing: MapListing, highlightedId: string | null, hoveredId: string | null): PinState {
-  if (hoveredId === listing._id) return 'hovered';
-  if (highlightedId === listing._id) return 'highlighted';
-  if (listing.coordinate_source === 'landmark') return 'landmark';
-  if (listing.coordinate_source === 'district') return 'district';
-  return 'exact';
-}
-
-function getPinColor(state: PinState): string {
-  switch (state) {
-    case 'highlighted': return HIGHLIGHT_COLOR;
-    case 'hovered': return HOVER_COLOR;
-    case 'landmark': return LANDMARK_COLOR;
-    case 'district': return DISTRICT_COLOR;
-    default: return EXACT_COLOR;
-  }
-}
-
-function getTier(state: PinState): MarkerTier {
-  if (state === 'highlighted') return 'highlighted';
-  if (state === 'hovered') return 'hovered';
-  return 'default';
-}
-
-function createPriceIcon(price: number, color: string, tier: MarkerTier): L.DivIcon {
-  const s = TIER_STYLES[tier];
+function createPriceIcon(price: number, selected: boolean): L.DivIcon {
   const label = `€${formatPrice(price)}`;
+  const color = selected ? PIN_COLOR_SELECTED : PIN_COLOR_DEFAULT;
+  const fontSize = selected ? '10px' : '9px';
+  const padding = selected ? '2px 5px' : '1px 4px';
+  const border = selected ? '1.5px solid white' : '1px solid white';
+  const shadow = selected ? '0 2px 6px rgba(0,0,0,0.35)' : '0 1px 3px rgba(0,0,0,0.3)';
+  const h = selected ? 20 : 16;
   return L.divIcon({
-    html: `<div style="background:${color};color:white;font-size:${s.fontSize};font-weight:700;padding:${s.padding};border-radius:999px;white-space:nowrap;box-shadow:${s.shadow};border:${s.border};font-family:system-ui,-apple-system,sans-serif;">${label}</div>`,
-    iconSize: [Math.max(40, label.length * 7 + 8), s.h],
-    iconAnchor: [Math.max(40, label.length * 7 + 8) / 2, s.h / 2],
+    html: `<div style="background:${color};color:white;font-size:${fontSize};font-weight:700;padding:${padding};border-radius:999px;white-space:nowrap;box-shadow:${shadow};border:${border};font-family:system-ui,-apple-system,sans-serif;">${label}</div>`,
+    iconSize: [Math.max(40, label.length * 7 + 8), h],
+    iconAnchor: [Math.max(40, label.length * 7 + 8) / 2, h / 2],
     className: '',
   });
-}
-
-interface MapViewProps {
-  listings: MapListing[];
-  highlightedId: string | null;
-  hoveredId?: string | null;
-  onHover?: (id: string | null) => void;
-  onHoverEnd?: () => void;
-  onBoundsChange?: (bounds: ViewportBounds) => void;
-  onPinClick: (listing: MapListing) => void;
-  onMapClick?: () => void;
 }
 
 export interface ViewportBounds {
@@ -80,6 +44,32 @@ export interface ViewportBounds {
   south: number;
   east: number;
   west: number;
+}
+
+interface StationFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: { kind: 'ubahn'; name: string; district?: string };
+}
+
+interface SchoolFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: { kind: 'school'; name: string; type?: string };
+}
+
+interface MapViewProps {
+  listings: MapListing[];
+  selectedListingId: string | null;
+  layers: LayerState;
+  layersPopoverSlot?: ReactNode;
+  stationData?: StationFeature[] | null;
+  schoolData?: SchoolFeature[] | null;
+  onPinClick: (listing: MapListing) => void;
+  onMapClick?: () => void;
+  onHover?: (id: string) => void;
+  onHoverEnd?: () => void;
+  onBoundsChange?: (bounds: ViewportBounds) => void;
 }
 
 function MapClickHandler({ onMapClick }: { onMapClick?: () => void }) {
@@ -116,20 +106,18 @@ function BoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: ViewportB
 
 function MarkerLayer({
   listings,
-  highlightedId,
-  hoveredId,
+  selectedListingId,
+  showPins,
   onPinClick,
   onHover,
   onHoverEnd,
-  showPins = true,
 }: {
   listings: MapListing[];
-  highlightedId: string | null;
-  hoveredId?: string | null;
+  selectedListingId: string | null;
+  showPins: boolean;
   onPinClick: (listing: MapListing) => void;
   onHover?: (id: string) => void;
   onHoverEnd?: () => void;
-  showPins?: boolean;
 }) {
   const map = useMap();
   const markerInstances = useRef<Map<string, L.Marker>>(new Map());
@@ -165,10 +153,8 @@ function MarkerLayer({
     listings.forEach((listing) => {
       if (!listing.coordinates) return;
 
-      const state = getPinState(listing, highlightedId ?? null, hoveredId ?? null);
-      const color = getPinColor(state);
-      const tier = getTier(state);
-      const icon = createPriceIcon(listing.price_total ?? 0, color, tier);
+      const selected = listing._id === selectedListingId;
+      const icon = createPriceIcon(listing.price_total ?? 0, selected);
 
       let marker = markerInstances.current.get(listing._id);
       if (marker) {
@@ -183,99 +169,86 @@ function MarkerLayer({
         markerInstances.current.set(listing._id, marker);
       }
     });
-  }, [map, listings, highlightedId, hoveredId, onPinClick, onHover, onHoverEnd, showPins]);
+  }, [map, listings, selectedListingId, onPinClick, onHover, onHoverEnd, showPins]);
 
   return null;
 }
 
-interface InfraFeature {
-  type: 'Feature';
-  geometry: { type: 'Point'; coordinates: [number, number] };
-  properties: { kind: 'ubahn' | 'school'; name: string; type?: string; district?: string };
-}
-
-function InfrastructureLayer({ show, filter }: { show: boolean; filter?: { ubahn: boolean; schools: boolean; pins: boolean } }) {
-  const [features, setFeatures] = useState<InfraFeature[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!show) {
-      setFeatures([]);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    fetch('/api/geo/infrastructure')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled && d?.features) setFeatures(d.features);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [show]);
-
-  if (!show || loading || features.length === 0) return null;
-  const showUbahn = !filter || filter.ubahn;
-  const showSchools = !filter || filter.schools;
-  const visibleFeatures = features.filter((f) =>
-    (f.properties.kind === 'ubahn' && showUbahn) ||
-    (f.properties.kind === 'school' && showSchools)
-  );
-
+function StationsLayer({ stations }: { stations: StationFeature[] }) {
+  if (!stations || stations.length === 0) return null;
   return (
     <>
-      {visibleFeatures.map((f, i) => {
+      {stations.map((f, i) => {
         const [lon, lat] = f.geometry.coordinates;
-        const color = f.properties.kind === 'ubahn' ? UBAHN_COLOR : SCHOOL_COLOR;
-        const radius = f.properties.kind === 'ubahn' ? 7 : 5;
-        const isUbahn = f.properties.kind === 'ubahn';
-        const tooltipText = isUbahn
-          ? `U-Bahn ${f.properties.name}${f.properties.district ? ` (${f.properties.district})` : ''}`
-          : `School: ${f.properties.name}`;
         return (
           <CircleMarker
-            key={`${f.properties.kind}-${i}`}
+            key={`station-${i}`}
             center={[lat, lon]}
-            radius={radius}
-            pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 2 }}
-            data-testid={`infra-${f.properties.kind}-${i}`}
-            data-infra-kind={f.properties.kind}
+            radius={7}
+            pathOptions={{ color: STATION_COLOR, fillColor: STATION_COLOR, fillOpacity: 0.7, weight: 2 }}
+            data-testid={`infra-station-${i}`}
+            data-infra-kind="ubahn"
             data-infra-name={f.properties.name}
           >
-            {isUbahn && (
-              <Tooltip
-                permanent
-                direction="right"
-                offset={[6, 0]}
-                className="leaflet-infra-label"
-                opacity={1}
-                sticky
-              >
-                <span className="text-[10px] font-semibold text-[#1d4ed8]">
-                  {f.properties.name}
-                </span>
-              </Tooltip>
-            )}
-            {!isUbahn && (
-              <Tooltip direction="top" offset={[0, -4]} opacity={1}>
-                <span className="text-[10px] font-medium">
-                  {f.properties.name}
-                  {f.properties.type ? ` · ${f.properties.type}` : ''}
-                </span>
-              </Tooltip>
-            )}
+            <Tooltip
+              permanent
+              direction="right"
+              offset={[6, 0]}
+              className="leaflet-infra-label"
+              opacity={1}
+              sticky
+            >
+              <span className="text-[10px] font-semibold" style={{ color: STATION_COLOR }}>
+                {f.properties.name}
+              </span>
+            </Tooltip>
             <Popup>
               <div className="text-sm">
                 <div className="font-medium">{f.properties.name}</div>
                 <div className="text-gray-500 text-xs">
-                  {f.properties.kind === 'ubahn' ? 'U-Bahn station' : 'School'}
+                  U-Bahn station
                   {f.properties.district ? ` · ${f.properties.district}` : ''}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">transit</div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
+function SchoolsLayer({ schools }: { schools: SchoolFeature[] }) {
+  if (!schools || schools.length === 0) return null;
+  return (
+    <>
+      {schools.map((f, i) => {
+        const [lon, lat] = f.geometry.coordinates;
+        return (
+          <CircleMarker
+            key={`school-${i}`}
+            center={[lat, lon]}
+            radius={5}
+            pathOptions={{ color: SCHOOL_COLOR, fillColor: SCHOOL_COLOR, fillOpacity: 0.7, weight: 2 }}
+            data-testid={`infra-school-${i}`}
+            data-infra-kind="school"
+            data-infra-name={f.properties.name}
+          >
+            <Tooltip direction="top" offset={[0, -4]} opacity={1}>
+              <span className="text-[10px] font-medium">
+                {f.properties.name}
+                {f.properties.type ? ` · ${f.properties.type}` : ''}
+              </span>
+            </Tooltip>
+            <Popup>
+              <div className="text-sm">
+                <div className="font-medium">{f.properties.name}</div>
+                <div className="text-gray-500 text-xs">
+                  School
                   {f.properties.type ? ` · ${f.properties.type}` : ''}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {f.properties.kind === 'ubahn' ? '🚇 transit' : '🏫 education'}
-                </div>
+                <div className="text-xs text-gray-400 mt-1">education</div>
               </div>
             </Popup>
           </CircleMarker>
@@ -287,55 +260,55 @@ function InfrastructureLayer({ show, filter }: { show: boolean; filter?: { ubahn
 
 export const MapView = memo(function MapView({
   listings,
-  highlightedId,
-  hoveredId,
-  onHover,
-  onHoverEnd,
+  selectedListingId,
+  layers,
+  layersPopoverSlot,
+  stationData = null,
+  schoolData = null,
   onPinClick,
   onMapClick,
+  onHover,
+  onHoverEnd,
   onBoundsChange,
-  showInfrastructure = true,
-  layerFilter,
-}: {
-  listings: MapListing[];
-  highlightedId?: string | null;
-  hoveredId?: string | null;
-  onHover?: (id: string) => void;
-  onHoverEnd?: () => void;
-  onPinClick?: (id: string) => void;
-  onMapClick?: () => void;
-  onBoundsChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
-  showInfrastructure?: boolean;
-  layerFilter?: { ubahn: boolean; schools: boolean; pins: boolean };
-}) {
+}: MapViewProps) {
   const viennaCenter: [number, number] = [48.2082, 16.3738];
   const mapRef = useRef<L.Map | null>(null);
 
   return (
-    <MapContainer
-      center={viennaCenter}
-      zoom={13}
-      style={{ height: '100%', width: '100%' }}
-      className="rounded-lg"
-      ref={mapRef}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <div className="relative h-full w-full">
+      <MapContainer
+        center={viennaCenter}
+        zoom={13}
+        style={{ height: '100%', width: '100%' }}
+        className="rounded-lg"
+        ref={mapRef}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-      <BoundsTracker onBoundsChange={onBoundsChange} />
-      <MapClickHandler onMapClick={onMapClick} />
-      <InfrastructureLayer show={showInfrastructure} filter={layerFilter} />
-      <MarkerLayer
-        listings={listings}
-        highlightedId={highlightedId ?? null}
-        hoveredId={hoveredId ?? null}
-        onPinClick={(l) => onPinClick?.(l._id)}
-        onHover={onHover}
-        onHoverEnd={onHoverEnd}
-        showPins={!layerFilter || layerFilter.pins}
-      />
-    </MapContainer>
+        <BoundsTracker onBoundsChange={onBoundsChange} />
+        <MapClickHandler onMapClick={onMapClick} />
+        {layers.stations && <StationsLayer stations={stationData ?? []} />}
+        {layers.schools && <SchoolsLayer schools={schoolData ?? []} />}
+        {layers.listings && (
+          <MarkerLayer
+            listings={listings}
+            selectedListingId={selectedListingId}
+            onPinClick={onPinClick}
+            onHover={onHover}
+            onHoverEnd={onHoverEnd}
+            showPins={true}
+          />
+        )}
+      </MapContainer>
+
+      {layersPopoverSlot && (
+        <div className="absolute top-3 right-3 z-[1000] pointer-events-none">
+          <div className="pointer-events-auto">{layersPopoverSlot}</div>
+        </div>
+      )}
+    </div>
   );
 });
