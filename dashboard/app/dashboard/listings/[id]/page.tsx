@@ -4,16 +4,17 @@ import { getDb } from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
 interface Props {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function ListingDetailPage({ params }: Props) {
+  const { id: rawId } = await params
   let listing = null
   let db = null
   try {
     db = await getDb()
     if (!db) throw new Error('DB not available')
-    const id = params.id.includes('-') ? params.id : params.id
+    const id = rawId.includes('-') ? rawId : rawId
     listing = await db.collection('listings').findOne({ _id: new ObjectId(id) })
   } catch (e) {
     notFound()
