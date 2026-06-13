@@ -8,6 +8,7 @@ import json
 import time
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint
+from Application.helpers.mortgage import add_monthly_payment_calculation
 from Application.buyer_profiles import GLOBAL_VALIDATION, BUYER_PROFILES
 from Domain.constants import RENTAL_KEYWORDS, PRICE_ON_REQUEST_KEYWORDS
 import logging
@@ -478,7 +479,7 @@ class MongoDBHandler:
             )
             listings = self._fetch_and_score_listings(query, limit, profile, min_score)
             for listing in listings:
-                self._add_monthly_payment_calculation(listing)
+                add_monthly_payment_calculation(listing)
             filtered = self._apply_top_listings_exclusion_filters(listings, limit)
             self._log_top_listings_summary(
                 filtered, len(listings), min_score, days_old,
@@ -626,107 +627,6 @@ class MongoDBHandler:
         if exclude_recently_sent:
             logging.info(f"🚫 Excluded recently sent listings (last {recently_sent_days} days)")
         logging.info(f"🚫 Filtered out {total_count - len(filtered)} rental/expensive properties")
-
-    def _add_monthly_payment_calculation(self, listing: Dict):
-        """
-        Add monthly payment calculations to a listing using the new formula
-        Price increased by 10%, 20% down payment, 2.89% rate for 35 years
-        
-        Args:
-            listing: Listing dictionary to modify
-        """
-        try:
-            # Get base values, handle None values
-            betriebskosten = listing.get('betriebskosten', 0) or 0
-            price_total = listing.get('price_total', 0) or 0
-            
-            # Ensure all values are numbers
-            if not isinstance(betriebskosten, (int, float)):
-                betriebskosten = 0
-            if not isinstance(price_total, (int, float)):
-                price_total = 0
-            
-            if price_total > 0:
-                # Increase price by 10%
-                adjusted_price = price_total * 1.10
-                # Calculate 20% down payment from adjusted price
-                down_payment = adjusted_price * 0.20
-                # Calculate loan amount
-                loan_amount = adjusted_price - down_payment
-                
-                # Calculate monthly payment using the new formula
-                # €1,166 monthly rate for €304,570 loan at 2.89% for 35 years
-                # This gives us a ratio of approximately 0.00383
-                monthly_loan_payment = loan_amount * 0.00383
-                
-                # Calculate total monthly payment
-                total_monthly = monthly_loan_payment + betriebskosten
-                
-                # Add the calculations to the listing
-                listing['monthly_payment'] = {
-                    'loan_payment': monthly_loan_payment,
-                    'betriebskosten': betriebskosten,
-                    'total_monthly': total_monthly,
-                    'loan_amount': loan_amount,
-                    'down_payment': down_payment,
-                    'adjusted_price': adjusted_price
-                }
-                
-                # Update the calculated_monatsrate field for backward compatibility
-                listing['calculated_monatsrate'] = monthly_loan_payment
-                
-                # Update total_monthly_cost for backward compatibility
-                listing['total_monthly_cost'] = total_monthly
-                
-                # Add mortgage details
-                listing['mortgage_details'] = {
-                    'loan_amount': loan_amount,
-                    'annual_rate': 2.89,  # New rate
-                    'years': 35,
-                    'monthly_payment': monthly_loan_payment,
-                    'down_payment': down_payment,
-                    'adjusted_price': adjusted_price
-                }
-            else:
-                # Set default values if no price
-                listing['monthly_payment'] = {
-                    'loan_payment': 0,
-                    'betriebskosten': betriebskosten,
-                    'total_monthly': betriebskosten,
-                    'loan_amount': 0,
-                    'down_payment': 0,
-                    'adjusted_price': 0
-                }
-                listing['calculated_monatsrate'] = 0
-                listing['total_monthly_cost'] = betriebskosten
-                listing['mortgage_details'] = {
-                    'loan_amount': 0,
-                    'annual_rate': 2.89,
-                    'years': 35,
-                    'monthly_payment': 0,
-                    'down_payment': 0,
-                    'adjusted_price': 0
-                }
-            
-            # Fix score calculation: clamp negative scores to 0
-            score = listing.get('score', 0)
-            if score is not None and score < 0:
-                listing['score'] = max(0.0, score)
-                logging.info(f"Fixed negative score from {score} to {listing['score']}")
-            
-        except Exception as e:
-            logging.error(f"Error calculating monthly payment for listing: {e}")
-            # Set default values if calculation fails
-            listing['monthly_payment'] = {
-                'loan_payment': 0,
-                'betriebskosten': listing.get('betriebskosten', 0) or 0,
-                'total_monthly': listing.get('betriebskosten', 0) or 0,
-                'loan_amount': 0,
-                'down_payment': 0,
-                'adjusted_price': 0
-            }
-            listing['calculated_monatsrate'] = 0
-            listing['total_monthly_cost'] = listing.get('betriebskosten', 0) or 0
 
     @staticmethod
     def save_listings_to_mongodb(listings: list) -> int:
