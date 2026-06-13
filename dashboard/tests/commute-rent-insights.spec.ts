@@ -119,29 +119,51 @@ test.describe('Commute calculator + rent yield + max-commute filter', () => {
     await expect(page.locator('header [data-testid="profile-selector"]')).toBeVisible();
   });
 
-  test('MapLegend shows U-Bahn and school counts from /api/geo/infrastructure', async ({ page }) => {
+  test('MapLayersPopover shows U-Bahn and School layer rows with counts', async ({ page }) => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
-    const legend = page.locator('[data-testid="map-legend"]');
-    await expect(legend).toBeVisible();
-    await expect(legend).toContainText('U-Bahn');
-    await expect(legend).toContainText('School');
+    await page.waitForTimeout(1000);
+
+    // Open the layers popover from the map top bar
+    const layersBtn = page.locator('[data-testid="layers-btn"]');
+    await expect(layersBtn).toBeVisible();
+    await layersBtn.click();
+
+    const popover = page.locator('[data-testid="layers-popover"]');
+    await expect(popover).toBeVisible();
+
+    // The three layer rows from MapLayersPopover.tsx: Listings, U-Bahn stations, Schools
+    const stationsRow = popover.locator('[data-testid="layer-row-stations"]');
+    const schoolsRow = popover.locator('[data-testid="layer-row-schools"]');
+    const listingsRow = popover.locator('[data-testid="layer-row-listings"]');
+
+    await expect(stationsRow).toBeVisible();
+    await expect(stationsRow).toContainText('U-Bahn');
+    await expect(schoolsRow).toBeVisible();
+    await expect(schoolsRow).toContainText('School');
+    await expect(listingsRow).toBeVisible();
+    await expect(listingsRow).toContainText('Listings');
   });
 
-  test('MapGuide overlay explains every dot type so user knows what they mean', async ({ page }) => {
-    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle');
-    const guide = page.locator('[data-testid="map-guide"]');
-    await expect(guide).toBeVisible();
-    await expect(page.locator('[data-testid="legend-price-pin"]')).toContainText('Price pin');
-    await expect(page.locator('[data-testid="legend-ubahn"]')).toContainText('U-Bahn station');
-    await expect(page.locator('[data-testid="legend-school"]')).toContainText('School');
-  });
+  // MapGuide component was removed in T11. There is no longer a separate
+  // overlay explaining dot types — the new design uses the MapLayersPopover
+  // (tested above) as the single source of truth for what each layer means.
+  // This test was removed: MapGuide overlay explains every dot type so user
+  // knows what they mean.
 
   test('U-Bahn dots render with a permanent name label on the map (the literal complaint: "dots do not say anything")', async ({ page }) => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
+
+    // First enable the U-Bahn layer via the popover (default is off in T7)
+    const layersBtn = page.locator('[data-testid="layers-btn"]');
+    await expect(layersBtn).toBeVisible();
+    await layersBtn.click();
+    const popover = page.locator('[data-testid="layers-popover"]');
+    await popover.locator('[data-testid="layer-row-stations"]').click();
+    await page.waitForTimeout(800);
+
     const ubahnDots = page.locator('path[stroke="#1d4ed8"]');
     expect(await ubahnDots.count()).toBeGreaterThan(0);
     const labels = page.locator('.leaflet-infra-label');
@@ -154,10 +176,19 @@ test.describe('Commute calculator + rent yield + max-commute filter', () => {
     expect(hasKnownStation).toBeTruthy();
   });
 
-  test('School dots render on the map (hover tooltips show name)', async ({ page }) => {
+  test('School dots render on the map when Schools layer is enabled', async ({ page }) => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
+
+    // Enable Schools layer first (default is off)
+    const layersBtn = page.locator('[data-testid="layers-btn"]');
+    await expect(layersBtn).toBeVisible();
+    await layersBtn.click();
+    const popover = page.locator('[data-testid="layers-popover"]');
+    await popover.locator('[data-testid="layer-row-schools"]').click();
+    await page.waitForTimeout(800);
+
     const schoolDots = page.locator('path[stroke="#16a34a"]');
     expect(await schoolDots.count()).toBeGreaterThan(0);
   });

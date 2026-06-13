@@ -75,13 +75,26 @@ test.describe('Map overhaul — MacBook fit + profile + insights + comparables',
     expect(await cards.count()).toBe(7);
   });
 
-  test('MapLegend shows U-Bahn and school counts', async ({ page }) => {
+  test('MapLayersPopover shows U-Bahn and School layer rows (replaces MapLegend)', async ({ page }) => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
-    const legend = page.locator('[data-testid="map-legend"]');
-    await expect(legend).toBeVisible();
-    await expect(legend).toContainText('U-Bahn station');
-    await expect(legend).toContainText('School');
+    await page.waitForTimeout(1000);
+
+    // Open the layers popover from the map top bar
+    const layersBtn = page.locator('[data-testid="layers-btn"]');
+    await expect(layersBtn).toBeVisible();
+    await layersBtn.click();
+
+    const popover = page.locator('[data-testid="layers-popover"]');
+    await expect(popover).toBeVisible();
+
+    // The new popover shows layer names + per-layer counts
+    const stationsRow = popover.locator('[data-testid="layer-row-stations"]');
+    const schoolsRow = popover.locator('[data-testid="layer-row-schools"]');
+    await expect(stationsRow).toBeVisible();
+    await expect(stationsRow).toContainText('U-Bahn');
+    await expect(schoolsRow).toBeVisible();
+    await expect(schoolsRow).toContainText('School');
   });
 
   test('Clicking a listing card opens detail with comparables', async ({ page }) => {

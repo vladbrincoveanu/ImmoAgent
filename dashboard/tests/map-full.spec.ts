@@ -257,99 +257,12 @@ test.describe('BottomSheet (mobile viewport)', () => {
     expect(unexpected).toHaveLength(0);
   });
 
-  test('mobile filter FAB is visible', async ({ page }) => {
-    const errors = await collectErrors(page);
-    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await waitForMapReady(page);
-    await page.waitForTimeout(2000);
-
-    const fab = page.locator('[aria-label="Open filters"]');
-    await expect(fab).toBeVisible({ timeout: 8000 });
-
-    const unexpected = errors.filter(isUnexpectedError);
-    expect(unexpected).toHaveLength(0);
-  });
-
-  test('tapping filter FAB opens FilterDrawer', async ({ page }) => {
-    const errors = await collectErrors(page);
-    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await waitForMapReady(page);
-    await page.waitForTimeout(2000);
-
-    const fab = page.locator('[aria-label="Open filters"]');
-    await fab.click({ timeout: 5000 });
-    await page.waitForTimeout(800);
-
-    await expect(page.getByRole('heading', { name: 'Filters' })).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('button:has-text("Apply")')).toBeVisible({ timeout: 3000 });
-    await expect(page.locator('button:has-text("Reset")')).toBeVisible({ timeout: 3000 });
-
-    const unexpected = errors.filter(isUnexpectedError);
-    expect(unexpected).toHaveLength(0);
-  });
-
-  test('FilterDrawer closes via backdrop click', async ({ page }) => {
-    const errors = await collectErrors(page);
-    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await waitForMapReady(page);
-    await page.waitForTimeout(2000);
-
-    const fab = page.locator('[aria-label="Open filters"]');
-    await fab.click();
-    await page.waitForTimeout(800);
-
-    await expect(page.locator('button:has-text("Apply")')).toBeVisible({ timeout: 5000 });
-
-    const backdrop = page.locator('[class*="absolute inset-0 bg-black"]');
-    await backdrop.click({ position: { x: 10, y: 10 } });
-    await page.waitForTimeout(800);
-
-    await expect(page.getByRole('heading', { name: 'Filters' })).not.toBeVisible({ timeout: 5000 });
-
-    const unexpected = errors.filter(isUnexpectedError);
-    expect(unexpected).toHaveLength(0);
-  });
-
-  test('FilterDrawer Close button works', async ({ page }) => {
-    const errors = await collectErrors(page);
-    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await waitForMapReady(page);
-    await page.waitForTimeout(2000);
-
-    const fab = page.locator('[aria-label="Open filters"]');
-    await fab.click();
-    await page.waitForTimeout(800);
-
-    await expect(page.locator('button:has-text("Apply")')).toBeVisible({ timeout: 5000 });
-
-    const closeBtn = page.locator('[aria-label="Close filters"]');
-    await closeBtn.click();
-    await page.waitForTimeout(800);
-
-    await expect(page.getByRole('heading', { name: 'Filters' })).not.toBeVisible({ timeout: 5000 });
-
-    const unexpected = errors.filter(isUnexpectedError);
-    expect(unexpected).toHaveLength(0);
-  });
-
-  test('FilterDrawer Reset button is present', async ({ page }) => {
-    const errors = await collectErrors(page);
-    await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await waitForMapReady(page);
-    await page.waitForTimeout(2000);
-
-    const fab = page.locator('[aria-label="Open filters"]');
-    await fab.click();
-    await page.waitForTimeout(800);
-
-    await expect(page.locator('button:has-text("Reset")')).toBeVisible({ timeout: 5000 });
-
-    const closeBtn = page.locator('[aria-label="Close filters"]');
-    await closeBtn.click();
-
-    const unexpected = errors.filter(isUnexpectedError);
-    expect(unexpected).toHaveLength(0);
-  });
+  // FilterDrawer was removed from /map in T9. The /map page no longer mounts a
+  // FilterDrawer at any viewport (mobile uses BottomSheet's own filter entry,
+  // desktop uses MapFilterPopover via the top bar). FilterDrawer behavior is
+  // already covered by MapFilterPopover tests in tests/desktop-redesign.spec.ts (T5).
+  // The 4 FilterDrawer tests have been removed: tapping FAB opens drawer,
+  // backdrop close, Close button, Reset button.
 });
 
 test.describe('ListingDetail modal', () => {

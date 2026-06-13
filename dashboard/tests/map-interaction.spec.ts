@@ -153,7 +153,7 @@ test.describe('Map interaction freeze tests', () => {
     expect(unexpected.length).toBe(0);
   });
 
-  test('pin click shows SelectedCard, map click dismisses it', async ({ page }) => {
+  test('pin click shows SelectedCard at bottom-left 320px, map click dismisses it', async ({ page }) => {
     const errors: string[] = [];
     page.on('console', msg => {
       if (msg.type() === 'error') errors.push(msg.text());
@@ -178,14 +178,28 @@ test.describe('Map interaction freeze tests', () => {
     await markers.first().click({ timeout: 5000, force: true });
     await page.waitForTimeout(400);
 
-    const viewDetails = page.locator('button:has-text("View details")').or(page.locator('text=View details →')).first();
-    const cardVisible = await viewDetails.isVisible().catch(() => false);
+    // T8: SelectedCard is now at bottom-left 320px wide (was bottom-center max-w-md)
+    const card = page.locator('[data-testid="selected-card"]');
+    const cardVisible = await card.isVisible().catch(() => false);
     if (cardVisible) {
+      const box = await card.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.width).toBe(320);
+      // Bottom-left: x should be small (< 50)
+      expect(box?.x).toBeLessThan(50);
+      // Vertical position should be in the lower half of the viewport
+      expect(box?.y).toBeGreaterThan(400);
+
+      // View listing CTA replaces the old "View details" button
+      const viewCta = card.locator('[data-testid="view-listing-cta"]');
+      await expect(viewCta).toBeVisible();
+
+      // Map click dismisses
       const bbox = await leaflet.boundingBox();
       if (bbox) {
         await page.mouse.click(bbox.x + 10, bbox.y + 10);
         await page.waitForTimeout(300);
-        await expect(viewDetails).not.toBeVisible();
+        await expect(card).not.toBeVisible();
       }
     }
 
