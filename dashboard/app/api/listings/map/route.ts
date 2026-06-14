@@ -89,62 +89,64 @@ export async function GET(request: NextRequest) {
 
     const PRICE_PER_SQM = (config?.PRICE_PER_SQM as number | undefined) ?? 7000;
 
-    const result: MapListing[] = listings.map((l: WithId<Document>) => {
-      // Price imputation: use area_m2 × PRICE_PER_SQM when price_total is missing
-      const hasPrice = typeof l.price_total === 'number' && (l.price_total as number) > 0;
-      const price_is_estimated = !hasPrice && typeof l.area_m2 === 'number' && (l.area_m2 as number) > 0;
-      const price_total = hasPrice
-        ? (l.price_total as number)
-        : price_is_estimated
-          ? Math.round((l.area_m2 as number) * PRICE_PER_SQM)
-          : null;
+    const result: MapListing[] = listings
+      .map((l: WithId<Document>) => {
+        // Price imputation: use area_m2 × PRICE_PER_SQM when price_total is missing
+        const hasPrice = typeof l.price_total === 'number' && (l.price_total as number) > 0;
+        const price_is_estimated = !hasPrice && typeof l.area_m2 === 'number' && (l.area_m2 as number) > 0;
+        const price_total = hasPrice
+          ? (l.price_total as number)
+          : price_is_estimated
+            ? Math.round((l.area_m2 as number) * PRICE_PER_SQM)
+            : null;
 
-      // Use actual coordinates if available, otherwise fall back to district centroid
-      let coordinates = l.coordinates as { lat: number; lon: number } | null | undefined;
-      const COORD_SOURCES = new Set(['exact', 'landmark', 'district', 'none']);
-      const rawSource = (l.coordinate_source as string) || 'none';
-      let coordinate_source: 'exact' | 'landmark' | 'district' | 'none' =
-        COORD_SOURCES.has(rawSource) ? (rawSource as 'exact' | 'landmark' | 'district' | 'none') : 'none';
+        // Use actual coordinates if available, otherwise fall back to district centroid
+        let coordinates = l.coordinates as { lat: number; lon: number } | null | undefined;
+        const COORD_SOURCES = new Set(['exact', 'landmark', 'district', 'none']);
+        const rawSource = (l.coordinate_source as string) || 'none';
+        let coordinate_source: 'exact' | 'landmark' | 'district' | 'none' =
+          COORD_SOURCES.has(rawSource) ? (rawSource as 'exact' | 'landmark' | 'district' | 'none') : 'none';
 
-      if (!coordinates) {
-        const centroid = resolveCoordinates(undefined, l.bezirk as string | null);
-        if (centroid) {
-          coordinates = centroid;
-          coordinate_source = 'district';
+        if (!coordinates) {
+          const centroid = resolveCoordinates(undefined, l.bezirk as string | null);
+          if (centroid) {
+            coordinates = centroid;
+            coordinate_source = 'district';
+          }
         }
-      }
 
-      const scores = (l as { scores?: Record<string, number | null> }).scores;
-      const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
-      const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
-      const priceVsAvgPct = price_total != null && zoneAvg && zoneAvg > 0
-        ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
-        : null;
-      return {
-        _id: l._id.toString(),
-        title: l.title,
-        url: l.url,
-        source_enum: l.source_enum,
-        bezirk: l.bezirk,
-        price_total,
-        area_m2: l.area_m2,
-        rooms: l.rooms,
-        score: (scores?.[profile] ?? l.score ?? null) as number | null,
-        scores: scores ?? null,
-        profile,
-        image_url: l.image_url || null,
-        coordinates: coordinates ?? null,
-        coordinate_source,
-        landmark_hint: l.landmark_hint || null,
-        price_is_estimated,
-        estimated_down_pct: l.estimated_down_pct ?? undefined,
-        estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
-        estimated_equity_eur: l.estimated_equity_eur ?? undefined,
-        bank_score_confidence: l.bank_score_confidence ?? undefined,
-        price_vs_avg_pct: priceVsAvgPct,
-        ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
-      };
-    });
+        const scores = (l as { scores?: Record<string, number | null> }).scores;
+        const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
+        const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
+        const priceVsAvgPct = price_total != null && zoneAvg && zoneAvg > 0
+          ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
+          : null;
+        return {
+          _id: l._id.toString(),
+          title: l.title,
+          url: l.url,
+          source_enum: l.source_enum,
+          bezirk: l.bezirk,
+          price_total,
+          area_m2: l.area_m2,
+          rooms: l.rooms,
+          score: (scores?.[profile] ?? l.score ?? null) as number | null,
+          scores: scores ?? null,
+          profile,
+          image_url: l.image_url || null,
+          coordinates: coordinates ?? null,
+          coordinate_source,
+          landmark_hint: l.landmark_hint || null,
+          price_is_estimated,
+          estimated_down_pct: l.estimated_down_pct ?? undefined,
+          estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
+          estimated_equity_eur: l.estimated_equity_eur ?? undefined,
+          bank_score_confidence: l.bank_score_confidence ?? undefined,
+          price_vs_avg_pct: priceVsAvgPct,
+          ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
+        };
+      })
+      .filter((l) => l.coordinate_source === 'exact' || l.coordinate_source === 'landmark');
 
     return NextResponse.json({ listings: result, total: result.length });
   } catch (err) {
