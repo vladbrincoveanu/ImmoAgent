@@ -1,9 +1,11 @@
 'use client';
 
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, GeoJSON, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { Feature, GeoJsonObject } from 'geojson';
 import { MapListing } from '@/lib/types';
+import { priceToColor } from '@/lib/heatmap-color';
 import { useEffect, useRef, useState, memo, useCallback, ReactNode } from 'react';
 
 const PIN_COLOR_DEFAULT = '#16243a';
@@ -15,6 +17,7 @@ export interface LayerState {
   listings: boolean;
   stations: boolean;
   schools: boolean;
+  heatmap: boolean;
 }
 
 function formatPrice(price: number): string {
@@ -297,6 +300,55 @@ function SchoolsLayer({ schools }: { schools: SchoolFeature[] }) {
   );
 }
 
+type DistrictStats = Record<string, { avg_price_per_m2: number; count: number }>;
+
+function DistrictHeatmapLayer({ visible }: { visible: boolean }) {
+  const [geojson, setGeojson] = useState<GeoJsonObject | null>(null);
+  const [stats, setStats] = useState<DistrictStats>({});
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    Promise.all([
+      fetch('/vienna-districts.geojson').then((r) => r.json()),
+      fetch('/api/district-heatmap').then((r) => r.json()),
+    ])
+      .then(([gj, s]) => {
+        if (cancelled) return;
+        setGeojson(gj as GeoJsonObject);
+        setStats((s?.districts ?? {}) as DistrictStats);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
+  if (!visible || !geojson) return null;
+
+  const styleFn = (feature?: Feature): L.PathOptions => {
+    const bezirk = feature?.properties?.bezirk as string | undefined;
+    const stat = bezirk ? stats[bezirk] : undefined;
+    if (!stat) return { fillOpacity: 0, weight: 0, opacity: 0 };
+    return { fillColor: priceToColor(stat.avg_price_per_m2), fillOpacity: 0.45, color: '#ffffff', weight: 1 };
+  };
+
+  const onEachFeature = (feature: Feature, layer: L.Layer) => {
+    const bezirk = feature.properties?.bezirk as string | undefined;
+    const stat = bezirk ? stats[bezirk] : undefined;
+    if (bezirk && stat) {
+      layer.bindTooltip(
+        `${bezirk} · Ø €${stat.avg_price_per_m2.toLocaleString('de-AT')}/m² · ${stat.count} listings`,
+        { sticky: true, direction: 'top' },
+      );
+    }
+  };
+
+  // key forces GeoJSON to re-apply styles once async stats arrive (it snapshots
+  // style/onEachFeature at mount).
+  return <GeoJSON key={Object.keys(stats).length} data={geojson} style={styleFn} onEachFeature={onEachFeature} />;
+}
+
 export const MapView = memo(function MapView({
   listings,
   selectedListingId,
@@ -327,6 +379,8 @@ export const MapView = memo(function MapView({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        {layers.heatmap && <DistrictHeatmapLayer visible={layers.heatmap} />}
+
         <BoundsTracker onBoundsChange={onBoundsChange} />
         <SelectionAnimator selectedListingId={selectedListingId} listings={listings} />
         <MapClickHandler onMapClick={onMapClick} />
@@ -347,6 +401,23 @@ export const MapView = memo(function MapView({
       {layersPopoverSlot && (
         <div className="absolute top-3 right-3 z-[1000] pointer-events-none">
           <div className="pointer-events-auto">{layersPopoverSlot}</div>
+        </div>
+      )}
+
+      {layers.heatmap && (
+        <div
+          data-testid="heatmap-legend"
+          className="absolute bottom-4 left-3 z-[1000] bg-white/95 rounded-lg shadow px-3 py-2 text-[11px]"
+        >
+          <div className="font-semibold mb-1">Ø €/m²</div>
+          <div
+            className="h-2 w-32 rounded"
+            style={{ background: 'linear-gradient(to right, rgb(26,152,80), rgb(255,221,100), rgb(215,48,39))' }}
+          />
+          <div className="flex justify-between w-32 mt-0.5">
+            <span>3.5k</span>
+            <span>8k+</span>
+          </div>
         </div>
       )}
     </div>
