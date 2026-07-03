@@ -82,6 +82,13 @@ function BoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: ViewportB
 
   const emit = useCallback(() => {
     if (!onBoundsChange) return;
+    // A hidden map (e.g. the mobile instance at desktop width, which is
+    // display:none and 0x0) reports degenerate bounds. Both the desktop and
+    // mobile MapView instances share one onBoundsChange handler, so letting an
+    // unsized map emit would clobber the visible map's bounds and filter every
+    // listing out of view. Only a map with real dimensions may report bounds.
+    const size = map.getSize();
+    if (size.x === 0 || size.y === 0) return;
     const b = map.getBounds();
     onBoundsChange({
       north: b.getNorth(),
