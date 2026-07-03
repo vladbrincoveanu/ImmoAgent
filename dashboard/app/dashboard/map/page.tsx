@@ -58,6 +58,7 @@ function MapPage() {
     listings: true,
     stations: false,
     schools: false,
+    heatmap: false,
   });
   const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
 
@@ -236,6 +237,7 @@ function MapPage() {
     listings: listings.length,
     stations: 0,
     schools: 0,
+    heatmap: 23,
   }), [listings]);
 
   const handlePinClick = useCallback((listing: MapListing) => {
