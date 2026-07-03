@@ -4,7 +4,6 @@ import { MapListing } from '@/lib/types';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { resolveCoordinates } from '@/lib/district-centroids';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -99,20 +98,18 @@ export async function GET(request: NextRequest) {
           ? Math.round((l.area_m2 as number) * PRICE_PER_SQM)
           : null;
 
-      // Use actual coordinates if available, otherwise fall back to district centroid
-      let coordinates = l.coordinates as { lat: number; lon: number } | null | undefined;
+      // Honest coordinates: only plot listings we could actually geocode.
+      // Un-geocoded listings return coordinates:null and are hidden from the
+      // map (the viewport filter in page.tsx already drops null-coord
+      // listings). No more district-centroid fabrication.
+      const coordinates = (l.coordinates as { lat: number; lon: number } | null | undefined) ?? null;
       const COORD_SOURCES = new Set(['exact', 'landmark', 'district', 'none']);
       const rawSource = (l.coordinate_source as string) || 'none';
-      let coordinate_source: 'exact' | 'landmark' | 'district' | 'none' =
-        COORD_SOURCES.has(rawSource) ? (rawSource as 'exact' | 'landmark' | 'district' | 'none') : 'none';
-
-      if (!coordinates) {
-        const centroid = resolveCoordinates(undefined, l.bezirk as string | null);
-        if (centroid) {
-          coordinates = centroid;
-          coordinate_source = 'district';
-        }
-      }
+      const coordinate_source: 'exact' | 'landmark' | 'district' | 'none' = !coordinates
+        ? 'none'
+        : COORD_SOURCES.has(rawSource)
+          ? (rawSource as 'exact' | 'landmark' | 'district' | 'none')
+          : 'exact';
 
       const scores = (l as { scores?: Record<string, number | null> }).scores;
       const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;

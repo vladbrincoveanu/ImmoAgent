@@ -81,7 +81,7 @@ function MapPage() {
           score: l.score ?? null,
           image_url: l.image_url ?? null,
           coordinates: null,
-          coordinate_source: 'district',
+          coordinate_source: 'none',
           price_is_estimated: false,
           landmark_hint: null,
         }));
@@ -169,6 +169,11 @@ function MapPage() {
       return lat >= bounds.south && lat <= bounds.north && lon >= bounds.west && lon <= bounds.east;
     });
   }, [filteredListings, bounds]);
+
+  const noCoordCount = useMemo(
+    () => filteredListings.filter((l) => !l.coordinates).length,
+    [filteredListings]
+  );
 
   // Apply rail sort to viewport listings
   const sortedRailListings = useMemo(() => {
@@ -288,6 +293,7 @@ function MapPage() {
             onSelect={setSelectedListingId}
             sortMode={railSort}
             onSortChange={setRailSort}
+            noCoordCount={noCoordCount}
           />
 
           <div className="flex-1 relative">
