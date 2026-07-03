@@ -111,6 +111,38 @@ function BoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: ViewportB
   return null;
 }
 
+function SelectionAnimator({
+  selectedListingId,
+  listings,
+}: {
+  selectedListingId: string | null;
+  listings: MapListing[];
+}) {
+  const map = useMap();
+
+  // Test hook: expose the live Leaflet map on its container element so E2E
+  // tests can read map.getCenter(). Harmless in production.
+  useEffect(() => {
+    (map.getContainer() as unknown as { __map?: L.Map }).__map = map;
+  }, [map]);
+
+  useEffect(() => {
+    if (!selectedListingId) return;
+    const target = listings.find((l) => l._id === selectedListingId);
+    if (!target || !target.coordinates) return;
+    // A hidden map (the mobile instance at desktop width, 0x0 / display:none)
+    // must never hijack focus — same guard as BoundsTracker (commit 2f32f06).
+    const size = map.getSize();
+    if (size.x === 0 || size.y === 0) return;
+    map.flyTo([target.coordinates.lat, target.coordinates.lon], 16, {
+      duration: 1.2,
+      easeLinearity: 0.25,
+    });
+  }, [map, selectedListingId, listings]);
+
+  return null;
+}
+
 function MarkerLayer({
   listings,
   selectedListingId,
@@ -296,6 +328,7 @@ export const MapView = memo(function MapView({
         />
 
         <BoundsTracker onBoundsChange={onBoundsChange} />
+        <SelectionAnimator selectedListingId={selectedListingId} listings={listings} />
         <MapClickHandler onMapClick={onMapClick} />
         {layers.stations && <StationsLayer stations={stationData ?? []} />}
         {layers.schools && <SchoolsLayer schools={schoolData ?? []} />}
