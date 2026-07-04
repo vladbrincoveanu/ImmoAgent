@@ -7,6 +7,7 @@ export interface MapFilterState {
   minScore: number;
   maxPrice: number;
   commuteTo: string;
+  maxCommute: number;
 }
 
 interface MapFilterPopoverProps {
@@ -16,13 +17,23 @@ interface MapFilterPopoverProps {
   onApply: (next: MapFilterState) => void;
 }
 
-const COMMUTE_OPTIONS = ['', 'Stephansplatz', 'Hauptbahnhof', 'Donau City'];
+const COMMUTE_OPTIONS = [
+  { name: '', lat: '', lon: '' },
+  { name: 'Stephansplatz',  lat: '48.2085', lon: '16.3726' },
+  { name: 'Hauptbahnhof',   lat: '48.1855', lon: '16.3765' },
+  { name: 'Donau City',     lat: '48.2376', lon: '16.4125' },
+];
+
+export const COMMUTE_COORDS: Record<string, { lat: string; lon: string }> = Object.fromEntries(
+  COMMUTE_OPTIONS.filter((o) => o.name).map((o) => [o.name, { lat: o.lat, lon: o.lon }])
+);
 
 export function MapFilterPopover({ open, onClose, initial, onApply }: MapFilterPopoverProps) {
   const [district, setDistrict] = useState(initial.district);
   const [minScore, setMinScore] = useState(initial.minScore);
   const [maxPrice, setMaxPrice] = useState(initial.maxPrice);
   const [commuteTo, setCommuteTo] = useState(initial.commuteTo);
+  const [maxCommute, setMaxCommute] = useState(initial.maxCommute || 45);
 
   useEffect(() => {
     if (open) {
@@ -30,6 +41,7 @@ export function MapFilterPopover({ open, onClose, initial, onApply }: MapFilterP
       setMinScore(initial.minScore);
       setMaxPrice(initial.maxPrice);
       setCommuteTo(initial.commuteTo);
+      setMaxCommute(initial.maxCommute || 45);
     }
   }, [open, initial]);
 
@@ -77,15 +89,30 @@ export function MapFilterPopover({ open, onClose, initial, onApply }: MapFilterP
         className="w-full text-[13px] border border-line rounded-lg px-2.5 py-1.5"
       >
         {COMMUTE_OPTIONS.map((o) => (
-          <option key={o} value={o}>
-            {o || '— pick destination —'}
+          <option key={o.name} value={o.name}>
+            {o.name || '— pick destination —'}
           </option>
         ))}
       </select>
+      {commuteTo && (
+        <>
+          <label className="block text-[12px] font-semibold text-ink-2 mt-3.5 mb-1.5">Max commute (min)</label>
+          <input
+            data-testid="filter-max-commute"
+            type="number"
+            min={5}
+            max={120}
+            step={5}
+            value={maxCommute}
+            onChange={(e) => setMaxCommute(Number(e.target.value))}
+            className="w-full text-[13px] border border-line rounded-lg px-2.5 py-1.5"
+          />
+        </>
+      )}
       <button
         data-testid="filter-apply"
         onClick={() => {
-          onApply({ district, minScore, maxPrice, commuteTo });
+          onApply({ district, minScore, maxPrice, commuteTo, maxCommute });
           onClose();
         }}
         className="w-full mt-4 bg-accent text-white text-[13px] font-semibold py-2 rounded-lg"
