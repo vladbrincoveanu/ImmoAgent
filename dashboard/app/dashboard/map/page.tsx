@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { MapView, type ViewportBounds, type LayerState } from '@/components/MapView';
 import { MapTopBar } from '@/components/MapTopBar';
-import { MapFilterPopover, type MapFilterState } from '@/components/MapFilterPopover';
+import { MapFilterPopover, type MapFilterState, COMMUTE_COORDS } from '@/components/MapFilterPopover';
 import { MapLayersPopover } from '@/components/MapLayersPopover';
 import { ListingRail } from '@/components/ListingRail';
 import { ListingDetail } from '@/components/ListingDetail';
@@ -147,20 +147,45 @@ function MapPage() {
     });
   }, [profile, scoresById]);
 
-  const filteredListings = useMemo(() => listings.filter((l) => {
-    if (maxPrice && l.price_total != null && l.price_total > Number(maxPrice)) return false;
-    if (
-      !showUnfinanceable &&
-      l.estimated_down_pct != null &&
-      l.estimated_down_pct > 30 &&
-      l.bank_score_confidence !== 'low'
-    ) return false;
-    if (belowAvgPct) {
-      const threshold = Number(belowAvgPct);
-      if (Number.isFinite(threshold) && l.price_vs_avg_pct != null && l.price_vs_avg_pct > -threshold) return false;
+  const filteredListings = useMemo(() => {
+    const maxPriceNum = maxPrice ? Number(maxPrice) : null;
+    const maxEquityNum = maxEquity ? Number(maxEquity) : null;
+    const maxCommuteNum = maxCommute ? Number(maxCommute) : null;
+    const destLatNum = destLat ? Number(destLat) : null;
+    const destLonNum = destLon ? Number(destLon) : null;
+    const WALK_KMH = 4.8;
+    function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+      const R = 6371;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLon = (b.lon - a.lon) * Math.PI / 180;
+      const lat1 = a.lat * Math.PI / 180;
+      const lat2 = b.lat * Math.PI / 180;
+      const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(x));
     }
-    return true;
-  }), [listings, maxPrice, showUnfinanceable, belowAvgPct]);
+    return listings.filter((l) => {
+      if (maxPriceNum != null && Number.isFinite(maxPriceNum) && l.price_total != null && l.price_total > maxPriceNum) return false;
+      if (maxEquityNum != null && Number.isFinite(maxEquityNum) && l.estimated_equity_eur != null && l.estimated_equity_eur > maxEquityNum) return false;
+      if (
+        !showUnfinanceable &&
+        l.estimated_down_pct != null &&
+        l.estimated_down_pct > 30 &&
+        l.bank_score_confidence !== 'low'
+      ) return false;
+      if (belowAvgPct) {
+        const threshold = Number(belowAvgPct);
+        if (Number.isFinite(threshold) && l.price_vs_avg_pct != null && l.price_vs_avg_pct > -threshold) return false;
+      }
+      if (maxCommuteNum != null && Number.isFinite(maxCommuteNum) && destLatNum != null && destLonNum != null) {
+        if (l.coordinates) {
+          const km = haversineKm(l.coordinates, { lat: destLatNum, lon: destLonNum });
+          const walkMin = Math.round((km / WALK_KMH) * 60);
+          if (walkMin > maxCommuteNum) return false;
+        }
+      }
+      return true;
+    });
+  }, [listings, maxPrice, maxEquity, showUnfinanceable, belowAvgPct, maxCommute, destLat, destLon]);
 
   const viewportListings = useMemo(() => {
     if (!bounds) return filteredListings;
@@ -208,14 +233,19 @@ function MapPage() {
     minScore: Number(minScore) || 0,
     maxPrice: Number(maxPrice) || 0,
     commuteTo: destName,
-  }), [district, minScore, maxPrice, destName]);
+    maxCommute: Number(maxCommute) || 45,
+  }), [district, minScore, maxPrice, destName, maxCommute]);
 
   const applyMapFilters = useCallback((next: MapFilterState) => {
+    const coords = COMMUTE_COORDS[next.commuteTo] ?? null;
     update({
       district: next.district,
       minScore: String(next.minScore),
       maxPrice: String(next.maxPrice),
       destName: next.commuteTo,
+      destLat: coords?.lat ?? '',
+      destLon: coords?.lon ?? '',
+      maxCommute: next.commuteTo ? String(next.maxCommute) : '',
     });
   }, [update]);
 
