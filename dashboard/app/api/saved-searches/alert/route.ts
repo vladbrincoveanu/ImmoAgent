@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import crypto from 'crypto';
+import { sendMail, confirmationEmail } from '@/lib/mailer';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   const params = body.params ?? {};
+  const confirmToken = crypto.randomBytes(24).toString('hex');
   const doc = {
     _id: new ObjectId(),
     user_id: userId,
@@ -48,16 +50,30 @@ export async function POST(req: NextRequest) {
     params,
     frequency,
     confirmed: false,
+    confirm_token: confirmToken,
     created_at: new Date(),
   };
   await db.collection('alert_subscriptions').insertOne(doc);
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000';
+  const confirmUrl = `${appUrl}/api/saved-searches/confirm?token=${confirmToken}`;
+  const mailResult = await sendMail({
+    to: email,
+    subject: 'Confirm your ImmoScouter listing alert',
+    html: confirmationEmail(email, params, confirmUrl),
+  });
 
   const res = NextResponse.json({
     ok: true,
     subscription_id: doc._id.toString(),
     email,
     frequency,
-    message: 'Subscription created. Confirmation email would be sent in production.',
+    email_sent: mailResult.ok,
+    message: mailResult.ok
+      ? 'Subscription created. Check your inbox to confirm.'
+      : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
   }, { status: 201 });
   res.cookies.set(COOKIE_NAME, userId, { maxAge: 60 * 60 * 24 * 365, httpOnly: false, sameSite: 'lax' });
   return res;
