@@ -10,6 +10,7 @@ interface ListingRailProps {
   onSelect: (id: string) => void;
   sortMode: SortOption;
   onSortChange: (s: SortOption) => void;
+  noCoordCount?: number;
 }
 
 const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
@@ -20,15 +21,22 @@ const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: 'area_desc', label: 'Area · largest first' },
 ];
 
-export function ListingRail({ listings, selectedId, onSelect, sortMode, onSortChange }: ListingRailProps) {
+export function ListingRail({ listings, selectedId, onSelect, sortMode, onSortChange, noCoordCount = 0 }: ListingRailProps) {
   return (
     <aside
       data-testid="listing-rail"
       className="w-[340px] flex-shrink-0 bg-card border-r border-line flex flex-col"
     >
       <div className="px-[18px] py-3.5 flex items-baseline justify-between gap-2">
-        <span data-testid="rail-count" className="text-[13px] font-semibold">
-          {listings.length} in view
+        <span className="flex items-baseline gap-2">
+          <span data-testid="rail-count" className="text-[13px] font-semibold">
+            {listings.length} in view
+          </span>
+          {noCoordCount > 0 && (
+            <span data-testid="rail-no-coord" className="text-[11px] text-ink-3">
+              {noCoordCount} without map location
+            </span>
+          )}
         </span>
         <select
           data-testid="rail-sort"

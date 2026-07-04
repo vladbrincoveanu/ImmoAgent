@@ -64,7 +64,11 @@ export function MapTopBar({
       <button
         data-testid="layers-btn"
         onClick={onLayersClick}
-        className="hidden"
+        className={`flex items-center gap-1.5 text-[13px] font-medium rounded-lg px-3.5 py-1.5 border ${
+          layersOpen
+            ? 'text-white bg-accent border-accent'
+            : 'text-ink bg-card border-line hover:border-[#cdd6e1]'
+        }`}
       >
         {LAYERS_SVG}
         Layers

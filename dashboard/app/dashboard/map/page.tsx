@@ -58,6 +58,7 @@ function MapPage() {
     listings: true,
     stations: false,
     schools: false,
+    heatmap: false,
   });
   const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
 
@@ -81,7 +82,7 @@ function MapPage() {
           score: l.score ?? null,
           image_url: l.image_url ?? null,
           coordinates: null,
-          coordinate_source: 'district',
+          coordinate_source: 'none',
           price_is_estimated: false,
           landmark_hint: null,
         }));
@@ -170,6 +171,11 @@ function MapPage() {
     });
   }, [filteredListings, bounds]);
 
+  const noCoordCount = useMemo(
+    () => filteredListings.filter((l) => !l.coordinates).length,
+    [filteredListings]
+  );
+
   // Apply rail sort to viewport listings
   const sortedRailListings = useMemo(() => {
     const arr = [...viewportListings];
@@ -231,6 +237,7 @@ function MapPage() {
     listings: listings.length,
     stations: 0,
     schools: 0,
+    heatmap: 23,
   }), [listings]);
 
   const handlePinClick = useCallback((listing: MapListing) => {
@@ -288,6 +295,7 @@ function MapPage() {
             onSelect={setSelectedListingId}
             sortMode={railSort}
             onSortChange={setRailSort}
+            noCoordCount={noCoordCount}
           />
 
           <div className="flex-1 relative">

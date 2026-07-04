@@ -4,20 +4,22 @@ interface LayerState {
   listings: boolean;
   stations: boolean;
   schools: boolean;
+  heatmap: boolean;
 }
 
 interface MapLayersPopoverProps {
   open: boolean;
   onClose: () => void;
   layers: LayerState;
-  onToggle: (key: 'listings' | 'stations' | 'schools') => void;
-  counts: { listings: number; stations: number; schools: number };
+  onToggle: (key: 'listings' | 'stations' | 'schools' | 'heatmap') => void;
+  counts: { listings: number; stations: number; schools: number; heatmap: number };
 }
 
-const ROWS: Array<{ key: 'listings' | 'stations' | 'schools'; name: string; color: string; dotColor: string }> = [
+const ROWS: Array<{ key: 'listings' | 'stations' | 'schools' | 'heatmap'; name: string; color: string; dotColor: string }> = [
   { key: 'listings', name: 'Listings', color: '#16243a', dotColor: 'bg-ink' },
   { key: 'stations', name: 'U-Bahn stations', color: '#3b6fd4', dotColor: 'bg-[#3b6fd4]' },
   { key: 'schools', name: 'Schools', color: '#2ba56b', dotColor: 'bg-[#2ba56b]' },
+  { key: 'heatmap', name: 'District prices', color: '#d73027', dotColor: 'bg-[#d73027]' },
 ];
 
 export function MapLayersPopover({ open, onClose, layers, onToggle, counts }: MapLayersPopoverProps) {
