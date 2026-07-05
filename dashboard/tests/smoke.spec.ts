@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Smoke Tests', () => {
-  test('root page redirects to /dashboard', async ({ page }) => {
+  // `/` is the marketing landing page (since 8eb7748), no longer a redirect.
+  test('root page renders landing with a path into the dashboard', async ({ page }) => {
     const serverErrors: string[] = [];
     page.on('response', response => {
       if (response.status() >= 500 && response.status() !== 503) {
@@ -10,7 +11,7 @@ test.describe('Dashboard Smoke Tests', () => {
     });
 
     await page.goto('/');
-    await page.waitForURL(/\/dashboard/);
+    await expect(page.locator('a[href*="/dashboard"]').first()).toBeVisible();
 
     expect(serverErrors.length).toBe(0);
   });
@@ -44,10 +45,9 @@ test.describe('Dashboard Smoke Tests', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.locator('h1')).toContainText('Property Map');
 
-    const mapVisible = await page.locator('.leaflet-container').isVisible().catch(() => false);
-    if (!mapVisible) {
-      await expect(page.locator('text=No listings match your filters').first()).toBeVisible({ timeout: 10000 });
-    }
+    // Scope to the desktop instance — the first .leaflet-container in the DOM
+    // can be the hidden mobile one (dual-map layout), which reads as invisible.
+    await expect(page.locator('.map-desktop .leaflet-container')).toBeVisible({ timeout: 10000 });
 
     expect(serverErrors.length).toBe(0);
   });

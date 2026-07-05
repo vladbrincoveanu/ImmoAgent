@@ -52,14 +52,9 @@ export async function GET(request: NextRequest) {
       { title: { $nin: [null, ""] } },
     ];
 
-    if (minScore > 0) {
-      andConditions.push({
-        $or: [
-          { score: { $gte: minScore } },
-          { score: null },
-        ],
-      });
-    }
+    // min_score is applied AFTER mapping (below), on the profile-resolved
+    // score the client actually displays — the raw `score` field can differ
+    // from scores.<profile> and filtering on it lets mismatches leak through.
 
     if (district) {
       andConditions.push({ bezirk: district });
@@ -153,9 +148,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const finalResult = belowAvgPct > 0
+    let finalResult = belowAvgPct > 0
       ? result.filter((l) => l.price_vs_avg_pct != null && l.price_vs_avg_pct <= -belowAvgPct)
       : result;
+    if (minScore > 0) {
+      finalResult = finalResult.filter((l) => l.score == null || l.score >= minScore);
+    }
 
     return NextResponse.json({ listings: finalResult, total: finalResult.length });
   } catch (err) {
