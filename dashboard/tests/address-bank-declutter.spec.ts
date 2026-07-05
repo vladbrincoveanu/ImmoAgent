@@ -110,7 +110,9 @@ test.describe('Address + directions + bank financing + map declutter', () => {
     expect(tomCount + pdCount).toBeGreaterThan(0);
   });
 
-  test('EmailAlerts modal opens and accepts valid email', async ({ page }) => {
+  // Alerts are Pro-gated (freemium): free users see the upgrade flow instead
+  // of a subscription. The Pro subscribe path is covered in freemium-gate.spec.ts.
+  test('EmailAlerts modal opens and shows Pro upgrade flow for free users', async ({ page }) => {
     await page.goto('/dashboard?profile=default', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
     await page.locator('[data-testid="open-alerts"]').click();
@@ -118,7 +120,7 @@ test.describe('Address + directions + bank financing + map declutter', () => {
     await page.locator('[data-testid="alerts-email"]').fill('investor@example.com');
     page.on('dialog', (d) => d.accept());
     await page.locator('[data-testid="alerts-submit"]').click();
-    await expect(page.locator('[data-testid="alerts-success"]')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid="alerts-paywall"]')).toBeVisible({ timeout: 8000 });
   });
 
   test('MapLayersPopover lets user toggle U-Bahn / Schools layers on the map', async ({ page }) => {
@@ -150,21 +152,20 @@ test.describe('Address + directions + bank financing + map declutter', () => {
   // test above covers the only remaining layer toggle behavior. This test was
   // removed: Price heatmap toggle shows/hides heatmap overlay.
 
-  test('email alerts API validates email', async ({ request }) => {
+  test('email alerts API gates free users before validation (402)', async ({ request }) => {
     const res = await request.post('/api/saved-searches/alert', {
       data: { email: 'invalid' },
     });
-    expect(res.status()).toBe(400);
+    expect(res.status()).toBe(402);
+    expect((await res.json()).reason).toBe('alerts_pro_only');
   });
 
-  test('email alerts API accepts valid email and creates subscription', async ({ request }) => {
+  test('email alerts API rejects free-tier subscription with upgrade_required', async ({ request }) => {
     const res = await request.post('/api/saved-searches/alert', {
       data: { email: 'user@example.com', params: { min_score: '30' }, frequency: 'daily' },
     });
-    expect(res.status()).toBe(201);
-    const data = await res.json();
-    expect(data.ok).toBe(true);
-    expect(data.email).toBe('user@example.com');
+    expect(res.status()).toBe(402);
+    expect((await res.json()).error).toBe('upgrade_required');
   });
 
   test('district trend API returns 12-month buckets', async ({ request }) => {
