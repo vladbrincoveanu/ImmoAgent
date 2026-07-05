@@ -12,7 +12,7 @@ export function EmailAlertsModal({ open, onClose }: EmailAlertsModalProps) {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [frequency, setFrequency] = useState<'instant' | 'daily' | 'weekly'>('daily');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error' | 'paywall' | 'paywall_sent'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
@@ -29,6 +29,10 @@ export function EmailAlertsModal({ open, onClose }: EmailAlertsModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, params, frequency }),
       });
+      if (res.status === 402) {
+        setStatus('paywall');
+        return;
+      }
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || 'Subscription failed');
@@ -51,6 +55,38 @@ export function EmailAlertsModal({ open, onClose }: EmailAlertsModalProps) {
         {status === 'success' ? (
           <div className="p-4 rounded-md bg-green-50 text-green-800 text-sm" data-testid="alerts-success">
             ✓ Subscribed! Check your inbox to confirm.
+          </div>
+        ) : status === 'paywall' || status === 'paywall_sent' ? (
+          <div className="space-y-3" data-testid="alerts-paywall">
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-semibold">
+              ★ Pro
+            </div>
+            {status === 'paywall_sent' ? (
+              <div className="p-4 rounded-md bg-green-50 text-green-800 text-sm" data-testid="alerts-paywall-success">
+                ✓ You&apos;re on the early-access list. We&apos;ll unlock Pro for you and email you at {email}.
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  Email alerts are a Pro feature (€19/mo). Request early access and we&apos;ll unlock it for you.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const r = await fetch('/api/upgrade', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email, reason: 'alerts_pro_only' }),
+                    });
+                    if (r.ok) setStatus('paywall_sent');
+                  }}
+                  className="w-full rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700"
+                  data-testid="alerts-paywall-submit"
+                >
+                  Request Pro access
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">

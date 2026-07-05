@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
-import crypto from 'crypto';
+import { getOrCreateUserId, setUserCookie, isPro, FREE_SAVED_SEARCH_LIMIT } from '@/lib/user';
 
 export const dynamic = 'force-dynamic';
-
-const COOKIE_NAME = 'immo_user';
-
-function getOrCreateUserId(req: NextRequest): string {
-  const existing = req.cookies.get(COOKIE_NAME)?.value;
-  if (existing) return existing;
-  return `u_${crypto.randomBytes(12).toString('hex')}`;
-}
 
 export async function GET(req: NextRequest) {
   const db = getDb();
@@ -29,7 +21,7 @@ export async function GET(req: NextRequest) {
       created_at: s.created_at,
       last_match_count: s.last_match_count ?? null,
     })) });
-    res.cookies.set(COOKIE_NAME, userId, { maxAge: 60 * 60 * 24 * 365, httpOnly: false, sameSite: 'lax' });
+    setUserCookie(res, userId);
     return res;
   } catch (err) {
     console.error('[/api/saved-searches GET]', err);
@@ -46,6 +38,18 @@ export async function POST(req: NextRequest) {
   const name = (body.name ?? 'Untitled search').toString().slice(0, 80);
   const params = body.params ?? {};
   try {
+    if (!(await isPro(db, userId))) {
+      const count = await db.collection('saved_searches').countDocuments({ user_id: userId });
+      if (count >= FREE_SAVED_SEARCH_LIMIT) {
+        const res = NextResponse.json({
+          error: 'upgrade_required',
+          reason: 'saved_search_limit',
+          limit: FREE_SAVED_SEARCH_LIMIT,
+        }, { status: 402 });
+        setUserCookie(res, userId);
+        return res;
+      }
+    }
     const doc = {
       _id: new ObjectId(),
       user_id: userId,
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
       params: doc.params,
       created_at: doc.created_at.toISOString(),
     }, { status: 201 });
-    res.cookies.set(COOKIE_NAME, userId, { maxAge: 60 * 60 * 24 * 365, httpOnly: false, sameSite: 'lax' });
+    setUserCookie(res, userId);
     return res;
   } catch (err) {
     console.error('[/api/saved-searches POST]', err);
