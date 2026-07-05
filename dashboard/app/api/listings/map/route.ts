@@ -4,6 +4,7 @@ import { MapListing } from '@/lib/types';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { resolveCoordinates } from '@/lib/district-centroids';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -52,9 +53,9 @@ export async function GET(request: NextRequest) {
       ],
     };
 
-    if (minScore > 0) {
-      filter.score = { $gte: minScore };
-    }
+    // min_score is applied AFTER mapping (below), on the profile-resolved
+    // score the client actually displays — the raw `score` field can differ
+    // from scores.<profile> and filtering on it lets mismatches leak through.
 
     if (district) {
       filter.bezirk = district;
@@ -98,18 +99,21 @@ export async function GET(request: NextRequest) {
           ? Math.round((l.area_m2 as number) * PRICE_PER_SQM)
           : null;
 
-      // Honest coordinates: only plot listings we could actually geocode.
-      // Un-geocoded listings return coordinates:null and are hidden from the
-      // map (the viewport filter in page.tsx already drops null-coord
-      // listings). No more district-centroid fabrication.
-      const coordinates = (l.coordinates as { lat: number; lon: number } | null | undefined) ?? null;
+      // Geocoded listings keep their real coords; un-geocoded ones fall back
+      // to their Bezirk centroid tagged coordinate_source:'district' so they
+      // still appear on the map (approximate). Only listings with no bezirk
+      // at all stay 'none' / null and are hidden.
+      const storedCoords = (l.coordinates as { lat: number; lon: number } | null | undefined) ?? null;
+      const coordinates = resolveCoordinates(storedCoords, l.bezirk as string | null | undefined);
       const COORD_SOURCES = new Set(['exact', 'landmark', 'district', 'none']);
       const rawSource = (l.coordinate_source as string) || 'none';
       const coordinate_source: 'exact' | 'landmark' | 'district' | 'none' = !coordinates
         ? 'none'
-        : COORD_SOURCES.has(rawSource)
-          ? (rawSource as 'exact' | 'landmark' | 'district' | 'none')
-          : 'exact';
+        : !storedCoords
+          ? 'district'
+          : COORD_SOURCES.has(rawSource) && rawSource !== 'none'
+            ? (rawSource as 'exact' | 'landmark' | 'district')
+            : 'exact';
 
       const scores = (l as { scores?: Record<string, number | null> }).scores;
       const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
@@ -143,7 +147,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ listings: result, total: result.length });
+    const finalResult = minScore > 0
+      ? result.filter((l) => l.score == null || l.score >= minScore)
+      : result;
+
+    return NextResponse.json({ listings: finalResult, total: finalResult.length });
   } catch (err) {
     console.error('[/api/listings/map]', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
