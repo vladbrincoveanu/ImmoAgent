@@ -2,16 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import crypto from 'crypto';
 import { sendMail, confirmationEmail } from '@/lib/mailer';
+import { COOKIE_NAME, getOrCreateUserId, setUserCookie, isPro } from '@/lib/user';
 
 export const dynamic = 'force-dynamic';
-
-const COOKIE_NAME = 'immo_user';
-
-function getOrCreateUserId(req: NextRequest): string {
-  const existing = req.cookies.get(COOKIE_NAME)?.value;
-  if (existing) return existing;
-  return `u_${crypto.randomBytes(12).toString('hex')}`;
-}
 
 interface SubscribeBody {
   email?: string;
@@ -29,6 +22,14 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
   const userId = getOrCreateUserId(req);
+  if (!(await isPro(db, userId))) {
+    const res = NextResponse.json({
+      error: 'upgrade_required',
+      reason: 'alerts_pro_only',
+    }, { status: 402 });
+    setUserCookie(res, userId);
+    return res;
+  }
   let body: SubscribeBody = {};
   try { body = await req.json(); } catch { body = {}; }
   const email = (body.email ?? '').trim().toLowerCase();
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
       ? 'Subscription created. Check your inbox to confirm.'
       : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
   }, { status: 201 });
-  res.cookies.set(COOKIE_NAME, userId, { maxAge: 60 * 60 * 24 * 365, httpOnly: false, sameSite: 'lax' });
+  setUserCookie(res, userId);
   return res;
 }
 

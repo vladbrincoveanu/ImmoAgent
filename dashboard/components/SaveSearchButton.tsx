@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { PaywallModal } from './PaywallModal';
 
 interface SavedSearch {
   _id: string;
@@ -15,6 +16,7 @@ export function SaveSearchButton() {
   const [saved, setSaved] = useState(false);
   const [list, setList] = useState<SavedSearch[]>([]);
   const [open, setOpen] = useState(false);
+  const [paywall, setPaywall] = useState(false);
 
   const refresh = async () => {
     try {
@@ -40,6 +42,8 @@ export function SaveSearchButton() {
       setSaved(true);
       await refresh();
       setTimeout(() => setSaved(false), 2000);
+    } else if (res.status === 402) {
+      setPaywall(true);
     }
   };
 
@@ -56,6 +60,7 @@ export function SaveSearchButton() {
 
   return (
     <div className="relative">
+      <PaywallModal open={paywall} reason="saved_search_limit" onClose={() => setPaywall(false)} />
       <button
         type="button"
         onClick={handleSave}
