@@ -112,6 +112,10 @@ seen_listings.json
 dashboard/node_modules/
 dashboard/.next/
 /dashboard/.env.local
+# Re-include dashboard/lib — the Python `lib/` rule above would otherwise
+# ignore it and new files there silently never reach the repo (broke Vercel
+# builds when app code imported @/lib/user).
+!dashboard/lib/
 
 # MCP tool state
 .playwright-mcp/
