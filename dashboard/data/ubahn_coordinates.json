@@ -1,0 +1,93 @@
+{
+  "1010": [
+    {"name": "Stephansplatz", "lat": 48.2082, "lon": 16.3738},
+    {"name": "Karlsplatz", "lat": 48.2019, "lon": 16.3695},
+    {"name": "Herrengasse", "lat": 48.2104, "lon": 16.3665}
+  ],
+  "1020": [
+    {"name": "Taborstraße", "lat": 48.2175, "lon": 16.3958},
+    {"name": "Nestroyplatz", "lat": 48.2189, "lon": 16.3975},
+    {"name": "Praterstern", "lat": 48.2178, "lon": 16.3917}
+  ],
+  "1030": [
+    {"name": "Landstraße", "lat": 48.2075, "lon": 16.3833},
+    {"name": "Rochusgasse", "lat": 48.2047, "lon": 16.3867},
+    {"name": "Kardinal-Nagl-Platz", "lat": 48.2019, "lon": 16.3892}
+  ],
+  "1040": [
+    {"name": "Karlsplatz", "lat": 48.2019, "lon": 16.3695},
+    {"name": "Kettenbrückengasse", "lat": 48.1958, "lon": 16.3650},
+    {"name": "Pilgramgasse", "lat": 48.1908, "lon": 16.3600}
+  ],
+  "1050": [
+    {"name": "Kettenbrückengasse", "lat": 48.1958, "lon": 16.3650},
+    {"name": "Margaretengürtel", "lat": 48.1883, "lon": 16.3583},
+    {"name": "Pilgramgasse", "lat": 48.1908, "lon": 16.3600}
+  ],
+  "1060": [
+    {"name": "Westbahnhof", "lat": 48.1967, "lon": 16.3400},
+    {"name": "Burggasse-Stadthalle", "lat": 48.1983, "lon": 16.3450},
+    {"name": "Gumpendorfer Straße", "lat": 48.1950, "lon": 16.3500}
+  ],
+  "1070": [
+    {"name": "Volkstheater", "lat": 48.2033, "lon": 16.3583},
+    {"name": "Neubaugasse", "lat": 48.2017, "lon": 16.3533},
+    {"name": "Burggasse-Stadthalle", "lat": 48.1983, "lon": 16.3450}
+  ],
+  "1080": [
+    {"name": "Rathaus", "lat": 48.2100, "lon": 16.3583},
+    {"name": "Josefstädter Straße", "lat": 48.2083, "lon": 16.3533},
+    {"name": "Alser Straße", "lat": 48.2133, "lon": 16.3500}
+  ],
+  "1090": [
+    {"name": "Schottentor", "lat": 48.2133, "lon": 16.3633},
+    {"name": "Rossauer Lände", "lat": 48.2250, "lon": 16.3667},
+    {"name": "Friedensbrücke", "lat": 48.2283, "lon": 16.3700}
+  ],
+  "1100": [
+    {"name": "Keplerplatz", "lat": 48.1750, "lon": 16.3750},
+    {"name": "Südtiroler Platz", "lat": 48.1867, "lon": 16.4200},
+    {"name": "Troststraße", "lat": 48.1700, "lon": 16.3800}
+  ],
+  "1120": [
+    {"name": "Längenfeldgasse", "lat": 48.1750, "lon": 16.3300},
+    {"name": "Meidling Hauptstraße", "lat": 48.1750, "lon": 16.3400},
+    {"name": "Niederhofstraße", "lat": 48.1700, "lon": 16.3350}
+  ],
+  "1130": [
+    {"name": "Hietzing", "lat": 48.1867, "lon": 16.3000},
+    {"name": "Unter St. Veit", "lat": 48.1900, "lon": 16.2900},
+    {"name": "Ober St. Veit", "lat": 48.1950, "lon": 16.2850}
+  ],
+  "1140": [
+    {"name": "Penzing", "lat": 48.1967, "lon": 16.3100},
+    {"name": "Braunschweiggasse", "lat": 48.2000, "lon": 16.3050},
+    {"name": "Hütteldorfer Straße", "lat": 48.2033, "lon": 16.3000},
+    {"name": "Ottakring", "lat": 48.2100, "lon": 16.3200}
+  ],
+  "1150": [
+    {"name": "Westbahnhof", "lat": 48.1967, "lon": 16.3400},
+    {"name": "Schweglerstraße", "lat": 48.1950, "lon": 16.3350},
+    {"name": "Johnstraße", "lat": 48.1933, "lon": 16.3300}
+  ],
+  "1160": [
+    {"name": "Ottakring", "lat": 48.2100, "lon": 16.3200},
+    {"name": "Kendlerstraße", "lat": 48.2083, "lon": 16.3150},
+    {"name": "Thaliastraße", "lat": 48.2067, "lon": 16.3100}
+  ],
+  "1190": [
+    {"name": "Heiligenstadt", "lat": 48.2500, "lon": 16.3667},
+    {"name": "Spittelau", "lat": 48.2333, "lon": 16.3700},
+    {"name": "Nußdorfer Straße", "lat": 48.2300, "lon": 16.3600}
+  ],
+  "1210": [
+    {"name": "Floridsdorf", "lat": 48.2500, "lon": 16.4000},
+    {"name": "Neue Donau", "lat": 48.2333, "lon": 16.4200},
+    {"name": "Handelskai", "lat": 48.2300, "lon": 16.4100}
+  ],
+  "1220": [
+    {"name": "Kagran", "lat": 48.2333, "lon": 16.4500},
+    {"name": "Kagraner Platz", "lat": 48.2300, "lon": 16.4450},
+    {"name": "Rennbahnweg", "lat": 48.2250, "lon": 16.4400}
+  ]
+} 

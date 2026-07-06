@@ -1,0 +1,1250 @@
+[
+  {
+    "name": "HAK/HAS Augarten",
+    "type": "school",
+    "lat": 48.2205017,
+    "lon": 16.3722157
+  },
+  {
+    "name": "Volksschule Jochbergengasse",
+    "type": "school",
+    "lat": 48.2799228,
+    "lon": 16.4020724
+  },
+  {
+    "name": "Museum des Blindenwesens",
+    "type": "school",
+    "lat": 48.2063691,
+    "lon": 16.3992724
+  },
+  {
+    "name": "Volksschule Marktgasse",
+    "type": "school",
+    "lat": 48.2273753,
+    "lon": 16.357504
+  },
+  {
+    "name": "VS Kindermanngasse",
+    "type": "school",
+    "lat": 48.2178847,
+    "lon": 16.331419
+  },
+  {
+    "name": "Marianum",
+    "type": "school",
+    "lat": 48.2291548,
+    "lon": 16.3284924
+  },
+  {
+    "name": "Volksschule Cottagegasse",
+    "type": "school",
+    "lat": 48.228996,
+    "lon": 16.33993
+  },
+  {
+    "name": "ÖKO Mittelschule",
+    "type": "school",
+    "lat": 48.1505359,
+    "lon": 16.3186844
+  },
+  {
+    "name": "Schulen der Dominikanerinnen",
+    "type": "school",
+    "lat": 48.1925846,
+    "lon": 16.2628937
+  },
+  {
+    "name": "De la Salle Schule - Schulbrüder Währing",
+    "type": "school",
+    "lat": 48.2243412,
+    "lon": 16.3412415
+  },
+  {
+    "name": "Leopoldschule",
+    "type": "school",
+    "lat": 48.2212781,
+    "lon": 16.3749473
+  },
+  {
+    "name": "Ganztagsvolksschule Alt Erlaa",
+    "type": "school",
+    "lat": 48.1515545,
+    "lon": 16.3145533
+  },
+  {
+    "name": "Kolonitzschule",
+    "type": "school",
+    "lat": 48.2101554,
+    "lon": 16.3902564
+  },
+  {
+    "name": "VS Kleine Sperlgasse",
+    "type": "school",
+    "lat": 48.215473,
+    "lon": 16.3774902
+  },
+  {
+    "name": "Musikschule Leopoldstadt",
+    "type": "school",
+    "lat": 48.2154449,
+    "lon": 16.3800582
+  },
+  {
+    "name": "Neue Mittelschule Kleine Sperlgasse",
+    "type": "school",
+    "lat": 48.2154295,
+    "lon": 16.3779575
+  },
+  {
+    "name": "Private Volksschule und Kindergarten St. Elisabeth",
+    "type": "school",
+    "lat": 48.2215128,
+    "lon": 16.3746512
+  },
+  {
+    "name": "KMS Augartenschule",
+    "type": "school",
+    "lat": 48.2220559,
+    "lon": 16.3757854
+  },
+  {
+    "name": "Beth Jakov Jüdische Mädchenschule für wirtschaftliche Berufe",
+    "type": "school",
+    "lat": 48.2203818,
+    "lon": 16.3768387
+  },
+  {
+    "name": "Bundes-Blindenerziehungsinstitut",
+    "type": "school",
+    "lat": 48.2063714,
+    "lon": 16.399753
+  },
+  {
+    "name": "Lutherschule und Schülerhort",
+    "type": "school",
+    "lat": 48.22047,
+    "lon": 16.3395388
+  },
+  {
+    "name": "VS 16, Julius Meinl-Gasse",
+    "type": "school",
+    "lat": 48.2192149,
+    "lon": 16.3107155
+  },
+  {
+    "name": "SAE Institute",
+    "type": "school",
+    "lat": 48.1907694,
+    "lon": 16.352378
+  },
+  {
+    "name": "Volksschule Neustiftgasse",
+    "type": "school",
+    "lat": 48.2060914,
+    "lon": 16.3413898
+  },
+  {
+    "name": "Evangelische Volksschule Leopoldstadt",
+    "type": "school",
+    "lat": 48.2162724,
+    "lon": 16.3855983
+  },
+  {
+    "name": "Volksschule Czerninplatz",
+    "type": "school",
+    "lat": 48.214857,
+    "lon": 16.3875998
+  },
+  {
+    "name": "pVS evangelische Kirche Karlsplatz 14",
+    "type": "school",
+    "lat": 48.1993616,
+    "lon": 16.3686581
+  },
+  {
+    "name": "Konservatorium für Musik und Dramatische Kunst der Margarete Prayner",
+    "type": "school",
+    "lat": 48.1969218,
+    "lon": 16.3629036
+  },
+  {
+    "name": "Schulzentrum Antonigasse",
+    "type": "school",
+    "lat": 48.2248919,
+    "lon": 16.333769
+  },
+  {
+    "name": "Bildungszentrum Mater Salvatoris",
+    "type": "school",
+    "lat": 48.1990626,
+    "lon": 16.339945
+  },
+  {
+    "name": "Institut Sacre-Coeur d. Erzdiözese Wien",
+    "type": "school",
+    "lat": 48.1950754,
+    "lon": 16.3853138
+  },
+  {
+    "name": "BG & BRG Wien 3 (HIB)",
+    "type": "school",
+    "lat": 48.1951535,
+    "lon": 16.3922007
+  },
+  {
+    "name": "Volksschule Siebenhirten",
+    "type": "school",
+    "lat": 48.1288116,
+    "lon": 16.3144752
+  },
+  {
+    "name": "GRG1 Stubenbastei",
+    "type": "school",
+    "lat": 48.2068608,
+    "lon": 16.378104
+  },
+  {
+    "name": "Volkshochschule Donaustadt",
+    "type": "school",
+    "lat": 48.2192707,
+    "lon": 16.4776465
+  },
+  {
+    "name": "Volksschule Börsegasse",
+    "type": "school",
+    "lat": 48.2136167,
+    "lon": 16.3687967
+  },
+  {
+    "name": "Lise Meitner Realgymnasium",
+    "type": "Bundesrealgymnasium Schottenbastei",
+    "lat": 48.2141596,
+    "lon": 16.3646655
+  },
+  {
+    "name": "NMS Renngasse",
+    "type": "school",
+    "lat": 48.2136159,
+    "lon": 16.368569
+  },
+  {
+    "name": "Öffentliches Schottengymnasium der Benediktiner in Wien",
+    "type": "Allgemeinbildende höhere Schule",
+    "lat": 48.2121474,
+    "lon": 16.3643485
+  },
+  {
+    "name": "Gastgewerbefachschule der Wiener Gastwirte",
+    "type": "school",
+    "lat": 48.2111421,
+    "lon": 16.3696874
+  },
+  {
+    "name": "Religionspädagogische Akademie",
+    "type": "school",
+    "lat": 48.2078766,
+    "lon": 16.3728781
+  },
+  {
+    "name": "Konservatorium der Erzdiözese Wien",
+    "type": "Musikschule",
+    "lat": 48.2078924,
+    "lon": 16.3709485
+  },
+  {
+    "name": "BORG für Musik und Kunst",
+    "type": "Allgemeinbildende höhere Schule",
+    "lat": 48.20345,
+    "lon": 16.3751369
+  },
+  {
+    "name": "Akademisches Gymnasium",
+    "type": "Allgemeinbildende höhere Schule",
+    "lat": 48.2015474,
+    "lon": 16.3766125
+  },
+  {
+    "name": "GRG 21 Ödenburgerstraße",
+    "type": "school",
+    "lat": 48.2818485,
+    "lon": 16.4026949
+  },
+  {
+    "name": "Volksschule Maria Frieden",
+    "type": "school",
+    "lat": 48.2187282,
+    "lon": 16.4571441
+  },
+  {
+    "name": "Parkschule VS Deckergasse",
+    "type": "school",
+    "lat": 48.1785948,
+    "lon": 16.3399513
+  },
+  {
+    "name": "GRG Rahlgasse",
+    "type": "school",
+    "lat": 48.2016349,
+    "lon": 16.3618213
+  },
+  {
+    "name": "Volksschule I",
+    "type": "school",
+    "lat": 48.251855,
+    "lon": 16.4011548
+  },
+  {
+    "name": "VHS Hietzing",
+    "type": "school",
+    "lat": 48.1703592,
+    "lon": 16.2868178
+  },
+  {
+    "name": "Volksschule Gassergasse",
+    "type": "school",
+    "lat": 48.1826571,
+    "lon": 16.3610499
+  },
+  {
+    "name": "HBLFA Schönbrunn",
+    "type": "school",
+    "lat": 48.1763312,
+    "lon": 16.3137074
+  },
+  {
+    "name": "private Volksschule",
+    "type": "school",
+    "lat": 48.1760898,
+    "lon": 16.3692848
+  },
+  {
+    "name": "Ganztagesvolksschule Jagdgasse",
+    "type": "school",
+    "lat": 48.1762818,
+    "lon": 16.3722057
+  },
+  {
+    "name": "Private Volksschule Neulandschule",
+    "type": "private",
+    "lat": 48.1806132,
+    "lon": 16.3682913
+  },
+  {
+    "name": "Musikschule",
+    "type": "school",
+    "lat": 48.1765847,
+    "lon": 16.3720191
+  },
+  {
+    "name": "Kooperative Mittelschule Herzgasse",
+    "type": "government",
+    "lat": 48.1773522,
+    "lon": 16.3674131
+  },
+  {
+    "name": "Piaristengymnasium",
+    "type": "school",
+    "lat": 48.2108827,
+    "lon": 16.3496168
+  },
+  {
+    "name": "Institut für Populationsgenetik",
+    "type": "school",
+    "lat": 48.2540638,
+    "lon": 16.4299504
+  },
+  {
+    "name": "GWIKU 18 Haizingergasse",
+    "type": "school",
+    "lat": 48.2292657,
+    "lon": 16.3394235
+  },
+  {
+    "name": "sprach.kult",
+    "type": "school",
+    "lat": 48.2392188,
+    "lon": 16.3863599
+  },
+  {
+    "name": "Musik- und Singschule Wien",
+    "type": "school",
+    "lat": 48.174271,
+    "lon": 16.4120715
+  },
+  {
+    "name": "Volkshochschule Simmering",
+    "type": "school",
+    "lat": 48.174124,
+    "lon": 16.4120371
+  },
+  {
+    "name": "Musikschule Margareten",
+    "type": "school",
+    "lat": 48.1886436,
+    "lon": 16.3508658
+  },
+  {
+    "name": "VHS polycollege",
+    "type": "school",
+    "lat": 48.1824194,
+    "lon": 16.3494754
+  },
+  {
+    "name": "VS 16, Odoakergasse",
+    "type": "school",
+    "lat": 48.2193191,
+    "lon": 16.3098229
+  },
+  {
+    "name": "Mittelschule Mira-Lobe-Weg",
+    "type": "Mittelschulklassen 5. – 8. Schulstufe (i-Pad-Klassen), darunter Integrationsklassen,          Orchesterklassen, Musikmittelschulklassen und Deutschförderklasse.",
+    "lat": 48.2574815,
+    "lon": 16.4565419
+  },
+  {
+    "name": "Volksschule Mira-Lobe-Weg",
+    "type": "school",
+    "lat": 48.2572818,
+    "lon": 16.4574263
+  },
+  {
+    "name": "Mittelschule Schulzentrum Gassergasse",
+    "type": "school",
+    "lat": 48.1827912,
+    "lon": 16.3614296
+  },
+  {
+    "name": "Friedrich-Zawrel-Schule",
+    "type": "school",
+    "lat": 48.2040974,
+    "lon": 16.3948991
+  },
+  {
+    "name": "Montessori-Schule im Heiligenkreuzerhof",
+    "type": "school",
+    "lat": 48.2099522,
+    "lon": 16.3762272
+  },
+  {
+    "name": "GTVS3",
+    "type": "school",
+    "lat": 48.1928756,
+    "lon": 16.3975056
+  },
+  {
+    "name": "Mittelschule Pyrkergasse",
+    "type": "school",
+    "lat": 48.2411041,
+    "lon": 16.3514205
+  },
+  {
+    "name": "Musikschule",
+    "type": "school",
+    "lat": 48.2400482,
+    "lon": 16.3521915
+  },
+  {
+    "name": "Learn quick",
+    "type": "school",
+    "lat": 48.1944248,
+    "lon": 16.3663302
+  },
+  {
+    "name": "GTVS an der Alten Donau",
+    "type": "school",
+    "lat": 48.2365067,
+    "lon": 16.4241104
+  },
+  {
+    "name": "Ausbildungszentrum",
+    "type": "school",
+    "lat": 48.2077424,
+    "lon": 16.3875193
+  },
+  {
+    "name": "Meridian Sprachenzentrum",
+    "type": "school",
+    "lat": 48.2064205,
+    "lon": 16.3882664
+  },
+  {
+    "name": "ABC Lernhaus",
+    "type": "school",
+    "lat": 48.1909807,
+    "lon": 16.3279035
+  },
+  {
+    "name": "Urania Volkshochschule",
+    "type": "Volksbildungshaus Wiener Urania, Volkshochschule",
+    "lat": 48.2116213,
+    "lon": 16.3839142
+  },
+  {
+    "name": "Berufsschule für Baugewerbe Wien",
+    "type": "school",
+    "lat": 48.2414353,
+    "lon": 16.4326257
+  },
+  {
+    "name": "Mittelschule Steinbauergasse",
+    "type": "school",
+    "lat": 48.1821784,
+    "lon": 16.3410732
+  },
+  {
+    "name": "Volkshochschule Floridsdorf Zweigstelle Neu-Stammersdorf",
+    "type": "school",
+    "lat": 48.2916845,
+    "lon": 16.4167249
+  },
+  {
+    "name": "Islamisches Realgymnasium Wien",
+    "type": "school",
+    "lat": 48.1854134,
+    "lon": 16.3261305
+  },
+  {
+    "name": "Sperlgymnasium",
+    "type": "school",
+    "lat": 48.2158561,
+    "lon": 16.3780482
+  },
+  {
+    "name": "Schulkompetenzzentrum für Prävention, Inklusion und Rehabilitation - Volksschule im Alsergrund",
+    "type": "public",
+    "lat": 48.2228383,
+    "lon": 16.3650633
+  },
+  {
+    "name": "Musikschule Alsergrund",
+    "type": "school",
+    "lat": 48.2228731,
+    "lon": 16.3647239
+  },
+  {
+    "name": "Gymnasium De La Salle Schule Strebersdorf",
+    "type": "school",
+    "lat": 48.2962079,
+    "lon": 16.3888237
+  },
+  {
+    "name": "Volksschule De La Salle Schule Strebersdorf",
+    "type": "school",
+    "lat": 48.2969234,
+    "lon": 16.3887432
+  },
+  {
+    "name": "Mittelschule Roda-Roda-Gasse",
+    "type": "school",
+    "lat": 48.2907547,
+    "lon": 16.3834186
+  },
+  {
+    "name": "NMS Pfeilgasse",
+    "type": "school",
+    "lat": 48.2097023,
+    "lon": 16.34133
+  },
+  {
+    "name": "FMS Schaumburgergasse",
+    "type": "school",
+    "lat": 48.1910293,
+    "lon": 16.3680428
+  },
+  {
+    "name": "Volkshochschule Wien",
+    "type": "school",
+    "lat": 48.1925158,
+    "lon": 16.3693198
+  },
+  {
+    "name": "Polycollege",
+    "type": "school",
+    "lat": 48.1926232,
+    "lon": 16.3694201
+  },
+  {
+    "name": "Evangelische Volksschule Währing Lutherschule",
+    "type": "school",
+    "lat": 48.2206632,
+    "lon": 16.3396393
+  },
+  {
+    "name": "pVS Judenplatz",
+    "type": "private",
+    "lat": 48.2115155,
+    "lon": 16.3692494
+  },
+  {
+    "name": "Freie Schule",
+    "type": "school",
+    "lat": 48.1931998,
+    "lon": 16.3536672
+  },
+  {
+    "name": "Schulzentrum 14",
+    "type": "school",
+    "lat": 48.2019302,
+    "lon": 16.3110155
+  },
+  {
+    "name": "Le Bon Mot Französischinstitut",
+    "type": "school",
+    "lat": 48.2121743,
+    "lon": 16.3532813
+  },
+  {
+    "name": "Integrative Schule Hernals",
+    "type": "school",
+    "lat": 48.2257437,
+    "lon": 16.3100907
+  },
+  {
+    "name": "KMS In der Krim",
+    "type": "school",
+    "lat": 48.2426909,
+    "lon": 16.3374053
+  },
+  {
+    "name": "Musikschule Rudolfsheim-Fünfhaus",
+    "type": "school",
+    "lat": 48.1900442,
+    "lon": 16.3244459
+  },
+  {
+    "name": "Hilfswerk Spielothek",
+    "type": "school",
+    "lat": 48.2009754,
+    "lon": 16.3433415
+  },
+  {
+    "name": "Volksschule Johnstraße 40",
+    "type": "school",
+    "lat": 48.19718,
+    "lon": 16.3190824
+  },
+  {
+    "name": "Neue Mittelschule Schop Währing",
+    "type": "school",
+    "lat": 48.2262662,
+    "lon": 16.3351035
+  },
+  {
+    "name": "Polytechnische Schule Wien West",
+    "type": "school",
+    "lat": 48.2264669,
+    "lon": 16.3346365
+  },
+  {
+    "name": "Schule Maria-Regina",
+    "type": "school",
+    "lat": 48.2413627,
+    "lon": 16.3550053
+  },
+  {
+    "name": "Österreichisches Lateinamerika-Institut",
+    "type": "school",
+    "lat": 48.2181099,
+    "lon": 16.3645368
+  },
+  {
+    "name": "Caritas Ausbildungszentrum für Sozialberufe",
+    "type": "school",
+    "lat": 48.2231877,
+    "lon": 16.3666376
+  },
+  {
+    "name": "Volksschule Karl-Löwe-Gasse",
+    "type": "school",
+    "lat": 48.1781322,
+    "lon": 16.3401798
+  },
+  {
+    "name": "Wiener Mittelschule Loquaiplatz",
+    "type": "school",
+    "lat": 48.1949041,
+    "lon": 16.347945
+  },
+  {
+    "name": "Volksschule Schäffergasse",
+    "type": "school",
+    "lat": 48.1945776,
+    "lon": 16.365644
+  },
+  {
+    "name": "Kooperative Mittelschule",
+    "type": "school",
+    "lat": 48.1944437,
+    "lon": 16.3658032
+  },
+  {
+    "name": "Bildungsgemeinschaft St. Marien",
+    "type": "private",
+    "lat": 48.1923681,
+    "lon": 16.3446771
+  },
+  {
+    "name": "Mittelschule Herthergasse",
+    "type": "school",
+    "lat": 48.18163,
+    "lon": 16.3414935
+  },
+  {
+    "name": "AMADEUS International School Vienna",
+    "type": "school",
+    "lat": 48.2359625,
+    "lon": 16.3203274
+  },
+  {
+    "name": "Karl Schubert Schule",
+    "type": "school",
+    "lat": 48.1525468,
+    "lon": 16.2703092
+  },
+  {
+    "name": "Volksschule Wien XVIII Bischof-Faber-Platz",
+    "type": "school",
+    "lat": 48.233779,
+    "lon": 16.3247311
+  },
+  {
+    "name": "Hans-Christian-Andersen-Volksschule",
+    "type": "school",
+    "lat": 48.2087256,
+    "lon": 16.3080264
+  },
+  {
+    "name": "BG/BRG/BORG Polgarstraße",
+    "type": "school",
+    "lat": 48.2322513,
+    "lon": 16.4514603
+  },
+  {
+    "name": "BHAK Polgarstraße",
+    "type": "school",
+    "lat": 48.2325672,
+    "lon": 16.4517837
+  },
+  {
+    "name": "Musikschule Hernals",
+    "type": "school",
+    "lat": 48.2188112,
+    "lon": 16.3324398
+  },
+  {
+    "name": "Volkshochschule Hernals",
+    "type": "school",
+    "lat": 48.2190239,
+    "lon": 16.3323969
+  },
+  {
+    "name": "Volksschule Zinckgasse",
+    "type": "school",
+    "lat": 48.1993101,
+    "lon": 16.3348975
+  },
+  {
+    "name": "Volkshochschule Donaustadt",
+    "type": "school",
+    "lat": 48.2407029,
+    "lon": 16.4385506
+  },
+  {
+    "name": "VS Kindermanngasse (Ersatzquartier)",
+    "type": "school",
+    "lat": 48.2086324,
+    "lon": 16.3243416
+  },
+  {
+    "name": "Friedrich Eymann Waldorfschule",
+    "type": "school",
+    "lat": 48.1894194,
+    "lon": 16.2844769
+  },
+  {
+    "name": "Schulzentrum St. Franziskus",
+    "type": "school",
+    "lat": 48.1995943,
+    "lon": 16.3986825
+  },
+  {
+    "name": "Franz Jonas Europaschule",
+    "type": "school",
+    "lat": 48.2657325,
+    "lon": 16.391276
+  },
+  {
+    "name": "Berufsförderungsinstitut",
+    "type": "school",
+    "lat": 48.2405771,
+    "lon": 16.3630074
+  },
+  {
+    "name": "Vienna Elementary School - Vienna European School",
+    "type": "school",
+    "lat": 48.2275176,
+    "lon": 16.3316963
+  },
+  {
+    "name": "Saudi Arabische Schule in Wien",
+    "type": "school",
+    "lat": 48.2451765,
+    "lon": 16.3981102
+  },
+  {
+    "name": "Volksschule Prandaugasse",
+    "type": "school",
+    "lat": 48.246483,
+    "lon": 16.430869
+  },
+  {
+    "name": "Abendgymnasium Wien",
+    "type": "school",
+    "lat": 48.2696175,
+    "lon": 16.4059069
+  },
+  {
+    "name": "Expositur der polytechnischen Schule Engerthstraße 78-80",
+    "type": "school",
+    "lat": 48.2902309,
+    "lon": 16.3834078
+  },
+  {
+    "name": "Volkshochschule Meidling",
+    "type": "school",
+    "lat": 48.1825933,
+    "lon": 16.3382149
+  },
+  {
+    "name": "Volksschule II",
+    "type": "school",
+    "lat": 48.2521717,
+    "lon": 16.4014145
+  },
+  {
+    "name": "Musikschule Hansson-Zentrum",
+    "type": "school",
+    "lat": 48.1525836,
+    "lon": 16.3840672
+  },
+  {
+    "name": "VHS Volkshochschule Meidling",
+    "type": "school",
+    "lat": 48.1843383,
+    "lon": 16.3352862
+  },
+  {
+    "name": "Maturaschule",
+    "type": "school",
+    "lat": 48.2037319,
+    "lon": 16.3430166
+  },
+  {
+    "name": "Überbau Akademie",
+    "type": "school",
+    "lat": 48.2019513,
+    "lon": 16.3430635
+  },
+  {
+    "name": "Polytechnische Schule Wien",
+    "type": "school",
+    "lat": 48.2042263,
+    "lon": 16.3542477
+  },
+  {
+    "name": "VHS Mauer",
+    "type": "school",
+    "lat": 48.1521775,
+    "lon": 16.269395
+  },
+  {
+    "name": "Schule für medizinische Assistenzberufe",
+    "type": "school",
+    "lat": 48.2532423,
+    "lon": 16.3932677
+  },
+  {
+    "name": "ZIS 17",
+    "type": "school",
+    "lat": 48.2229572,
+    "lon": 16.3313055
+  },
+  {
+    "name": "Berufsschule für Bürokaufleute",
+    "type": "school",
+    "lat": 48.1975485,
+    "lon": 16.3191457
+  },
+  {
+    "name": "Neue Mittelschule Spallartgasse",
+    "type": "school",
+    "lat": 48.2008951,
+    "lon": 16.3062626
+  },
+  {
+    "name": "Volksschule Zennerstraße",
+    "type": "school",
+    "lat": 48.2014243,
+    "lon": 16.3062867
+  },
+  {
+    "name": "Wiener Schule der Osteopathie",
+    "type": "school",
+    "lat": 48.188623,
+    "lon": 16.293228
+  },
+  {
+    "name": "Musikschule Meidling",
+    "type": "school",
+    "lat": 48.1749788,
+    "lon": 16.3312612
+  },
+  {
+    "name": "Musikschule Döbling",
+    "type": "school",
+    "lat": 48.2424322,
+    "lon": 16.3556596
+  },
+  {
+    "name": "Volksschule Pastorstraße",
+    "type": "1",
+    "lat": 48.2719585,
+    "lon": 16.4444854
+  },
+  {
+    "name": "Neue Sportmittelschule Floridsdorf",
+    "type": "2",
+    "lat": 48.271797,
+    "lon": 16.4433467
+  },
+  {
+    "name": "Kampfkunstschule Dojang Wien Taekwondo",
+    "type": "school",
+    "lat": 48.2205287,
+    "lon": 16.3422279
+  },
+  {
+    "name": "Jam Music Lab University",
+    "type": "school",
+    "lat": 48.1847809,
+    "lon": 16.4191997
+  },
+  {
+    "name": "Segelschule Hofbauer",
+    "type": "school",
+    "lat": 48.2408691,
+    "lon": 16.4270242
+  },
+  {
+    "name": "Volksschule Johann-Hoffmann-Platz",
+    "type": "school",
+    "lat": 48.1708868,
+    "lon": 16.3265875
+  },
+  {
+    "name": "GRG 11 - Gymnasium und Realgymnasium",
+    "type": "school",
+    "lat": 48.1733669,
+    "lon": 16.4116551
+  },
+  {
+    "name": "Volksschule Campus Lacknergasse",
+    "type": "school",
+    "lat": 48.2281729,
+    "lon": 16.3337802
+  },
+  {
+    "name": "Mittelschule Campus Lacknergasse",
+    "type": "school",
+    "lat": 48.2281907,
+    "lon": 16.3337898
+  },
+  {
+    "name": "Berufsschule für Bürokaufleute",
+    "type": "school",
+    "lat": 48.1945835,
+    "lon": 16.3154866
+  },
+  {
+    "name": "VHS Heiligenstadt",
+    "type": "school",
+    "lat": 48.2541124,
+    "lon": 16.3645316
+  },
+  {
+    "name": "Musikschule Liesing",
+    "type": "school",
+    "lat": 48.1337538,
+    "lon": 16.2802451
+  },
+  {
+    "name": "Schule der Stadt Wien",
+    "type": "Schule der Stadt Wien",
+    "lat": 48.2230959,
+    "lon": 16.5007087
+  },
+  {
+    "name": "Astrid Lindgren Zentrum",
+    "type": "school",
+    "lat": 48.1382005,
+    "lon": 16.2738382
+  },
+  {
+    "name": "Maria Regina - AHS",
+    "type": "school",
+    "lat": 48.2425266,
+    "lon": 16.3537922
+  },
+  {
+    "name": "a bis zett",
+    "type": "school",
+    "lat": 48.211443,
+    "lon": 16.3537862
+  },
+  {
+    "name": "Vienna Bilingual School",
+    "type": "school",
+    "lat": 48.2096187,
+    "lon": 16.3148292
+  },
+  {
+    "name": "Volksschule - St. Franziskus",
+    "type": "school",
+    "lat": 48.1998997,
+    "lon": 16.39777
+  },
+  {
+    "name": "Musikmittelschule Döbling",
+    "type": "school",
+    "lat": 48.2411239,
+    "lon": 16.351965
+  },
+  {
+    "name": "Lauder Business School",
+    "type": "school",
+    "lat": 48.24249,
+    "lon": 16.3530204
+  },
+  {
+    "name": "Ganztagsvolksschule Hammerfestweg 1",
+    "type": "school",
+    "lat": 48.2162743,
+    "lon": 16.4721067
+  },
+  {
+    "name": "Schwerhörigenschule Wien",
+    "type": "school",
+    "lat": 48.216529,
+    "lon": 16.4717232
+  },
+  {
+    "name": "VHS Donaustadt",
+    "type": "school",
+    "lat": 48.2165058,
+    "lon": 16.4720786
+  },
+  {
+    "name": "Europäische Volksschule Goldschlagstraße",
+    "type": "school",
+    "lat": 48.1989567,
+    "lon": 16.3352777
+  },
+  {
+    "name": "Barmherzige Bruder Pflegeakademie Wien",
+    "type": "school",
+    "lat": 48.2153813,
+    "lon": 16.3804392
+  },
+  {
+    "name": "Avicenna",
+    "type": "school",
+    "lat": 48.2758727,
+    "lon": 16.3890568
+  },
+  {
+    "name": "Volksschule Gaullachergasse",
+    "type": "school",
+    "lat": 48.2120802,
+    "lon": 16.3327571
+  },
+  {
+    "name": "MS am Johann-Hoffmann-Platz",
+    "type": "school",
+    "lat": 48.170646,
+    "lon": 16.3264601
+  },
+  {
+    "name": "Volksschule Robert Blum Gasse",
+    "type": "public",
+    "lat": 48.2485658,
+    "lon": 16.374167
+  },
+  {
+    "name": "Elisabethschule",
+    "type": "public",
+    "lat": 48.1903642,
+    "lon": 16.3749457
+  },
+  {
+    "name": "Schule der Stadt Wien",
+    "type": "school",
+    "lat": 48.1540125,
+    "lon": 16.3024307
+  },
+  {
+    "name": "W@lz",
+    "type": "school",
+    "lat": 48.1982117,
+    "lon": 16.2948296
+  },
+  {
+    "name": "VHS Veranstaltungszentrum Praterstern",
+    "type": "school",
+    "lat": 48.2190525,
+    "lon": 16.3897824
+  },
+  {
+    "name": "Volksschule Marco Polo",
+    "type": "school",
+    "lat": 48.2779936,
+    "lon": 16.4197687
+  },
+  {
+    "name": "Volkschue fur knaben und madchen",
+    "type": "school",
+    "lat": 48.1790539,
+    "lon": 16.3744864
+  },
+  {
+    "name": "kindergarden",
+    "type": "school",
+    "lat": 48.1774148,
+    "lon": 16.3792468
+  },
+  {
+    "name": "Private Mittelschule St. Elisabeth",
+    "type": "school",
+    "lat": 48.2222798,
+    "lon": 16.375444
+  },
+  {
+    "name": "Volks- und Mittelschule Leopold-Kohr-Straße",
+    "type": "school",
+    "lat": 48.2433871,
+    "lon": 16.4586971
+  },
+  {
+    "name": "GTVS Langobardenstraße",
+    "type": "school",
+    "lat": 48.2189355,
+    "lon": 16.4712604
+  },
+  {
+    "name": "GTMS Langobardenstraße",
+    "type": "school",
+    "lat": 48.2189355,
+    "lon": 16.4712604
+  },
+  {
+    "name": "Waldorf Behindertenbetreuung",
+    "type": "school",
+    "lat": 48.1889803,
+    "lon": 16.282843
+  },
+  {
+    "name": "42 Vienna",
+    "type": "school",
+    "lat": 48.248407,
+    "lon": 16.3683622
+  },
+  {
+    "name": "Mittelschule Brüßlgasse",
+    "type": "school",
+    "lat": 48.2083223,
+    "lon": 16.3213961
+  },
+  {
+    "name": "Volksschule Brüßlgasse",
+    "type": "school",
+    "lat": 48.2081217,
+    "lon": 16.3214371
+  },
+  {
+    "name": "Volksschule Hebbelplatz",
+    "type": "school",
+    "lat": 48.16647,
+    "lon": 16.3789697
+  },
+  {
+    "name": "Inklusive Schule Hebbelplatz",
+    "type": "school",
+    "lat": 48.1665416,
+    "lon": 16.3786116
+  },
+  {
+    "name": "Mittelschule Jochbergengasse",
+    "type": "school",
+    "lat": 48.2800691,
+    "lon": 16.4013743
+  },
+  {
+    "name": "Polytechnische Schule und Fachmittelschule Wien",
+    "type": "school",
+    "lat": 48.2806815,
+    "lon": 16.4014828
+  },
+  {
+    "name": "Schule bei der Botschaft Russlands",
+    "type": "school",
+    "lat": 48.2236296,
+    "lon": 16.4693473
+  },
+  {
+    "name": "VS Schillgasse",
+    "type": "school",
+    "lat": 48.2682597,
+    "lon": 16.3884909
+  },
+  {
+    "name": "Polytechnische Schule",
+    "type": "school",
+    "lat": 48.2545825,
+    "lon": 16.403822
+  },
+  {
+    "name": "Vienna Business School Floridsdorf",
+    "type": "school",
+    "lat": 48.253631,
+    "lon": 16.4034183
+  },
+  {
+    "name": "AHS Franklinstraße 26",
+    "type": "school",
+    "lat": 48.2528663,
+    "lon": 16.4044869
+  },
+  {
+    "name": "Ätsch",
+    "type": "school",
+    "lat": 48.1932181,
+    "lon": 16.3536714
+  },
+  {
+    "name": "Praxis Mittelschule Wien",
+    "type": "school",
+    "lat": 48.1663006,
+    "lon": 16.3739453
+  },
+  {
+    "name": "Volkshochschule PAHO",
+    "type": "school",
+    "lat": 48.1524442,
+    "lon": 16.3840641
+  },
+  {
+    "name": "Volkshochschule Liesing",
+    "type": "school",
+    "lat": 48.1345645,
+    "lon": 16.2824814
+  }
+]

@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { MapView, type ViewportBounds, type LayerState } from '@/components/MapView';
+import { MapView, type ViewportBounds, type LayerState, type StationFeature, type SchoolFeature } from '@/components/MapView';
 import { MapTopBar } from '@/components/MapTopBar';
 import { MapFilterPopover, type MapFilterState, COMMUTE_COORDS } from '@/components/MapFilterPopover';
 import { MapLayersPopover } from '@/components/MapLayersPopover';
@@ -56,13 +56,29 @@ function MapPage() {
   const [layersOpen, setLayersOpen] = useState(false);
   const [layers, setLayers] = useState<LayerState>({
     listings: true,
-    stations: false,
-    schools: false,
+    stations: true,
+    schools: true,
     heatmap: false,
   });
+  const [stationData, setStationData] = useState<StationFeature[]>([]);
+  const [schoolData, setSchoolData] = useState<SchoolFeature[]>([]);
   const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
 
   const { newListings } = useListingsSSE();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/geo/infrastructure')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !Array.isArray(data?.features)) return;
+        const feats = data.features as Array<StationFeature | SchoolFeature>;
+        setStationData(feats.filter((f): f is StationFeature => f.properties.kind === 'ubahn'));
+        setSchoolData(feats.filter((f): f is SchoolFeature => f.properties.kind === 'school'));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (newListings.length === 0) return;
@@ -265,10 +281,10 @@ function MapPage() {
   // Layer counts
   const layerCounts = useMemo(() => ({
     listings: listings.length,
-    stations: 0,
-    schools: 0,
+    stations: stationData.length,
+    schools: schoolData.length,
     heatmap: 23,
-  }), [listings]);
+  }), [listings, stationData, schoolData]);
 
   const handlePinClick = useCallback((listing: MapListing) => {
     setSelectedListingId(listing._id);
@@ -343,6 +359,8 @@ function MapPage() {
                   listings={viewportListings}
                   selectedListingId={selectedListingId}
                   layers={layers}
+                  stationData={stationData}
+                  schoolData={schoolData}
                   layersPopoverSlot={
                     <MapLayersPopover
                       open={layersOpen}
@@ -407,6 +425,8 @@ function MapPage() {
                     listings={listings}
                     selectedListingId={selectedListingId}
                     layers={layers}
+                    stationData={stationData}
+                    schoolData={schoolData}
                     onPinClick={handlePinClick}
                     onMapClick={handleCloseDetail}
                     onBoundsChange={setBounds}
