@@ -10,8 +10,8 @@ import { useEffect, useRef, useState, memo, useCallback, ReactNode } from 'react
 
 const PIN_COLOR_DEFAULT = '#16243a';
 const PIN_COLOR_SELECTED = '#2456e6';
-const STATION_COLOR = '#3b6fd4';
-const SCHOOL_COLOR = '#2ba56b';
+const STATION_COLOR = '#1d4ed8';
+const SCHOOL_COLOR = '#16a34a';
 
 export interface LayerState {
   listings: boolean;
@@ -49,13 +49,13 @@ export interface ViewportBounds {
   west: number;
 }
 
-interface StationFeature {
+export interface StationFeature {
   type: 'Feature';
   geometry: { type: 'Point'; coordinates: [number, number] };
   properties: { kind: 'ubahn'; name: string; district?: string };
 }
 
-interface SchoolFeature {
+export interface SchoolFeature {
   type: 'Feature';
   geometry: { type: 'Point'; coordinates: [number, number] };
   properties: { kind: 'school'; name: string; type?: string };
@@ -233,12 +233,10 @@ function StationsLayer({ stations }: { stations: StationFeature[] }) {
             data-infra-name={f.properties.name}
           >
             <Tooltip
-              permanent
               direction="right"
               offset={[6, 0]}
               className="leaflet-infra-label"
               opacity={1}
-              sticky
             >
               <span className="text-[10px] font-semibold" style={{ color: STATION_COLOR }}>
                 {f.properties.name}
