@@ -26,10 +26,11 @@ const MapViewDynamic = dynamic(
   { ssr: false, loading: () => <MapLoadingState /> }
 );
 
-function MapLoadingState() {
+function MapLoadingState({ label = 'Loading map…' }: { label?: string }) {
   return (
-    <div className="h-full w-full flex items-center justify-center bg-gray-100">
-      <p className="text-gray-500">Loading map...</p>
+    <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-bg">
+      <span className="w-8 h-8 rounded-full border-2 border-line border-t-accent animate-spin" aria-hidden />
+      <p className="text-[13px] text-ink-3 font-medium">{label}</p>
     </div>
   );
 }
@@ -356,12 +357,11 @@ function MapPage() {
 
           <div className="flex-1 relative">
             {loading ? (
-              <div className="h-full flex items-center justify-center bg-gray-50">
-                <p className="text-gray-500">Loading...</p>
-              </div>
+              <MapLoadingState label="Loading listings…" />
             ) : listings.length === 0 ? (
-              <div className="h-full flex items-center justify-center bg-gray-50">
-                <p className="text-gray-400">No listings match your filters.</p>
+              <div className="h-full flex flex-col items-center justify-center gap-2 bg-bg">
+                <p className="text-[14px] font-semibold text-ink-2">No listings match your filters</p>
+                <p className="text-[12.5px] text-ink-3">Loosen the score, price or district filters to see more.</p>
               </div>
             ) : (
               <>

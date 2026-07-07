@@ -40,9 +40,8 @@ test('MapLayersPopover toggles U-Bahn + Schools; default state has only Listings
   await expect(pop).toBeVisible();
   const stationsToggle = pop.locator('[data-testid="layer-toggle-stations"]');
   const schoolsToggle = pop.locator('[data-testid="layer-toggle-schools"]');
-  // Default: stations off → click to turn on
+  // Stations + schools default ON (commit e218cc8); clicks toggle them off
   await stationsToggle.click();
-  // After click the toggle reflects on state; we just check the click handler fired
   await schoolsToggle.click();
   // Close by clicking outside
   await page.locator('body').click({ position: { x: 10, y: 10 } });
@@ -66,9 +65,10 @@ test('T7: price pins use single navy color by default, blue when selected, no ti
     expect(c, `default pin color mismatch: ${c}`).toBe(NAVY);
   }
 
-  // Click first marker → that pin should turn blue
+  // Click first marker → that pin should turn blue.
+  // dispatchEvent: overlapping pins at city zoom intercept a positional click.
   const first = page.locator('.leaflet-marker-icon').first();
-  await first.click();
+  await first.dispatchEvent('click');
   await page.waitForTimeout(400);
 
   const selectedColor = await first.locator('div').first().evaluate(
@@ -80,15 +80,18 @@ test('T7: price pins use single navy color by default, blue when selected, no ti
 
 test('T8: SelectedCard opens at bottom-left 320px wide with fact chips and View listing CTA', async ({ page }) => {
   await page.goto('/dashboard/map');
-  await page.locator('.leaflet-marker-icon').first().click();
+  await page.waitForSelector('.leaflet-marker-icon', { timeout: 10000 });
+  // dispatchEvent: overlapping pins at city zoom intercept a positional click.
+  await page.locator('.leaflet-marker-icon').first().dispatchEvent('click');
   await page.waitForTimeout(300);
   const card = page.locator('[data-testid="selected-card"]');
   await expect(card).toBeVisible();
   const box = await card.boundingBox();
   expect(box).not.toBeNull();
   expect(box?.width).toBe(320);
-  // Bottom-left: left value should be small (< 50), bottom close to viewport bottom
-  expect(box?.x).toBeLessThan(50);
+  // Bottom-left of the MAP AREA: rail is 340px, so card left edge sits just past it
+  expect(box?.x).toBeGreaterThan(340);
+  expect(box?.x).toBeLessThan(420);
   expect(box?.y).toBeGreaterThan(400);
   await expect(card.locator('[data-testid="fact-m2"]')).toBeVisible();
   await expect(card.locator('[data-testid="fact-eur-m2"]')).toBeVisible();
@@ -101,7 +104,8 @@ test('T9: Desktop layout shows top-bar + rail + map; mobile shows BottomSheet fa
   await page.goto('/dashboard/map');
   await expect(page.locator('[data-testid="map-top-bar"]')).toBeVisible();
   await expect(page.locator('[data-testid="listing-rail"]')).toBeVisible();
-  await expect(page.locator('#map')).toBeVisible();
+  // Two Leaflet instances exist (desktop + hidden mobile fallback) — assert the visible one
+  await expect(page.locator('.map-desktop .leaflet-container')).toBeVisible();
 
   // Mobile fallback
   await page.setViewportSize({ width: 375, height: 800 });

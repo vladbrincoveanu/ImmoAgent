@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 interface LayerState {
   listings: boolean;
   stations: boolean;
@@ -23,9 +25,24 @@ const ROWS: Array<{ key: 'listings' | 'stations' | 'schools' | 'heatmap'; name: 
 ];
 
 export function MapLayersPopover({ open, onClose, layers, onToggle, counts }: MapLayersPopoverProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const t = e.target as Element;
+      // Let the Layers button handle its own toggle — avoids close-then-reopen
+      if (t.closest('[data-testid="layers-btn"]')) return;
+      if (ref.current && !ref.current.contains(t)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div
+      ref={ref}
       data-testid="layers-popover"
       className="absolute top-[42px] right-0 w-[224px] bg-card border border-line rounded-xl shadow-[0_12px_32px_rgba(22,36,58,0.14)] p-2 z-[1100]"
       onClick={(e) => e.stopPropagation()}

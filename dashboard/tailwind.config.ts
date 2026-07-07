@@ -10,7 +10,8 @@ const config: Config = {
     extend: {
       fontFamily: {
         'dm-sans': ['DM Sans', 'sans-serif'],
-        sans: ['Inter', '-apple-system', 'sans-serif'],
+        sans: ['Instrument Sans', 'Inter', '-apple-system', 'sans-serif'],
+        display: ['Fraunces', 'Georgia', 'serif'],
       },
       colors: {
         // New /dashboard/map tokens (cool palette)
