@@ -49,12 +49,10 @@ def test_profile_comparison():
     # Test different profiles
     profiles_to_test = [
         'default',
-        'growing_family', 
-        'urban_professional',
-        'eco_conscious',
+        'budget_buyer',
+        'growing_family',
         'diy_renovator',
-        'retiree',
-        'budget_buyer'
+        'urban_professional',
     ]
     
     print(f"\n🎯 Scoring Results by Profile:")

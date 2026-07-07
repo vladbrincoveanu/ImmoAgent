@@ -40,14 +40,14 @@ const MOCK_BY_DISTRICT: Record<string, Array<{
   price_is_estimated: boolean;
 }>> = {
   '': [
-    { _id: 'a1', title: 'Leopoldstadt loft A', bezirk: '1020', score: 70, scores: { default: 70, owner_occupier: 85 }, price_total: 400000, area_m2: 60, rooms: 2, url: 'http://x/1', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.21, lon: 16.38 }, coordinate_source: 'exact', price_is_estimated: false },
-    { _id: 'a2', title: 'Margareten flat B',    bezirk: '1050', score: 60, scores: { default: 60, owner_occupier: 55 }, price_total: 350000, area_m2: 50, rooms: 2, url: 'http://x/2', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.19, lon: 16.36 }, coordinate_source: 'exact', price_is_estimated: false },
-    { _id: 'a3', title: 'Leopoldstadt big C',   bezirk: '1020', score: 80, scores: { default: 80, owner_occupier: 75 }, price_total: 450000, area_m2: 90, rooms: 3, url: 'http://x/3', source_enum: 'derstandard', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.22, lon: 16.40 }, coordinate_source: 'exact', price_is_estimated: false },
-    { _id: 'a4', title: 'Neubau flat D',         bezirk: '1070', score: 65, scores: { default: 65, owner_occupier: 60 }, price_total: 480000, area_m2: 70, rooms: 2, url: 'http://x/4', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.20, lon: 16.35 }, coordinate_source: 'exact', price_is_estimated: false },
+    { _id: 'a1', title: 'Leopoldstadt loft A', bezirk: '1020', score: 70, scores: { default: 70, growing_family: 85 }, price_total: 400000, area_m2: 60, rooms: 2, url: 'http://x/1', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.21, lon: 16.38 }, coordinate_source: 'exact', price_is_estimated: false },
+    { _id: 'a2', title: 'Margareten flat B',    bezirk: '1050', score: 60, scores: { default: 60, growing_family: 55 }, price_total: 350000, area_m2: 50, rooms: 2, url: 'http://x/2', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.19, lon: 16.36 }, coordinate_source: 'exact', price_is_estimated: false },
+    { _id: 'a3', title: 'Leopoldstadt big C',   bezirk: '1020', score: 80, scores: { default: 80, growing_family: 75 }, price_total: 450000, area_m2: 90, rooms: 3, url: 'http://x/3', source_enum: 'derstandard', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.22, lon: 16.40 }, coordinate_source: 'exact', price_is_estimated: false },
+    { _id: 'a4', title: 'Neubau flat D',         bezirk: '1070', score: 65, scores: { default: 65, growing_family: 60 }, price_total: 480000, area_m2: 70, rooms: 2, url: 'http://x/4', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.20, lon: 16.35 }, coordinate_source: 'exact', price_is_estimated: false },
   ],
   '1020': [
-    { _id: 'a1', title: 'Leopoldstadt loft A', bezirk: '1020', score: 70, scores: { default: 70, owner_occupier: 85 }, price_total: 400000, area_m2: 60, rooms: 2, url: 'http://x/1', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.21, lon: 16.38 }, coordinate_source: 'exact', price_is_estimated: false },
-    { _id: 'a3', title: 'Leopoldstadt big C',   bezirk: '1020', score: 80, scores: { default: 80, owner_occupier: 75 }, price_total: 450000, area_m2: 90, rooms: 3, url: 'http://x/3', source_enum: 'derstandard', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.22, lon: 16.40 }, coordinate_source: 'exact', price_is_estimated: false },
+    { _id: 'a1', title: 'Leopoldstadt loft A', bezirk: '1020', score: 70, scores: { default: 70, growing_family: 85 }, price_total: 400000, area_m2: 60, rooms: 2, url: 'http://x/1', source_enum: 'willhaben', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.21, lon: 16.38 }, coordinate_source: 'exact', price_is_estimated: false },
+    { _id: 'a3', title: 'Leopoldstadt big C',   bezirk: '1020', score: 80, scores: { default: 80, growing_family: 75 }, price_total: 450000, area_m2: 90, rooms: 3, url: 'http://x/3', source_enum: 'derstandard', image_url: null, url_is_valid: true, listing_status: 'active', processed_at: '2026-01-01', estimated_down_pct: 20, coordinates: { lat: 48.22, lon: 16.40 }, coordinate_source: 'exact', price_is_estimated: false },
   ],
 };
 
@@ -108,7 +108,7 @@ test.describe('Filter system — live UI verification', () => {
     await expect(page.getByText(/2 listings matching your filters/)).toBeVisible();
   });
 
-  test('selecting profile=owner_occupier re-ranks by owner_occupier score, not default', async ({ page }) => {
+  test('selecting profile=growing_family re-ranks by growing_family score, not default', async ({ page }) => {
     await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /Top Property Picks/i })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Leopoldstadt loft A')).toBeVisible({ timeout: 10000 });
@@ -117,13 +117,13 @@ test.describe('Filter system — live UI verification', () => {
     // The first card title should be "Leopoldstadt big C" (a3, score 80)
     const firstCard = page.locator('article, [data-listing], .listing-card, [class*="card"]').first();
 
-    // Switch to owner_occupier profile
-    await page.locator('[data-testid="profile-selector"]').first().selectOption('owner_occupier');
-    await expect(page).toHaveURL(/profile=owner_occupier/);
+    // Switch to growing_family profile
+    await page.locator('[data-testid="profile-selector"]').first().selectOption('growing_family');
+    await expect(page).toHaveURL(/profile=growing_family/);
 
-    // Re-fetch happens; wait for re-render. owner_occupier scores: a1=85, a3=75, a4=60, a2=55
+    // Re-fetch happens; wait for re-render. growing_family scores: a1=85, a3=75, a4=60, a2=55
     // So new order: a1 (85) > a3 (75) > a4 (60) > a2 (55)
-    // The first listing should now be "Leopoldstadt loft A" (a1, owner_occupier=85)
+    // The first listing should now be "Leopoldstadt loft A" (a1, growing_family=85)
     await expect(page.getByText('Leopoldstadt loft A').first()).toBeVisible();
     // Verify a1's visible score badge (in the rendered card) is 85
     // (we look for the score 85 in a position adjacent to the a1 title)
@@ -131,7 +131,7 @@ test.describe('Filter system — live UI verification', () => {
     await expect(a1Card).toContainText('85');
   });
 
-  test('compound: district=02 + profile=owner_occupier → 2 listings with owner_occupier scores', async ({ page }) => {
+  test('compound: district=02 + profile=growing_family → 2 listings with growing_family scores', async ({ page }) => {
     page.on('response', (r) => {
       if (r.url().includes('/api/listings/top')) {
         console.log('  [debug] API call:', r.url(), 'status:', r.status());
@@ -150,11 +150,11 @@ test.describe('Filter system — live UI verification', () => {
     await expect(page.getByText(/2 listings matching your filters/)).toBeVisible();
 
     // Switch profile
-    await page.locator('[data-testid="profile-selector"]').first().selectOption('owner_occupier');
+    await page.locator('[data-testid="profile-selector"]').first().selectOption('growing_family');
 
     // Both URL params present (compound)
     await expect(page).toHaveURL(/district=02/);
-    await expect(page).toHaveURL(/profile=owner_occupier/);
+    await expect(page).toHaveURL(/profile=growing_family/);
 
     // Still 2 listings (Leopoldstadt only)
     await expect(page.getByText('Leopoldstadt loft A')).toBeVisible();
@@ -162,7 +162,7 @@ test.describe('Filter system — live UI verification', () => {
     await expect(page.getByText('Margareten flat B')).toHaveCount(0);
     await expect(page.getByText('Neubau flat D')).toHaveCount(0);
 
-    // Scores: a1 owner_occupier=85, a3 owner_occupier=75 — visible on cards
+    // Scores: a1 growing_family=85, a3 growing_family=75 — visible on cards
     const a1Card = page.locator('text=Leopoldstadt loft A').first().locator('xpath=ancestor::article[1] | ancestor::div[contains(@class,"rounded")][1]').first();
     const a3Card = page.locator('text=Leopoldstadt big C').first().locator('xpath=ancestor::article[1] | ancestor::div[contains(@class,"rounded")][1]').first();
     await expect(a1Card).toContainText('85');

@@ -24,7 +24,7 @@ def test_returns_dict_with_all_profiles():
     scores = score_all_profiles(SAMPLE_LISTING)
     assert isinstance(scores, dict)
     assert set(scores.keys()) == set(BUYER_PROFILES.keys())
-    assert len(scores) == 10
+    assert len(scores) == 5
 
 
 def test_all_scores_are_floats_in_range():
@@ -37,9 +37,10 @@ def test_all_scores_are_floats_in_range():
 def test_missing_field_does_not_break_scoring():
     listing = {k: v for k, v in SAMPLE_LISTING.items() if k != 'hwb_value'}
     scores = score_all_profiles(listing)
-    assert len(scores) == 10
+    assert len(scores) == 5
     full_scores = score_all_profiles(SAMPLE_LISTING)
-    assert scores['eco_conscious'] < full_scores['eco_conscious']
+    # budget_buyer weights hwb_value at 0.10 — dropping it must lower the score
+    assert scores['budget_buyer'] < full_scores['budget_buyer']
 
 
 def test_different_profiles_yield_different_scores():
@@ -50,6 +51,6 @@ def test_different_profiles_yield_different_scores():
 
 def test_empty_listing_returns_zero_scores():
     scores = score_all_profiles({'_id': 'empty'})
-    assert len(scores) == 10
+    assert len(scores) == 5
     for s in scores.values():
         assert s == 0.0

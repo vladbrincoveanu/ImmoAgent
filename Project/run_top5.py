@@ -75,14 +75,14 @@ def parse_cli_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--buyer-profile",
-        help="Buyer profile key (e.g. budget_buyer, retiree). Overrides config and persona.",
+        help="Buyer profile key (e.g. budget_buyer, growing_family). Overrides config and persona.",
     )
     parser.add_argument(
         "--buyer-persona",
         "--persona",
         dest="buyer_persona",
         type=buyer_persona_type,
-        help="Buyer persona enum shortcut (owner_occupier, diy_renovator, etc.)",
+        help="Buyer persona enum shortcut (default, diy_renovator, etc.)",
     )
     parser.add_argument(
         "--weekly",
@@ -554,7 +554,7 @@ def main(argv: Optional[List[str]] = None):
     setup_logging()
 
     args = parse_cli_args(argv)
-    default_persona = BuyerPersona.OWNER_OCCUPIER
+    default_persona = BuyerPersona.DEFAULT
     buyer_profile_override = args.buyer_profile
     buyer_persona = args.buyer_persona or default_persona
     is_weekly = args.weekly
@@ -611,15 +611,6 @@ def main(argv: Optional[List[str]] = None):
         # Get parameters from config or use defaults (allow CLI overrides)
         limit = args.limit if args.limit is not None else top5_config.get('limit', 3)
         min_score = args.min_score if args.min_score is not None else top5_config.get('min_score', 40.0)
-
-        # prime_new_build profile: owner-occupiers don't care about rental status
-        skip_rental_filter = (active_profile == 'prime_new_build')
-        if skip_rental_filter:
-            print(f"✅ Including rented properties (owner-occupier mode)")
-
-        # prime_new_build: auto-set min_score to 50 if user didn't explicitly override
-        if active_profile == 'prime_new_build' and args.min_score is None:
-            min_score = 50.0
 
         excluded_districts_cfg = top5_config.get('excluded_districts', [])
         if not isinstance(excluded_districts_cfg, list):
@@ -702,7 +693,7 @@ def main(argv: Optional[List[str]] = None):
         
         # Filter out garbage listings with unrealistic prices
         original_count = len(listings)
-        valid_listings = filter_valid_listings(listings, skip_rental_filter=skip_rental_filter)
+        valid_listings = filter_valid_listings(listings)
         
         # Log validation statistics
         stats = get_validation_stats(listings[:original_count])

@@ -1,17 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 test('profile selector is visible on map page', async ({ page }) => {
-  await page.goto('/dashboard/map?profile=urban_professional');
+  await page.goto('/dashboard/map');
   await page.waitForLoadState('networkidle');
-  const selector = page.locator('[data-testid="profile-selector"]');
+  const selector = page.locator('[data-testid="profile-selector"]').first();
   await expect(selector).toBeVisible();
-  await expect(selector).toHaveValue('urban_professional');
+  await expect(selector).toHaveValue('default');
 });
 
-test('switching profile on map updates URL and selector', async ({ page }) => {
-  await page.goto('/dashboard/map?profile=default');
+test('free user switching profile on map shows paywall and reverts', async ({ page }) => {
+  await page.goto('/dashboard/map');
   await page.waitForLoadState('networkidle');
-  await page.selectOption('[data-testid="profile-selector"]', 'eco_conscious');
-  await page.waitForURL(/profile=eco_conscious/);
-  await expect(page.locator('[data-testid="profile-selector"]')).toHaveValue('eco_conscious');
+  await page.locator('[data-testid="profile-selector"]').first().selectOption('diy_renovator');
+  await expect(page.locator('[data-testid="paywall-modal"]')).toBeVisible();
+  await page.locator('[data-testid="paywall-modal"] button:has-text("Not now")').click();
+  await expect(page.locator('[data-testid="profile-selector"]').first()).toHaveValue('default');
 });

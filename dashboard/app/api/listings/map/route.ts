@@ -3,7 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import { MapListing } from '@/lib/types';
 import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
-import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { DEFAULT_PROFILE, isValidProfile, normalizeProfile } from '@/lib/profile';
+import { gateProfile } from '@/lib/user';
 import { resolveCoordinates } from '@/lib/district-centroids';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
@@ -16,8 +17,8 @@ export async function GET(request: NextRequest) {
   const sort = validateSort(searchParams.get('sort'));
 
   const profileParam = searchParams.get('profile');
-  const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
-  if (profileParam && !isValidProfile(profileParam)) {
+  const profile = normalizeProfile(profileParam);
+  if (profileParam && !isValidProfile(profileParam) && profile === DEFAULT_PROFILE) {
     console.warn('[/api/listings/map] Invalid profile rejected:', profileParam);
   }
 
@@ -38,6 +39,8 @@ export async function GET(request: NextRequest) {
     if (!db) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
     }
+    const { pro, denied } = await gateProfile(request, db, profile);
+    if (denied) return denied;
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
@@ -131,7 +134,9 @@ export async function GET(request: NextRequest) {
         area_m2: l.area_m2,
         rooms: l.rooms,
         score: (scores?.[profile] ?? l.score ?? null) as number | null,
-        scores: scores ?? null,
+        // Full per-persona score map is Pro-only: the client re-sorts locally
+        // from it, which would bypass the profile gate for free users.
+        scores: pro ? (scores ?? null) : null,
         profile,
         image_url: l.image_url || null,
         coordinates: coordinates ?? null,

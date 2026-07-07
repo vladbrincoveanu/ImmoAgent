@@ -1,4 +1,4 @@
-import { DEFAULT_PROFILE, isValidProfile } from './profile';
+import { DEFAULT_PROFILE, normalizeProfile } from './profile';
 
 export type SortOption = 'score_desc' | 'price_asc' | 'price_desc' | 'date_desc' | 'area_desc';
 
@@ -26,7 +26,6 @@ export type FilterState = {
 };
 
 export function filtersFromParams(searchParams: URLSearchParams): FilterState {
-  const rawProfile = searchParams.get('profile');
   return {
     minScore: searchParams.get('min_score') ?? '0',
     district: searchParams.get('district') ?? '',
@@ -36,7 +35,7 @@ export function filtersFromParams(searchParams: URLSearchParams): FilterState {
     equity: searchParams.get('equity') ?? '100000',
     rate: searchParams.get('rate') ?? '3.8',
     maxEquity: searchParams.get('max_equity') ?? '',
-    profile: isValidProfile(rawProfile) ? (rawProfile as string) : DEFAULT_PROFILE,
+    profile: normalizeProfile(searchParams.get('profile')),
     belowAvgPct: searchParams.get('below_avg_pct') ?? '',
     destName: searchParams.get('dest_name') ?? '',
     destLat: searchParams.get('dest_lat') ?? '',

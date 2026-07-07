@@ -2,31 +2,42 @@
 """
 Buyer Profiles for Property Scoring
 Different weight distributions for different buyer types
+
+2026-07-06 consolidation (docs/product/value-review-2026-07-06.md): 10 -> 5.
+Removed profiles produced near-identical rankings to a kept one (Spearman
+rho >= 0.86 on prod top-100); their keys remain accepted as aliases so old
+CLI flags, configs and URLs keep working. Weights of kept profiles are
+UNCHANGED so precomputed `scores.{profile}` in MongoDB stay valid.
 """
 
 from enum import Enum
 from typing import Dict, Any, Union
 
+# Removed 2026-07-06 -> kept profile that ranked near-identically.
+LEGACY_PROFILE_ALIASES = {
+    'owner_occupier': 'default',
+    'retiree': 'default',
+    'eco_conscious': 'urban_professional',
+    'prime_new_build': 'urban_professional',
+    'bank_loan_ready': 'urban_professional',
+}
+
 
 class BuyerPersona(Enum):
     """Enumerated buyer personas for safer switching."""
     DEFAULT = 'default'
-    DIY_RENOVATOR = 'diy_renovator'
-    OWNER_OCCUPIER = 'owner_occupier'
-    GROWING_FAMILY = 'growing_family'
-    URBAN_PROFESSIONAL = 'urban_professional'
-    ECO_CONSCIOUS = 'eco_conscious'
-    RETIREE = 'retiree'
     BUDGET_BUYER = 'budget_buyer'
-    PRIME_NEW_BUILD = 'prime_new_build'
-    BANK_LOAN_READY = 'bank_loan_ready'
+    GROWING_FAMILY = 'growing_family'
+    DIY_RENOVATOR = 'diy_renovator'
+    URBAN_PROFESSIONAL = 'urban_professional'
 
     @classmethod
     def from_value(cls, value: Union[str, "BuyerPersona"]) -> "BuyerPersona":
-        """Normalize arbitrary input to a BuyerPersona enum member."""
+        """Normalize arbitrary input (incl. legacy profile keys) to a BuyerPersona."""
         if isinstance(value, cls):
             return value
         normalized = str(value).strip().lower()
+        normalized = LEGACY_PROFILE_ALIASES.get(normalized, normalized)
         for member in cls:
             if normalized in (member.name.lower(), member.value.lower()):
                 return member
@@ -35,8 +46,8 @@ class BuyerPersona(Enum):
 # Define all available buyer profiles
 BUYER_PROFILES = {
     'default': {
-        'name': 'Default Profile',
-        'description': 'Balanced scoring for general property evaluation',
+        'name': 'Owner-Occupier 🏡',
+        'description': 'Balanced scoring for buying a home to live in',
         'weights': {
             'price_per_m2': 0.20,
             'hwb_value': 0.05,
@@ -52,24 +63,24 @@ BUYER_PROFILES = {
         }
     },
 
-    'owner_occupier': {
-        'name': 'Owner-Occupier 🏡',
-        'description': 'Prioritizes newer, efficient homes with low renovation needs',
+    'budget_buyer': {
+        'name': 'First-Time Buyer 💸',
+        'description': 'Primary goal is to enter the property market at lowest cost',
         'weights': {
-            'price_per_m2': 0.18,
-            'year_built': 0.18,
-            'hwb_value': 0.12,
-            'ubahn_walk_minutes': 0.15,
-            'balcony_terrace': 0.10,
+            'price_per_m2': 0.50,
+            'ubahn_walk_minutes': 0.20,
+            'hwb_value': 0.10,
             'renovation_needed_rating': 0.10,
-            'area_m2': 0.07,
+            'area_m2': 0.05,
             'rooms': 0.05,
-            'potential_growth_rating': 0.03,
-            'floor_level': 0.02,
+            'year_built': 0.00,
+            'balcony_terrace': 0.00,
+            'floor_level': 0.00,
+            'potential_growth_rating': 0.00,
             'school_walk_minutes': 0.00,
         }
     },
-    
+
     'growing_family': {
         'name': 'Growing Family 👨‍👩‍👧‍👦',
         'description': 'Prioritizes space, safety, and convenience for children',
@@ -87,7 +98,25 @@ BUYER_PROFILES = {
             'floor_level': 0.00,
         }
     },
-    
+
+    'diy_renovator': {
+        'name': 'Renovator / Investor 🛠️',
+        'description': 'Actively seeking properties to add value through renovation',
+        'weights': {
+            'price_per_m2': 0.30,
+            'potential_growth_rating': 0.25,
+            'renovation_needed_rating': 0.20,
+            'area_m2': 0.10,
+            'ubahn_walk_minutes': 0.10,
+            'year_built': 0.05,
+            'hwb_value': 0.00,
+            'school_walk_minutes': 0.00,
+            'rooms': 0.00,
+            'balcony_terrace': 0.00,
+            'floor_level': 0.00,
+        }
+    },
+
     'urban_professional': {
         'name': 'Urban Professional 💼',
         'description': 'Prioritizes location, lifestyle features, and modern comforts',
@@ -105,152 +134,37 @@ BUYER_PROFILES = {
             'hwb_value': 0.00,
         }
     },
-    
-    'eco_conscious': {
-        'name': 'Eco-Conscious Buyer 🌿',
-        'description': 'Prioritizes sustainability, energy efficiency, and low carbon footprint',
-        'weights': {
-            'hwb_value': 0.25,
-            'year_built': 0.20,
-            'ubahn_walk_minutes': 0.15,
-            'price_per_m2': 0.15,
-            'balcony_terrace': 0.10,
-            'renovation_needed_rating': 0.05,
-            'potential_growth_rating': 0.05,
-            'floor_level': 0.05,
-            'rooms': 0.00,
-            'school_walk_minutes': 0.00,
-            'area_m2': 0.00,
-        }
-    },
-    
-    'diy_renovator': {
-        'name': 'DIY Renovator / Flipper 🛠️',
-        'description': 'Actively seeking properties to add value through renovation',
-        'weights': {
-            'price_per_m2': 0.30,
-            'potential_growth_rating': 0.25,
-            'renovation_needed_rating': 0.20,
-            'area_m2': 0.10,
-            'ubahn_walk_minutes': 0.10,
-            'year_built': 0.05,
-            'hwb_value': 0.00,
-            'school_walk_minutes': 0.00,
-            'rooms': 0.00,
-            'balcony_terrace': 0.00,
-            'floor_level': 0.00,
-        }
-    },
-    
-    'retiree': {
-        'name': 'Retiree / Downsizer ☕',
-        'description': 'Looking for comfort, accessibility, and peaceful living',
-        'weights': {
-            'floor_level': 0.25,
-            'renovation_needed_rating': 0.20,
-            'balcony_terrace': 0.15,
-            'ubahn_walk_minutes': 0.15,
-            'price_per_m2': 0.10,
-            'hwb_value': 0.05,
-            'area_m2': 0.05,
-            'year_built': 0.05,
-            'potential_growth_rating': 0.00,
-            'school_walk_minutes': 0.00,
-            'rooms': 0.00,
-        }
-    },
-    
-    'budget_buyer': {
-        'name': 'First-Time Buyer on Strict Budget 💸',
-        'description': 'Primary goal is to enter the property market at lowest cost',
-        'weights': {
-            'price_per_m2': 0.50,
-            'ubahn_walk_minutes': 0.20,
-            'hwb_value': 0.10,
-            'renovation_needed_rating': 0.10,
-            'area_m2': 0.05,
-            'rooms': 0.05,
-            'year_built': 0.00,
-            'balcony_terrace': 0.00,
-            'floor_level': 0.00,
-            'potential_growth_rating': 0.00,
-            'school_walk_minutes': 0.00,
-        }
-    },
-
-    'prime_new_build': {
-        'name': 'Prime New Build 🏗️',
-        'description': 'New/recent construction in good zones with street view and optimal orientation',
-        'weights': {
-            'year_built': 0.20,
-            'renovation_needed_rating': 0.15,
-            'ubahn_walk_minutes': 0.15,
-            'floor_level': 0.12,
-            'street_view': 0.12,
-            'orientation': 0.10,
-            'balcony_terrace': 0.08,
-            'price_per_m2': 0.05,
-            'hwb_value': 0.03,
-            'area_m2': 0.00,
-            'rooms': 0.00,
-            'potential_growth_rating': 0.00,
-            'school_walk_minutes': 0.00,
-        }
-    },
-
-    'bank_loan_ready': {
-        'name': 'Bank Loan Ready 🏦',
-        'description': 'Scores based on Austrian bank Belehnungswert criteria. Missing fields score 0 — transparency rewarded.',
-        'weights': {
-            'price_per_m2':           0.13,
-            'hwb_value':              0.13,
-            'ubahn_walk_minutes':     0.12,
-            'renovation_needed_rating': 0.12,
-            'parifizierung_complete': 0.10,
-            'bezirk_score':           0.10,
-            'facade_renovated':       0.07,
-            'year_built':             0.05,
-            'is_provisionsfrei':      0.05,
-            'roof_renovated':         0.04,
-            'lift_present':           0.03,
-            'potential_growth_rating': 0.02,
-            'area_m2':                0.01,
-            'floor_level':            0.01,
-            'balcony_terrace':        0.01,
-            'rooms':                  0.01,
-            'school_walk_minutes':    0.00,
-        }
-    },
 }
 
 def get_profile(profile_name: Union[str, BuyerPersona]) -> Dict[str, Any]:
     """
     Get a specific buyer profile by name.
-    
+
     Args:
-        profile_name: Name of the profile to retrieve
-        
+        profile_name: Name of the profile to retrieve (legacy keys resolve
+            to their consolidated profile via LEGACY_PROFILE_ALIASES)
+
     Returns:
         Dict containing profile information and weights
-        
+
     Raises:
         ValueError: If profile doesn't exist
     """
     if isinstance(profile_name, BuyerPersona):
         profile_key = profile_name.value
     else:
-        profile_key = profile_name
+        profile_key = LEGACY_PROFILE_ALIASES.get(str(profile_name), str(profile_name))
 
     if profile_key not in BUYER_PROFILES:
         available_profiles = list(BUYER_PROFILES.keys())
         raise ValueError(f"Profile '{profile_name}' not found. Available profiles: {available_profiles}")
-    
+
     return BUYER_PROFILES[profile_key]
 
 def list_profiles() -> Dict[str, str]:
     """
     List all available buyer profiles.
-    
+
     Returns:
         Dict mapping profile keys to profile names
     """
@@ -259,10 +173,10 @@ def list_profiles() -> Dict[str, str]:
 def validate_profile_weights(weights: Dict[str, float]) -> bool:
     """
     Validate that profile weights sum to 1.0.
-    
+
     Args:
         weights: Dictionary of criterion weights
-        
+
     Returns:
         True if weights sum to 1.0, False otherwise
     """
@@ -272,24 +186,24 @@ def validate_profile_weights(weights: Dict[str, float]) -> bool:
 def print_profile_summary(profile_name: str):
     """
     Print a summary of a buyer profile.
-    
+
     Args:
         profile_name: Name of the profile to print
     """
     profile = get_profile(profile_name)
-    
+
     print(f"\n📋 Buyer Profile: {profile['name']}")
     print(f"📝 Description: {profile['description']}")
     print(f"⚖️  Weight Distribution:")
-    
+
     # Sort weights by value (highest first)
     sorted_weights = sorted(profile['weights'].items(), key=lambda x: x[1], reverse=True)
-    
+
     for criterion, weight in sorted_weights:
         if weight > 0:
             percentage = weight * 100
             print(f"   • {criterion.replace('_', ' ').title()}: {percentage:.0f}%")
-    
+
     total_weight = sum(profile['weights'].values())
     print(f"\n✅ Total Weight: {total_weight:.2f}")
 
@@ -299,12 +213,12 @@ def print_all_profiles():
     """
     print("🏠 Available Buyer Profiles:")
     print("=" * 50)
-    
+
     for key, profile in BUYER_PROFILES.items():
         print(f"\n🔑 Key: '{key}'")
         print(f"📋 Name: {profile['name']}")
         print(f"📝 Description: {profile['description']}")
-        
+
         # Show top 3 weights
         sorted_weights = sorted(profile['weights'].items(), key=lambda x: x[1], reverse=True)
         print("⚖️  Top Priorities:")
@@ -329,7 +243,7 @@ def _validate_weights():
 if __name__ == "__main__":
     # Test the module
     print_all_profiles()
-    
+
     print("\n" + "=" * 50)
     print("Testing individual profile:")
-    print_profile_summary('diy_renovator') 
+    print_profile_summary('diy_renovator')

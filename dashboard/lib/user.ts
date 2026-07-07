@@ -1,6 +1,7 @@
-import type { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import crypto from 'crypto';
 import type { Db } from 'mongodb';
+import { isProProfile } from './profile';
 
 export const COOKIE_NAME = 'immo_user';
 export const FREE_SAVED_SEARCH_LIMIT = 3;
@@ -21,4 +22,27 @@ export function setUserCookie(res: NextResponse, userId: string): void {
 export async function isPro(db: Db, userId: string): Promise<boolean> {
   const user = await db.collection('users').findOne({ _id: userId as never }, { projection: { is_pro: 1 } });
   return Boolean(user?.is_pro);
+}
+
+/**
+ * Freemium gate for persona profiles: non-default profiles are Pro-only.
+ * Returns { pro, denied } — when `denied` is set, the route must return it
+ * (402 + reason 'pro_profiles', same shape as the saved-search/alert gates).
+ */
+export async function gateProfile(
+  req: NextRequest,
+  db: Db,
+  profile: string,
+): Promise<{ pro: boolean; denied: NextResponse | null }> {
+  const pro = await isPro(db, getOrCreateUserId(req));
+  if (!pro && isProProfile(profile)) {
+    return {
+      pro,
+      denied: NextResponse.json(
+        { error: 'Persona profiles are a Pro feature', reason: 'pro_profiles' },
+        { status: 402 },
+      ),
+    };
+  }
+  return { pro, denied: null };
 }

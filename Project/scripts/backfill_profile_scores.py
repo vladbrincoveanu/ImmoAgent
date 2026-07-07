@@ -2,7 +2,7 @@
 """One-shot CLI: compute per-profile scores for existing listings.
 
 Usage:
-  python -m Project.scripts.backfill_profile_scores [--batch 500] [--dry-run] [--profile owner_occupier]
+  python -m Project.scripts.backfill_profile_scores [--batch 500] [--dry-run] [--profile urban_professional]
 """
 import argparse
 import logging

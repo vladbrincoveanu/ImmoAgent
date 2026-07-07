@@ -14,6 +14,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { CompactListingStrip } from '@/components/CompactListingStrip';
 import { ProfileSelector } from '@/components/ProfileSelector';
+import { PaywallModal } from '@/components/PaywallModal';
 import { MapListing } from '@/lib/types';
 import { useListingsSSE } from '@/lib/sse';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
@@ -48,6 +49,7 @@ function MapPage() {
   const [bounds, setBounds] = useState<ViewportBounds | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [profilePaywall, setProfilePaywall] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
@@ -133,6 +135,12 @@ function MapPage() {
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/map?${params}`);
+      if (res.status === 402) {
+        // Free tier picked a Pro persona — show paywall, fall back to default
+        setProfilePaywall(true);
+        update({ profile: DEFAULT_PROFILE });
+        return;
+      }
       const data = await res.json();
       const items = (data.listings ?? []) as Array<MapListing & { scores?: Record<string, number | null> | null }>;
       setListings(items);
@@ -146,7 +154,7 @@ function MapPage() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct, update]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -302,6 +310,8 @@ function MapPage() {
 
   return (
     <>
+      <PaywallModal open={profilePaywall} reason="pro_profiles" onClose={() => setProfilePaywall(false)} />
+
       {/* DESKTOP — top bar + rail + map */}
       <div className="hidden md:flex flex-col h-screen map-desktop bg-bg">
         <MapTopBar

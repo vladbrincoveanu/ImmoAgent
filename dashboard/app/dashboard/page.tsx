@@ -10,9 +10,10 @@ import { ProfileSelector } from '@/components/ProfileSelector';
 import { SmartInsightsPanel } from '@/components/SmartInsightsPanel';
 import { SaveSearchButton } from '@/components/SaveSearchButton';
 import { EmailAlertsModal } from '@/components/EmailAlertsModal';
+import { PaywallModal } from '@/components/PaywallModal';
 import { ListingBase } from '@/lib/types';
 import { useFilters } from '@/lib/useFilters';
-import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { DEFAULT_PROFILE } from '@/lib/profile';
 
 function calcMonatsrate(loanAmount: number, rate: number): number {
   if (loanAmount <= 0 || rate <= 0) return 0;
@@ -36,6 +37,7 @@ function DashboardContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [profilePaywall, setProfilePaywall] = useState(false);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
   const fetchListings = useCallback(async () => {
@@ -51,6 +53,12 @@ function DashboardContent() {
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/top?${params.toString()}`);
+      if (res.status === 402) {
+        // Free tier picked a Pro persona — show paywall, fall back to default
+        setProfilePaywall(true);
+        update({ profile: DEFAULT_PROFILE });
+        return;
+      }
       const data = await res.json();
       const items = (data.listings ?? []) as Array<ListingBase & { scores?: Record<string, number | null> | null }>;
       setListings(items);
@@ -64,7 +72,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct, update]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -255,6 +263,8 @@ function DashboardContent() {
         rate={rate}
         onRateChange={(v) => update({ rate: v })}
       />
+
+      <PaywallModal open={profilePaywall} reason="pro_profiles" onClose={() => setProfilePaywall(false)} />
 
       {selectedId && (
         <ListingDetail
