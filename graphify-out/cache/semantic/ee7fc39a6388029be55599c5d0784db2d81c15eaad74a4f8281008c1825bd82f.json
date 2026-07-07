@@ -1,0 +1,1 @@
+{"nodes": [{"id": "dashboard_app_api_district_trend_bezirk_route__get", "label": "GET /api/district-trend/[bezirk] (12mo monthly avg)", "file_type": "code", "source_file": "dashboard/app/api/district-trend/[bezirk]/route.ts", "source_location": "6-61", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}
