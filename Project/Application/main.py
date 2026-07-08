@@ -2,6 +2,7 @@ import json
 import os
 import time
 import requests
+import pymongo
 import glob
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
