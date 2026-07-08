@@ -314,83 +314,57 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                   )}
 
                   {active === 'area' && (
-                    <div data-testid="panel-area" className="space-y-4">
+                    <div data-testid="panel-area" className="space-y-3">
+
+                      {/* Price position hero */}
+                      {zoneStats && zoneStats.this_listing.price_per_m2_vs_avg_pct != null && (
+                        <div className={`rounded-xl p-4 border ${zoneStats.this_listing.price_per_m2_vs_avg_pct <= 0 ? 'bg-good-soft border-[#c4e5d6]' : 'bg-mid-soft border-[#ecd9b8]'}`}>
+                          <div className="text-[10px] font-semibold uppercase tracking-widest text-ink-3 mb-2">
+                            Price position · {zoneStats.district}
+                          </div>
+                          <div className="flex items-baseline gap-3">
+                            <span className={`text-[38px] font-bold leading-none tabular-nums ${zoneStats.this_listing.price_per_m2_vs_avg_pct <= 0 ? 'text-good' : 'text-mid-ink'}`}>
+                              {zoneStats.this_listing.price_per_m2_vs_avg_pct > 0 ? '+' : ''}{zoneStats.this_listing.price_per_m2_vs_avg_pct}%
+                            </span>
+                            <span className="text-[12px] text-ink-3 leading-snug">vs district<br/>avg €/m²</span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-ink-3">
+                            {zoneStats.avg_price_per_m2 != null && (
+                              <span>District avg <span className="font-semibold text-ink-2">€{zoneStats.avg_price_per_m2.toLocaleString('de-AT')}/m²</span></span>
+                            )}
+                            {zoneStats.this_listing.price_vs_avg_pct != null && (
+                              <span>Total price <span className="font-semibold text-ink-2">{zoneStats.this_listing.price_vs_avg_pct > 0 ? '+' : ''}{zoneStats.this_listing.price_vs_avg_pct}% vs avg</span></span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Zone stat grid */}
+                      {zoneStats && zoneStats.total_in_district > 0 && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            { label: 'Listings in zone', value: String(zoneStats.total_in_district) },
+                            { label: 'Avg district price', value: zoneStats.avg_price != null ? `€${Math.round(zoneStats.avg_price).toLocaleString('de-AT')}` : '—' },
+                            { label: '≤ €500k options', value: zoneStats.matching_budget != null ? String(zoneStats.matching_budget) : '—' },
+                            { label: 'Avg U-Bahn walk', value: zoneStats.avg_ubahn_minutes != null ? `${zoneStats.avg_ubahn_minutes} min` : '—' },
+                          ] as { label: string; value: string }[]).map(({ label, value }) => (
+                            <div key={label} className="rounded-lg border border-line bg-card p-3">
+                              <div className="text-[10.5px] text-ink-3 mb-0.5">{label}</div>
+                              <div className="text-[15px] font-semibold text-ink tabular-nums">{value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* District trend chart */}
                       {listing.bezirk && <DistrictTrendChart bezirk={listing.bezirk} />}
 
-                      {zoneStats && zoneStats.total_in_district > 0 && (
-                        <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
-                          <h3 className="font-medium text-gray-700 mb-2">
-                            Zone Analytics — {zoneStats.district}
-                          </h3>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                            <div className="text-gray-500">Listings in zone</div>
-                            <div className="text-right font-medium text-gray-900">{zoneStats.total_in_district}</div>
-                            <div className="text-gray-500">Avg price</div>
-                            <div className="text-right font-medium text-gray-900">
-                              {zoneStats.avg_price != null ? `€${zoneStats.avg_price.toLocaleString('de-AT')}` : '—'}
-                            </div>
-                            <div className="text-gray-500">Avg €/m²</div>
-                            <div className="text-right font-medium text-gray-900">
-                              {zoneStats.avg_price_per_m2 != null ? `€${zoneStats.avg_price_per_m2.toLocaleString('de-AT')}` : '—'}
-                            </div>
-                            <div className="text-gray-500">Price range</div>
-                            <div className="text-right font-medium text-gray-900 text-xs">
-                              {zoneStats.min_price != null && zoneStats.max_price != null
-                                ? `€${zoneStats.min_price.toLocaleString('de-AT')} – €${zoneStats.max_price.toLocaleString('de-AT')}`
-                                : '—'}
-                            </div>
-                            {zoneStats.this_listing.price_vs_avg_pct != null && (
-                              <>
-                                <div className="text-gray-500">This listing vs avg</div>
-                                <div className={`text-right font-medium ${zoneStats.this_listing.price_vs_avg_pct > 0 ? 'text-red-700' : 'text-green-700'}`}>
-                                  {zoneStats.this_listing.price_vs_avg_pct > 0 ? '+' : ''}{zoneStats.this_listing.price_vs_avg_pct}%
-                                </div>
-                              </>
-                            )}
-                            {zoneStats.this_listing.price_per_m2_vs_avg_pct != null && (
-                              <>
-                                <div className="text-gray-500">€/m² vs avg</div>
-                                <div className={`text-right font-medium ${zoneStats.this_listing.price_per_m2_vs_avg_pct > 0 ? 'text-red-700' : 'text-green-700'}`}>
-                                  {zoneStats.this_listing.price_per_m2_vs_avg_pct > 0 ? '+' : ''}{zoneStats.this_listing.price_per_m2_vs_avg_pct}%
-                                </div>
-                              </>
-                            )}
-                            <div className="text-gray-500 border-t border-blue-200 pt-1 mt-1">Matching ≤ €500k</div>
-                            <div className="text-right font-medium text-gray-900 border-t border-blue-200 pt-1 mt-1">
-                              {zoneStats.matching_budget}
-                            </div>
-                            {zoneStats.avg_ubahn_minutes != null && (
-                              <>
-                                <div className="text-gray-500">Avg U-Bahn walk (zone)</div>
-                                <div className="text-right font-medium text-gray-900">{zoneStats.avg_ubahn_minutes} min</div>
-                              </>
-                            )}
-                            {zoneStats.avg_school_minutes != null && (
-                              <>
-                                <div className="text-gray-500">Avg school walk (zone)</div>
-                                <div className="text-right font-medium text-gray-900">{zoneStats.avg_school_minutes} min</div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {listing.score_breakdown && Object.keys(listing.score_breakdown).length > 0 && (
-                        <div>
-                          <h3 className="font-medium text-gray-700 mb-1">Score Breakdown</h3>
-                          <div className="text-sm text-gray-600">
-                            {Object.entries(listing.score_breakdown).map(([k, v]) => (
-                              <p key={k}>{k}: {typeof v === 'number' ? (v as any).toFixed(1) : v}</p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
+                      {/* Comparable listings */}
                       {comparables && comparables.length > 0 && (
                         <div className="pt-1" data-testid="comparables-section">
-                          <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                          <h3 className="text-[11.5px] font-semibold text-ink mb-2">
                             Comparable listings
-                            <span className="text-xs text-muted font-normal ml-2">Same district · similar area &amp; price</span>
+                            <span className="font-normal text-ink-3 ml-2">Same district · similar area &amp; price</span>
                           </h3>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {comparables.map((c) => (
@@ -399,32 +373,32 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                                 href={c.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex gap-2 p-2 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                                className="flex gap-2.5 p-2.5 bg-card hover:bg-line rounded-xl border border-line transition-colors"
                               >
-                                <div className="w-14 h-14 rounded overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
+                                <div className="w-[52px] h-[52px] rounded-lg overflow-hidden bg-[#dde4ee] shrink-0 flex items-center justify-center">
                                   {c.image_url ? (
                                     <img src={c.image_url} alt="" className="w-full h-full object-cover" />
                                   ) : (
-                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
+                                    <svg className="w-4 h-4 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 11l9-7 9 7M5 10v10h14V10" />
                                     </svg>
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-baseline justify-between gap-1">
-                                    <span className="font-bold text-sm text-gray-900">
+                                    <span className="font-bold text-[13px] text-ink">
                                       {c.price_total ? `€${c.price_total.toLocaleString('de-AT')}` : '—'}
                                     </span>
                                     {c.better_deal && (
-                                      <span className="text-[9px] font-bold rounded px-1.5 py-0.5 bg-green-100 text-green-800" title={`€${c.price_per_m2}/m² vs this listing's €${comparables?.[0]?.price_per_m2 ?? '?'}/m²`}>
-                                        BETTER
+                                      <span className="text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-good-soft text-good">
+                                        BETTER DEAL
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-gray-600 line-clamp-1">{c.title || 'Untitled'}</p>
-                                  <p className="text-[10px] text-gray-500">
+                                  <p className="text-[11px] text-ink-2 line-clamp-1 mt-0.5">{c.title || 'Untitled'}</p>
+                                  <p className="text-[10px] text-ink-3 mt-0.5 tabular-nums">
                                     {c.area_m2}m² · {c.rooms}rms · €{c.price_per_m2}/m²
-                                    {c.score != null && <span className="ml-1 font-semibold text-gray-700">· {c.score}</span>}
+                                    {c.score != null && <span className="ml-1 font-semibold text-ink-2">· {c.score}</span>}
                                   </p>
                                 </div>
                               </a>
