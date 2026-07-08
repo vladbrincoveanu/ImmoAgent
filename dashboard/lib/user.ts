@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import crypto from 'crypto';
 import type { Db } from 'mongodb';
+import { getServerSession } from 'next-auth';
+import { authOptions } from './auth';
 import { isProProfile } from './profile';
 
 export const COOKIE_NAME = 'immo_user';
@@ -19,7 +21,10 @@ export function setUserCookie(res: NextResponse, userId: string): void {
 // Entitlement lives in the `users` collection: { _id: <user_id>, is_pro: boolean }.
 // No doc (or is_pro falsy) = free tier. Pro is flipped manually in Mongo until
 // payments exist: db.users.updateOne({_id:'u_...'},{$set:{is_pro:true}},{upsert:true})
+// Admin session (role === 'admin') always grants Pro.
 export async function isPro(db: Db, userId: string): Promise<boolean> {
+  const session = await getServerSession(authOptions);
+  if ((session?.user as { role?: string })?.role === 'admin') return true;
   const user = await db.collection('users').findOne({ _id: userId as never }, { projection: { is_pro: 1 } });
   return Boolean(user?.is_pro);
 }
