@@ -314,7 +314,7 @@ function MapPage() {
       <PaywallModal open={profilePaywall} reason="pro_profiles" onClose={() => setProfilePaywall(false)} />
 
       {/* DESKTOP — top bar + rail + map */}
-      <div className="hidden md:flex flex-col h-[calc(100vh-3rem)] map-desktop bg-bg">
+      <div className="hidden md:flex flex-col h-full map-desktop bg-bg">
         <MapTopBar
           activeFilterCount={activeFilterCount}
           filtersOpen={filtersOpen}
