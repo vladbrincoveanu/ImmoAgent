@@ -355,40 +355,42 @@ function MapPage() {
             noCoordCount={noCoordCount}
           />
 
-          <div className="flex-1 relative">
-            {loading ? (
-              <MapLoadingState label="Loading listings…" />
-            ) : listings.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center gap-2 bg-bg">
-                <p className="text-[14px] font-semibold text-ink-2">No listings match your filters</p>
-                <p className="text-[12.5px] text-ink-3">Loosen the score, price or district filters to see more.</p>
-              </div>
-            ) : (
-              <>
-                <MapViewDynamic
-                  listings={viewportListings}
-                  selectedListingId={selectedListingId}
-                  layers={layers}
-                  stationData={stationData}
-                  schoolData={schoolData}
-                  layersPopoverSlot={
-                    <MapLayersPopover
-                      open={layersOpen}
-                      onClose={() => setLayersOpen(false)}
-                      layers={layers}
-                      onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
-                      counts={layerCounts}
-                    />
-                  }
-                  onPinClick={handlePinClick}
-                  onMapClick={() => setSelectedListingId(null)}
-                  onBoundsChange={setBounds}
-                />
-              </>
-            )}
+          <div className="flex-1 relative bg-bg min-w-0">
+            <div className="absolute inset-3">
+              {loading ? (
+                <MapLoadingState label="Loading listings…" />
+              ) : listings.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center gap-2 bg-bg">
+                  <p className="text-[14px] font-semibold text-ink-2">No listings match your filters</p>
+                  <p className="text-[12.5px] text-ink-3">Loosen the score, price or district filters to see more.</p>
+                </div>
+              ) : (
+                <>
+                  <MapViewDynamic
+                    listings={viewportListings}
+                    selectedListingId={selectedListingId}
+                    layers={layers}
+                    stationData={stationData}
+                    schoolData={schoolData}
+                    layersPopoverSlot={
+                      <MapLayersPopover
+                        open={layersOpen}
+                        onClose={() => setLayersOpen(false)}
+                        layers={layers}
+                        onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
+                        counts={layerCounts}
+                      />
+                    }
+                    onPinClick={handlePinClick}
+                    onMapClick={() => setSelectedListingId(null)}
+                    onBoundsChange={setBounds}
+                  />
+                </>
+              )}
+            </div>
 
             {selectedListing && !loading && (
-              <div data-testid="selected-card-slot" className="absolute inset-0 pointer-events-none">
+              <div data-testid="selected-card-slot" className="absolute inset-3 pointer-events-none">
                 <div className="pointer-events-auto">
                   <SelectedCard
                     listing={selectedListing}
