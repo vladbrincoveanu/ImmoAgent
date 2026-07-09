@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from dataclasses import dataclass
 
 from Domain.listing import Listing
+from Domain.location import Coordinates
 from Domain.sources import Source
 from Application.analyzer import StructuredAnalyzer
 from Application.bank_scoring import compute_bank_score
@@ -211,6 +212,27 @@ class WillhabenScraper:
         attrs = advert_details.get('attributes', {}).get('attribute', [])
         return {a['name']: a.get('values', []) for a in attrs if 'name' in a}
 
+    def extract_coordinates(self, soup: BeautifulSoup) -> Optional[Coordinates]:
+        """Extract Willhaben's published exact coordinates from the COORDINATES
+        attribute in __NEXT_DATA__ (format 'lat,lon'). Returns None if absent or invalid.
+
+        Willhaben hands us the geocoded position directly, which is far more accurate
+        than geocoding the coarse LOCATION/ADDRESS_2 text — that text is often only
+        district-level ('Wien, 12. Bezirk, Meidling') or a bare street name without a
+        house number ('Aichholzgasse'), which Nominatim resolves to a district/street
+        centroid. Prefer these coordinates over address geocoding (see geocode_listing).
+        """
+        try:
+            attrs = self.extract_attributes_dict(soup)
+            raw = (attrs.get('COORDINATES') or [None])[0]
+            if not raw or ',' not in str(raw):
+                return None
+            lat_str, lon_str = str(raw).split(',', 1)
+            # Coordinates.__post_init__ raises ValueError on out-of-range values.
+            return Coordinates(lat=float(lat_str.strip()), lon=float(lon_str.strip()))
+        except (ValueError, TypeError):
+            return None
+
     def extract_special_features(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract special features"""
         try:
@@ -387,6 +409,14 @@ class WillhabenScraper:
             # Calculate price per m2
             if listing.price_total and listing.area_m2:
                 listing.price_per_m2 = listing.price_total / listing.area_m2
+
+            # Prefer Willhaben's own published coordinates over geocoding the coarse
+            # address text. When present, geocode_listing() sees coordinate_source
+            # 'exact' and skips the (approximate) Nominatim address lookup.
+            wh_coords = self.extract_coordinates(soup)
+            if wh_coords:
+                listing.coordinates = wh_coords
+                listing.coordinate_source = 'exact'
 
             # Get walking times
             if listing.bezirk:
