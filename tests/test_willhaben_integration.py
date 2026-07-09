@@ -64,6 +64,55 @@ def test_extract_attributes_dict_empty_on_bad_html():
     assert attrs == {}
 
 
+def test_extract_coordinates_from_next_data():
+    """Willhaben publishes exact lat/lon in the COORDINATES attribute of __NEXT_DATA__.
+    We must capture it instead of geocoding the coarse address text."""
+    scraper = WillhabenScraper()
+    html = """<html><body>
+    <script id="__NEXT_DATA__" type="application/json">
+    {"props":{"pageProps":{"advertDetails":{"attributes":{"attribute":[
+        {"name":"COORDINATES","values":["48.21126,16.393085"]},
+        {"name":"LOCATION/ADDRESS_2","values":["Aichholzgasse"]}
+    ]}}}}}
+    </script></body></html>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    coords = scraper.extract_coordinates(soup)
+    assert coords is not None, "Should parse COORDINATES attribute"
+    assert abs(coords.lat - 48.21126) < 1e-6, f"lat wrong: {coords.lat}"
+    assert abs(coords.lon - 16.393085) < 1e-6, f"lon wrong: {coords.lon}"
+
+
+def test_extract_coordinates_missing_returns_none():
+    scraper = WillhabenScraper()
+    soup = BeautifulSoup("<html><body>no next data</body></html>", 'html.parser')
+    assert scraper.extract_coordinates(soup) is None
+
+
+def test_extract_coordinates_malformed_returns_none():
+    scraper = WillhabenScraper()
+    html = """<html><body>
+    <script id="__NEXT_DATA__" type="application/json">
+    {"props":{"pageProps":{"advertDetails":{"attributes":{"attribute":[
+        {"name":"COORDINATES","values":["not-a-coordinate"]}
+    ]}}}}}
+    </script></body></html>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    assert scraper.extract_coordinates(soup) is None
+
+
+def test_extract_coordinates_out_of_range_returns_none():
+    """Reject clearly invalid coordinates (e.g. swapped/garbage) rather than storing them."""
+    scraper = WillhabenScraper()
+    html = """<html><body>
+    <script id="__NEXT_DATA__" type="application/json">
+    {"props":{"pageProps":{"advertDetails":{"attributes":{"attribute":[
+        {"name":"COORDINATES","values":["999.0,16.0"]}
+    ]}}}}}
+    </script></body></html>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    assert scraper.extract_coordinates(soup) is None
+
+
 def test_real_willhaben_listing_extraction():
     scraper = WillhabenScraper()
     test_url = "https://www.willhaben.at/iad/immobilien/d/eigentumswohnung/wien/wien-1190-doebling/perfekt-aufgeteilte-altbauwohnung-naehe-hohe-warte-1076664583/"
