@@ -212,6 +212,48 @@ class WillhabenScraper:
         attrs = advert_details.get('attributes', {}).get('attribute', [])
         return {a['name']: a.get('values', []) for a in attrs if 'name' in a}
 
+    # Street name (one- or two-word, e.g. "Aichholzgasse" / "Mariahilfer Straße")
+    # immediately followed by a house number. Used to recover the address from the
+    # listing title/description when LOCATION/ADDRESS_2 has no house number.
+    _STREET_HOUSENO_RE = re.compile(
+        r'\b('
+        r'[A-ZÄÖÜ][A-Za-zäöüßÄÖÜ.\-]*(?:gasse|straße|strasse|weg|platz|allee|ring|gang|zeile|steig|promenade|markt|hof)'
+        r'|[A-ZÄÖÜ][A-Za-zäöüßÄÖÜ.\-]+\s(?:Straße|Strasse|Gasse|Weg|Platz|Allee|Ring|Zeile|Steig|Promenade)'
+        r')\s+(\d{1,4}\s*[a-zA-Z]?)\b'
+    )
+
+    def extract_street_from_description(self, soup: BeautifulSoup) -> Optional[str]:
+        """Recover a full street address (street + house number) from the listing
+        title/description text.
+
+        Some listings — notably Neubauprojekt entries like "Aichholzgasse 35 -
+        Neubauprojekt ..." — carry no LOCATION/ADDRESS_2 attribute and no COORDINATES,
+        so the house number lives only in the free-text title. We scan the advert
+        description and the 'Lage' text (NOT the agent contact fields, which hold the
+        broker's own office address) for a "<Street> <number>" match and pair it with
+        the postcode when present in the same text.
+        """
+        attrs = self.extract_attributes_dict(soup)
+        advert = self._get_advert_details(soup)
+        text_parts = [
+            advert.get('description') or '',
+            (attrs.get('DESCRIPTION') or [''])[0],
+            (attrs.get('GENERAL_TEXT_ADVERT/Lage') or [''])[0],
+        ]
+        text = ' '.join(p for p in text_parts if p)
+        if not text:
+            return None
+        m = self._STREET_HOUSENO_RE.search(text)
+        if not m:
+            return None
+        street = re.sub(r'\s+', ' ', m.group(1)).strip()
+        house_no = re.sub(r'\s+', '', m.group(2)).strip()
+        street_addr = f"{street} {house_no}"
+        postcode_match = re.search(r'\b(\d{4})\s*Wien', text)
+        if postcode_match:
+            return f"{street_addr}, {postcode_match.group(1)} Wien"
+        return street_addr
+
     def extract_coordinates(self, soup: BeautifulSoup) -> Optional[Coordinates]:
         """Extract Willhaben's published exact coordinates from the COORDINATES
         attribute in __NEXT_DATA__ (format 'lat,lon'). Returns None if absent or invalid.
@@ -417,6 +459,15 @@ class WillhabenScraper:
             if wh_coords:
                 listing.coordinates = wh_coords
                 listing.coordinate_source = 'exact'
+
+            # Recover the house number from the title/description when the address we
+            # have is missing or lacks a real street+house-number (a bare street or a
+            # district string like "1120 Wien, 12. Bezirk, Meidling") — e.g.
+            # Neubauprojekt listings that carry the address only in free text.
+            if not listing.address or not self._STREET_HOUSENO_RE.search(listing.address):
+                street_addr = self.extract_street_from_description(soup)
+                if street_addr:
+                    listing.address = street_addr
 
             # Get walking times
             if listing.bezirk:
