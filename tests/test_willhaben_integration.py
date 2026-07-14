@@ -113,6 +113,48 @@ def test_extract_coordinates_out_of_range_returns_none():
     assert scraper.extract_coordinates(soup) is None
 
 
+def test_extract_street_from_description_recovers_house_number():
+    """Neubauprojekt listings carry the house number only in the free-text title,
+    e.g. 'Aichholzgasse 35 - Neubauprojekt ... 1120 Wien'."""
+    scraper = WillhabenScraper()
+    html = """<html><body>
+    <script id="__NEXT_DATA__" type="application/json">
+    {"props":{"pageProps":{"advertDetails":{
+        "description":"Aichholzgasse 35 - Neubauprojekt in Schoenbrunn-Naehe - Gartenwohnung zu kaufen in 1120 Wien",
+        "attributes":{"attribute":[
+            {"name":"CONTACT/ADDRESS_STREET","values":["Bankgasse 1"]}
+        ]}}}}}
+    </script></body></html>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    assert scraper.extract_street_from_description(soup) == "Aichholzgasse 35, 1120 Wien"
+
+
+def test_extract_street_from_description_ignores_agent_address():
+    """The broker office address (CONTACT/ADDRESS_STREET) must not leak into the
+    listing address — only the description/Lage text is scanned."""
+    scraper = WillhabenScraper()
+    html = """<html><body>
+    <script id="__NEXT_DATA__" type="application/json">
+    {"props":{"pageProps":{"advertDetails":{
+        "description":"Tolle 5-Zimmer Altbauwohnung mit viel Charme",
+        "attributes":{"attribute":[
+            {"name":"CONTACT/ADDRESS_STREET","values":["Bankgasse 1"]}
+        ]}}}}}
+    </script></body></html>"""
+    soup = BeautifulSoup(html, 'html.parser')
+    assert scraper.extract_street_from_description(soup) is None
+
+
+def test_street_houseno_guard_distinguishes_district_from_real_address():
+    """The address-upgrade guard must treat a district string (which still contains
+    digits like the postcode/Bezirk number) as NOT having a real house number."""
+    scraper = WillhabenScraper()
+    assert scraper._STREET_HOUSENO_RE.search("1120 Wien, 12. Bezirk, Meidling") is None
+    assert scraper._STREET_HOUSENO_RE.search("Aichholzgasse") is None
+    assert scraper._STREET_HOUSENO_RE.search("Aichholzgasse 35, 1120 Wien") is not None
+    assert scraper._STREET_HOUSENO_RE.search("Mariahilfer Straße 120, 1070 Wien") is not None
+
+
 def test_real_willhaben_listing_extraction():
     scraper = WillhabenScraper()
     test_url = "https://www.willhaben.at/iad/immobilien/d/eigentumswohnung/wien/wien-1190-doebling/perfekt-aufgeteilte-altbauwohnung-naehe-hohe-warte-1076664583/"
