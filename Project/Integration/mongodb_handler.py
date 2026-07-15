@@ -156,21 +156,33 @@ class MongoDBHandler:
             xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
             if xfp:
                 listing['content_fingerprint_xsrc'] = xfp
-                existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
-                if existing:
-                    # Prefer Bauträger-direct (canonical apply URL) over Willhaben.
-                    if (listing.get('coop_source') == 'bautraeger_direct'
-                            and existing.get('coop_source') == 'willhaben'):
-                        self.collection.update_one(
-                            {"_id": existing["_id"]},
-                            {"$set": {
-                                "url": listing.get('url'),
-                                "coop_source": 'bautraeger_direct',
-                                "bautraeger": listing.get('bautraeger'),
-                            }}
-                        )
-                    logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
-                    return True
+                try:
+                    existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
+                    if existing:
+                        # Prefer Bauträger-direct (canonical apply URL) over Willhaben.
+                        if (listing.get('coop_source') == 'bautraeger_direct'
+                                and existing.get('coop_source') == 'willhaben'):
+                            self.collection.update_one(
+                                {"_id": existing["_id"]},
+                                {"$set": {
+                                    "url": listing.get('url'),
+                                    "coop_source": 'bautraeger_direct',
+                                    "bautraeger": listing.get('bautraeger'),
+                                }}
+                            )
+                        logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
+                        return True
+                except pymongo.errors.DuplicateKeyError:
+                    return False
+                except pymongo.errors.OperationFailure as e:
+                    if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
+                        print(f"MongoDB co-op dedup error: command insert requires authentication, full error: {e}")
+                    else:
+                        print(f"MongoDB co-op dedup error: {e}")
+                    return False
+                except Exception as e:
+                    print(f"MongoDB co-op dedup error: {e}")
+                    return False
 
         fingerprint = compute_content_fingerprint(listing)
         listing['content_fingerprint'] = fingerprint
