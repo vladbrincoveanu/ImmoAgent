@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 
-export type PaywallReason = 'saved_search_limit' | 'alerts_pro_only' | 'pro_profiles';
+export type PaywallReason = 'saved_search_limit' | 'alerts_pro_only';
 
 interface PaywallModalProps {
   open: boolean;
@@ -18,10 +18,6 @@ const COPY: Record<PaywallReason, { title: string; body: string }> = {
   alerts_pro_only: {
     title: 'Email alerts are a Pro feature',
     body: 'Pro (€19/mo) sends you new matching listings by email and unlocks unlimited saved searches.',
-  },
-  pro_profiles: {
-    title: 'Buyer personas are a Pro feature',
-    body: 'Pro (€19/mo) unlocks persona-based rankings — First-Time Buyer, Growing Family, Renovator/Investor, and Urban Professional each re-rank every listing for that buyer.',
   },
 };
 

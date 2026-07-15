@@ -1253,7 +1253,19 @@ class ImmoKurierScraper:
                                         logging.info(f"💾 Listing already exists in MongoDB")
                                 except Exception as e:
                                     logging.error(f"Error saving to MongoDB: {e}")
-
+                            
+                            # Send to Telegram if score is high enough
+                            # (NO LONGER: property notifications are sent only from main.py)
+                            # score_threshold = 40  # Default threshold
+                            # if self.config and 'telegram' in self.config:
+                            #     score_threshold = self.config['telegram'].get('min_score_threshold', 40)
+                            # if listing.score > score_threshold and self.telegram_bot:
+                            #     try:
+                            #         self.telegram_bot.send_listing(listing)
+                            #         logging.info(f"📱 Sent to Telegram (score: {listing.score})")
+                            #     except Exception as e:
+                            #         logging.error(f"Error sending to Telegram: {e}")
+                            
                             logging.info(f"✅ MATCHES CRITERIA: {listing.title}")
                             price_str = f"€{listing.price_total:,.0f}" if listing.price_total else "N/A"
                             logging.info(f"   💰 Price: {price_str}")

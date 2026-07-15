@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { validateObjectId } from '@/lib/validators';
-import { normalizeProfile } from '@/lib/profile';
-import { gateProfile } from '@/lib/user';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import { resolveCoordinates } from '@/lib/district-centroids';
 
 export async function GET(
@@ -30,9 +29,8 @@ export async function GET(
 
     // Per-profile score override (?profile=...)
     const { searchParams } = new URL(req.url);
-    const profile = normalizeProfile(searchParams.get('profile'));
-    const { pro, denied } = await gateProfile(req, db, profile);
-    if (denied) return denied;
+    const profileParam = searchParams.get('profile');
+    const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
     const scores = (listing as { scores?: Record<string, number | null> }).scores;
     const profileScore = (scores?.[profile] ?? listing.score ?? null) as number | null;
 
@@ -49,8 +47,6 @@ export async function GET(
     // Override the score field to reflect the active profile
     result['score'] = profileScore;
     result['profile'] = profile;
-    // Full per-persona score map is Pro-only (mirrors /top and /map)
-    if (!pro) result['scores'] = null;
     // Add resolved coordinates (stored or district centroid fallback)
     result['coordinates'] = resolveCoordinates(
       (listing as { coordinates?: { lat: number; lon: number } | null }).coordinates ?? null,

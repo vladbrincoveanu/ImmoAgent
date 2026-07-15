@@ -127,18 +127,3 @@ test-results/
 
 # Session handoffs (local state)
 .claude/handoffs/*.md
-
-# Local AI-agent tooling state (not part of the project)
-.gemini/
-scratchpad/
-dashboard/.test-out/
-
-# Claude Code local session + install artifacts.
-# Curated skills/agents already committed stay tracked; only new local
-# installs and per-session status logs are ignored.
-.claude/relentless-status-*.md
-.claude/loop-improvement-*.md
-.claude/README.md
-.claude/global/
-.claude/skills/
-.claude/agents/

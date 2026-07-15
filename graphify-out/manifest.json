@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   ".claude/settings.local.json": {
-    "mtime": 1783415232.9351354,
-    "ast_hash": "2aaf3239b22d5c76b51b0cf6db80e09e",
+    "mtime": 1783587010.6662793,
+    "ast_hash": "63b3bcd98c81d0999d776e24f2deacc7",
     "semantic_hash": ""
   },
   ".claude/skills/ui-ux-pro-max/scripts/core.py": {
@@ -105,8 +105,8 @@
     "semantic_hash": ""
   },
   "Project/Application/main.py": {
-    "mtime": 1783412954.1494253,
-    "ast_hash": "aa0a786b3a9c87d04dae5be345b9c314",
+    "mtime": 1783507278.9832659,
+    "ast_hash": "879c19ffa0602a10c0aa8d620b6a6a75",
     "semantic_hash": ""
   },
   "Project/Application/outreach/__init__.py": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "Project/Application/scraping/willhaben_scraper.py": {
-    "mtime": 1781421944.8635046,
-    "ast_hash": "b8cbeac331198f6c261695a656a5acc8",
+    "mtime": 1783605138.027521,
+    "ast_hash": "4cdac77c26557283d547e14fc2f50585",
     "semantic_hash": ""
   },
   "Project/Domain/__init__.py": {
@@ -715,9 +715,9 @@
     "semantic_hash": "065bb87a6aa44fdb4e8c6ab295a2d445"
   },
   "Tests/test_willhaben_integration.py": {
-    "mtime": 1778669386.7321422,
-    "ast_hash": "9806bf66b3c07b395aec99f15fdf1fe9",
-    "semantic_hash": "9806bf66b3c07b395aec99f15fdf1fe9"
+    "mtime": 1783604864.2348542,
+    "ast_hash": "d6abd48be3ab601d5db95f5ba4ee4a74",
+    "semantic_hash": ""
   },
   "dashboard/.vercel/project.json": {
     "mtime": 1777102903.7262423,
@@ -775,13 +775,13 @@
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/map/page.tsx": {
-    "mtime": 1783412954.1528378,
-    "ast_hash": "8c78c8121dc6fe6f293ae32f3d8f2560",
+    "mtime": 1783505272.610597,
+    "ast_hash": "5f319d0a5d236ed7f16c2cf72027cb5d",
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/page.tsx": {
-    "mtime": 1783412954.153123,
-    "ast_hash": "7a83d526e9e1a261f59aae0912c55496",
+    "mtime": 1783527601.4333408,
+    "ast_hash": "c1687a02c4da27341d544d0772f8f7de",
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/taken/page.tsx": {
@@ -790,13 +790,13 @@
     "semantic_hash": "98f0b01abc5b09b35ee73234734e7711"
   },
   "dashboard/app/layout.tsx": {
-    "mtime": 1778933172.6390927,
-    "ast_hash": "f03aebc15291a6c93bcf9de1fe667883",
-    "semantic_hash": "f03aebc15291a6c93bcf9de1fe667883"
+    "mtime": 1783507175.629093,
+    "ast_hash": "919de7fa988f9680608ac586fbead31c",
+    "semantic_hash": ""
   },
   "dashboard/app/page.tsx": {
-    "mtime": 1783279670.2541933,
-    "ast_hash": "c0c2cdba1b2fcac0aaf2c923eed5bb32",
+    "mtime": 1783527620.6291537,
+    "ast_hash": "43116d7c3777293427832187fc3f7912",
     "semantic_hash": ""
   },
   "dashboard/components/BottomSheet.tsx": {
@@ -825,13 +825,13 @@
     "semantic_hash": ""
   },
   "dashboard/components/ListingDetail.tsx": {
-    "mtime": 1781242625.4954524,
-    "ast_hash": "482b10531456adab4fd6df2eac51c5a7",
+    "mtime": 1783505909.7483819,
+    "ast_hash": "9c783a37e09d2de0ea69d25ca1a1a7e4",
     "semantic_hash": ""
   },
   "dashboard/components/MapView.tsx": {
-    "mtime": 1783331987.5925114,
-    "ast_hash": "71af5018e66480444e0b894e30196044",
+    "mtime": 1783426659.8112032,
+    "ast_hash": "6bbdefe54747f3d5773dc6b6b190e01b",
     "semantic_hash": ""
   },
   "dashboard/components/ScoreBadge.tsx": {
@@ -840,8 +840,8 @@
     "semantic_hash": "512e5bc2f1931a7adc661ca1ea3c03a2"
   },
   "dashboard/components/SelectedCard.tsx": {
-    "mtime": 1781421947.7224486,
-    "ast_hash": "d36d90e968bd582a65735df0e00712de",
+    "mtime": 1783495408.1407697,
+    "ast_hash": "8d8a6181e93556d492c482238dae3377",
     "semantic_hash": ""
   },
   "dashboard/jest.config.ts": {
@@ -860,8 +860,8 @@
     "semantic_hash": "3ccdd48a7c9fb32eba93a535849881c9"
   },
   "dashboard/package.json": {
-    "mtime": 1783279670.2562492,
-    "ast_hash": "3a74159c7f5e6cc6d92c481c00a161cd",
+    "mtime": 1783507058.7702637,
+    "ast_hash": "dccff1cd445b3447e84290799134d86c",
     "semantic_hash": ""
   },
   "dashboard/playwright.config.ts": {
@@ -875,8 +875,8 @@
     "semantic_hash": "8640f9b2e6475cc3f5b1ff4548925765"
   },
   "dashboard/tailwind.config.ts": {
-    "mtime": 1781421947.7229524,
-    "ast_hash": "7351b45f1b8335850042d796d2657835",
+    "mtime": 1783426658.7793818,
+    "ast_hash": "182986ce064b905429916ff4d0d703c4",
     "semantic_hash": ""
   },
   "dashboard/test-local-click.js": {
@@ -898,11 +898,6 @@
     "mtime": 1777118048.63315,
     "ast_hash": "c32ee284f5a120d08a993cad3d9a5810",
     "semantic_hash": "c32ee284f5a120d08a993cad3d9a5810"
-  },
-  "dashboard/test-results/.last-run.json": {
-    "mtime": 1781103376.9248674,
-    "ast_hash": "1e556f4308a10f3c007906fe258790a5",
-    "semantic_hash": "1e556f4308a10f3c007906fe258790a5"
   },
   "dashboard/tests/map-full.spec.ts": {
     "mtime": 1781421947.7240276,
@@ -1083,26 +1078,6 @@
     "mtime": 1777102802.625557,
     "ast_hash": "2b13c79d37d6ed82a3255b83b6815034",
     "semantic_hash": "2b13c79d37d6ed82a3255b83b6815034"
-  },
-  "dashboard/test-results/map-full-Map-page-structur-e199f--LISTINGS-header-with-count-chromium/error-context.md": {
-    "mtime": 1781103242.2600853,
-    "ast_hash": "ed1764fa08ebaf429d82235865681e00",
-    "semantic_hash": "ed1764fa08ebaf429d82235865681e00"
-  },
-  "dashboard/test-results/map-full-Sidebar-interacti-89cb0-count-updates-after-refresh-chromium/error-context.md": {
-    "mtime": 1781103269.6895664,
-    "ast_hash": "0b1fa7d22965ea3fba4889e0fa9dfb2a",
-    "semantic_hash": "0b1fa7d22965ea3fba4889e0fa9dfb2a"
-  },
-  "dashboard/test-results/pin-click-Pin-click-\u2192-side-9e4a9--zoom-does-NOT-lock-the-map-chromium/error-context.md": {
-    "mtime": 1781103354.7049584,
-    "ast_hash": "71206be03c938da734eae3096c339598",
-    "semantic_hash": "71206be03c938da734eae3096c339598"
-  },
-  "dashboard/test-results/pin-click-Pin-click-\u2192-side-ee154-ting-on-map-and-popup-opens-chromium/error-context.md": {
-    "mtime": 1781103364.896509,
-    "ast_hash": "2fc11c2c095cfa4d7e64e6817063b5f7",
-    "semantic_hash": "2fc11c2c095cfa4d7e64e6817063b5f7"
   },
   "docs/CONTEXT.md": {
     "mtime": 1777961589.703715,
@@ -1660,8 +1635,8 @@
     "semantic_hash": ""
   },
   "dashboard/components/ListingRail.tsx": {
-    "mtime": 1783158730.9602065,
-    "ast_hash": "9ed2ed453eddc021d556d1dca01fcebd",
+    "mtime": 1783426694.486839,
+    "ast_hash": "4d9dcee9777fc2373a7d41eabba34bb1",
     "semantic_hash": ""
   },
   "dashboard/components/MapFilterPopover.tsx": {
@@ -1670,13 +1645,13 @@
     "semantic_hash": ""
   },
   "dashboard/components/MapLayersPopover.tsx": {
-    "mtime": 1783158730.9604647,
-    "ast_hash": "6cd549a659d8e46917e96360855c57fa",
+    "mtime": 1783427266.6364355,
+    "ast_hash": "1140a09bad15d2d6eba4b38bb6be25a7",
     "semantic_hash": ""
   },
   "dashboard/components/MapTopBar.tsx": {
-    "mtime": 1783158730.9607472,
-    "ast_hash": "5602216e9aa70c69ac4d3d8d320287e9",
+    "mtime": 1783426680.0779178,
+    "ast_hash": "0d9784d3f3684cb6330301743d78c581",
     "semantic_hash": ""
   },
   "dashboard/components/MarketBadges.tsx": {
@@ -1705,8 +1680,8 @@
     "semantic_hash": ""
   },
   "dashboard/components/SlimListingCard.tsx": {
-    "mtime": 1781421947.7226703,
-    "ast_hash": "8b896e02dda8170b61223d3191bc382f",
+    "mtime": 1783426707.9536004,
+    "ast_hash": "99b5fe2c28f93c145da67f5774ca0d32",
     "semantic_hash": ""
   },
   "dashboard/components/SmartInsightsPanel.tsx": {
@@ -1785,8 +1760,8 @@
     "semantic_hash": ""
   },
   "dashboard/lib/user.ts": {
-    "mtime": 1783412954.1548007,
-    "ast_hash": "c2246d0c023f8884c22503537a9f7887",
+    "mtime": 1783507186.3534493,
+    "ast_hash": "37f9d2b5d7d8cfdca6749c900f826292",
     "semantic_hash": ""
   },
   "dashboard/lib/utils.ts": {
@@ -1840,8 +1815,8 @@
     "semantic_hash": ""
   },
   "dashboard/tests/desktop-redesign.spec.ts": {
-    "mtime": 1781421947.723692,
-    "ast_hash": "528ce6830583fe03139908c9aeb73d3c",
+    "mtime": 1783427356.3329153,
+    "ast_hash": "84aa8a3156a6f12c624eefbcb5db2b3e",
     "semantic_hash": ""
   },
   "dashboard/tests/district-filter.spec.ts": {
@@ -2385,8 +2360,8 @@
     "semantic_hash": ""
   },
   "GEMINI.md": {
-    "mtime": 1781421598.1638668,
-    "ast_hash": "b7a1edc8a4a74dc285b17fa35f82c4e3",
+    "mtime": 1783415280.382014,
+    "ast_hash": "317903c14105e8daf086d1272ac7c5f9",
     "semantic_hash": ""
   },
   "dashboard/TEST_COVERAGE.md": {
@@ -2447,6 +2422,86 @@
   "docs/superpowers/specs/2026-07-04-freemium-buyer-gate-design.md": {
     "mtime": 1783185114.226439,
     "ast_hash": "5eb2b050a334557f6eb67c60b80ff5cf",
+    "semantic_hash": ""
+  },
+  "scripts/token_benchmark.py": {
+    "mtime": 1780986220.0681052,
+    "ast_hash": "0274772fb63898c047930bbe9bc21c35",
+    "semantic_hash": ""
+  },
+  "scripts/token_benchmark.sh": {
+    "mtime": 1780986220.0702312,
+    "ast_hash": "6fa38e0fbed0683f921543fa6c5d267a",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1783415280.382014,
+    "ast_hash": "317903c14105e8daf086d1272ac7c5f9",
+    "semantic_hash": ""
+  },
+  "map-redesign-desktop.jpeg": {
+    "mtime": 1783427013.6167955,
+    "ast_hash": "6528cea541042b6d10ca790649e2fca3",
+    "semantic_hash": ""
+  },
+  "dashboard/tests/listing-detail-tabs.spec.ts": {
+    "mtime": 1783446003.0520356,
+    "ast_hash": "6f4d620db9df5ae5b0a3e28f3546685d",
+    "semantic_hash": ""
+  },
+  "dashboard/TEST_DEBT.md": {
+    "mtime": 1783445222.5370321,
+    "ast_hash": "fe63459961608789b6a8bb6da51faf96",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-07-listing-detail-tabs-design.md": {
+    "mtime": 1783445874.156716,
+    "ast_hash": "771a3d3ee00259cf8e8dc333742fdb6c",
+    "semantic_hash": ""
+  },
+  "dashboard/app/api/auth/[...nextauth]/route.ts": {
+    "mtime": 1783507146.2325993,
+    "ast_hash": "948ae85ddb6c6296d322b46e19b022e8",
+    "semantic_hash": ""
+  },
+  "dashboard/app/dashboard/layout.tsx": {
+    "mtime": 1783527556.9498966,
+    "ast_hash": "754338f039fdcf1cad1e2c722a326881",
+    "semantic_hash": ""
+  },
+  "dashboard/app/sign-in/page.tsx": {
+    "mtime": 1783507157.6007693,
+    "ast_hash": "2c49de7ad34b3186bcf6fcdac87c5651",
+    "semantic_hash": ""
+  },
+  "dashboard/components/Providers.tsx": {
+    "mtime": 1783527543.0497339,
+    "ast_hash": "d43ff851e7eae9777daae22284e20ab6",
+    "semantic_hash": ""
+  },
+  "dashboard/components/UserMenu.tsx": {
+    "mtime": 1783526749.7194927,
+    "ast_hash": "ab5c0df5d96b9f1446f4ca11e174e3bc",
+    "semantic_hash": ""
+  },
+  "dashboard/lib/auth.ts": {
+    "mtime": 1783507220.9789639,
+    "ast_hash": "a3f259554b849cf5932ba4c029e8e101",
+    "semantic_hash": ""
+  },
+  "dashboard/middleware.ts": {
+    "mtime": 1783526731.4602187,
+    "ast_hash": "5dc799686284bc0d9a74a4227fe8adf4",
+    "semantic_hash": ""
+  },
+  "dashboard/types/next-auth.d.ts": {
+    "mtime": 1783507138.570944,
+    "ast_hash": "c3d2c75799570013fa5c2d41fb784664",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-09-rent-pivot-design.md": {
+    "mtime": 1783605853.4641504,
+    "ast_hash": "0ebd2ab154533214796702586acd1c94",
     "semantic_hash": ""
   }
 }

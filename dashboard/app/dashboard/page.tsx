@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { ListingCard } from '@/components/ListingCard';
 import { FilterBar, SortOption } from '@/components/FilterBar';
 import { FilterDrawer } from '@/components/FilterDrawer';
@@ -11,10 +10,9 @@ import { ProfileSelector } from '@/components/ProfileSelector';
 import { SmartInsightsPanel } from '@/components/SmartInsightsPanel';
 import { SaveSearchButton } from '@/components/SaveSearchButton';
 import { EmailAlertsModal } from '@/components/EmailAlertsModal';
-import { PaywallModal } from '@/components/PaywallModal';
 import { ListingBase } from '@/lib/types';
 import { useFilters } from '@/lib/useFilters';
-import { DEFAULT_PROFILE } from '@/lib/profile';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 
 function calcMonatsrate(loanAmount: number, rate: number): number {
   if (loanAmount <= 0 || rate <= 0) return 0;
@@ -24,14 +22,8 @@ function calcMonatsrate(loanAmount: number, rate: number): number {
   return loanAmount * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
 }
 
-// Anonymous visitors get a generous free sample of the grid; signing in
-// reveals the rest. Kept high so the app feels usable before we ask for login.
-const FREE_SAMPLE_LIMIT = 9;
-
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const { status } = useSession();
-  const isAuthed = status === 'authenticated';
   const {
     minScore, district, sortBy, maxPrice, showUnfinanceable,
     equity, rate, maxEquity, profile, belowAvgPct,
@@ -44,7 +36,6 @@ function DashboardContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const [profilePaywall, setProfilePaywall] = useState(false);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
   const fetchListings = useCallback(async () => {
@@ -60,12 +51,6 @@ function DashboardContent() {
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/top?${params.toString()}`);
-      if (res.status === 402) {
-        // Free tier picked a Pro persona — show paywall, fall back to default
-        setProfilePaywall(true);
-        update({ profile: DEFAULT_PROFILE });
-        return;
-      }
       const data = await res.json();
       const items = (data.listings ?? []) as Array<ListingBase & { scores?: Record<string, number | null> | null }>;
       setListings(items);
@@ -79,7 +64,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct, update]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -158,11 +143,6 @@ function DashboardContent() {
     });
   }, [enrichedListings, maxPrice, showUnfinanceable, maxEquity, belowAvgPct, maxCommute, destLat, destLon]);
 
-  // Free-sample cap: anonymous visitors see the first 9; the rest is a
-  // single low-friction "sign in to see all" nudge — never a hard wall.
-  const visibleListings = isAuthed ? filteredListings : filteredListings.slice(0, FREE_SAMPLE_LIMIT);
-  const hiddenCount = filteredListings.length - visibleListings.length;
-
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-24 md:pb-6">
       <div className="max-w-6xl mx-auto">
@@ -234,32 +214,11 @@ function DashboardContent() {
         ) : filteredListings.length === 0 ? (
           <p className="text-gray-400">{listings.length === 0 ? 'No listings found.' : 'All listings filtered out.'}</p>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visibleListings.map((l) => (
-                <ListingCard key={l._id} listing={l} onClick={setSelectedId} destLat={destLat ? Number(destLat) : undefined} destLon={destLon ? Number(destLon) : undefined} destName={destName || undefined} />
-              ))}
-            </div>
-            {hiddenCount > 0 && (
-              <div className="mt-6 rounded-2xl border border-accent/20 bg-accent-soft/40 px-6 py-8 text-center" data-testid="signin-gate">
-                <h3 className="text-lg font-bold text-gray-900">
-                  {hiddenCount} more {hiddenCount === 1 ? 'listing' : 'listings'} match your filters
-                </h3>
-                <p className="mt-1.5 text-sm text-gray-600">
-                  Sign in — it&apos;s free — to see every match, unlock the map, and save your searches.
-                </p>
-                <a
-                  href="/sign-in?callbackUrl=%2Fdashboard"
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-accent/20 hover:opacity-90 transition-opacity"
-                >
-                  Sign in to see all {filteredListings.length}
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </a>
-              </div>
-            )}
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredListings.map((l) => (
+              <ListingCard key={l._id} listing={l} onClick={setSelectedId} destLat={destLat ? Number(destLat) : undefined} destLon={destLon ? Number(destLon) : undefined} destName={destName || undefined} />
+            ))}
+          </div>
         )}
       </div>
 
@@ -296,8 +255,6 @@ function DashboardContent() {
         rate={rate}
         onRateChange={(v) => update({ rate: v })}
       />
-
-      <PaywallModal open={profilePaywall} reason="pro_profiles" onClose={() => setProfilePaywall(false)} />
 
       {selectedId && (
         <ListingDetail

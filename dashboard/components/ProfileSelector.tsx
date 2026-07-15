@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { PROFILES, DEFAULT_PROFILE, isProProfile } from '@/lib/profile';
+import { PROFILES, DEFAULT_PROFILE } from '@/lib/profile';
 
 interface ProfileSelectorProps {
   value?: string;
@@ -23,7 +23,7 @@ export function ProfileSelector({ value, onChange }: ProfileSelectorProps = {}) 
       >
         {PROFILES.map((p) => (
           <option key={p.key} value={p.key} title={p.description}>
-            {isProProfile(p.key) ? `${p.label} ★ Pro` : p.label}
+            {p.label}
           </option>
         ))}
       </select>

@@ -414,6 +414,11 @@ class ViennaDistrictHelper:
         return ViennaDistrictHelper.DEFAULT_UBAHN_TIMES.get(district, 15)
     
     @staticmethod
+    def is_valid_district(district: str) -> bool:
+        """Check if a district code is valid for Vienna"""
+        return district in ViennaDistrictHelper.DEFAULT_UBAHN_TIMES
+    
+    @staticmethod
     def get_district_name(district: str) -> str:
         """Get the name of a Vienna district"""
         district_names = {

@@ -27,13 +27,13 @@ export function ListingRail({ listings, selectedId, onSelect, sortMode, onSortCh
       data-testid="listing-rail"
       className="w-[340px] flex-shrink-0 bg-card border-r border-line flex flex-col"
     >
-      <div className="px-[18px] pt-4 pb-3 flex items-baseline justify-between gap-2 border-b border-line/70">
-        <span className="flex items-baseline gap-2 min-w-0">
-          <span data-testid="rail-count" className="text-[13px] font-semibold text-ink whitespace-nowrap">
+      <div className="px-[18px] py-3.5 flex items-baseline justify-between gap-2">
+        <span className="flex items-baseline gap-2">
+          <span data-testid="rail-count" className="text-[13px] font-semibold">
             {listings.length} in view
           </span>
           {noCoordCount > 0 && (
-            <span data-testid="rail-no-coord" className="text-[11px] text-ink-3 truncate">
+            <span data-testid="rail-no-coord" className="text-[11px] text-ink-3">
               {noCoordCount} without map location
             </span>
           )}
@@ -42,7 +42,7 @@ export function ListingRail({ listings, selectedId, onSelect, sortMode, onSortCh
           data-testid="rail-sort"
           value={sortMode}
           onChange={(e) => onSortChange(e.target.value as SortOption)}
-          className="text-[12px] font-medium text-ink-2 bg-bg border border-line rounded-full pl-3 pr-2 py-1 cursor-pointer hover:border-[#b9c6d6] transition-colors"
+          className="text-[12px] text-ink-2 bg-transparent border-0 cursor-pointer"
         >
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -51,7 +51,7 @@ export function ListingRail({ listings, selectedId, onSelect, sortMode, onSortCh
           ))}
         </select>
       </div>
-      <div className="rail-scroll flex-1 overflow-y-auto px-2.5 pt-2 pb-4 space-y-0.5">
+      <div className="flex-1 overflow-y-auto px-2.5 pb-4">
         {listings.map((l) => (
           <SlimListingCard
             key={l._id}

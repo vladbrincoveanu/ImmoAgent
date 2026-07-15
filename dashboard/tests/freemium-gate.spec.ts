@@ -69,34 +69,6 @@ test.describe('freemium gate', () => {
     expect(body.saved_search_limit).toBe(3);
   });
 
-  test('persona profiles are Pro-only: API returns 402 with pro_profiles reason', async ({ page }) => {
-    await page.goto('/dashboard');
-    for (const profile of ['growing_family', 'budget_buyer', 'diy_renovator', 'urban_professional']) {
-      const res = await page.request.get(`/api/listings/top?profile=${profile}`);
-      expect(res.status(), `profile=${profile}`).toBe(402);
-      expect((await res.json()).reason).toBe('pro_profiles');
-    }
-    const map = await page.request.get('/api/listings/map?profile=growing_family');
-    expect(map.status()).toBe(402);
-    const insights = await page.request.get('/api/insights?profile=growing_family');
-    expect(insights.status()).toBe(402);
-  });
-
-  test('default and legacy-alias-to-default profiles stay free, scores map is stripped', async ({ page }) => {
-    await page.goto('/dashboard');
-    const plain = await page.request.get('/api/listings/top');
-    expect(plain.status()).toBe(200);
-    // owner_occupier + retiree were consolidated into default → still free
-    for (const legacy of ['owner_occupier', 'retiree']) {
-      const res = await page.request.get(`/api/listings/top?profile=${legacy}`);
-      expect(res.status(), `legacy profile=${legacy}`).toBe(200);
-    }
-    // Free tier must not receive the full per-persona scores map (the client
-    // could re-sort locally from it, bypassing the gate)
-    const body = await plain.json();
-    for (const l of body.listings ?? []) expect(l.scores).toBeNull();
-  });
-
   // Pro entitlement path — needs direct DB access to seed is_pro, so it only
   // runs against the local server (localhost Mongo). Skipped on prod runs.
   test('pro user: unlimited saves and alerts allowed', async ({ page, baseURL, context }) => {
@@ -125,9 +97,5 @@ test.describe('freemium gate', () => {
       data: { email: 'pro-test@example.com', params: {}, frequency: 'daily' },
     });
     expect(alert.status()).toBe(201);
-
-    // Persona profiles unlocked for pro
-    const top = await page.request.get('/api/listings/top?profile=growing_family');
-    expect(top.status()).toBe(200);
   });
 });

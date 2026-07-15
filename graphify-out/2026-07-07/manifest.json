@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   ".claude/settings.local.json": {
-    "mtime": 1783414213.2011733,
-    "ast_hash": "3646b6a25cf483927a44df12a3a0de00",
+    "mtime": 1783417496.8319337,
+    "ast_hash": "c35d87c31cb9c5b3eaa8041f62b5cf7d",
     "semantic_hash": ""
   },
   ".claude/skills/ui-ux-pro-max/scripts/core.py": {
@@ -100,9 +100,9 @@
     "semantic_hash": "58094dbbb5cd3f49c2dc23192d4bf306"
   },
   "Project/Application/helpers/utils.py": {
-    "mtime": 1778759960.730365,
-    "ast_hash": "b91ed47cc1991d0fba569f45891ee1c5",
-    "semantic_hash": "b91ed47cc1991d0fba569f45891ee1c5"
+    "mtime": 1783414796.200527,
+    "ast_hash": "721fb5c513799b8696e5ced508e8a4b9",
+    "semantic_hash": ""
   },
   "Project/Application/main.py": {
     "mtime": 1783412954.1494253,
@@ -140,9 +140,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "Project/Application/scraping/derstandard_scraper.py": {
-    "mtime": 1780133238.8736033,
-    "ast_hash": "ef979f6ac6ba0619031e154118984b9b",
-    "semantic_hash": "ef979f6ac6ba0619031e154118984b9b"
+    "mtime": 1783414788.4003046,
+    "ast_hash": "e6b9d82b76849d171cb59cde63d6b7ce",
+    "semantic_hash": ""
   },
   "Project/Application/scraping/field_extractors.py": {
     "mtime": 1778669386.7282577,
@@ -150,8 +150,8 @@
     "semantic_hash": "74bbee458671db1981b2273ae40e7956"
   },
   "Project/Application/scraping/immo_kurier_scraper.py": {
-    "mtime": 1781421944.863215,
-    "ast_hash": "69ef812efeb94ddfec35519913cf366b",
+    "mtime": 1783414815.7614806,
+    "ast_hash": "3f614f8d5a75540cd51e16946ea4bf4c",
     "semantic_hash": ""
   },
   "Project/Application/scraping/willhaben_scraper.py": {
@@ -775,8 +775,8 @@
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/map/page.tsx": {
-    "mtime": 1783412954.1528378,
-    "ast_hash": "8c78c8121dc6fe6f293ae32f3d8f2560",
+    "mtime": 1783426722.6347537,
+    "ast_hash": "20fab3d30986d534c68216f6c9718e1d",
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/page.tsx": {
@@ -829,14 +829,9 @@
     "ast_hash": "482b10531456adab4fd6df2eac51c5a7",
     "semantic_hash": ""
   },
-  "dashboard/components/ListingSidebar.tsx": {
-    "mtime": 1778751359.180682,
-    "ast_hash": "3caee5d6689c3cc408b272556b2fb8f2",
-    "semantic_hash": "3caee5d6689c3cc408b272556b2fb8f2"
-  },
   "dashboard/components/MapView.tsx": {
-    "mtime": 1783331987.5925114,
-    "ast_hash": "71af5018e66480444e0b894e30196044",
+    "mtime": 1783426659.8112032,
+    "ast_hash": "6bbdefe54747f3d5773dc6b6b190e01b",
     "semantic_hash": ""
   },
   "dashboard/components/ScoreBadge.tsx": {
@@ -848,16 +843,6 @@
     "mtime": 1781421947.7224486,
     "ast_hash": "d36d90e968bd582a65735df0e00712de",
     "semantic_hash": ""
-  },
-  "dashboard/components/ThemeProvider.tsx": {
-    "mtime": 1778916366.4310012,
-    "ast_hash": "451a05da1d88daac596d9988b83bfe6f",
-    "semantic_hash": "451a05da1d88daac596d9988b83bfe6f"
-  },
-  "dashboard/components/ThemeToggle.tsx": {
-    "mtime": 1780986131.2998931,
-    "ast_hash": "1e9be7282bebbf92566528ba673266f9",
-    "semantic_hash": "1e9be7282bebbf92566528ba673266f9"
   },
   "dashboard/jest.config.ts": {
     "mtime": 1777126170.7511206,
@@ -890,8 +875,8 @@
     "semantic_hash": "8640f9b2e6475cc3f5b1ff4548925765"
   },
   "dashboard/tailwind.config.ts": {
-    "mtime": 1781421947.7229524,
-    "ast_hash": "7351b45f1b8335850042d796d2657835",
+    "mtime": 1783426658.7793818,
+    "ast_hash": "182986ce064b905429916ff4d0d703c4",
     "semantic_hash": ""
   },
   "dashboard/test-local-click.js": {
@@ -913,11 +898,6 @@
     "mtime": 1777118048.63315,
     "ast_hash": "c32ee284f5a120d08a993cad3d9a5810",
     "semantic_hash": "c32ee284f5a120d08a993cad3d9a5810"
-  },
-  "dashboard/test-results/.last-run.json": {
-    "mtime": 1781103376.9248674,
-    "ast_hash": "1e556f4308a10f3c007906fe258790a5",
-    "semantic_hash": "1e556f4308a10f3c007906fe258790a5"
   },
   "dashboard/tests/map-full.spec.ts": {
     "mtime": 1781421947.7240276,
@@ -1060,8 +1040,8 @@
     "semantic_hash": "2b13c79d37d6ed82a3255b83b6815034"
   },
   "CLAUDE.md": {
-    "mtime": 1783412954.148243,
-    "ast_hash": "557af3778614f45799d6f58da5620d3a",
+    "mtime": 1783415280.382014,
+    "ast_hash": "317903c14105e8daf086d1272ac7c5f9",
     "semantic_hash": ""
   },
   "Project/OUTREACH_SETUP.md": {
@@ -1108,16 +1088,6 @@
     "mtime": 1781103269.6895664,
     "ast_hash": "0b1fa7d22965ea3fba4889e0fa9dfb2a",
     "semantic_hash": "0b1fa7d22965ea3fba4889e0fa9dfb2a"
-  },
-  "dashboard/test-results/pin-click-Pin-click-\u2192-side-9e4a9--zoom-does-NOT-lock-the-map-chromium/error-context.md": {
-    "mtime": 1781103354.7049584,
-    "ast_hash": "71206be03c938da734eae3096c339598",
-    "semantic_hash": "71206be03c938da734eae3096c339598"
-  },
-  "dashboard/test-results/pin-click-Pin-click-\u2192-side-ee154-ting-on-map-and-popup-opens-chromium/error-context.md": {
-    "mtime": 1781103364.896509,
-    "ast_hash": "2fc11c2c095cfa4d7e64e6817063b5f7",
-    "semantic_hash": "2fc11c2c095cfa4d7e64e6817063b5f7"
   },
   "docs/CONTEXT.md": {
     "mtime": 1777961589.703715,
@@ -1659,11 +1629,6 @@
     "ast_hash": "5e84f33eb89b24113b6610da27b8e835",
     "semantic_hash": ""
   },
-  "dashboard/components/District3D.tsx": {
-    "mtime": 1783279670.2543201,
-    "ast_hash": "54e1ae941c004292223d41bebf67f170",
-    "semantic_hash": ""
-  },
   "dashboard/components/DistrictTrendChart.tsx": {
     "mtime": 1781242625.4935348,
     "ast_hash": "e67b29fa9a3fcc0c4435ae3c0c9edc1c",
@@ -1680,8 +1645,8 @@
     "semantic_hash": ""
   },
   "dashboard/components/ListingRail.tsx": {
-    "mtime": 1783158730.9602065,
-    "ast_hash": "9ed2ed453eddc021d556d1dca01fcebd",
+    "mtime": 1783426694.486839,
+    "ast_hash": "4d9dcee9777fc2373a7d41eabba34bb1",
     "semantic_hash": ""
   },
   "dashboard/components/MapFilterPopover.tsx": {
@@ -1690,13 +1655,13 @@
     "semantic_hash": ""
   },
   "dashboard/components/MapLayersPopover.tsx": {
-    "mtime": 1783158730.9604647,
-    "ast_hash": "6cd549a659d8e46917e96360855c57fa",
+    "mtime": 1783427266.6364355,
+    "ast_hash": "1140a09bad15d2d6eba4b38bb6be25a7",
     "semantic_hash": ""
   },
   "dashboard/components/MapTopBar.tsx": {
-    "mtime": 1783158730.9607472,
-    "ast_hash": "5602216e9aa70c69ac4d3d8d320287e9",
+    "mtime": 1783426680.0779178,
+    "ast_hash": "0d9784d3f3684cb6330301743d78c581",
     "semantic_hash": ""
   },
   "dashboard/components/MarketBadges.tsx": {
@@ -1725,8 +1690,8 @@
     "semantic_hash": ""
   },
   "dashboard/components/SlimListingCard.tsx": {
-    "mtime": 1781421947.7226703,
-    "ast_hash": "8b896e02dda8170b61223d3191bc382f",
+    "mtime": 1783426707.9536004,
+    "ast_hash": "99b5fe2c28f93c145da67f5774ca0d32",
     "semantic_hash": ""
   },
   "dashboard/components/SmartInsightsPanel.tsx": {
@@ -1860,8 +1825,8 @@
     "semantic_hash": ""
   },
   "dashboard/tests/desktop-redesign.spec.ts": {
-    "mtime": 1781421947.723692,
-    "ast_hash": "528ce6830583fe03139908c9aeb73d3c",
+    "mtime": 1783427356.3329153,
+    "ast_hash": "84aa8a3156a6f12c624eefbcb5db2b3e",
     "semantic_hash": ""
   },
   "dashboard/tests/district-filter.spec.ts": {
@@ -2405,8 +2370,8 @@
     "semantic_hash": ""
   },
   "GEMINI.md": {
-    "mtime": 1781421598.1638668,
-    "ast_hash": "b7a1edc8a4a74dc285b17fa35f82c4e3",
+    "mtime": 1783415280.382014,
+    "ast_hash": "317903c14105e8daf086d1272ac7c5f9",
     "semantic_hash": ""
   },
   "dashboard/TEST_COVERAGE.md": {
@@ -2467,6 +2432,26 @@
   "docs/superpowers/specs/2026-07-04-freemium-buyer-gate-design.md": {
     "mtime": 1783185114.226439,
     "ast_hash": "5eb2b050a334557f6eb67c60b80ff5cf",
+    "semantic_hash": ""
+  },
+  "scripts/token_benchmark.py": {
+    "mtime": 1780986220.0681052,
+    "ast_hash": "0274772fb63898c047930bbe9bc21c35",
+    "semantic_hash": ""
+  },
+  "scripts/token_benchmark.sh": {
+    "mtime": 1780986220.0702312,
+    "ast_hash": "6fa38e0fbed0683f921543fa6c5d267a",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1783415280.382014,
+    "ast_hash": "317903c14105e8daf086d1272ac7c5f9",
+    "semantic_hash": ""
+  },
+  "map-redesign-desktop.jpeg": {
+    "mtime": 1783427013.6167955,
+    "ast_hash": "6528cea541042b6d10ca790649e2fca3",
     "semantic_hash": ""
   }
 }

@@ -14,7 +14,6 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { CompactListingStrip } from '@/components/CompactListingStrip';
 import { ProfileSelector } from '@/components/ProfileSelector';
-import { PaywallModal } from '@/components/PaywallModal';
 import { MapListing } from '@/lib/types';
 import { useListingsSSE } from '@/lib/sse';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
@@ -26,11 +25,10 @@ const MapViewDynamic = dynamic(
   { ssr: false, loading: () => <MapLoadingState /> }
 );
 
-function MapLoadingState({ label = 'Loading map…' }: { label?: string }) {
+function MapLoadingState() {
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-bg">
-      <span className="w-8 h-8 rounded-full border-2 border-line border-t-accent animate-spin" aria-hidden />
-      <p className="text-[13px] text-ink-3 font-medium">{label}</p>
+    <div className="h-full w-full flex items-center justify-center bg-gray-100">
+      <p className="text-gray-500">Loading map...</p>
     </div>
   );
 }
@@ -50,7 +48,6 @@ function MapPage() {
   const [bounds, setBounds] = useState<ViewportBounds | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [profilePaywall, setProfilePaywall] = useState(false);
   const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
   const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
@@ -136,12 +133,6 @@ function MapPage() {
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/map?${params}`);
-      if (res.status === 402) {
-        // Free tier picked a Pro persona — show paywall, fall back to default
-        setProfilePaywall(true);
-        update({ profile: DEFAULT_PROFILE });
-        return;
-      }
       const data = await res.json();
       const items = (data.listings ?? []) as Array<MapListing & { scores?: Record<string, number | null> | null }>;
       setListings(items);
@@ -155,7 +146,7 @@ function MapPage() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct, update]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -311,10 +302,8 @@ function MapPage() {
 
   return (
     <>
-      <PaywallModal open={profilePaywall} reason="pro_profiles" onClose={() => setProfilePaywall(false)} />
-
       {/* DESKTOP — top bar + rail + map */}
-      <div className="hidden md:flex flex-col h-full map-desktop bg-bg">
+      <div className="hidden md:flex flex-col h-screen map-desktop bg-bg">
         <MapTopBar
           activeFilterCount={activeFilterCount}
           filtersOpen={filtersOpen}
@@ -355,42 +344,41 @@ function MapPage() {
             noCoordCount={noCoordCount}
           />
 
-          <div className="flex-1 relative bg-bg min-w-0">
-            <div className="absolute inset-3">
-              {loading ? (
-                <MapLoadingState label="Loading listings…" />
-              ) : listings.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center gap-2 bg-bg">
-                  <p className="text-[14px] font-semibold text-ink-2">No listings match your filters</p>
-                  <p className="text-[12.5px] text-ink-3">Loosen the score, price or district filters to see more.</p>
-                </div>
-              ) : (
-                <>
-                  <MapViewDynamic
-                    listings={viewportListings}
-                    selectedListingId={selectedListingId}
-                    layers={layers}
-                    stationData={stationData}
-                    schoolData={schoolData}
-                    layersPopoverSlot={
-                      <MapLayersPopover
-                        open={layersOpen}
-                        onClose={() => setLayersOpen(false)}
-                        layers={layers}
-                        onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
-                        counts={layerCounts}
-                      />
-                    }
-                    onPinClick={handlePinClick}
-                    onMapClick={() => setSelectedListingId(null)}
-                    onBoundsChange={setBounds}
-                  />
-                </>
-              )}
-            </div>
+          <div className="flex-1 relative">
+            {loading ? (
+              <div className="h-full flex items-center justify-center bg-gray-50">
+                <p className="text-gray-500">Loading...</p>
+              </div>
+            ) : listings.length === 0 ? (
+              <div className="h-full flex items-center justify-center bg-gray-50">
+                <p className="text-gray-400">No listings match your filters.</p>
+              </div>
+            ) : (
+              <>
+                <MapViewDynamic
+                  listings={viewportListings}
+                  selectedListingId={selectedListingId}
+                  layers={layers}
+                  stationData={stationData}
+                  schoolData={schoolData}
+                  layersPopoverSlot={
+                    <MapLayersPopover
+                      open={layersOpen}
+                      onClose={() => setLayersOpen(false)}
+                      layers={layers}
+                      onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
+                      counts={layerCounts}
+                    />
+                  }
+                  onPinClick={handlePinClick}
+                  onMapClick={() => setSelectedListingId(null)}
+                  onBoundsChange={setBounds}
+                />
+              </>
+            )}
 
             {selectedListing && !loading && (
-              <div data-testid="selected-card-slot" className="absolute inset-3 pointer-events-none">
+              <div data-testid="selected-card-slot" className="absolute inset-0 pointer-events-none">
                 <div className="pointer-events-auto">
                   <SelectedCard
                     listing={selectedListing}

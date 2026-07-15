@@ -271,17 +271,16 @@ const STEPS = [
 ];
 
 const FREE_FEATURES = [
-  'Browse top-scored listings',
-  'Owner-occupier smart scoring',
+  'Full listing map + grid view',
+  'All 8 buyer profiles',
   'District price heatmap',
   'Mortgage calculator',
   'Commute & price filters',
-  'Interactive map (after sign-in)',
+  '3 saved searches',
 ];
 
 const PRO_FEATURES = [
   'Everything in Free',
-  'All 5 buyer profiles — persona switching',
   'Email alerts (instant / daily / weekly)',
   'Unlimited saved searches',
   'Price vs zone average filter',

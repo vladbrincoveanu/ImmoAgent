@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { validateDistrict, validateMinScore } from '@/lib/validators';
-import { normalizeProfile } from '@/lib/profile';
-import { gateProfile } from '@/lib/user';
+import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,14 +9,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const minScore = validateMinScore(searchParams.get('min_score'));
   const district = validateDistrict(searchParams.get('district'));
-  const profile = normalizeProfile(searchParams.get('profile'));
+  const profileParam = searchParams.get('profile');
+  const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
   const maxPrice = Number(searchParams.get('max_price') ?? 0) || null;
   const showUnfinanceable = searchParams.get('unfinanceable') === 'true';
 
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
-  const { denied } = await gateProfile(request, db, profile);
-  if (denied) return denied;
 
   const match: Record<string, unknown> = {
     url_is_valid: { $ne: false },

@@ -2,7 +2,6 @@ import json
 import os
 import time
 import requests
-import pymongo
 import glob
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -542,7 +541,7 @@ def main():
     run_cleanup = "--cleanup" in sys.argv
     
     # Parse buyer profile from command line arguments
-    buyer_profile = "default"  # Owner-Occupier (consolidated 2026-07-06)
+    buyer_profile = "owner_occupier"  # Default to Owner Occupier profile
     for i, arg in enumerate(sys.argv):
         if arg == "--buyer-profile" and i + 1 < len(sys.argv):
             buyer_profile = sys.argv[i + 1]

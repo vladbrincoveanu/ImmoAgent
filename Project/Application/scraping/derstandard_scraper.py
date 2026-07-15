@@ -114,6 +114,33 @@ class DerStandardScraper:
                 self.use_selenium = False
                 logging.warning("⚠️ Selenium setup failed, falling back to requests")
     
+    def load_config(self):
+        """Load configuration from config.json"""
+        try:
+            # Try to load from the main Project directory first
+            import json
+            import os
+            main_config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+            if os.path.exists(main_config_path):
+                with open(main_config_path, 'r') as f:
+                    config = json.load(f)
+                    logging.info(f"✅ Loaded config from {main_config_path}")
+                    return config
+            
+            # Fallback to local config
+            config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    logging.info(f"✅ Loaded config from {config_path}")
+                    return config
+            
+            logging.warning(f"Could not find config.json in {main_config_path} or {config_path}")
+            return {}
+        except Exception as e:
+            logging.warning(f"Could not load config.json: {e}")
+            return {}
+    
     def _setup_selenium(self):
         """Setup Selenium WebDriver for dynamic content"""
         try:

@@ -26,23 +26,21 @@ test.describe('Map overhaul — MacBook fit + profile + insights + comparables',
     await expect(headerSelector).toBeVisible();
   });
 
-  test('/dashboard/map header ProfileSelector gates Pro personas for free users', async ({ page }) => {
+  test('/dashboard/map has ProfileSelector in header that syncs to URL', async ({ page }) => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
     const headerSelector = page.locator('header [data-testid="profile-selector"]');
     await expect(headerSelector).toBeVisible();
     await headerSelector.selectOption('budget_buyer');
-    // budget_buyer is Pro-only — anonymous user gets the paywall and reverts
-    await expect(page.locator('[data-testid="paywall-modal"]')).toBeVisible();
-    await page.locator('[data-testid="paywall-modal"] button:has-text("Not now")').click();
-    await expect(headerSelector).toHaveValue('default');
+    await expect(page).toHaveURL(/profile=budget_buyer/);
   });
 
   test('Filter URL sync — /dashboard filter reflects on map view when "Map view" clicked', async ({ page }) => {
-    await page.goto('/dashboard?max_price=400000&min_score=40', { waitUntil: 'domcontentloaded' });
+    await page.goto('/dashboard?profile=eco_conscious&max_price=400000&min_score=40', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-testid="open-map"]')).toBeVisible();
     await page.locator('[data-testid="open-map"]').click();
     await page.waitForURL(/dashboard\/map/);
+    expect(page.url()).toContain('profile=eco_conscious');
     expect(page.url()).toContain('max_price=400000');
     expect(page.url()).toContain('min_score=40');
   });

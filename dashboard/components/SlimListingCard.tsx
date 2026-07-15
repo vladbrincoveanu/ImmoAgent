@@ -27,16 +27,11 @@ export function SlimListingCard({ listing, selected, onClick }: SlimListingCardP
       data-testid="slim-listing-card"
       data-id={listing._id}
       onClick={onClick}
-      className={`relative flex gap-3 pl-3.5 pr-2.5 py-3 rounded-xl cursor-pointer border transition-all duration-150 ${
-        selected
-          ? 'bg-accent-soft border-[#c9d7fb] shadow-[0_2px_10px_rgba(36,86,230,0.10)]'
-          : 'border-transparent hover:bg-bg hover:shadow-[0_1px_6px_rgba(22,36,58,0.06)]'
+      className={`flex gap-3 px-2.5 py-3 rounded-[10px] cursor-pointer border ${
+        selected ? 'bg-accent-soft border-[#c9d7fb]' : 'border-transparent hover:bg-bg'
       }`}
     >
-      {selected && (
-        <span aria-hidden className="absolute left-1 top-3 bottom-3 w-[3px] rounded-full bg-accent" />
-      )}
-      <div className="w-[60px] h-[60px] rounded-[10px] flex-shrink-0 bg-gradient-to-br from-[#dde4ee] to-[#c9d3e2] flex items-center justify-center text-ink-3 overflow-hidden ring-1 ring-black/[0.06]">
+      <div className="w-14 h-14 rounded-lg flex-shrink-0 bg-gradient-to-br from-[#dde4ee] to-[#c9d3e2] flex items-center justify-center text-ink-3 overflow-hidden">
         {listing.image_url ? (
           <img src={listing.image_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -44,21 +39,20 @@ export function SlimListingCard({ listing, selected, onClick }: SlimListingCardP
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div data-testid="price" className="text-[14.5px] font-bold tracking-tight text-ink tabular-nums leading-tight">
+        <div data-testid="price" className="text-[14px] font-bold tracking-tight">
           {formatPrice(listing.price_total)}
         </div>
-        <div data-testid="title" className="text-[12px] text-ink-2 truncate mt-[3px] mb-[2px] leading-snug">
+        <div data-testid="title" className="text-[12.5px] text-ink-2 truncate my-0.5">
           {listing.title}
         </div>
-        <div data-testid="sub" className="text-[11.5px] text-ink-3 tabular-nums">
+        <div data-testid="sub" className="text-[11.5px] text-ink-3">
           {listing.area_m2?.toFixed(1)} m² · €{pricePerM2}/m²
-          {listing.rooms ? ` · ${listing.rooms} Zi` : ''}
         </div>
       </div>
       <span
         data-testid="score"
-        className={`self-start text-[11.5px] font-bold px-2 py-0.5 rounded-full tabular-nums ring-1 ring-inset ${
-          isLowScore ? 'bg-mid-soft text-mid-ink ring-[#ecd9b8]' : 'bg-good-soft text-good ring-[#c4e5d6]'
+        className={`self-start text-[11.5px] font-bold px-1.5 py-0.5 rounded-md tabular-nums ${
+          isLowScore ? 'bg-mid-soft text-mid-ink' : 'bg-good-soft text-good'
         }`}
       >
         {listing.score?.toFixed(1)}
