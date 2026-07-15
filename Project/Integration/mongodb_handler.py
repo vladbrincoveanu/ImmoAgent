@@ -6,8 +6,9 @@ from datetime import datetime
 import os
 import json
 import time
+from types import SimpleNamespace
 from Application.helpers.utils import load_config
-from Application.helpers.listing_validator import compute_content_fingerprint
+from Application.helpers.listing_validator import compute_content_fingerprint, compute_xsrc_fingerprint
 from Application.helpers.mortgage import add_monthly_payment_calculation
 from Application.buyer_profiles import GLOBAL_VALIDATION, BUYER_PROFILES
 from Domain.constants import RENTAL_KEYWORDS, PRICE_ON_REQUEST_KEYWORDS
@@ -95,6 +96,12 @@ class MongoDBHandler:
             self.collection.create_index([("listing_status", 1), ("processed_at", -1)])
             self.collection.create_index([("listing_status", 1), ("source_enum", 1)])
             self.collection.create_index([("listing_status", 1), ("bezirk", 1)])
+            # Co-op cross-source dedup key (v1): only set on genossenschaft listings.
+            self.collection.create_index(
+                "content_fingerprint_xsrc",
+                partialFilterExpression={"content_fingerprint_xsrc": {"$exists": True}},
+                name="coop_xsrc_fp",
+            )
             # Per-profile score indexes (compound with processed_at for stable tiebreak)
             for _profile in PROFILE_NAMES:
                 try:
@@ -140,6 +147,30 @@ class MongoDBHandler:
             source = listing.get('source_enum', listing.get('source', 'unknown'))
             self.increment_validation_failure(source)
             return False
+
+        # Co-op cross-source dedup (v1): collapse same unit across Willhaben + Bauträger.
+        # compute_xsrc_fingerprint() expects attribute-style access (it was written against
+        # the Listing dataclass), but insert_listing() always receives a plain dict — wrap
+        # it in SimpleNamespace so the same fields resolve without touching that function.
+        if listing.get('is_genossenschaft'):
+            xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+            if xfp:
+                listing['content_fingerprint_xsrc'] = xfp
+                existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
+                if existing:
+                    # Prefer Bauträger-direct (canonical apply URL) over Willhaben.
+                    if (listing.get('coop_source') == 'bautraeger_direct'
+                            and existing.get('coop_source') == 'willhaben'):
+                        self.collection.update_one(
+                            {"_id": existing["_id"]},
+                            {"$set": {
+                                "url": listing.get('url'),
+                                "coop_source": 'bautraeger_direct',
+                                "bautraeger": listing.get('bautraeger'),
+                            }}
+                        )
+                    logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
+                    return True
 
         fingerprint = compute_content_fingerprint(listing)
         listing['content_fingerprint'] = fingerprint
