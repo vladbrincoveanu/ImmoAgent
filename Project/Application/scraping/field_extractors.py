@@ -155,6 +155,23 @@ def extract_doppelmakler(text: str) -> Optional[bool]:
     return None
 
 
+def extract_is_genossenschaft(text: str) -> Optional[bool]:
+    """True if co-op/subsidized markers present, False if explicitly free-financed,
+    None if no signal. Input is pre-lowercased full page text."""
+    negative = [r'freifinanziert', r'frei\s+finanziert']
+    positive = [
+        r'genossenschaft', r'gemeinnützig', r'gemeinnutzig',
+        r'gefördert', r'geforderte?r?', r'\bwgg\b',
+        r'mietkauf', r'baurechtszins', r'finanzierungsbeitrag',
+        r'eigenmittelanteil', r'wohnbauförderung',
+    ]
+    if _any_match(text, negative):
+        return False
+    if _any_match(text, positive):
+        return True
+    return None
+
+
 def extract_document_urls(soup: BeautifulSoup) -> Dict[str, str]:
     """Extract PDF document links from listing page documents box.
     Returns dict with keys: expose|preisliste|planmappe|lagereport."""
