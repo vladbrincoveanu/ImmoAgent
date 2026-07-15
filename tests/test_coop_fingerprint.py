@@ -1,6 +1,6 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Project"))
-from Application.scraping.listing_validator import compute_xsrc_fingerprint
+from Application.helpers.listing_validator import compute_xsrc_fingerprint
 from Domain.listing import Listing
 from Domain.sources import Source
 
