@@ -77,3 +77,9 @@ class Listing:
     betriebskosten_breakdown: Optional[Dict[str, Any]] = field(default_factory=dict)
     is_provisionsfrei:      Optional[bool]       = None
     bezirk_score:           Optional[float]      = None
+    # --- Genossenschaft / co-op vertical (v1) ---
+    is_genossenschaft:      Optional[bool]  = None
+    bautraeger:             Optional[str]   = None   # "ÖVW" | "BWSG" | "Familienwohnbau" | ...
+    allocation_model:       Optional[str]   = None   # 'first_come' | 'wohn_ticket'
+    coop_source:            Optional[str]   = None   # 'bautraeger_direct' | 'willhaben'
+    content_fingerprint_xsrc: Optional[str] = None   # source-independent dedup key
