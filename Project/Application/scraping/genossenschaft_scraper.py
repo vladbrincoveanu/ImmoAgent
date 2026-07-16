@@ -57,9 +57,19 @@ def _num(block, sel: str) -> Optional[float]:
 
 def _num_by_keyword(block, sel: str, keyword: str) -> Optional[float]:
     for el in block.select(sel):
-        if keyword in el.get_text():
-            return _parse_number(el.get_text())
+        text = el.get_text(" ")
+        if keyword in text:
+            return _parse_number(text)
     return None
+
+
+def _num_before_keyword(text: str, keyword: str) -> Optional[float]:
+    """Number immediately preceding keyword, e.g. "3" from "3 Zimmer" inside
+    "77,29 m² | 3 Zimmer" — anchoring to the keyword (not just "first number
+    in the string") avoids picking up an unrelated figure from elsewhere in
+    the same text when multiple keyword/number pairs share one text node."""
+    m = re.search(r"([\d.,]+)\s*" + re.escape(keyword), text)
+    return _parse_number(m.group(1)) if m else None
 
 
 def _bezirk_from(text: Optional[str]) -> Optional[str]:
@@ -123,14 +133,14 @@ def parse_bwsg(html: str) -> List[Listing]:
         if not href:
             continue
         row1 = _text(block, ".res_immobiliensuche__immobilien__item__content__meta__row_1") or ""
-        segments = [s.strip() for s in row1.split("|")]
-        rooms = next((_parse_number(s) for s in segments if "Zimmer" in s), None)
-        area = next((_parse_number(s) for s in segments if "m²" in s), None)
+        rooms = _num_before_keyword(row1, "Zimmer")
+        area = _num_before_keyword(row1, "m²")
         if rooms is None and area is None:  # project overview card, no single-unit data
             continue
         url = href if href.startswith("http") else "https://www.bwsg.at" + href
         listing = _new_coop_listing(url, "BWSG")
-        listing.address = _text(block, ".res_immobiliensuche__immobilien__item__content__meta__location")
+        title = _text(block, ".res_immobiliensuche__immobilien__item__content__title")
+        listing.address = _text(block, ".res_immobiliensuche__immobilien__item__content__meta__location") or title
         listing.bezirk = _bezirk_from(listing.address)
         listing.area_m2 = area
         listing.rooms = rooms
