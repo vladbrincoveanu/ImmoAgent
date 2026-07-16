@@ -13,6 +13,7 @@ from dataclasses import asdict
 from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 from Application.scraping.derstandard_scraper import DerStandardScraper
+from Application.scraping.genossenschaft_scraper import scrape_all as scrape_all_genossenschaft
 from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
@@ -389,6 +390,17 @@ def scrape_derstandard(config: Dict, max_pages: int) -> Tuple[List[Listing], str
         logging.error(f"❌ derStandard scraping failed: {e}")
         return [], "derstandard"
 
+def scrape_genossenschaft(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
+    """Scrape Genossenschaft (co-op Bauträger) listings"""
+    try:
+        logging.info("🔍 Starting Genossenschaft scraping...")
+        listings = scrape_all_genossenschaft()
+        logging.info(f"✅ Genossenschaft scraping complete: {len(listings)} listings found")
+        return listings, "genossenschaft"
+    except Exception as e:
+        logging.error(f"❌ Genossenschaft scraping failed: {e}")
+        return [], "genossenschaft"
+
 def normalize_listing_schema(listing: Listing) -> Listing:
     """Ensure the listing has all required fields and unified schema for MongoDB/Telegram/UI."""
     # Calculate price per m² if both price and area are available
@@ -535,6 +547,7 @@ def main():
     willhaben_only = "--willhaben-only" in sys.argv
     immo_kurier_only = "--immo-kurier-only" in sys.argv
     derstandard_only = "--derstandard-only" in sys.argv
+    genossenschaft_only = "--genossenschaft-only" in sys.argv
     send_to_telegram = "--send-to-telegram" in sys.argv
     deep_scan = "--deep-scan" in sys.argv
     quick_scan = "--quick-scan" in sys.argv
@@ -624,11 +637,14 @@ def main():
         scrapers_to_run.append(('immo_kurier', scrape_immo_kurier))
     elif derstandard_only:
         scrapers_to_run.append(('derstandard', scrape_derstandard))
+    elif genossenschaft_only:
+        scrapers_to_run.append(('genossenschaft', scrape_genossenschaft))
     else:
         scrapers_to_run.extend([
             ('willhaben', scrape_willhaben),
             ('immo_kurier', scrape_immo_kurier),
-            ('derstandard', scrape_derstandard)
+            ('derstandard', scrape_derstandard),
+            ('genossenschaft', scrape_genossenschaft)
         ])
     
     all_listings: List[Listing] = []
