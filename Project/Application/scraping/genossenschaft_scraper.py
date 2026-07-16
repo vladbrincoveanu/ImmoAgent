@@ -16,7 +16,7 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; immo-scouter/1.0)"}
 # Filled in per adapter task from live inspection.
 SOURCES = {
     "ÖVW":             {"url": "https://www.oevw.at/suche/wohnen", "parser": "parse_oevw"},
-    "Familienwohnbau": {"url": "TBD_FROM_STEP1", "parser": "parse_familienwohnbau"},
+    "Familienwohnbau": {"url": "https://www.familienwohnbau.at/de/immobilien", "parser": "parse_familienwohnbau"},
     "BWSG":            {"url": "TBD_FROM_STEP1", "parser": "parse_bwsg"},
 }
 
@@ -40,17 +40,26 @@ def _text(block, sel: str) -> Optional[str]:
     return el.get_text(strip=True) if el else None
 
 
-def _num(block, sel: str) -> Optional[float]:
-    el = block.select_one(sel)
-    if not el:
-        return None
-    m = re.search(r"\d+(?:[.,]\d+)*", el.get_text())
+def _parse_number(text: str) -> Optional[float]:
+    m = re.search(r"\d+(?:[.,]\d+)*", text)
     if not m:
         return None
     raw = m.group()
     if "," in raw:  # European format, e.g. "1.432,73" -> 1432.73
         raw = raw.replace(".", "").replace(",", ".")
     return float(raw)
+
+
+def _num(block, sel: str) -> Optional[float]:
+    el = block.select_one(sel)
+    return _parse_number(el.get_text()) if el else None
+
+
+def _num_by_keyword(block, sel: str, keyword: str) -> Optional[float]:
+    for el in block.select(sel):
+        if keyword in el.get_text():
+            return _parse_number(el.get_text())
+    return None
 
 
 def _bezirk_from(text: Optional[str]) -> Optional[str]:
@@ -77,6 +86,31 @@ def parse_oevw(html: str) -> List[Listing]:
         listing.area_m2 = _num(block, ".thumb__subheading__list li:nth-of-type(1)")
         listing.price_total = _num(block, ".thumb__subheading__list li:nth-of-type(2)")
         listing.rooms = _num(block, ".thumb__text__list li:nth-of-type(1)")
+        out.append(listing)
+    return out
+
+
+def parse_familienwohnbau(html: str) -> List[Listing]:
+    soup = BeautifulSoup(html, "html.parser")
+    out: List[Listing] = []
+    for block in soup.select('a[href^="/de/objekt/"]'):
+        href = block.get("href", "")
+        if not href:
+            continue
+        title = _text(block, "p.uppercase")
+        if title and "garage" in title.lower():  # parking spots, not housing units
+            continue
+        rooms = _num_by_keyword(block, "div.flex-1 p", "Zimmer")
+        area = _num_by_keyword(block, "div.flex-1 p", "m²")
+        if rooms is None and area is None:  # multi-unit project overview, no single-unit data
+            continue
+        url = href if href.startswith("http") else "https://www.familienwohnbau.at" + href
+        listing = _new_coop_listing(url, "Familienwohnbau")
+        listing.address = _text(block, "p.text-gray-700.pt-1") or title
+        listing.bezirk = _bezirk_from(listing.address)
+        listing.area_m2 = area
+        listing.rooms = rooms
+        listing.price_total = _num(block, "p.text-primary")
         out.append(listing)
     return out
 

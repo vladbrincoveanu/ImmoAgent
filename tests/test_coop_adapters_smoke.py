@@ -22,3 +22,16 @@ def test_oevw_parser_yields_valid_coop():
     assert first.coop_source == "bautraeger_direct"
     assert first.url and first.url.startswith("http")
     assert first.address or first.bezirk
+
+
+@pytest.mark.smoke
+def test_familienwohnbau_parser_yields_valid_coop():
+    html = _fetch_or_skip("Familienwohnbau")
+    listings = g.parse_familienwohnbau(html)
+    assert len(listings) >= 1
+    first = listings[0]
+    assert first.is_genossenschaft is True
+    assert first.bautraeger == "Familienwohnbau"
+    assert first.coop_source == "bautraeger_direct"
+    assert first.url and first.url.startswith("http")
+    assert first.address or first.bezirk
