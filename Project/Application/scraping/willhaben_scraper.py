@@ -25,7 +25,7 @@ from Application.scraping.field_extractors import (
     extract_kitchen_included, extract_window_type,
     extract_ruecklage_eur_month, extract_sonderumlage_risk,
     extract_doppelmakler, extract_maklerprovision_pct,
-    extract_document_urls,
+    extract_document_urls, extract_is_genossenschaft,
 )
 
 
@@ -406,6 +406,13 @@ class WillhabenScraper:
             listing.facade_renovated = extract_facade_renovated(_full_text)
             listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
             listing.roof_renovated = extract_roof_renovated(_full_text)
+
+            # Tag as co-op (Genossenschaft) if detected
+            is_coop = extract_is_genossenschaft(_full_text)
+            if is_coop:
+                listing.is_genossenschaft = True
+                listing.coop_source = "willhaben"
+                listing.allocation_model = "first_come"
 
             _advert = self._get_advert_details(soup)
             _attrs = {a['name']: a.get('values', []) for a in _advert.get('attributes', {}).get('attribute', []) if 'name' in a}
