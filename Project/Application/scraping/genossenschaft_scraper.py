@@ -17,7 +17,7 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; immo-scouter/1.0)"}
 SOURCES = {
     "ÖVW":             {"url": "https://www.oevw.at/suche/wohnen", "parser": "parse_oevw"},
     "Familienwohnbau": {"url": "https://www.familienwohnbau.at/de/immobilien", "parser": "parse_familienwohnbau"},
-    "BWSG":            {"url": "TBD_FROM_STEP1", "parser": "parse_bwsg"},
+    "BWSG":            {"url": "https://www.bwsg.at/immobilien/immobilie-suchen/", "parser": "parse_bwsg"},
 }
 
 
@@ -37,7 +37,7 @@ def _new_coop_listing(url: str, bautraeger: str) -> Listing:
 
 def _text(block, sel: str) -> Optional[str]:
     el = block.select_one(sel)
-    return el.get_text(strip=True) if el else None
+    return el.get_text(" ", strip=True) if el else None
 
 
 def _parse_number(text: str) -> Optional[float]:
@@ -52,7 +52,7 @@ def _parse_number(text: str) -> Optional[float]:
 
 def _num(block, sel: str) -> Optional[float]:
     el = block.select_one(sel)
-    return _parse_number(el.get_text()) if el else None
+    return _parse_number(el.get_text(" ")) if el else None
 
 
 def _num_by_keyword(block, sel: str, keyword: str) -> Optional[float]:
@@ -111,6 +111,30 @@ def parse_familienwohnbau(html: str) -> List[Listing]:
         listing.area_m2 = area
         listing.rooms = rooms
         listing.price_total = _num(block, "p.text-primary")
+        out.append(listing)
+    return out
+
+
+def parse_bwsg(html: str) -> List[Listing]:
+    soup = BeautifulSoup(html, "html.parser")
+    out: List[Listing] = []
+    for block in soup.select(".res_immobiliensuche__immobilien__item"):
+        href = block.get("href", "")
+        if not href:
+            continue
+        row1 = _text(block, ".res_immobiliensuche__immobilien__item__content__meta__row_1") or ""
+        segments = [s.strip() for s in row1.split("|")]
+        rooms = next((_parse_number(s) for s in segments if "Zimmer" in s), None)
+        area = next((_parse_number(s) for s in segments if "m²" in s), None)
+        if rooms is None and area is None:  # project overview card, no single-unit data
+            continue
+        url = href if href.startswith("http") else "https://www.bwsg.at" + href
+        listing = _new_coop_listing(url, "BWSG")
+        listing.address = _text(block, ".res_immobiliensuche__immobilien__item__content__meta__location")
+        listing.bezirk = _bezirk_from(listing.address)
+        listing.area_m2 = area
+        listing.rooms = rooms
+        listing.price_total = _num(block, ".res_immobiliensuche__immobilien__item__content__meta__preis")
         out.append(listing)
     return out
 
