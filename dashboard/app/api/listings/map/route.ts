@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (genossenschaft) {
-      (filter.$and as Record<string, unknown>[]).push({ is_genossenschaft: true });
+      filter.is_genossenschaft = true;
     }
 
     const listings = await db
