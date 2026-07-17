@@ -401,6 +401,19 @@ def scrape_genossenschaft(config: Dict, max_pages: int) -> Tuple[List[Listing], 
         logging.error(f"❌ Genossenschaft scraping failed: {e}")
         return [], "genossenschaft"
 
+def format_coop_message(l: Listing) -> str:
+    """Format a co-op (Genossenschaft) listing as an HTML Telegram message.
+
+    parse_mode defaults to "HTML" in TelegramBot.send_message, so tags are
+    <b>...</b> here (not Markdown *...*) to actually render as intended."""
+    ppm2 = f"{l.price_total / l.area_m2:.1f}€/m²" if (l.price_total and l.area_m2) else "–"
+    tags = " ".join(t for t in [f"#{l.bezirk}" if l.bezirk else None,
+                                f"#{l.bautraeger}" if l.bautraeger else None] if t)
+    return (f"🏢 <b>{l.bautraeger or 'Genossenschaft'}</b> — {l.bezirk or ''}\n"
+            f"{l.rooms or '?'} Zi · {l.area_m2 or '?'} m² · {ppm2}\n"
+            f"Vergabe: {l.allocation_model or 'first_come'}\n"
+            f"{l.url}\n{tags}")
+
 def normalize_listing_schema(listing: Listing) -> Listing:
     """Ensure the listing has all required fields and unified schema for MongoDB/Telegram/UI."""
     # Calculate price per m² if both price and area are available
@@ -680,6 +693,7 @@ def main():
     
     # Initialize Telegram bot for notifications (main channel)
     telegram_bot = None
+    coop_bot = None
     if send_to_telegram:
         telegram_config = config.get('telegram', {})
         bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
@@ -692,6 +706,14 @@ def main():
                 logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
         else:
             logging.warning("⚠️ Telegram sending requested but bot not configured")
+
+        coop_channel_id = os.getenv('TELEGRAM_COOP_CHANNEL_ID')
+        if bot_main_token and coop_channel_id:
+            try:
+                coop_bot = TelegramBot(bot_main_token, coop_channel_id)
+                logging.info("✅ Telegram co-op bot initialized for Genossenschaft notifications")
+            except Exception as e:
+                logging.error(f"❌ Failed to initialize Telegram co-op bot: {e}")
     else:
         logging.info("📱 Telegram notifications disabled (use --send-to-telegram to enable)")
 
@@ -716,7 +738,8 @@ def main():
         saved_count = 0
         telegram_sent_count = 0
         high_score_listings = []
-        
+        coop_broadcast_candidates = []
+
         for listing in all_listings:
             # 7-day Telegram dedup cooldown — check BEFORE scoring to skip CPU for recently-sent listings
             SEVEN_DAYS = 7 * 86400
@@ -730,6 +753,12 @@ def main():
                         score = telegram_bot.calculate_listing_score(listing.__dict__)
                         listing.score = score
                     continue
+
+            # Co-op listings that passed the cooldown check are eligible for the
+            # co-op channel broadcast below, independent of the main channel's
+            # score threshold.
+            if listing.is_genossenschaft:
+                coop_broadcast_candidates.append(listing)
 
             # Calculate score for the listing (always needed for MongoDB storage)
             if telegram_bot:
@@ -751,7 +780,23 @@ def main():
         
         # Save all listings to MongoDB (regardless of score)
         saved_count = save_listings_to_mongodb(all_listings)
-        
+
+        # Broadcast new co-op units to the dedicated Genossenschaft channel,
+        # independent of the main channel's score threshold.
+        if coop_bot and coop_broadcast_candidates:
+            coop_sent_count = 0
+            for listing in coop_broadcast_candidates:
+                try:
+                    msg = format_coop_message(listing)
+                    if coop_bot.send_message(msg):
+                        coop_sent_count += 1
+                        mongo.mark_sent(listing.url)
+                    else:
+                        logging.error(f"❌ Failed to send co-op notification for {listing.title}")
+                except Exception as e:
+                    logging.error(f"❌ Co-op Telegram error for {listing.title}: {e}")
+            logging.info(f"📱 Sent {coop_sent_count}/{len(coop_broadcast_candidates)} co-op channel notifications")
+
         score_threshold = 40  # Default threshold
         if config and 'telegram' in config:
             score_threshold = config['telegram'].get('min_score_threshold', 40)
