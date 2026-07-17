@@ -764,9 +764,13 @@ def main():
             if telegram_bot:
                 score = telegram_bot.calculate_listing_score(listing.__dict__)
                 listing.score = score
-                
-                # Check if score meets threshold for Telegram
-                if score > telegram_bot.min_score_threshold:
+
+                # Co-op listings have their own dedicated channel (broadcast
+                # below) and are excluded from the main buy-side channel here
+                # regardless of score, so a listing never gets sent to both.
+                if listing.is_genossenschaft:
+                    logging.info(f"⏭️  Co-op listing ({score:.1f}): {listing.title} - main channel skipped, routed to co-op channel")
+                elif score > telegram_bot.min_score_threshold:
                     high_score_listings.append(listing)
                     logging.info(f"🔥 High score listing ({score:.1f}): {listing.title}")
                 else:
