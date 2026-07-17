@@ -58,6 +58,7 @@ export interface MapListing {
   price_vs_avg_pct?: number | null;
   ubahn_walk_minutes?: number | null;
   price_history?: Array<{ price_total: number; date: number }> | null;
+  is_genossenschaft?: boolean | null;
 }
 
 export interface MortgageDetails {
