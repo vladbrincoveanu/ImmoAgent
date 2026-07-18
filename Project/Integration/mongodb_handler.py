@@ -70,6 +70,7 @@ class MongoDBHandler:
             self.collection = self.db[collection_name]
             self.metrics_collection = self.db["validation_metrics"]
             self.outreach_collection = self.db["outreach_jobs"]
+            self.source_meta_collection = self.db["source_meta"]
 
             # Test the connection
             self.client.admin.command('ping')
@@ -433,6 +434,35 @@ class MongoDBHandler:
                 logging.debug(f"Marked URL as invalid: {url}")
         except Exception as e:
             logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
+
+    def get_source_meta(self, source: str) -> Dict:
+        """Conditional-GET metadata for a coop adapter: {etag, last_modified, page_hash}.
+        Returns {} when unknown or on error (caller then does an unconditional GET)."""
+        try:
+            doc = self.source_meta_collection.find_one({"source": source})
+            if not doc:
+                return {}
+            return {k: doc.get(k) for k in ("etag", "last_modified", "page_hash")
+                    if doc.get(k) is not None}
+        except Exception as e:
+            logging.warning(f"get_source_meta({source}) failed: {e}")
+            return {}
+
+    def set_source_meta(self, source: str, etag: Optional[str] = None,
+                        last_modified: Optional[str] = None,
+                        page_hash: Optional[str] = None) -> None:
+        """Upsert conditional-GET metadata for a coop adapter. Only non-None
+        fields are written, so a 304 (no new headers) never clobbers a good ETag."""
+        try:
+            update = {k: v for k, v in
+                      (("etag", etag), ("last_modified", last_modified),
+                       ("page_hash", page_hash)) if v is not None}
+            if not update:
+                return
+            self.source_meta_collection.update_one(
+                {"source": source}, {"$set": update}, upsert=True)
+        except Exception as e:
+            logging.warning(f"set_source_meta({source}) failed: {e}")
 
     def get_recently_sent_listings(self, days: int = 7) -> List[str]:
         """Get URLs of listings sent to Telegram in the last N days"""
