@@ -23,6 +23,7 @@ from Application.helpers.utils import format_currency, format_walking_time, Vien
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_xsrc_fingerprint, validate_url
 from Application.helpers.geocoding import geocode_listing
 from Application.feasibility import derive_profile_fields
+from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
 from Domain.listing import Listing
 import logging
@@ -402,24 +403,6 @@ def scrape_genossenschaft(config: Dict, max_pages: int) -> Tuple[List[Listing], 
     except Exception as e:
         logging.error(f"❌ Genossenschaft scraping failed: {e}")
         return [], "genossenschaft"
-
-def format_coop_message(l: Listing) -> str:
-    """Format a co-op (Genossenschaft) listing as an HTML Telegram message.
-
-    parse_mode defaults to "HTML" in TelegramBot.send_message, so tags are
-    <b>...</b> here (not Markdown *...*) to actually render as intended.
-    Scraped free-text fields (bautraeger, bezirk) are HTML-escaped since
-    Telegram's HTML parser rejects unescaped &/</> in the message body."""
-    bautraeger = html.escape(l.bautraeger) if l.bautraeger else None
-    bezirk = html.escape(l.bezirk) if l.bezirk else None
-    url = html.escape(l.url, quote=False) if l.url else ''
-    ppm2 = f"{l.price_total / l.area_m2:.1f}€/m²" if (l.price_total and l.area_m2) else "–"
-    tags = " ".join(t for t in [f"#{bezirk}" if bezirk else None,
-                                f"#{bautraeger}" if bautraeger else None] if t)
-    return (f"🏢 <b>{bautraeger or 'Genossenschaft'}</b> — {bezirk or ''}\n"
-            f"{l.rooms or '?'} Zi · {l.area_m2 or '?'} m² · {ppm2}\n"
-            f"Vergabe: {l.allocation_model or 'first_come'}\n"
-            f"{url}\n{tags}")
 
 def normalize_listing_schema(listing: Listing) -> Listing:
     """Ensure the listing has all required fields and unified schema for MongoDB/Telegram/UI."""
