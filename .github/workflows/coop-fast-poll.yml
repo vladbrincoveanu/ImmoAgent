@@ -1,24 +1,27 @@
-name: coop-scrape
+name: coop-fast-poll
 on:
   schedule:
-    - cron: "*/15 6-22 * * 1-5"   # every 15 min, Mon-Fri, ~Bauträger posting window (UTC)
+    - cron: "*/5 6-20 * * 1-6"   # every 5 min, ~08:00–22:00 Vienna, Mon–Sat
   workflow_dispatch: {}
 concurrency:
-  group: coop-scrape
-  cancel-in-progress: true
+  group: coop-fast-poll
+  cancel-in-progress: true       # a slow run must not stack on the next tick
 jobs:
-  scrape:
+  poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with:
+          python-version: "3.11"
+          cache: pip
       - run: pip install -r Project/requirements.txt
-      - name: Run co-op scrape
+      - name: Fast co-op poll → Telegram
         working-directory: Project
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
+          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
-        run: python run.py --genossenschaft-only --send-to-telegram
+        run: python run_coop.py
