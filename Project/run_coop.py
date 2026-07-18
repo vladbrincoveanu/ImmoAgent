@@ -7,16 +7,24 @@ pass the coop_alerts filter. Built for GitHub Actions cron */5.
 
 Run from Project/:  python run_coop.py [--dry-run]
 """
+import argparse
 import hashlib
 import json
 import logging
 import os
+from dataclasses import asdict
 from typing import List, Optional, Tuple
 
 import requests
 
 from Domain.listing import Listing
+from Domain.sources import Source
 from Application.helpers.utils import load_config
+from Application.scraping import genossenschaft_scraper as coop
+from Application.coop_format import format_coop_message
+from Application.helpers.listing_validator import validate_url
+from Integration.mongodb_handler import MongoDBHandler
+from Integration.telegram_bot import TelegramBot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("run_coop")
@@ -96,3 +104,102 @@ def conditional_fetch(url: str, meta: dict, session=requests) -> Tuple[bool, Opt
     if meta.get("page_hash") and new_hash == meta["page_hash"]:
         return False, None, new_meta
     return True, resp.text, new_meta
+
+
+def _to_doc(listing: Listing) -> dict:
+    """Listing → BSON-safe dict. Source is a plain Enum (verified not
+    BSON-encodable), so stringify it. price_per_m2 filled when derivable."""
+    d = asdict(listing)
+    d["source"] = listing.source.value if hasattr(listing.source, "value") else listing.source
+    d["source_enum"] = Source.GENOSSENSCHAFT.value
+    if listing.price_total and listing.area_m2 and not d.get("price_per_m2"):
+        d["price_per_m2"] = listing.price_total / listing.area_m2
+    return d
+
+
+def poll_source(name: str, cfg: dict, handler, session=requests) -> List[Listing]:
+    """Fetch one adapter with conditional GET; parse only when the page changed."""
+    meta = handler.get_source_meta(name) or {}
+    changed, html_text, new_meta = conditional_fetch(cfg["url"], meta, session=session)
+    if new_meta:
+        handler.set_source_meta(name, **new_meta)
+    if not changed:
+        logger.info(f"↔️  {name}: unchanged, skipping parse")
+        return []
+    parser = getattr(coop, cfg["parser"])
+    listings = parser(html_text)
+    logger.info(f"🔍 {name}: {len(listings)} listing(s) parsed")
+    return listings
+
+
+def run(dry_run: bool = False) -> int:
+    """Poll → upsert → alert. Exit 0 unless MongoDB is down or ALL adapters fail."""
+    alerts = load_coop_alerts()
+    handler = MongoDBHandler()
+    if handler.collection is None:
+        logger.error("❌ No MongoDB connection; aborting")
+        return 1
+
+    bot = None
+    if not dry_run:
+        token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
+        chat_id = (os.environ.get("TELEGRAM_COOP_CHANNEL_ID")
+                   or os.environ.get("TELEGRAM_MAIN_CHAT_ID"))
+        if token and chat_id:
+            bot = TelegramBot(token, chat_id)
+        else:
+            logger.warning("⚠️  Telegram not configured; running in no-send mode")
+
+    seen: List[Listing] = []
+    ok_adapters = 0
+    for name, cfg in coop.SOURCES.items():
+        try:
+            seen.extend(poll_source(name, cfg, handler, session=requests))
+            ok_adapters += 1
+        except Exception as e:
+            logger.error(f"❌ adapter {name} failed: {e}")
+
+    if ok_adapters == 0:
+        logger.error("❌ All adapters failed")
+        handler.close()
+        return 1
+
+    for listing in seen:
+        handler.upsert_coop_listing(_to_doc(listing))
+
+    sent = 0
+    for listing in seen:
+        if not matches_coop_alerts(listing, alerts):
+            continue
+        doc = handler.get_listing(listing.url)
+        if doc and doc.get("sent_to_telegram"):
+            continue
+        if not validate_url(listing.url):            # CLAUDE.md hard rule 2
+            logger.warning(f"🚫 broken URL, skipping: {listing.url}")
+            handler.mark_url_invalid(listing.url)
+            continue
+        if dry_run:
+            logger.info(f"[dry-run] would alert: {listing.url}")
+            sent += 1
+            continue
+        if bot and bot.send_message(format_coop_message(listing)):
+            handler.mark_sent(listing.url)
+            sent += 1
+        elif bot:
+            logger.error(f"❌ send failed (retry next run): {listing.url}")
+
+    logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
+                f"across {ok_adapters}/{len(coop.SOURCES)} adapters")
+    handler.close()
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fast co-op poll → Telegram alerts")
+    parser.add_argument("--dry-run", action="store_true", help="skip Telegram sends")
+    args = parser.parse_args()
+    raise SystemExit(run(dry_run=args.dry_run))
+
+
+if __name__ == "__main__":
+    main()

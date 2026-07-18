@@ -97,5 +97,26 @@ class TestConditionalFetch(unittest.TestCase):
         self.assertEqual(meta["page_hash"], run_coop._page_hash("<html>fresh</html>"))
 
 
+class TestPollSource(unittest.TestCase):
+    def test_skips_parse_when_unchanged(self):
+        handler = MagicMock()
+        handler.get_source_meta.return_value = {"etag": "e1"}
+        sess = MagicMock()
+        sess.get.return_value = _resp(status=304)
+        cfg = {"url": "https://x.at", "parser": "parse_oevw"}
+        out = run_coop.poll_source("ÖVW", cfg, handler, session=sess)
+        self.assertEqual(out, [])
+        # A pure 304 carries no new headers → conditional_fetch returns {} →
+        # existing stored meta is kept, so set_source_meta is NOT called.
+        handler.set_source_meta.assert_not_called()
+
+    def test_to_doc_stringifies_source_enum(self):
+        from Domain.sources import Source
+        d = run_coop._to_doc(_l(area_m2=70.0, price_total=350.0))
+        self.assertEqual(d["source"], "genossenschaft")       # not the Enum
+        self.assertEqual(d["source_enum"], "genossenschaft")
+        self.assertAlmostEqual(d["price_per_m2"], 5.0)        # 350/70
+
+
 if __name__ == '__main__':
     unittest.main()
