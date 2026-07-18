@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import html
 import requests
 import pymongo
 import glob
@@ -19,7 +20,7 @@ from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
-from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_xsrc_fingerprint, validate_url
 from Application.helpers.geocoding import geocode_listing
 from Application.feasibility import derive_profile_fields
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
@@ -406,14 +407,19 @@ def format_coop_message(l: Listing) -> str:
     """Format a co-op (Genossenschaft) listing as an HTML Telegram message.
 
     parse_mode defaults to "HTML" in TelegramBot.send_message, so tags are
-    <b>...</b> here (not Markdown *...*) to actually render as intended."""
+    <b>...</b> here (not Markdown *...*) to actually render as intended.
+    Scraped free-text fields (bautraeger, bezirk) are HTML-escaped since
+    Telegram's HTML parser rejects unescaped &/</> in the message body."""
+    bautraeger = html.escape(l.bautraeger) if l.bautraeger else None
+    bezirk = html.escape(l.bezirk) if l.bezirk else None
+    url = html.escape(l.url, quote=False) if l.url else ''
     ppm2 = f"{l.price_total / l.area_m2:.1f}€/m²" if (l.price_total and l.area_m2) else "–"
-    tags = " ".join(t for t in [f"#{l.bezirk}" if l.bezirk else None,
-                                f"#{l.bautraeger}" if l.bautraeger else None] if t)
-    return (f"🏢 <b>{l.bautraeger or 'Genossenschaft'}</b> — {l.bezirk or ''}\n"
+    tags = " ".join(t for t in [f"#{bezirk}" if bezirk else None,
+                                f"#{bautraeger}" if bautraeger else None] if t)
+    return (f"🏢 <b>{bautraeger or 'Genossenschaft'}</b> — {bezirk or ''}\n"
             f"{l.rooms or '?'} Zi · {l.area_m2 or '?'} m² · {ppm2}\n"
             f"Vergabe: {l.allocation_model or 'first_come'}\n"
-            f"{l.url}\n{tags}")
+            f"{url}\n{tags}")
 
 def normalize_listing_schema(listing: Listing) -> Listing:
     """Ensure the listing has all required fields and unified schema for MongoDB/Telegram/UI."""
@@ -452,7 +458,8 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         return 0
 
     try:
-        from Integration.mongodb_handler import MongoDBHandler
+        from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
+        from types import SimpleNamespace
         mongodb_handler = MongoDBHandler(uri=mongo_uri)
 
         client = pymongo.MongoClient(mongo_uri)
@@ -468,6 +475,33 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
             listing = normalize_listing_schema(listing)
             listing_dict = asdict(listing)
             listing_dict = derive_profile_fields(listing_dict)
+
+            # Co-op listings get their own validation gate + cross-source dedup
+            # (mongodb_handler.insert_listing() isn't used by this save path, so
+            # replicate its co-op branch here instead of skipping it).
+            if listing_dict.get('is_genossenschaft'):
+                valid, reason = is_valid_listing_data(listing_dict)
+                if not valid:
+                    logging.info(f"🚫 Skipping co-op save: validation failed — {reason}")
+                    continue
+                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing_dict))
+                if xfp:
+                    listing_dict['content_fingerprint_xsrc'] = xfp
+                    existing_xsrc = collection.find_one({"content_fingerprint_xsrc": xfp})
+                    if existing_xsrc:
+                        if (listing_dict.get('coop_source') == 'bautraeger_direct'
+                                and existing_xsrc.get('coop_source') == 'willhaben'):
+                            collection.update_one(
+                                {"_id": existing_xsrc["_id"]},
+                                {"$set": {
+                                    "url": listing_dict.get('url'),
+                                    "coop_source": 'bautraeger_direct',
+                                    "bautraeger": listing_dict.get('bautraeger'),
+                                }}
+                            )
+                        logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
+                        duplicate_count += 1
+                        continue
 
             fingerprint = compute_content_fingerprint(listing_dict)
             listing_dict['content_fingerprint'] = fingerprint
@@ -789,8 +823,32 @@ def main():
         # Broadcast new co-op units to the dedicated Genossenschaft channel,
         # independent of the main channel's score threshold.
         if coop_bot and coop_broadcast_candidates:
-            coop_sent_count = 0
+            # Collapse same-run cross-source duplicates (Willhaben + Bauträger-direct
+            # for the same physical unit) before broadcasting — the xsrc dedup inside
+            # save_listings_to_mongodb() only prevents duplicate DB rows, it doesn't
+            # stop this loop from sending two Telegram messages for one unit.
+            deduped = {}
             for listing in coop_broadcast_candidates:
+                key = compute_xsrc_fingerprint(listing) or listing.url
+                current = deduped.get(key)
+                if current is None or (listing.coop_source == 'bautraeger_direct' and current.coop_source == 'willhaben'):
+                    deduped[key] = listing
+            coop_broadcast_candidates = list(deduped.values())
+
+            # URL validation is mandatory before display/send (CLAUDE.md hard rule).
+            verified_candidates = []
+            for listing in coop_broadcast_candidates:
+                if validate_url(listing.url):
+                    verified_candidates.append(listing)
+                else:
+                    logging.warning(f"🚫 Skipping co-op broadcast — broken URL: {listing.url}")
+                    try:
+                        mongo.mark_url_invalid(listing.url)
+                    except Exception as e:
+                        logging.warning(f"Failed to mark co-op URL invalid: {e}")
+
+            coop_sent_count = 0
+            for listing in verified_candidates:
                 try:
                     msg = format_coop_message(listing)
                     if coop_bot.send_message(msg):
@@ -800,7 +858,7 @@ def main():
                         logging.error(f"❌ Failed to send co-op notification for {listing.title}")
                 except Exception as e:
                     logging.error(f"❌ Co-op Telegram error for {listing.title}: {e}")
-            logging.info(f"📱 Sent {coop_sent_count}/{len(coop_broadcast_candidates)} co-op channel notifications")
+            logging.info(f"📱 Sent {coop_sent_count}/{len(verified_candidates)} co-op channel notifications")
 
         score_threshold = 40  # Default threshold
         if config and 'telegram' in config:

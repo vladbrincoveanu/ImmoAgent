@@ -25,7 +25,7 @@ from Application.scraping.field_extractors import (
     extract_kitchen_included, extract_window_type,
     extract_ruecklage_eur_month, extract_sonderumlage_risk,
     extract_doppelmakler, extract_maklerprovision_pct,
-    extract_document_urls, extract_is_genossenschaft,
+    extract_document_urls, extract_is_genossenschaft, extract_bautraeger,
 )
 
 
@@ -413,6 +413,10 @@ class WillhabenScraper:
                 listing.is_genossenschaft = True
                 listing.coop_source = "willhaben"
                 listing.allocation_model = "first_come"
+                # Only set for the known pilot Bauträger — without it the
+                # cross-source fingerprint has no key to collapse on (weak
+                # match on unknown builders isn't worth the false-positive risk).
+                listing.bautraeger = extract_bautraeger(_full_text)
 
             _advert = self._get_advert_details(soup)
             _attrs = {a['name']: a.get('values', []) for a in _advert.get('attributes', {}).get('attribute', []) if 'name' in a}

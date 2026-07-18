@@ -47,6 +47,13 @@ def _parse_number(text: str) -> Optional[float]:
     raw = m.group()
     if "," in raw:  # European format, e.g. "1.432,73" -> 1432.73
         raw = raw.replace(".", "").replace(",", ".")
+    elif raw.count(".") > 1:  # "1.234.567" -> 1234567 (multiple dot-groups are always thousands seps)
+        raw = raw.replace(".", "")
+    elif "." in raw:
+        int_part, frac_part = raw.split(".")
+        if len(frac_part) == 3:  # "350.000" -> 350000 (dot-thousands, no decimal comma)
+            raw = int_part + frac_part
+        # else a 1-2 digit tail is a real decimal point, e.g. "77.5" -> 77.5
     return float(raw)
 
 

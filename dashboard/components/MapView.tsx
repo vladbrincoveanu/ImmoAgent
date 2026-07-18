@@ -237,10 +237,12 @@ function StationsLayer({ stations }: { stations: StationFeature[] }) {
             data-infra-name={f.properties.name}
           >
             <Tooltip
+              permanent
               direction="right"
               offset={[6, 0]}
               className="leaflet-infra-label"
               opacity={1}
+              sticky
             >
               <span className="text-[10px] font-semibold" style={{ color: STATION_COLOR }}>
                 {f.properties.name}

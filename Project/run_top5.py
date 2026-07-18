@@ -11,7 +11,6 @@ import time
 from datetime import datetime
 import numpy as np
 import random
-import requests
 from typing import Dict, Any, Optional, List
 
 # Add the project root to the Python path
@@ -43,7 +42,7 @@ def ensure_config_json_on_path():
 ensure_config_json_on_path()
 
 from Application.helpers.utils import load_config
-from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, validate_url, filter_valid_urls
 from Application.helpers.mortgage import add_monthly_payment_calculation
 from Application.buyer_profiles import BuyerPersona
 from Integration.mongodb_handler import MongoDBHandler
@@ -252,77 +251,6 @@ def recency_score(listing: Dict[str, Any], horizon_days: int = 120) -> float:
         return 0.0
     age_days = max((time.time() - ts) / 86400, 0)
     return max(0.0, (horizon_days - age_days) / horizon_days)
-
-SOFT_404_PATTERNS = [
-    'nicht gefunden', 'seite nicht', '404',
-    'anzeige wurde entfernt', 'nicht mehr verfügbar',
-    'inserat nicht', 'keine ergebnisse',
-    'page not found', 'this page is no longer',
-    'listing not found', 'nicht vorhanden',
-    'objekt nicht mehr', 'ist nicht mehr aktiv',
-]
-
-def validate_url(url: Optional[str], timeout: int = 10) -> bool:
-    """
-    Validate that a URL is accessible, returns 200, and is not a soft-404.
-    Uses GET with streaming to limit download to ~50KB for performance.
-    """
-    if not url or not isinstance(url, str):
-        return False
-
-    try:
-        resp = requests.get(url, allow_redirects=True, timeout=timeout, stream=True)
-        chunk = b''
-        for c in resp.iter_content(8192):
-            chunk += c
-            if len(chunk) > 51200:
-                break
-        body = chunk.decode('utf-8', errors='ignore').lower()
-        is_soft_404 = any(p in body for p in SOFT_404_PATTERNS)
-        is_valid = resp.status_code == 200 and not is_soft_404
-        if not is_valid:
-            logging.debug(f"URL rejected: {url} (HTTP {resp.status_code}, soft_404={is_soft_404})")
-        return is_valid
-    except requests.exceptions.Timeout:
-        logging.debug(f"URL timeout: {url}")
-        return False
-    except Exception as e:
-        logging.debug(f"URL error ({type(e).__name__}): {url}")
-        return False
-
-def filter_valid_urls(
-    listings: List[Dict[str, Any]],
-    mongo=None
-) -> List[Dict[str, Any]]:
-    """
-    Filter out listings with broken or invalid URLs.
-    Optionally marks broken URLs in MongoDB so future runs skip them.
-    """
-    valid_listings = []
-    broken = []
-
-    for listing in listings:
-        url = listing.get('url')
-        if validate_url(url):
-            valid_listings.append(listing)
-        else:
-            broken.append(listing)
-            listing_id = listing.get('_id', 'unknown')
-            source = listing.get('source', 'unknown')
-            logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {url}")
-
-    if broken:
-        logging.info(f"🔍 URL validation: {len(broken)} listing(s) filtered out due to broken URLs")
-        if mongo:
-            for listing in broken:
-                url = listing.get('url')
-                if url:
-                    try:
-                        mongo.mark_url_invalid(url)
-                    except Exception as e:
-                        logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
-
-    return valid_listings
 
 def setup_logging():
     """Setup logging configuration"""
