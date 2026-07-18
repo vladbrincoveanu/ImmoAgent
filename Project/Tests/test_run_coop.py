@@ -52,5 +52,50 @@ class TestLoadCoopAlerts(unittest.TestCase):
             del os.environ["COOP_ALERTS"]
 
 
+from unittest.mock import MagicMock
+
+
+def _resp(status=200, text="<html>body</html>", etag=None, last_modified=None):
+    r = MagicMock()
+    r.status_code = status
+    r.text = text
+    r.headers = {}
+    if etag:
+        r.headers["ETag"] = etag
+    if last_modified:
+        r.headers["Last-Modified"] = last_modified
+    r.raise_for_status = MagicMock()
+    return r
+
+
+class TestConditionalFetch(unittest.TestCase):
+    def test_304_reports_unchanged(self):
+        sess = MagicMock()
+        sess.get.return_value = _resp(status=304)
+        changed, html, meta = run_coop.conditional_fetch(
+            "https://x.at", {"etag": "e1"}, session=sess)
+        self.assertFalse(changed)
+        self.assertIsNone(html)
+        # If-None-Match sent
+        self.assertEqual(sess.get.call_args.kwargs["headers"]["If-None-Match"], "e1")
+
+    def test_same_hash_reports_unchanged(self):
+        sess = MagicMock()
+        sess.get.return_value = _resp(text="<html>same</html>")
+        prev = {"page_hash": run_coop._page_hash("<html>same</html>")}
+        changed, html, meta = run_coop.conditional_fetch("https://x.at", prev, session=sess)
+        self.assertFalse(changed)
+
+    def test_new_body_reports_changed_with_new_meta(self):
+        sess = MagicMock()
+        sess.get.return_value = _resp(text="<html>fresh</html>", etag="e2", last_modified="Mon")
+        changed, html, meta = run_coop.conditional_fetch("https://x.at", {}, session=sess)
+        self.assertTrue(changed)
+        self.assertEqual(html, "<html>fresh</html>")
+        self.assertEqual(meta["etag"], "e2")
+        self.assertEqual(meta["last_modified"], "Mon")
+        self.assertEqual(meta["page_hash"], run_coop._page_hash("<html>fresh</html>"))
+
+
 if __name__ == '__main__':
     unittest.main()
