@@ -209,6 +209,67 @@ class MongoDBHandler:
             print(f"MongoDB insert error: {e}")
             return False
 
+    def upsert_coop_listing(self, listing: Dict) -> str:
+        """Upsert a co-op listing WITHOUT the price>0 gate (co-op units often
+        have no purchase price). Mirrors the co-op branch of
+        save_listings_to_mongodb (validation → xsrc dedup → url upsert →
+        fingerprint dedup → insert) minus geocoding/scoring.
+
+        Preserves send-state on update so a */5 re-poll never resets
+        sent_to_telegram and re-spams. Returns one of:
+        "inserted" | "updated" | "duplicate" | "invalid" | "error"."""
+        if self.collection is None:
+            return "error"
+        valid, reason = is_valid_listing_data(listing)
+        if not valid:
+            logging.info(f"🚫 coop upsert skipped — {reason}")
+            return "invalid"
+        try:
+            # Cross-source dedup (Willhaben ↔ Bauträger-direct for one unit).
+            if listing.get('is_genossenschaft'):
+                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+                if xfp:
+                    listing['content_fingerprint_xsrc'] = xfp
+                    existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
+                    if existing and existing.get('url') != listing.get('url'):
+                        if (listing.get('coop_source') == 'bautraeger_direct'
+                                and existing.get('coop_source') == 'willhaben'):
+                            self.collection.update_one(
+                                {"_id": existing["_id"]},
+                                {"$set": {
+                                    "url": listing.get('url'),
+                                    "coop_source": 'bautraeger_direct',
+                                    "bautraeger": listing.get('bautraeger'),
+                                }})
+                        logging.info(f"🚫 coop xsrc duplicate: {xfp}")
+                        return "duplicate"
+
+            listing['content_fingerprint'] = compute_content_fingerprint(listing)
+
+            existing_by_url = self.collection.find_one({"url": listing.get('url')})
+            if existing_by_url:
+                listing['_id'] = existing_by_url['_id']
+                # NEVER reset send-state on re-poll → no 5-minute re-spam.
+                for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
+                    if k in existing_by_url:
+                        listing[k] = existing_by_url[k]
+                self.collection.replace_one({"_id": existing_by_url['_id']}, listing)
+                return "updated"
+
+            source_enum = listing.get('source_enum', listing.get('source', ''))
+            existing_by_fp = self.collection.find_one(
+                {"content_fingerprint": listing['content_fingerprint'],
+                 "source_enum": source_enum})
+            if existing_by_fp:
+                logging.info(f"🚫 coop fingerprint duplicate: {listing.get('url')}")
+                return "duplicate"
+
+            self.collection.insert_one(listing)
+            return "inserted"
+        except Exception as e:
+            logging.error(f"upsert_coop_listing error: {e}")
+            return "error"
+
     def update_profile_scores(self, listing_id, scores: dict) -> None:
         """Persist per-profile scores subdoc for a listing.
 
