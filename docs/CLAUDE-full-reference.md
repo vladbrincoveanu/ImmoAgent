@@ -309,6 +309,28 @@ See README.md for example GitHub Actions workflow.
 8. **Outreach emails**: Templates are in German, located in `outreach/email_sender.py`
 9. **Validation**: Use `is_valid_listing_data()` from `mongodb_handler.py` - NEVER inline `> 0` checks
 
+## Co-op fast-poll (Phase A)
+
+`Project/run_coop.py` — lightweight coop poller for GitHub Actions cron `*/5`
+(`.github/workflows/coop-fast-poll.yml`, ~08:00–22:00 Vienna Mon–Sat). Replaces
+the old `coop-scrape.yml` (*/15). Polls the Genossenschaft adapters with
+conditional GET (ETag/Last-Modified/page-hash stored in the `source_meta`
+Mongo collection), upserts via `MongoDBHandler.upsert_coop_listing()` (price-less;
+preserves `sent_to_telegram` on re-poll), and DMs matches to
+`TELEGRAM_COOP_CHANNEL_ID` (fallback `TELEGRAM_MAIN_CHAT_ID`).
+
+Run locally: `cd Project && python run_coop.py [--dry-run]`.
+
+### Alert filter — `Project/coop_alerts.json` (tracked; not a secret)
+
+    { "bezirke": [], "max_cost": null, "min_rooms": null, "min_area": null }
+
+Empty/`null` field = no constraint (send all). A missing **listing** field is
+permissive (never excludes). Precedence: `COOP_ALERTS` env (JSON) >
+`config.json` `coop_alerts` key > `Project/coop_alerts.json` > send-all.
+(`config.json` is gitignored/absent in CI, so the tracked file is the
+CI-visible source. Tune by editing + committing `coop_alerts.json`.)
+
 ## Codebase Exploration
 
 Default to `graphify query "<question>"` over `grep` for codebase exploration questions. Full rule (with freshness check + fallback conditions): see global `~/.claude/CLAUDE.md` §"Graph-First Codebase Exploration". Build the graph for any project >50 files with `/graphify .` — one-time cost amortized across all future questions.
