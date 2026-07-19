@@ -11,17 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Require TELEGRAM_COOP_CHANNEL_ID secret
+        env:
+          COOP_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
+        run: |
+          if [ -z "$COOP_ID" ]; then
+            echo "::error::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — coop alerts would silently no-op. Add it under Settings → Secrets."
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r Project/requirements.txt
+          cache-dependency-path: Project/requirements-coop.txt
+      - run: pip install -r Project/requirements-coop.txt
       - name: Fast co-op poll → Telegram
         working-directory: Project
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
-          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
         run: python run_coop.py

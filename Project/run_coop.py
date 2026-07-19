@@ -5,7 +5,7 @@ Lightweight (requests + bs4, no Selenium, no scoring/geocoding): polls the
 Genossenschaft Bauträger adapters, upserts new units, and DMs matches that
 pass the coop_alerts filter. Built for GitHub Actions cron */5.
 
-Run from Project/:  python run_coop.py [--dry-run]
+Run from Project/:  python run_coop.py [--no-send]
 """
 import argparse
 import hashlib
@@ -132,7 +132,7 @@ def poll_source(name: str, cfg: dict, handler, session=requests) -> List[Listing
     return listings
 
 
-def run(dry_run: bool = False) -> int:
+def run(no_send: bool = False) -> int:
     """Poll → upsert → alert. Exit 0 unless MongoDB is down or ALL adapters fail."""
     alerts = load_coop_alerts()
     handler = MongoDBHandler()
@@ -141,14 +141,16 @@ def run(dry_run: bool = False) -> int:
         return 1
 
     bot = None
-    if not dry_run:
+    if not no_send:
         token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
-        chat_id = (os.environ.get("TELEGRAM_COOP_CHANNEL_ID")
-                   or os.environ.get("TELEGRAM_MAIN_CHAT_ID"))
+        # Coop alerts go ONLY to the coop channel — the main channel excludes
+        # co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
+        chat_id = os.environ.get("TELEGRAM_COOP_CHANNEL_ID")
         if token and chat_id:
             bot = TelegramBot(token, chat_id)
         else:
-            logger.warning("⚠️  Telegram not configured; running in no-send mode")
+            logger.error("❌ TELEGRAM_COOP_CHANNEL_ID/bot token not set; "
+                         "alerts DISABLED, polling/upserts continue")
 
     seen: List[Listing] = []
     ok_adapters = 0
@@ -178,8 +180,8 @@ def run(dry_run: bool = False) -> int:
             logger.warning(f"🚫 broken URL, skipping: {listing.url}")
             handler.mark_url_invalid(listing.url)
             continue
-        if dry_run:
-            logger.info(f"[dry-run] would alert: {listing.url}")
+        if no_send:
+            logger.info(f"[no-send] would alert: {listing.url}")
             sent += 1
             continue
         if bot and bot.send_message(format_coop_message(listing)):
@@ -196,9 +198,11 @@ def run(dry_run: bool = False) -> int:
 
 def main():
     parser = argparse.ArgumentParser(description="Fast co-op poll → Telegram alerts")
-    parser.add_argument("--dry-run", action="store_true", help="skip Telegram sends")
+    parser.add_argument("--no-send", "--dry-run", dest="no_send", action="store_true",
+                        help="poll and upsert but skip Telegram sends "
+                             "(--dry-run kept as a deprecated alias)")
     args = parser.parse_args()
-    raise SystemExit(run(dry_run=args.dry_run))
+    raise SystemExit(run(no_send=args.no_send))
 
 
 if __name__ == "__main__":

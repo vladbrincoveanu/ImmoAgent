@@ -1,0 +1,6 @@
+# Slim install for run_coop.py (5-min CI poll) — no Selenium/torch/Flask.
+# Keep pins in sync with requirements.txt.
+requests==2.34.2
+beautifulsoup4==4.12.3
+pymongo==4.8.0
+certifi>=2023.7.22

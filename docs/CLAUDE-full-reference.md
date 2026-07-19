@@ -317,9 +317,12 @@ the old `coop-scrape.yml` (*/15). Polls the Genossenschaft adapters with
 conditional GET (ETag/Last-Modified/page-hash stored in the `source_meta`
 Mongo collection), upserts via `MongoDBHandler.upsert_coop_listing()` (price-less;
 preserves `sent_to_telegram` on re-poll), and DMs matches to
-`TELEGRAM_COOP_CHANNEL_ID` (fallback `TELEGRAM_MAIN_CHAT_ID`).
+`TELEGRAM_COOP_CHANNEL_ID` only (no main-chat fallback — the main channel
+excludes co-ops by design; if unset, alerts are disabled loudly and the CI
+workflow fails fast). CI installs `Project/requirements-coop.txt` (slim:
+requests/bs4/pymongo — no Selenium/torch).
 
-Run locally: `cd Project && python run_coop.py [--dry-run]`.
+Run locally: `cd Project && python run_coop.py [--no-send]`.
 
 ### Alert filter — `Project/coop_alerts.json` (tracked; not a secret)
 

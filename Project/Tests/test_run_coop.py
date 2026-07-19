@@ -152,14 +152,14 @@ class TestRun(unittest.TestCase):
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_dry_run_upserts_and_counts_without_sending(self, MH, poll, vurl, alerts):
+    def test_no_send_upserts_and_counts_without_sending(self, MH, poll, vurl, alerts):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/new")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(dry_run=True)
+            rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 0)
         MH.return_value.upsert_coop_listing.assert_called_once()
-        MH.return_value.mark_sent.assert_not_called()   # dry-run never sends
+        MH.return_value.mark_sent.assert_not_called()   # no-send never sends
 
     @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
@@ -171,9 +171,9 @@ class TestRun(unittest.TestCase):
         TB.return_value.send_message.return_value = True
         poll.return_value = [_l(url="https://x.at/s")]
         with patch.dict(os.environ,
-                        {"TELEGRAM_MAIN_BOT_TOKEN": "t", "TELEGRAM_MAIN_CHAT_ID": "c"}):
+                        {"TELEGRAM_MAIN_BOT_TOKEN": "t", "TELEGRAM_COOP_CHANNEL_ID": "c"}):
             with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-                rc = run_coop.run(dry_run=False)
+                rc = run_coop.run(no_send=False)
         self.assertEqual(rc, 0)
         TB.return_value.send_message.assert_called_once()
         MH.return_value.mark_sent.assert_called_once_with("https://x.at/s")
@@ -188,9 +188,9 @@ class TestRun(unittest.TestCase):
         TB.return_value.send_message.return_value = False    # send failed
         poll.return_value = [_l(url="https://x.at/f")]
         with patch.dict(os.environ,
-                        {"TELEGRAM_MAIN_BOT_TOKEN": "t", "TELEGRAM_MAIN_CHAT_ID": "c"}):
+                        {"TELEGRAM_MAIN_BOT_TOKEN": "t", "TELEGRAM_COOP_CHANNEL_ID": "c"}):
             with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-                rc = run_coop.run(dry_run=False)
+                rc = run_coop.run(no_send=False)
         self.assertEqual(rc, 0)
         MH.return_value.mark_sent.assert_not_called()
 
@@ -201,7 +201,7 @@ class TestRun(unittest.TestCase):
         MH.return_value = _mongo_mock(get_listing_ret={"sent_to_telegram": True})
         poll.return_value = [_l(url="https://x.at/dup")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(dry_run=True)
+            rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 0)
         MH.return_value.mark_sent.assert_not_called()
 
@@ -213,7 +213,7 @@ class TestRun(unittest.TestCase):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/broken")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(dry_run=True)
+            rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 0)
         MH.return_value.mark_url_invalid.assert_called_once_with("https://x.at/broken")
 
@@ -224,7 +224,7 @@ class TestRun(unittest.TestCase):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/other", bezirk="1100")]  # not in 9999
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(dry_run=True)
+            rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 0)
         MH.return_value.get_listing.assert_not_called()   # filtered before send checks
 
@@ -234,7 +234,7 @@ class TestRun(unittest.TestCase):
     def test_all_adapters_fail_returns_1(self, MH, poll, alerts):
         MH.return_value = _mongo_mock()
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(dry_run=True)
+            rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 1)
         MH.return_value.close.assert_called_once()
 
@@ -242,11 +242,11 @@ class TestRun(unittest.TestCase):
 class TestMain(unittest.TestCase):
     @patch("run_coop.run", return_value=0)
     def test_main_exits_with_run_code(self, run_fn):
-        with patch.object(sys, "argv", ["run_coop.py", "--dry-run"]):
+        with patch.object(sys, "argv", ["run_coop.py", "--dry-run"]):  # deprecated alias
             with self.assertRaises(SystemExit) as ctx:
                 run_coop.main()
         self.assertEqual(ctx.exception.code, 0)
-        run_fn.assert_called_once_with(dry_run=True)
+        run_fn.assert_called_once_with(no_send=True)
 
 
 if __name__ == '__main__':
