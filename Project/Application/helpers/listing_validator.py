@@ -8,8 +8,80 @@ import logging
 import hashlib
 import re
 import unicodedata
-from typing import Dict, Any
+import requests
+from typing import Dict, Any, Optional
 from Application.buyer_profiles import GLOBAL_VALIDATION
+
+
+SOFT_404_PATTERNS = [
+    'nicht gefunden', 'seite nicht', '404',
+    'anzeige wurde entfernt', 'nicht mehr verfügbar',
+    'inserat nicht', 'keine ergebnisse',
+    'page not found', 'this page is no longer',
+    'listing not found', 'nicht vorhanden',
+    'objekt nicht mehr', 'ist nicht mehr aktiv',
+]
+
+
+def validate_url(url: Optional[str], timeout: int = 10) -> bool:
+    """
+    Validate that a URL is accessible, returns 200, and is not a soft-404.
+    Uses GET with streaming to limit download to ~50KB for performance.
+    """
+    if not url or not isinstance(url, str):
+        return False
+
+    try:
+        resp = requests.get(url, allow_redirects=True, timeout=timeout, stream=True)
+        chunk = b''
+        for c in resp.iter_content(8192):
+            chunk += c
+            if len(chunk) > 51200:
+                break
+        body = chunk.decode('utf-8', errors='ignore').lower()
+        is_soft_404 = any(p in body for p in SOFT_404_PATTERNS)
+        is_valid = resp.status_code == 200 and not is_soft_404
+        if not is_valid:
+            logging.debug(f"URL rejected: {url} (HTTP {resp.status_code}, soft_404={is_soft_404})")
+        return is_valid
+    except requests.exceptions.Timeout:
+        logging.debug(f"URL timeout: {url}")
+        return False
+    except Exception as e:
+        logging.debug(f"URL error ({type(e).__name__}): {url}")
+        return False
+
+
+def filter_valid_urls(listings: list, mongo=None) -> list:
+    """
+    Filter out listings with broken or invalid URLs.
+    Optionally marks broken URLs in MongoDB so future runs skip them.
+    """
+    valid_listings = []
+    broken = []
+
+    for listing in listings:
+        url = listing.get('url')
+        if validate_url(url):
+            valid_listings.append(listing)
+        else:
+            broken.append(listing)
+            listing_id = listing.get('_id', 'unknown')
+            source = listing.get('source', 'unknown')
+            logging.warning(f"🚫 Filtered out listing {listing_id} from {source} - broken URL: {url}")
+
+    if broken:
+        logging.info(f"🔍 URL validation: {len(broken)} listing(s) filtered out due to broken URLs")
+        if mongo:
+            for listing in broken:
+                url = listing.get('url')
+                if url:
+                    try:
+                        mongo.mark_url_invalid(url)
+                    except Exception as e:
+                        logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
+
+    return valid_listings
 
 
 def _norm(s: str) -> str:

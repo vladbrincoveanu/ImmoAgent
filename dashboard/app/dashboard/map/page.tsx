@@ -38,7 +38,7 @@ function MapPage() {
   const {
     minScore, district, sortBy, maxPrice, showUnfinanceable,
     equity, rate, maxEquity, profile, belowAvgPct,
-    destName, destLat, destLon, maxCommute,
+    destName, destLat, destLon, maxCommute, genossenschaft,
     update,
   } = useFilters();
 
@@ -131,6 +131,7 @@ function MapPage() {
       if (rate) params.set('rate', rate);
       if (showUnfinanceable) params.set('unfinanceable', 'true');
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
+      if (genossenschaft) params.set('genossenschaft', 'true');
 
       const res = await fetch(`/api/listings/map?${params}`);
       const data = await res.json();
@@ -146,7 +147,7 @@ function MapPage() {
     } finally {
       setLoading(false);
     }
-  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct]);
+  }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct, genossenschaft]);
 
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
@@ -275,8 +276,9 @@ function MapPage() {
     if (showUnfinanceable) n += 1;
     if (belowAvgPct) n += 1;
     if (profile !== DEFAULT_PROFILE) n += 1;
+    if (genossenschaft) n += 1;
     return n;
-  }, [minScore, district, maxPrice, destName, showUnfinanceable, belowAvgPct, profile]);
+  }, [minScore, district, maxPrice, destName, showUnfinanceable, belowAvgPct, profile, genossenschaft]);
 
   // Layer counts
   const layerCounts = useMemo(() => ({
@@ -316,6 +318,8 @@ function MapPage() {
             setLayersOpen((o) => !o);
             setFiltersOpen(false);
           }}
+          genossenschaftOnly={genossenschaft}
+          onGenossenschaftClick={() => update({ genossenschaft: !genossenschaft })}
           profileSlot={
             <ProfileSelector
               value={profile}

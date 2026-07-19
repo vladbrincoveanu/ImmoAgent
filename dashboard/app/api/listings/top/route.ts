@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const minScore = validateMinScore(searchParams.get('min_score'));
   const district = validateDistrict(searchParams.get('district'));
   const sort = validateSort(searchParams.get('sort'));
+  const genossenschaft = searchParams.get('genossenschaft') === 'true';
 
   const profileParam = searchParams.get('profile');
   const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
@@ -58,6 +59,10 @@ export async function GET(request: NextRequest) {
 
     if (district) {
       andConditions.push({ bezirk: district });
+    }
+
+    if (genossenschaft) {
+      andConditions.push({ is_genossenschaft: true });
     }
 
     const status = validateStatus(searchParams.get('status'));
@@ -145,6 +150,7 @@ export async function GET(request: NextRequest) {
         coordinates: resolveCoordinates(l.coordinates as { lat: number; lon: number } | null | undefined, l.bezirk as string | null | undefined),
         price_history: (l as { price_history?: Array<{ price_total: number; date: number }> }).price_history ?? null,
         address: (l as { address?: string | null }).address ?? null,
+        is_genossenschaft: l.is_genossenschaft === true,
       };
     });
 

@@ -6,6 +6,7 @@ Contains all database cleanup and maintenance functions.
 import time
 import logging
 import requests
+from datetime import datetime
 from typing import Dict
 from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
 from Integration.telegram_bot import TelegramBot
@@ -48,7 +49,6 @@ def deep_cleanup_database(mongo_handler: MongoDBHandler) -> Dict[str, int]:
         {"url": {"$exists": True, "$ne": None, "$ne": ""}},
         {"price_total": 1, "area_m2": 1, "_id": 1}
     ).limit(1000))
-    from datetime import datetime
     for listing in all_listings:
         is_valid, _ = is_valid_listing_data(listing)
         if not is_valid:

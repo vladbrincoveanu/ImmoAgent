@@ -1,7 +1,9 @@
 import json
 import os
 import time
+import html
 import requests
+import pymongo
 import glob
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,13 +15,15 @@ from dataclasses import asdict
 from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 from Application.scraping.derstandard_scraper import DerStandardScraper
+from Application.scraping.genossenschaft_scraper import scrape_all as scrape_all_genossenschaft
 from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
-from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_xsrc_fingerprint, validate_url
 from Application.helpers.geocoding import geocode_listing
 from Application.feasibility import derive_profile_fields
+from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
 from Domain.listing import Listing
 import logging
@@ -389,6 +393,17 @@ def scrape_derstandard(config: Dict, max_pages: int) -> Tuple[List[Listing], str
         logging.error(f"❌ derStandard scraping failed: {e}")
         return [], "derstandard"
 
+def scrape_genossenschaft(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
+    """Scrape Genossenschaft (co-op Bauträger) listings"""
+    try:
+        logging.info("🔍 Starting Genossenschaft scraping...")
+        listings = scrape_all_genossenschaft()
+        logging.info(f"✅ Genossenschaft scraping complete: {len(listings)} listings found")
+        return listings, "genossenschaft"
+    except Exception as e:
+        logging.error(f"❌ Genossenschaft scraping failed: {e}")
+        return [], "genossenschaft"
+
 def normalize_listing_schema(listing: Listing) -> Listing:
     """Ensure the listing has all required fields and unified schema for MongoDB/Telegram/UI."""
     # Calculate price per m² if both price and area are available
@@ -426,7 +441,8 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         return 0
 
     try:
-        from Integration.mongodb_handler import MongoDBHandler
+        from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
+        from types import SimpleNamespace
         mongodb_handler = MongoDBHandler(uri=mongo_uri)
 
         client = pymongo.MongoClient(mongo_uri)
@@ -442,6 +458,33 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
             listing = normalize_listing_schema(listing)
             listing_dict = asdict(listing)
             listing_dict = derive_profile_fields(listing_dict)
+
+            # Co-op listings get their own validation gate + cross-source dedup
+            # (mongodb_handler.insert_listing() isn't used by this save path, so
+            # replicate its co-op branch here instead of skipping it).
+            if listing_dict.get('is_genossenschaft'):
+                valid, reason = is_valid_listing_data(listing_dict)
+                if not valid:
+                    logging.info(f"🚫 Skipping co-op save: validation failed — {reason}")
+                    continue
+                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing_dict))
+                if xfp:
+                    listing_dict['content_fingerprint_xsrc'] = xfp
+                    existing_xsrc = collection.find_one({"content_fingerprint_xsrc": xfp})
+                    if existing_xsrc:
+                        if (listing_dict.get('coop_source') == 'bautraeger_direct'
+                                and existing_xsrc.get('coop_source') == 'willhaben'):
+                            collection.update_one(
+                                {"_id": existing_xsrc["_id"]},
+                                {"$set": {
+                                    "url": listing_dict.get('url'),
+                                    "coop_source": 'bautraeger_direct',
+                                    "bautraeger": listing_dict.get('bautraeger'),
+                                }}
+                            )
+                        logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
+                        duplicate_count += 1
+                        continue
 
             fingerprint = compute_content_fingerprint(listing_dict)
             listing_dict['content_fingerprint'] = fingerprint
@@ -535,6 +578,7 @@ def main():
     willhaben_only = "--willhaben-only" in sys.argv
     immo_kurier_only = "--immo-kurier-only" in sys.argv
     derstandard_only = "--derstandard-only" in sys.argv
+    genossenschaft_only = "--genossenschaft-only" in sys.argv
     send_to_telegram = "--send-to-telegram" in sys.argv
     deep_scan = "--deep-scan" in sys.argv
     quick_scan = "--quick-scan" in sys.argv
@@ -624,11 +668,14 @@ def main():
         scrapers_to_run.append(('immo_kurier', scrape_immo_kurier))
     elif derstandard_only:
         scrapers_to_run.append(('derstandard', scrape_derstandard))
+    elif genossenschaft_only:
+        scrapers_to_run.append(('genossenschaft', scrape_genossenschaft))
     else:
         scrapers_to_run.extend([
             ('willhaben', scrape_willhaben),
             ('immo_kurier', scrape_immo_kurier),
-            ('derstandard', scrape_derstandard)
+            ('derstandard', scrape_derstandard),
+            ('genossenschaft', scrape_genossenschaft)
         ])
     
     all_listings: List[Listing] = []
@@ -664,6 +711,7 @@ def main():
     
     # Initialize Telegram bot for notifications (main channel)
     telegram_bot = None
+    coop_bot = None
     if send_to_telegram:
         telegram_config = config.get('telegram', {})
         bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
@@ -676,6 +724,14 @@ def main():
                 logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
         else:
             logging.warning("⚠️ Telegram sending requested but bot not configured")
+
+        coop_channel_id = os.getenv('TELEGRAM_COOP_CHANNEL_ID')
+        if bot_main_token and coop_channel_id:
+            try:
+                coop_bot = TelegramBot(bot_main_token, coop_channel_id)
+                logging.info("✅ Telegram co-op bot initialized for Genossenschaft notifications")
+            except Exception as e:
+                logging.error(f"❌ Failed to initialize Telegram co-op bot: {e}")
     else:
         logging.info("📱 Telegram notifications disabled (use --send-to-telegram to enable)")
 
@@ -700,7 +756,8 @@ def main():
         saved_count = 0
         telegram_sent_count = 0
         high_score_listings = []
-        
+        coop_broadcast_candidates = []
+
         for listing in all_listings:
             # 7-day Telegram dedup cooldown — check BEFORE scoring to skip CPU for recently-sent listings
             SEVEN_DAYS = 7 * 86400
@@ -715,13 +772,23 @@ def main():
                         listing.score = score
                     continue
 
+            # Co-op listings that passed the cooldown check are eligible for the
+            # co-op channel broadcast below, independent of the main channel's
+            # score threshold.
+            if listing.is_genossenschaft:
+                coop_broadcast_candidates.append(listing)
+
             # Calculate score for the listing (always needed for MongoDB storage)
             if telegram_bot:
                 score = telegram_bot.calculate_listing_score(listing.__dict__)
                 listing.score = score
-                
-                # Check if score meets threshold for Telegram
-                if score > telegram_bot.min_score_threshold:
+
+                # Co-op listings have their own dedicated channel (broadcast
+                # below) and are excluded from the main buy-side channel here
+                # regardless of score, so a listing never gets sent to both.
+                if listing.is_genossenschaft:
+                    logging.info(f"⏭️  Co-op listing ({score:.1f}): {listing.title} - main channel skipped, routed to co-op channel")
+                elif score > telegram_bot.min_score_threshold:
                     high_score_listings.append(listing)
                     logging.info(f"🔥 High score listing ({score:.1f}): {listing.title}")
                 else:
@@ -735,7 +802,47 @@ def main():
         
         # Save all listings to MongoDB (regardless of score)
         saved_count = save_listings_to_mongodb(all_listings)
-        
+
+        # Broadcast new co-op units to the dedicated Genossenschaft channel,
+        # independent of the main channel's score threshold.
+        if coop_bot and coop_broadcast_candidates:
+            # Collapse same-run cross-source duplicates (Willhaben + Bauträger-direct
+            # for the same physical unit) before broadcasting — the xsrc dedup inside
+            # save_listings_to_mongodb() only prevents duplicate DB rows, it doesn't
+            # stop this loop from sending two Telegram messages for one unit.
+            deduped = {}
+            for listing in coop_broadcast_candidates:
+                key = compute_xsrc_fingerprint(listing) or listing.url
+                current = deduped.get(key)
+                if current is None or (listing.coop_source == 'bautraeger_direct' and current.coop_source == 'willhaben'):
+                    deduped[key] = listing
+            coop_broadcast_candidates = list(deduped.values())
+
+            # URL validation is mandatory before display/send (CLAUDE.md hard rule).
+            verified_candidates = []
+            for listing in coop_broadcast_candidates:
+                if validate_url(listing.url):
+                    verified_candidates.append(listing)
+                else:
+                    logging.warning(f"🚫 Skipping co-op broadcast — broken URL: {listing.url}")
+                    try:
+                        mongo.mark_url_invalid(listing.url)
+                    except Exception as e:
+                        logging.warning(f"Failed to mark co-op URL invalid: {e}")
+
+            coop_sent_count = 0
+            for listing in verified_candidates:
+                try:
+                    msg = format_coop_message(listing)
+                    if coop_bot.send_message(msg):
+                        coop_sent_count += 1
+                        mongo.mark_sent(listing.url)
+                    else:
+                        logging.error(f"❌ Failed to send co-op notification for {listing.title}")
+                except Exception as e:
+                    logging.error(f"❌ Co-op Telegram error for {listing.title}: {e}")
+            logging.info(f"📱 Sent {coop_sent_count}/{len(verified_candidates)} co-op channel notifications")
+
         score_threshold = 40  # Default threshold
         if config and 'telegram' in config:
             score_threshold = config['telegram'].get('min_score_threshold', 40)

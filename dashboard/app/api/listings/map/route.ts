@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const minScore = validateMinScore(searchParams.get('min_score'));
   const district = validateDistrict(searchParams.get('district'));
   const sort = validateSort(searchParams.get('sort'));
+  const genossenschaft = searchParams.get('genossenschaft') === 'true';
 
   const profileParam = searchParams.get('profile');
   const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
@@ -59,6 +60,10 @@ export async function GET(request: NextRequest) {
 
     if (district) {
       filter.bezirk = district;
+    }
+
+    if (genossenschaft) {
+      filter.is_genossenschaft = true;
     }
 
     const listings = await db
@@ -144,6 +149,7 @@ export async function GET(request: NextRequest) {
         bank_score_confidence: l.bank_score_confidence ?? undefined,
         price_vs_avg_pct: priceVsAvgPct,
         ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
+        is_genossenschaft: l.is_genossenschaft === true,
       };
     });
 

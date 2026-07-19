@@ -22,6 +22,8 @@ interface MapTopBarProps {
   onFiltersClick: () => void;
   layersOpen: boolean;
   onLayersClick: () => void;
+  genossenschaftOnly: boolean;
+  onGenossenschaftClick: () => void;
   profileSlot: ReactNode;
   filterPopover: ReactNode;
 }
@@ -32,6 +34,8 @@ export function MapTopBar({
   onFiltersClick,
   layersOpen,
   onLayersClick,
+  genossenschaftOnly,
+  onGenossenschaftClick,
   profileSlot,
   filterPopover,
 }: MapTopBarProps) {
@@ -72,6 +76,18 @@ export function MapTopBar({
       >
         {LAYERS_SVG}
         Layers
+      </button>
+      <button
+        data-testid="genossenschaft-btn"
+        aria-pressed={genossenschaftOnly}
+        onClick={onGenossenschaftClick}
+        className={`flex items-center gap-1.5 text-[13px] font-medium rounded-lg px-3.5 py-1.5 border ${
+          genossenschaftOnly
+            ? 'text-white bg-[#7c3aed] border-[#7c3aed]'
+            : 'text-ink bg-card border-line hover:border-[#cdd6e1]'
+        }`}
+      >
+        Genossenschaft
       </button>
       {filterPopover}
     </header>

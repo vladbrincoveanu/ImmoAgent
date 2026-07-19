@@ -23,6 +23,7 @@ export type FilterState = {
   destLat: string;
   destLon: string;
   maxCommute: string;
+  genossenschaft: boolean;
 };
 
 export function filtersFromParams(searchParams: URLSearchParams): FilterState {
@@ -42,6 +43,7 @@ export function filtersFromParams(searchParams: URLSearchParams): FilterState {
     destLat: searchParams.get('dest_lat') ?? '',
     destLon: searchParams.get('dest_lon') ?? '',
     maxCommute: searchParams.get('max_commute') ?? '',
+    genossenschaft: searchParams.get('genossenschaft') === 'true',
   };
 }
 
@@ -62,6 +64,7 @@ export function paramsFromFilters(filters: FilterState): URLSearchParams {
     if (filters.destLon) params.set('dest_lon', filters.destLon);
   }
   if (filters.maxCommute) params.set('max_commute', filters.maxCommute);
+  if (filters.genossenschaft) params.set('genossenschaft', 'true');
   if (filters.profile && filters.profile !== DEFAULT_PROFILE) params.set('profile', filters.profile);
   return params;
 }

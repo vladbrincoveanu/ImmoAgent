@@ -10,6 +10,8 @@ import { useEffect, useRef, useState, memo, useCallback, ReactNode } from 'react
 
 const PIN_COLOR_DEFAULT = '#16243a';
 const PIN_COLOR_SELECTED = '#2456e6';
+const PIN_COLOR_COOP = '#7c3aed';
+const PIN_COLOR_COOP_SELECTED = '#a855f7';
 const STATION_COLOR = '#1d4ed8';
 const SCHOOL_COLOR = '#16a34a';
 
@@ -26,9 +28,11 @@ function formatPrice(price: number): string {
   return String(price);
 }
 
-function createPriceIcon(price: number, selected: boolean): L.DivIcon {
-  const label = `€${formatPrice(price)}`;
-  const color = selected ? PIN_COLOR_SELECTED : PIN_COLOR_DEFAULT;
+function createPriceIcon(price: number, selected: boolean, isCoop: boolean): L.DivIcon {
+  const label = isCoop ? `🏘️ €${formatPrice(price)}` : `€${formatPrice(price)}`;
+  const color = isCoop
+    ? (selected ? PIN_COLOR_COOP_SELECTED : PIN_COLOR_COOP)
+    : (selected ? PIN_COLOR_SELECTED : PIN_COLOR_DEFAULT);
   const fontSize = selected ? '10px' : '9px';
   const padding = selected ? '2px 5px' : '1px 4px';
   const border = selected ? '1.5px solid white' : '1px solid white';
@@ -196,7 +200,7 @@ function MarkerLayer({
       if (!listing.coordinates) return;
 
       const selected = listing._id === selectedListingId;
-      const icon = createPriceIcon(listing.price_total ?? 0, selected);
+      const icon = createPriceIcon(listing.price_total ?? 0, selected, listing.is_genossenschaft === true);
 
       let marker = markerInstances.current.get(listing._id);
       if (marker) {
@@ -233,10 +237,12 @@ function StationsLayer({ stations }: { stations: StationFeature[] }) {
             data-infra-name={f.properties.name}
           >
             <Tooltip
+              permanent
               direction="right"
               offset={[6, 0]}
               className="leaflet-infra-label"
               opacity={1}
+              sticky
             >
               <span className="text-[10px] font-semibold" style={{ color: STATION_COLOR }}>
                 {f.properties.name}

@@ -70,6 +70,7 @@ class MongoDBHandler:
             self.collection = self.db[collection_name]
             self.metrics_collection = self.db["validation_metrics"]
             self.outreach_collection = self.db["outreach_jobs"]
+            self.source_meta_collection = self.db["source_meta"]
 
             # Test the connection
             self.client.admin.command('ping')
@@ -207,6 +208,67 @@ class MongoDBHandler:
         except Exception as e:
             print(f"MongoDB insert error: {e}")
             return False
+
+    def upsert_coop_listing(self, listing: Dict) -> str:
+        """Upsert a co-op listing WITHOUT the price>0 gate (co-op units often
+        have no purchase price). Mirrors the co-op branch of
+        save_listings_to_mongodb (validation → xsrc dedup → url upsert →
+        fingerprint dedup → insert) minus geocoding/scoring.
+
+        Preserves send-state on update so a */5 re-poll never resets
+        sent_to_telegram and re-spams. Returns one of:
+        "inserted" | "updated" | "duplicate" | "invalid" | "error"."""
+        if self.collection is None:
+            return "error"
+        valid, reason = is_valid_listing_data(listing)
+        if not valid:
+            logging.info(f"🚫 coop upsert skipped — {reason}")
+            return "invalid"
+        try:
+            # Cross-source dedup (Willhaben ↔ Bauträger-direct for one unit).
+            if listing.get('is_genossenschaft'):
+                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+                if xfp:
+                    listing['content_fingerprint_xsrc'] = xfp
+                    existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
+                    if existing and existing.get('url') != listing.get('url'):
+                        if (listing.get('coop_source') == 'bautraeger_direct'
+                                and existing.get('coop_source') == 'willhaben'):
+                            self.collection.update_one(
+                                {"_id": existing["_id"]},
+                                {"$set": {
+                                    "url": listing.get('url'),
+                                    "coop_source": 'bautraeger_direct',
+                                    "bautraeger": listing.get('bautraeger'),
+                                }})
+                        logging.info(f"🚫 coop xsrc duplicate: {xfp}")
+                        return "duplicate"
+
+            listing['content_fingerprint'] = compute_content_fingerprint(listing)
+
+            existing_by_url = self.collection.find_one({"url": listing.get('url')})
+            if existing_by_url:
+                listing['_id'] = existing_by_url['_id']
+                # NEVER reset send-state on re-poll → no 5-minute re-spam.
+                for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
+                    if k in existing_by_url:
+                        listing[k] = existing_by_url[k]
+                self.collection.replace_one({"_id": existing_by_url['_id']}, listing)
+                return "updated"
+
+            source_enum = listing.get('source_enum', listing.get('source', ''))
+            existing_by_fp = self.collection.find_one(
+                {"content_fingerprint": listing['content_fingerprint'],
+                 "source_enum": source_enum})
+            if existing_by_fp:
+                logging.info(f"🚫 coop fingerprint duplicate: {listing.get('url')}")
+                return "duplicate"
+
+            self.collection.insert_one(listing)
+            return "inserted"
+        except Exception as e:
+            logging.error(f"upsert_coop_listing error: {e}")
+            return "error"
 
     def update_profile_scores(self, listing_id, scores: dict) -> None:
         """Persist per-profile scores subdoc for a listing.
@@ -433,6 +495,35 @@ class MongoDBHandler:
                 logging.debug(f"Marked URL as invalid: {url}")
         except Exception as e:
             logging.warning(f"Failed to mark URL invalid in MongoDB: {e}")
+
+    def get_source_meta(self, source: str) -> Dict:
+        """Conditional-GET metadata for a coop adapter: {etag, last_modified, page_hash}.
+        Returns {} when unknown or on error (caller then does an unconditional GET)."""
+        try:
+            doc = self.source_meta_collection.find_one({"source": source})
+            if not doc:
+                return {}
+            return {k: doc.get(k) for k in ("etag", "last_modified", "page_hash")
+                    if doc.get(k) is not None}
+        except Exception as e:
+            logging.warning(f"get_source_meta({source}) failed: {e}")
+            return {}
+
+    def set_source_meta(self, source: str, etag: Optional[str] = None,
+                        last_modified: Optional[str] = None,
+                        page_hash: Optional[str] = None) -> None:
+        """Upsert conditional-GET metadata for a coop adapter. Only non-None
+        fields are written, so a 304 (no new headers) never clobbers a good ETag."""
+        try:
+            update = {k: v for k, v in
+                      (("etag", etag), ("last_modified", last_modified),
+                       ("page_hash", page_hash)) if v is not None}
+            if not update:
+                return
+            self.source_meta_collection.update_one(
+                {"source": source}, {"$set": update}, upsert=True)
+        except Exception as e:
+            logging.warning(f"set_source_meta({source}) failed: {e}")
 
     def get_recently_sent_listings(self, days: int = 7) -> List[str]:
         """Get URLs of listings sent to Telegram in the last N days"""

@@ -172,6 +172,24 @@ def extract_is_genossenschaft(text: str) -> Optional[bool]:
     return None
 
 
+_KNOWN_BAUTRAEGER = [
+    # Must match the bautraeger names genossenschaft_scraper.py's direct-scrape
+    # adapters use, so the same unit collapses across sources by name.
+    (r'\bövw\b|\boevw\b', 'ÖVW'),
+    (r'familienwohnbau', 'Familienwohnbau'),
+    (r'\bbwsg\b', 'BWSG'),
+]
+
+
+def extract_bautraeger(text: str) -> Optional[str]:
+    """Name of the co-op Bauträger if one of the known pilot builders is
+    mentioned, else None. Input is pre-lowercased full page text."""
+    for pattern, name in _KNOWN_BAUTRAEGER:
+        if re.search(pattern, text):
+            return name
+    return None
+
+
 def extract_document_urls(soup: BeautifulSoup) -> Dict[str, str]:
     """Extract PDF document links from listing page documents box.
     Returns dict with keys: expose|preisliste|planmappe|lagereport."""

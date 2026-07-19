@@ -3,15 +3,15 @@ import { test, expect } from '@playwright/test';
 test.describe('Map infrastructure overlay + zone stats', () => {
   test('map page shows U-Bahn + school markers', async ({ page }) => {
     await page.goto('/dashboard/map', { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
-
-    await expect(page.locator('.leaflet-container')).toBeVisible();
+    // networkidle never settles here: map tiles stream continuously once
+    // the infra layers are on, so wait on the DOM instead.
+    await page.locator('.leaflet-container:visible').first().waitFor({ timeout: 15000 });
 
     const ubahnMarkers = page.locator('path[stroke="#1d4ed8"]');
     const schoolMarkers = page.locator('path[stroke="#16a34a"]');
-    const total = await ubahnMarkers.count() + await schoolMarkers.count();
-    expect(total).toBeGreaterThan(10);
+    await expect
+      .poll(async () => (await ubahnMarkers.count()) + (await schoolMarkers.count()), { timeout: 15000 })
+      .toBeGreaterThan(10);
   });
 
   test('infrastructure API returns GeoJSON FeatureCollection', async ({ request }) => {
