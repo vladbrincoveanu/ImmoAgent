@@ -2,19 +2,8 @@
 
 Vienna real-estate scraper/scorer (Willhaben, ImmoKurier, DerStandard) + Telegram notify + Next.js dashboard. Bias: caution over speed on non-trivial work.
 
-## Rules (condensed)
-1. Think first: state assumptions; ask, don't guess; push back if simpler exists.
-2. Simplicity: minimum code, no speculative features/abstractions.
-3. Surgical: touch only what you must; match existing style; no drive-by refactors.
-4. Goal-driven: define success criteria, loop until verified.
-5. LLM only for judgment (classify/draft/summarize); code for deterministic work.
-6. Token budgets: 4k/task, 30k/session. At ~80%: write handoff summary, /clear, fresh session. Surface breaches.
-7. Conflicting patterns: pick one (newer/tested), explain, flag the other.
-8. Read exports/callers/shared utils before writing.
-9. Tests encode WHY, not just WHAT.
-10. Checkpoint after each significant step.
-11. Codebase conventions > personal taste; surface disagreement, don't fork.
-12. Fail loud. Never report "done"/"tests pass" if anything was skipped.
+## Rules
+Follow `~/.claude/rules/12-rule-template.md`.
 
 ## Commands (run from Project/)
 - Scrape: `python run.py` [--send-to-telegram | --deep-scan | --quick-scan | --willhaben-only | --buyer-profile=X]
