@@ -32,4 +32,8 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
+          # Operator-supplied mygewo filter URL. Set repo variable MYGEWO_SEARCH_URL
+          # (Settings → Secrets and variables → Actions → Variables) to change filters;
+          # empty/unset falls back to the baked default (≥3 rm · ≥51 m² · rent <€1000 · Wien).
+          MYGEWO_SEARCH_URL: ${{ vars.MYGEWO_SEARCH_URL }}
         run: python run_coop.py
