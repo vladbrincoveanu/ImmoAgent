@@ -81,6 +81,13 @@ test.describe('/coop co-op listings page', () => {
     await expect(page.getByTestId('coop-item')).toHaveCount(1);
     await expect(page.getByTestId('coop-address')).toContainText('Erzherzog-Karl-Straße 140');
 
+    // Freiflächen is OR-within-category, like mygewo's own checkboxes (confirmed
+    // live: checking a 2nd amenity there WIDENS the count, it doesn't narrow it).
+    // 1220 has Balkon, 1130 has Terrasse — checking both must return BOTH units,
+    // not the (empty) intersection an AND implementation would produce.
+    await page.goto('/coop?feature=Balkon&feature=Terrasse');
+    await expect(page.getByTestId('coop-item')).toHaveCount(2);
+
     // Bauträger filter: only OEVW's 1130 unit remains.
     await page.goto('/coop?bautraeger=OEVW');
     await expect(page.getByTestId('coop-item')).toHaveCount(1);

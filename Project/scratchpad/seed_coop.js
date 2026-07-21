@@ -28,17 +28,20 @@ db.listings.insertMany([
     title: 'Thomas-Morus-Gasse 2-12, 1130 Wien – 3 Zimmer · 63 m² · OEVW',
     address: 'Thomas-Morus-Gasse 2-12, 1130 Wien',
     bezirk: '1130', rooms: 3, area_m2: 63, price_total: 550, own_funds: 2702,
-    bautraeger: 'OEVW', special_features: [], is_genossenschaft: true, buyable: false,
+    bautraeger: 'OEVW', special_features: ['Terrasse'], is_genossenschaft: true, buyable: false,
     source_enum: 'genossenschaft', coop_source: 'bautraeger_direct',
     builder_url: 'https://www.oevw.at/suche/6127-leopoldauer-strasse-157a-2-23',
     url_is_valid: true, processed_at: now - 3600,
   },
   {
-    // EXCLUDED: real rental (buyable:false) but OUTSIDE Wien — the exact class of
-    // bug the user hit (a Steyr/Familienwohnbau garage leaking onto /coop).
+    // EXCLUDED: real rental (buyable:false), normal apartment size — but OUTSIDE
+    // Wien — the exact class of bug the user hit (a Steyr/Familienwohnbau unit
+    // leaking onto /coop). area_m2 is a normal 65 (not tiny) so this row is
+    // excluded ONLY by the bezirk guard, proving that guard independently of the
+    // area floor (see GARAGE-CONTROL below for the area floor in isolation).
     url: 'https://mygewo.at/genossenschaftswohnungen/angebot/STEYR-CONTROL-nonwien',
     title: 'STEYR-CONTROL Schweizergasse 2a', address: '4400 Steyr, Schweizergasse 2a',
-    bezirk: '4400', rooms: null, area_m2: 12.5, price_total: 60, is_genossenschaft: true,
+    bezirk: '4400', rooms: 2, area_m2: 65, price_total: 600, is_genossenschaft: true,
     buyable: false, bautraeger: 'Familienwohnbau', source_enum: 'genossenschaft',
     coop_source: 'bautraeger_direct', url_is_valid: true, processed_at: now,
   },

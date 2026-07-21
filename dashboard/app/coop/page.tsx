@@ -52,11 +52,9 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
         coop_source: { $ne: 'willhaben' },
         buyable: false,
         bezirk: { $regex: '^1\\d{3}$' },
-        $or: [
-          { area_m2: { $exists: false } },
-          { area_m2: null },
-          { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } },
-        ],
+        // { area_m2: null } already matches missing/undefined fields in MongoDB —
+        // no separate $exists:false clause needed.
+        $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
       })
       .sort({ processed_at: -1, _id: -1 })
       .limit(200)
@@ -115,11 +113,14 @@ const ROOM_BUCKETS: Bucket[] = [
   { value: '4', label: '4+', test: (n) => Math.round(n) >= 4 },
 ];
 
+// Bounds are contiguous (not >=51/>=75 as the mygewo labels might suggest) so a
+// float area like 50.4 m² — routine given real scraped values (e.g. 70.09) —
+// always falls in exactly one bucket instead of none.
 const AREA_BUCKETS: Bucket[] = [
   { value: '0-50', label: 'bis 50 m²', test: (n) => n <= 50 },
-  { value: '51-74', label: '51–74 m²', test: (n) => n >= 51 && n <= 74 },
-  { value: '75-99', label: '75–99 m²', test: (n) => n >= 75 && n <= 99 },
-  { value: '100-', label: 'ab 100 m²', test: (n) => n >= 100 },
+  { value: '51-74', label: '51–74 m²', test: (n) => n > 50 && n <= 74 },
+  { value: '75-99', label: '75–99 m²', test: (n) => n > 74 && n <= 99 },
+  { value: '100-', label: 'ab 100 m²', test: (n) => n > 99 },
 ];
 
 const RENT_BUCKETS: Bucket[] = [
@@ -191,7 +192,10 @@ export default async function CoopPage({
       matchesBuckets(r.area_m2, AREA_BUCKETS, area) &&
       matchesBuckets(r.price_total, RENT_BUCKETS, rent) &&
       matchesBuckets(r.own_funds, CAPITAL_BUCKETS, capital) &&
-      feature.every((f) => r.special_features.includes(f)),
+      // OR-within-category, same as every other filter here — confirmed live on
+      // mygewo.at: checking a 2nd Freifläche WIDENS the result count, it doesn't
+      // narrow it (their checkboxes are "any of", not "all of").
+      (!feature.length || feature.some((f) => r.special_features.includes(f))),
   );
 
   const inputCls =
