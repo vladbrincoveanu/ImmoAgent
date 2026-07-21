@@ -140,6 +140,27 @@ def test_fetch_all_mygewo_pages_until_complete_and_dedups(monkeypatch):
     assert bez == ["1100", "1110", "1120", "1130", "1200"]  # 5 unique, 'd' deduped
 
 
+def test_fetch_all_mygewo_returns_partial_results_on_page_failure(monkeypatch):
+    # Page 0 succeeds; page 1 raises (transient RPC hiccup) — must return page 0's
+    # units instead of losing the whole crawl.
+    page0 = [{"uuid": "a", "url": "https://b.at/a", "buyable": False, "rooms": "2.0",
+              "rent": "500", "capital": "0", "area": "50", "street": "S1", "zipcode": "1100",
+              "company": "B", "has_balcony": False, "has_terrace": False,
+              "has_garden": False, "has_loggia": False}]
+
+    def fake_page(states, page):
+        if page == 0:
+            return [dict(page0[0])], 5, True
+        raise ConnectionError("mygewo RPC unreachable")
+
+    monkeypatch.setattr(g, "_fetch_mygewo_page", fake_page)
+    monkeypatch.setattr(g, "_mygewo_units_from_rpc", lambda units: list(units))
+    monkeypatch.setattr(g, "fetch", lambda url: "<html></html>")
+
+    listings = g.fetch_all_mygewo("28_")
+    assert len(listings) == 1 and listings[0].bezirk == "1100"
+
+
 def test_fetch_all_mygewo_stops_on_max_pages(monkeypatch):
     # has_next never flips False and total never reached → must stop at the cap.
     def fake_page(states, page):

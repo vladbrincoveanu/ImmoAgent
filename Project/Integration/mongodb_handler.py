@@ -32,8 +32,16 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     # GLOBAL_VALIDATION €/m² band (1000–20000, tuned for buying) must not apply — a
     # ~€12/m² monthly rent is normal and would otherwise be rejected as "invalid",
     # which silently emptied the /coop page (186 units seen, 0 upserted). Scoped to
-    # is_genossenschaft + not buyable so the purchase pipeline stays strict.
-    is_coop_rental = bool(listing.get('is_genossenschaft')) and not listing.get('buyable', False)
+    # coop_source == 'bautraeger_direct' (the mygewo rental feed), not
+    # is_genossenschaft + absent buyable — Willhaben mistags ordinary purchase
+    # listings as is_genossenschaft via keyword match and never sets buyable, so
+    # that combination would silently bypass the purchase €/m² floor for them.
+    # `buyable` stays as a second, defensive condition in case a buy-option unit
+    # ever slips through the mygewo buy-unit filter upstream.
+    is_coop_rental = (
+        listing.get('coop_source') == 'bautraeger_direct'
+        and not listing.get('buyable', False)
+    )
 
     if not is_coop_rental and price is not None and area is not None and area > 0:
         per_m2 = price / area

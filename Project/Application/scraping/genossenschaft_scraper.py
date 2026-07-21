@@ -496,7 +496,12 @@ def fetch_all_mygewo(states: str = "28_") -> List[Listing]:
     seen: set = set()
     page, total = 0, 0
     while page < _MYGEWO_MAX_PAGES:
-        page_units, total, has_next = _fetch_mygewo_page(states, page)
+        try:
+            page_units, total, has_next = _fetch_mygewo_page(states, page)
+        except Exception as e:  # transient RPC hiccup mid-crawl → keep pages fetched so far
+            logger.warning(f"mygewo RPC page {page} fetch failed ({e}); returning "
+                            f"{len(units)} unit(s) collected from page(s) 0..{page - 1}")
+            break
         for u in page_units:
             uid = u.get("uuid")
             if uid and uid in seen:
