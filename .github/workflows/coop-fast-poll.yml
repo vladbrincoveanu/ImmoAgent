@@ -11,13 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Require TELEGRAM_COOP_CHANNEL_ID secret
+      - name: Warn if TELEGRAM_COOP_CHANNEL_ID secret is missing
         env:
           COOP_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
         run: |
           if [ -z "$COOP_ID" ]; then
-            echo "::error::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — coop alerts would silently no-op. Add it under Settings → Secrets."
-            exit 1
+            # Non-fatal: the scrape + Mongo upserts that feed the /coop website must
+            # run regardless. run_coop.py already logs loudly and continues without a
+            # channel (alerts DISABLED, polling/upserts continue). A hard `exit 1` here
+            # killed the whole poll job — so no units were scraped and the strict
+            # buyable:false /coop page (which hides legacy rows) stayed empty.
+            echo "::warning::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — Telegram co-op alerts are disabled, but scraping/upserts (website data) still run. Add it under Settings → Secrets to enable alerts."
           fi
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,8 +36,11 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
-          # Operator-supplied mygewo filter URL. Set repo variable MYGEWO_SEARCH_URL
-          # (Settings → Secrets and variables → Actions → Variables) to change filters;
-          # empty/unset falls back to the baked default (≥3 rm · ≥51 m² · rent <€1000 · Wien).
+          # Optional mygewo filter-URL override (repo variable MYGEWO_SEARCH_URL under
+          # Settings → Secrets and variables → Actions → Variables). Empty/unset uses the
+          # baked default: Wien, ALL rooms/sizes/rents (states=28_) — the parser keeps only
+          # rentals (buy-option units dropped) and Wien PLZ. Leave this UNSET for the full
+          # Wien rental inventory; setting a narrower URL (e.g. rooms/rent bands) only
+          # shrinks coverage — it is NOT needed to exclude buys or non-Wien units.
           MYGEWO_SEARCH_URL: ${{ vars.MYGEWO_SEARCH_URL }}
         run: python run_coop.py

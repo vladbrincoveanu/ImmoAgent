@@ -1,8 +1,11 @@
 """Deterministic parse_mygewo tests (fixture-based, no network).
 
-Fixture mirrors the real mygewo.at card DOM: an <a> to /genossenschaftswohnungen/
-angebot/<slug>-<uuid> with a "gefunden auf <dev>.at" line, a "Miete: €… • … m² •
-… Zimmer • Kapital: €…" line, a street <p>, and a "<PLZ> Wien , Wien" <p>.
+The fixture mirrors mygewo.at's SSR-dehydrated (TanStack/seroval) data graph: a
+`units:$R[..]=[…]` array of `{id:…,manualData:…,…}` unit literals, each carrying
+`buyable` (rent-vs-buy flag), the builder's own `url`, and `company`/`city`
+objects expressed as deduplicated `$R[NN]={…}` refs (inlined on first use, bare
+`$R[NN]` when repeated). Rentals in Wien are kept; buy-option and non-Wien units
+are dropped.
 """
 import os
 import sys
@@ -11,53 +14,126 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from Application.scraping.genossenschaft_scraper import parse_mygewo  # noqa: E402
 
-
-def _card(href, dev, rent, area, rooms, kapital, street, plz, extra=""):
-    return f"""
-    <a href="{href}" class="block rounded-lg border">
-      <p class="truncate">gefunden auf {dev}</p>
-      <p>vor 3 Tagen</p>
-      <p class="hidden">Miete: €{rent} • {area} m² • {rooms} Zimmer • Kapital: €{kapital}{extra}</p>
-      <p class="mt-2 text-base leading-6">{street}</p>
-      <p class="text-base leading-5">{plz} Wien , Wien</p>
-    </a>"""
+_TS = '"2026-07-20T12:08:02.203Z"'
 
 
-FIXTURE = f"""<html><body><div class="results">
-  {_card("/genossenschaftswohnungen/angebot/gw-wien-3-zimmer-70-09-m2-oesw-e34fe1a4-5ecc-48cd-8378-a4958f5b7be8",
-         "oesw.at", "945", "70,09", "3", "2.922", "Erzherzog-Karl-Straße 140", "1220")}
-  {_card("/genossenschaftswohnungen/angebot/gw-wien-3-zimmer-63-m2-oevw-85a5472f-3ed9-42f4-8b4f-633571cec0d9",
-         "oevw.at", "550", "63", "3", "2.702", "Thomas-Morus-Gasse 2-12", "1130",
-         extra=" • mit Kaufoption")}
-  <a href="/genossenschaftswohnungen/suche">back to search</a>
-</div></body></html>"""
+def _uuid(uid):
+    return f"aaaaaaaa-aaaa-aaaa-aaaa-{str(uid).zfill(12)}"
 
 
-def test_parses_all_unit_cards_ignoring_nav():
+def _card(uid, slug):
+    """A rendered result card — parse_mygewo recovers the /angebot/ url from it
+    by the uuid it shares with the structured unit."""
+    return (f'<a href="/genossenschaftswohnungen/angebot/{slug}-{_uuid(uid)}">'
+            f'{slug}</a>')
+
+
+def _company(ref, cid, domain, name):
+    return (f'$R[{ref}]={{id:{cid},url:"https://www.{domain}",code:"{name.lower()}",'
+            f'name:"{name}",created_at:{_TS},deleted_at:null,updated_at:{_TS},'
+            f'public_slug:"{name.lower()}",readable_url:"{domain}"}}')
+
+
+def _city(ref, cid, zipcode, state_ref):
+    return (f'$R[{ref}]={{id:{cid},name:"Wien",state:$R[{state_ref}]={{id:28,code:"9",'
+            f'name:"Wien",position:0,created_at:{_TS},deleted_at:null,updated_at:{_TS},'
+            f'public_slug:"wien"}},zipcode:"{zipcode}",state_id:28,region_id:347,'
+            f'created_at:{_TS},deleted_at:null,updated_at:{_TS},gemeindecode:"92201",'
+            f'gemeindekennziffer:"90001"}}')
+
+
+def _unit(ref, uid, url, rooms, rent, capital, area, street, *, buyable="null",
+          balcony="null", terrace="null", company="", city=""):
+    return (f'$R[{ref}]={{id:{uid},manualData:!1,manualAvailable:!1,uuid:"{_uuid(uid)}",'
+            f'external_unit_id:"{url}",url:"{url}",online:!0,available:!0,'
+            f'first_seen:{_TS},last_seen:{_TS},unavailable_timestamp:null,city_id:28,'
+            f'street:"{street}",rooms:"{rooms}",rent:"{rent}",capital:"{capital}",'
+            f'area:"{area}",company_id:13,coordinates:"00",created_at:{_TS},'
+            f'updated_at:{_TS},deleted_at:null,buyable:{buyable},has_garden:null,'
+            f'garden_area:null,has_loggia:null,loggia_area:null,has_balcony:{balcony},'
+            f'balcony_area:null,has_terrace:{terrace},terrace_area:null,'
+            f'company:{company},city:{city}}}')
+
+
+# Unit A: plain Wien rental (inlines company $R[37] + city $R[38]).
+# Unit B: Wien rental with a buy option (buyable:!0) -> must be dropped.
+# Unit C: Wien rental reusing A's company as a BARE ref -> tests ref resolution.
+# Unit D: non-Wien (zipcode 3100) rental -> must be dropped.
+FIXTURE = "<script>window.x={pages:[{payload:{units:$R[35]=[" + ",".join([
+    _unit(36, 22755, "https://www.siedlungsunion.at/wohnen/sofort/1220-wien-saikogasse",
+          "1.00", "478.27", "9239.18", "44.60", "Saikogasse", terrace="!0",
+          company=_company(37, 13, "siedlungsunion.at", "Siedlungsunion"),
+          city=_city(38, 28, "1220", 39)),
+    _unit(40, 22448, "https://www.wohnen.at/immobilienangebot/1220-wien-miete-mit-eo",
+          "1.00", "778.33", "0.00", "40.00", "Dueckegasse", buyable="!0",
+          company=_company(41, 20, "wohnen.at", "NeuesLeben"),
+          city=_city(42, 17, "1220", 43)),
+    _unit(44, 22701, "https://www.siedlungsunion.at/wohnen/sofort/1210-wien-lebnergasse",
+          "2.00", "520.00", "7690.16", "60.00", "Lebnergasse", balcony="!0",
+          company="$R[37]", city=_city(49, 29, "1210", 50)),
+    _unit(45, 22999, "https://www.gedesag.at/objekt/3100-st-poelten",
+          "3.00", "700.00", "5000.00", "75.00", "Hauptstrasse",
+          company=_company(46, 99, "gedesag.at", "Gedesag"),
+          city=_city(47, 90, "3100", 48)),
+]) + "]}}]}</script>" + (
+    # rendered cards carrying the /angebot/ links (uuid-matched to the units above)
+    _card(22755, "gw-wien-1-zimmer-saikogasse-oesw")
+    + _card(22701, "gw-wien-2-zimmer-lebnergasse-siedlungsunion"))
+
+
+def _by_bezirk():
+    return {l.bezirk: l for l in parse_mygewo(FIXTURE)}
+
+
+def test_keeps_only_wien_rentals():
     ls = parse_mygewo(FIXTURE)
-    assert len(ls) == 2  # the /suche nav link is not a unit card
+    # Unit B (buy option) and Unit D (non-Wien) dropped -> only A and C remain.
+    assert len(ls) == 2
+    assert {l.bezirk for l in ls} == {"1220", "1210"}
 
 
-def test_extracts_core_fields_and_full_address():
-    ls = {l.bezirk: l for l in parse_mygewo(FIXTURE)}
-    a = ls["1220"]
-    assert a.rooms == 3 and abs(a.area_m2 - 70.09) < 0.001 and a.price_total == 945
-    assert a.own_funds == 2922
-    assert a.address == "Erzherzog-Karl-Straße 140, 1220 Wien"
-    assert a.bautraeger == "OESW"
-    assert a.url.startswith("https://mygewo.at/genossenschaftswohnungen/angebot/")
+def test_drops_buy_option_units():
+    urls = [l.builder_url for l in parse_mygewo(FIXTURE)]
+    assert not any("miete-mit-eo" in u for u in urls)
+
+
+def test_drops_non_wien():
+    assert all(l.bezirk.startswith("1") for l in parse_mygewo(FIXTURE))
+
+
+def test_extracts_core_fields_and_builder_url():
+    a = _by_bezirk()["1220"]
+    assert a.rooms == 1.0 and abs(a.area_m2 - 44.60) < 1e-6
+    assert a.price_total == 478.27 and a.own_funds == 9239.18
+    assert a.bautraeger == "Siedlungsunion"
+    # builder_url = the builder's own reservation page (what the dashboard links to)
+    assert a.builder_url == "https://www.siedlungsunion.at/wohnen/sofort/1220-wien-saikogasse"
+    # url = the stable mygewo /angebot/ page recovered from the rendered card
+    assert a.url == ("https://mygewo.at/genossenschaftswohnungen/angebot/"
+                     "gw-wien-1-zimmer-saikogasse-oesw-" + _uuid(22755))
+    assert a.buyable is False                 # emitted units are rentals
     assert a.is_genossenschaft is True
-    assert a.title and "Erzherzog-Karl" in a.title
+    assert a.address == "Saikogasse, 1220 Wien"
+    assert "Terrasse" in (a.special_features or []) and a.balcony_terrace is True
 
 
-def test_buy_option_flagged_in_special_features():
-    ls = {l.bezirk: l for l in parse_mygewo(FIXTURE)}
-    assert "Kaufoption" in (ls["1130"].special_features or [])
-    assert "Kaufoption" not in (ls["1220"].special_features or [])
+def test_url_falls_back_to_builder_when_no_card():
+    # A structured unit with no matching rendered card falls back to the builder url.
+    no_card = ("<script>window.x={units:$R[35]=[" + _unit(
+        36, 99999, "https://www.example-bt.at/objekt/1200-wien-x",
+        "2.00", "600.00", "3000.00", "55.00", "Beispielgasse",
+        company=_company(37, 13, "example-bt.at", "ExampleBT"),
+        city=_city(38, 28, "1200", 39)) + "]}</script>")
+    ls = parse_mygewo(no_card)
+    assert len(ls) == 1
+    assert ls[0].url == "https://www.example-bt.at/objekt/1200-wien-x"
+    assert ls[0].builder_url == ls[0].url
 
 
-def test_european_number_parsing():
-    a = {l.bezirk: l for l in parse_mygewo(FIXTURE)}["1220"]
-    # "2.922" is 2922 (thousands dot), "70,09" is 70.09 (decimal comma)
-    assert a.own_funds == 2922.0
-    assert a.area_m2 == 70.09
+def test_resolves_bare_company_and_city_refs():
+    # Unit C carries a bare $R[37] company ref first defined on Unit A.
+    c = _by_bezirk()["1210"]
+    assert c.bautraeger == "Siedlungsunion"   # company ref resolved
+    assert c.bezirk == "1210"                 # city ref resolved
+    assert "Balkon" in (c.special_features or [])
+    assert c.buyable is False

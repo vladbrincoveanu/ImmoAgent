@@ -28,7 +28,14 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     price = listing.get('price_total')
     area = listing.get('area_m2')
 
-    if price is not None and area is not None and area > 0:
+    # Co-op RENTALS carry a MONTHLY RENT in price_total, not a purchase price, so the
+    # GLOBAL_VALIDATION €/m² band (1000–20000, tuned for buying) must not apply — a
+    # ~€12/m² monthly rent is normal and would otherwise be rejected as "invalid",
+    # which silently emptied the /coop page (186 units seen, 0 upserted). Scoped to
+    # is_genossenschaft + not buyable so the purchase pipeline stays strict.
+    is_coop_rental = bool(listing.get('is_genossenschaft')) and not listing.get('buyable', False)
+
+    if not is_coop_rental and price is not None and area is not None and area > 0:
         per_m2 = price / area
         if per_m2 < config['min_price_per_m2']:
             return False, f"price_per_m2 {per_m2:.0f} below minimum {config['min_price_per_m2']}"
@@ -241,6 +248,9 @@ class MongoDBHandler:
                                     "coop_source": 'bautraeger_direct',
                                     "bautraeger": listing.get('bautraeger'),
                                     "builder_url": listing.get('builder_url'),
+                                    # carry the rental flag so the dashboard's
+                                    # buyable:false filter still shows this unit
+                                    "buyable": listing.get('buyable'),
                                 }})
                         logging.info(f"🚫 coop xsrc duplicate: {xfp}")
                         return "duplicate"

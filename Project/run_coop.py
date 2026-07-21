@@ -126,8 +126,13 @@ def poll_source(name: str, cfg: dict, handler, session=requests) -> List[Listing
     if not changed:
         logger.info(f"↔️  {name}: unchanged, skipping parse")
         return []
-    parser = getattr(coop, cfg["parser"])
-    listings = parser(html_text)
+    if cfg.get("fetcher"):
+        # Self-contained crawl (mygewo pages its full inventory via an RPC); the
+        # change-gate above still gets us the free 304/unchanged skip on the SSR
+        # page, but the listings come from the fetcher, not the fetched HTML.
+        listings = getattr(coop, cfg["fetcher"])(cfg.get("states", "28_"))
+    else:
+        listings = getattr(coop, cfg["parser"])(html_text)
     logger.info(f"🔍 {name}: {len(listings)} listing(s) parsed")
     return listings
 

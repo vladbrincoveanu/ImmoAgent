@@ -57,6 +57,42 @@ def test_per_m2_too_high():
     assert not valid, "Should have failed"
     assert "per_m2" in reason.lower()
 
+def test_coop_rental_low_per_m2_valid():
+    """Co-op RENTALS carry monthly rent in price_total (~€12/m²), far below the
+    €1000/m² purchase floor. They must pass — otherwise every co-op rental is
+    rejected and the /coop page silently empties (186 seen → 0 upserted)."""
+    listing = {
+        "price_total": 720,   # 720/60 = 12/m² monthly rent
+        "area_m2": 60,
+        "is_genossenschaft": True,
+        "buyable": False,
+    }
+    valid, reason = is_valid_listing_data(listing)
+    assert valid, f"Co-op rental should bypass the purchase €/m² floor: {reason}"
+
+def test_non_coop_low_per_m2_still_fails():
+    """The co-op exemption must NOT weaken the purchase pipeline: a non-co-op
+    listing with the same low €/m² is still rejected."""
+    listing = {
+        "price_total": 720,
+        "area_m2": 60,        # 12/m² — below the 1000 purchase floor
+        "is_genossenschaft": False,
+    }
+    valid, reason = is_valid_listing_data(listing)
+    assert not valid, "Non-co-op listing below the €/m² floor must still fail"
+    assert "price_per_m2" in reason.lower()
+
+def test_coop_buyable_unit_still_validated():
+    """A co-op BUY unit (buyable=True) is a purchase — the €/m² band still applies."""
+    listing = {
+        "price_total": 60000,  # 750/m² — below the 1000 purchase floor
+        "area_m2": 80,
+        "is_genossenschaft": True,
+        "buyable": True,
+    }
+    valid, reason = is_valid_listing_data(listing)
+    assert not valid, "Buyable co-op unit below the €/m² floor must still fail"
+
 def test_missing_price():
     """Listing with no price should pass (price is on request case)."""
     listing = {
