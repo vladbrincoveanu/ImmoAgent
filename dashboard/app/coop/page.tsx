@@ -18,7 +18,6 @@ type CoopRow = {
   price_total: number | null;
   own_funds: number | null;
   bautraeger: string | null;
-  buy_option: boolean;
   builder_url: string | null;
   processed_at: number | null;
 };
@@ -34,12 +33,15 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
       // Builder-direct only: Willhaben-sourced rows are excluded because they link
       // to Willhaben (not the builder's reservation page) and can leak mis-tagged
       // for-sale (Eigentum) units onto this rentals-only page.
-      .find({ is_genossenschaft: true, url_is_valid: { $ne: false }, coop_source: { $ne: 'willhaben' } })
+      // buyable:false is a POSITIVE rental confirmation the poller stamps on every
+      // unit it emits (buy-option units are dropped at scrape). Requiring it (not
+      // just $ne:true) also hides legacy rows scraped before this flag existed —
+      // they reappear within one poll cycle once re-scraped as rentals.
+      .find({ is_genossenschaft: true, url_is_valid: { $ne: false }, coop_source: { $ne: 'willhaben' }, buyable: false })
       .sort({ processed_at: -1, _id: -1 })
       .limit(100)
       .toArray();
     const rows = docs.map((d): CoopRow => {
-      const feats = Array.isArray(d.special_features) ? (d.special_features as string[]) : [];
       return {
         url: String(d.url ?? ''),
         title: (d.title as string) ?? null,
@@ -50,7 +52,6 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
         price_total: typeof d.price_total === 'number' ? d.price_total : null,
         own_funds: typeof d.own_funds === 'number' ? d.own_funds : null,
         bautraeger: (d.bautraeger as string) ?? null,
-        buy_option: feats.some((f) => /kaufoption/i.test(f)),
         builder_url: (d.builder_url as string) ?? null,
         processed_at: typeof d.processed_at === 'number' ? d.processed_at : null,
       };
@@ -81,8 +82,33 @@ function ago(ts: number | null): string | null {
   return `vor ${m} min`;
 }
 
-export default async function CoopPage() {
+type Search = { bezirk?: string; minRooms?: string; maxRent?: string };
+
+export default async function CoopPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
   const { rows, dbUp } = await getCoopListings();
+  const sp = await searchParams;
+
+  // Filter controls are pure GET params (SSR, no client JS): the district
+  // dropdown is built from the districts actually present, so it never offers an
+  // empty result.
+  const bezirk = typeof sp.bezirk === 'string' ? sp.bezirk : '';
+  const minRooms = Number(sp.minRooms) || 0;
+  const maxRent = Number(sp.maxRent) || 0;
+  const districts = [...new Set(rows.map((r) => r.bezirk).filter(Boolean))].sort() as string[];
+
+  const filtered = rows.filter(
+    (r) =>
+      (!bezirk || r.bezirk === bezirk) &&
+      (!minRooms || (r.rooms ?? 0) >= minRooms) &&
+      (!maxRent || r.price_total == null || r.price_total <= maxRent),
+  );
+
+  const inputCls =
+    'rounded-lg border border-[#E8E4E0] bg-white px-3 py-1.5 text-sm text-[#2D2D2D]';
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8" data-testid="coop-page">
@@ -98,11 +124,59 @@ export default async function CoopPage() {
           >
             mygewo.at
           </a>{' '}
-          über alle Bauträger · Filter: ab 3 Zimmer · ab 51 m² · Miete &lt; €1.000 · Wien ·
+          über alle Bauträger · nur Miete (keine Kaufoption) · Wien ·
           Aktualisierung alle 5&nbsp;Min.
         </p>
-        <p className="mt-1 text-sm font-medium text-[#3D405B]" data-testid="coop-count">
-          {rows.length} {rows.length === 1 ? 'Treffer' : 'Treffer'}
+
+        <form
+          method="get"
+          data-testid="coop-filters"
+          className="mt-4 flex flex-wrap items-center gap-2"
+        >
+          <select name="bezirk" defaultValue={bezirk} data-testid="filter-bezirk" className={inputCls}>
+            <option value="">Alle Bezirke</option>
+            {districts.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <select
+            name="minRooms"
+            defaultValue={minRooms ? String(minRooms) : ''}
+            data-testid="filter-rooms"
+            className={inputCls}
+          >
+            <option value="">Zimmer (alle)</option>
+            <option value="1">ab 1 Zimmer</option>
+            <option value="2">ab 2 Zimmer</option>
+            <option value="3">ab 3 Zimmer</option>
+            <option value="4">ab 4 Zimmer</option>
+          </select>
+          <input
+            name="maxRent"
+            type="number"
+            min="0"
+            step="50"
+            defaultValue={maxRent ? String(maxRent) : ''}
+            placeholder="Max. Miete €"
+            data-testid="filter-maxrent"
+            className={`${inputCls} w-32`}
+          />
+          <button
+            type="submit"
+            data-testid="filter-apply"
+            className="rounded-lg bg-[#3D405B] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+          >
+            Filtern
+          </button>
+          <a href="/coop" data-testid="filter-reset" className="px-2 py-1.5 text-sm text-[#6B6B6B] underline">
+            Zurücksetzen
+          </a>
+        </form>
+
+        <p className="mt-3 text-sm font-medium text-[#3D405B]" data-testid="coop-count">
+          {filtered.length} {filtered.length === 1 ? 'Treffer' : 'Treffer'}
         </p>
       </div>
 
@@ -115,7 +189,7 @@ export default async function CoopPage() {
         </div>
       )}
 
-      {dbUp && rows.length === 0 && (
+      {dbUp && filtered.length === 0 && (
         <div
           data-testid="coop-empty"
           className="rounded-lg border border-[#E8E4E0] bg-white px-4 py-8 text-center text-sm text-[#6B6B6B]"
@@ -126,7 +200,7 @@ export default async function CoopPage() {
       )}
 
       <ul className="space-y-3" data-testid="coop-list">
-        {rows.map((r) => {
+        {filtered.map((r) => {
           const posted = ago(r.processed_at);
           return (
             <li key={r.url} data-testid="coop-item">
@@ -164,14 +238,6 @@ export default async function CoopPage() {
                         className="rounded bg-[#3D405B] px-2 py-0.5 text-xs font-medium text-white"
                       >
                         {r.bezirk}
-                      </span>
-                    )}
-                    {r.buy_option && (
-                      <span
-                        data-testid="coop-buyoption"
-                        className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
-                      >
-                        Kaufoption
                       </span>
                     )}
                   </div>

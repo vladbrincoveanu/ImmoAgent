@@ -248,6 +248,9 @@ class MongoDBHandler:
                                     "coop_source": 'bautraeger_direct',
                                     "bautraeger": listing.get('bautraeger'),
                                     "builder_url": listing.get('builder_url'),
+                                    # carry the rental flag so the dashboard's
+                                    # buyable:false filter still shows this unit
+                                    "buyable": listing.get('buyable'),
                                 }})
                         logging.info(f"🚫 coop xsrc duplicate: {xfp}")
                         return "duplicate"

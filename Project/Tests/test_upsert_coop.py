@@ -49,6 +49,26 @@ class TestUpsertCoopListing(unittest.TestCase):
         self.assertEqual(replaced["sent_to_telegram_at"], 111.0)
         self.assertEqual(replaced["_id"], 42)
 
+    def test_buyable_flag_persists_on_insert(self):
+        # The dashboard's rentals-only view requires buyable:false to be stored.
+        h = _handler()
+        h.collection.find_one.return_value = None
+        h.upsert_coop_listing(_doc(buyable=False))
+        inserted = h.collection.insert_one.call_args[0][0]
+        self.assertIs(inserted["buyable"], False)
+
+    def test_buyable_flag_persists_on_xsrc_migration(self):
+        # A mygewo rental (buyable:false) that matches an existing Willhaben row must
+        # carry the rental flag onto it, else the buyable:false filter would hide it.
+        h = _handler()
+        h.collection.find_one.return_value = {
+            "_id": 7, "url": "https://willhaben.at/x", "coop_source": "willhaben"}
+        status = h.upsert_coop_listing(_doc(buyable=False))
+        self.assertEqual(status, "duplicate")
+        set_doc = h.collection.update_one.call_args[0][1]["$set"]
+        self.assertIs(set_doc["buyable"], False)
+        self.assertEqual(set_doc["coop_source"], "bautraeger_direct")
+
     def test_rejects_invalid_by_price_per_m2(self):
         h = _handler()
         # price_per_m2 = 10,000,000 — above any realistic GLOBAL_VALIDATION

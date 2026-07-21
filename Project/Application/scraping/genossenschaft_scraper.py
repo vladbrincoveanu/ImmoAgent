@@ -14,22 +14,29 @@ logger = logging.getLogger(__name__)
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; immo-scouter/1.0)"}
 
-# mygewo.at is itself the aggregator of ~30 Vienna Bauträger — one server-rendered
-# search page carries every developer's units already filtered server-side, so a
-# single adapter gives full parity (and stays in sync) instead of N brittle scrapers.
-# The filter URL is provided by the operator (the GitHub Action) via MYGEWO_SEARCH_URL;
-# the default below matches: ≥3 rooms · ≥51 m² · rent <€1000 · Wien.
-MYGEWO_DEFAULT_URL = (
-    "https://mygewo.at/genossenschaftswohnungen/suche"
-    "?rooms=3_4&area=2_3_4&rent=1_2_3&states=28_"
-)
+# mygewo.at is itself the aggregator of ~30 Vienna Bauträger (ÖVW, ARWAG, BWSG,
+# Neues Leben, …) — one server-rendered search page carries every developer's
+# units, so a single adapter gives full parity (and stays in sync) instead of N
+# brittle scrapers. We therefore rely on mygewo ALONE: the standalone ÖVW/
+# Familienwohnbau/BWSG adapters were a v1 pilot and are now redundant with mygewo
+# *and* had no rent/buy filter, so they leaked for-sale (Kauf) units. Disabled
+# below; their parse_* functions are kept for reference only.
+#
+# states=28_ is Wien (verified: the region filter returns Wien-only). We deliberately
+# apply NO room/size/rent narrowing in the URL — the user's own thresholds live in
+# coop_alerts.json (Telegram) and the dashboard — so we ingest the full Wien
+# inventory "newest first". Buy-option units are dropped in the parser (buyable flag),
+# NOT via the URL, so nothing for-sale ever reaches the DB.
+MYGEWO_DEFAULT_URL = "https://mygewo.at/genossenschaftswohnungen/suche?states=28_"
 
-# Filled in per adapter task from live inspection.
 SOURCES = {
-    "MYGEWO":          {"url": os.environ.get("MYGEWO_SEARCH_URL") or MYGEWO_DEFAULT_URL, "parser": "parse_mygewo"},
-    "ÖVW":             {"url": "https://www.oevw.at/suche/wohnen", "parser": "parse_oevw"},
-    "Familienwohnbau": {"url": "https://www.familienwohnbau.at/de/immobilien", "parser": "parse_familienwohnbau"},
-    "BWSG":            {"url": "https://www.bwsg.at/immobilien/immobilie-suchen/", "parser": "parse_bwsg"},
+    "MYGEWO": {"url": os.environ.get("MYGEWO_SEARCH_URL") or MYGEWO_DEFAULT_URL, "parser": "parse_mygewo"},
+    # Redundant with mygewo (which aggregates these builders) and unfiltered for
+    # buy-vs-rent — disabled to keep the co-op feed Wien-rentals-only. Re-enable
+    # only if a builder is found missing from mygewo AND its parser filters Kauf.
+    # "ÖVW":             {"url": "https://www.oevw.at/suche/wohnen", "parser": "parse_oevw"},
+    # "Familienwohnbau": {"url": "https://www.familienwohnbau.at/de/immobilien", "parser": "parse_familienwohnbau"},
+    # "BWSG":            {"url": "https://www.bwsg.at/immobilien/immobilie-suchen/", "parser": "parse_bwsg"},
 }
 
 
@@ -171,83 +178,152 @@ def parse_bwsg(html: str) -> List[Listing]:
 _MYGEWO_BASE = "https://mygewo.at"
 
 
-def _mygewo_bautraeger(card_text: str, href: str) -> Optional[str]:
-    """Developer name. mygewo prints "gefunden auf <domain>.at"; fall back to the
-    trailing "<name>-<uuid>" token in the offer slug (e.g. ...-oesw-<uuid>)."""
-    m = re.search(r"gefunden auf\s+([\w.\-]+\.at)", card_text, re.I)
-    if m:
-        return m.group(1).replace(".at", "").upper()
-    m = re.search(r"-([a-z]{2,10})-[0-9a-f]{8}-", href)
-    return m.group(1).upper() if m else None
+def _seroval_ref_bodies(html: str) -> dict:
+    """Map seroval ref id -> its object body text, for the `$R[NN]={…}` blocks
+    mygewo dehydrates into the page. company/city objects are deduplicated: the
+    first unit that references one inlines it as `$R[NN]={…}`, later units carry a
+    bare `$R[NN]`. Building this map lets us resolve either form uniformly.
+
+    Braces inside string values are skipped so nested objects (a city holds a
+    `state:$R[..]={…}`) balance correctly."""
+    bodies: dict = {}
+    for m in re.finditer(r"\$R\[(\d+)\]=\{", html):
+        i = m.end() - 1  # index of the opening brace
+        depth, j, n = 0, m.end() - 1, len(html)
+        while j < n:
+            c = html[j]
+            if c == '"':
+                j += 1
+                while j < n and html[j] != '"':
+                    j += 2 if html[j] == "\\" else 1
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        bodies[m.group(1)] = html[i:j + 1]
+    return bodies
+
+
+def _mygewo_units(html: str) -> List[dict]:
+    """Extract structured unit dicts from mygewo's SSR-dehydrated data.
+
+    mygewo (TanStack Start) server-renders the search results as a serialized
+    object graph in an inline script. Each unit is a `{id:…,manualData:…,…}`
+    literal carrying clean fields we can't get from the visible card text:
+    `buyable` (the authoritative rent-vs-buy flag), the builder's own `url`
+    (direct reservation page), zipcode, coordinates and amenity flags. We parse
+    that graph rather than the rendered cards so the rent/buy split is exact and
+    every builder link is captured without a per-detail fetch."""
+    bodies = _seroval_ref_bodies(html)
+    ref_company = {rid: mm.group(1) for rid, b in bodies.items()
+                   if "readable_url:" in b and (mm := re.search(r'\bname:"([^"]*)"', b))}
+    ref_zip = {rid: mm.group(1) for rid, b in bodies.items()
+               if (mm := re.search(r'zipcode:"(\d+)"', b))}
+
+    starts = [m.start() for m in re.finditer(r"\{id:\d+,manualData:", html)]
+    starts.append(len(html))
+    units: List[dict] = []
+    for k in range(len(starts) - 1):
+        seg = html[starts[k]:starts[k + 1]]
+        if "external_unit_id:" not in seg:
+            continue
+
+        def s(pat: str) -> Optional[str]:
+            mm = re.search(pat, seg)
+            return mm.group(1) if mm else None
+
+        city_ref = s(r"\bcity:\$R\[(\d+)\]")
+        company_ref = s(r"\bcompany:\$R\[(\d+)\]")
+        units.append({
+            "uuid": s(r'\buuid:"([0-9a-f-]{36})"'),
+            "url": s(r'\burl:"([^"]*)"'),
+            "buyable": s(r"\bbuyable:(!0|!1|true|false|null)") in ("!0", "true"),
+            "rooms": s(r'\brooms:"([\d.]+)"'),
+            "rent": s(r'\brent:"([\d.]+)"'),
+            "capital": s(r'\bcapital:"([\d.]+)"'),
+            "area": s(r'\barea:"([\d.]+)"'),
+            "street": s(r'\bstreet:"([^"]*)"'),
+            "zipcode": ref_zip.get(city_ref or ""),
+            "company": ref_company.get(company_ref or ""),
+            "has_balcony": s(r"\bhas_balcony:(!0|!1|null)") == "!0",
+            "has_terrace": s(r"\bhas_terrace:(!0|!1|null)") == "!0",
+            "has_garden": s(r"\bhas_garden:(!0|!1|null)") == "!0",
+            "has_loggia": s(r"\bhas_loggia:(!0|!1|null)") == "!0",
+        })
+    return units
+
+
+def _to_float(v: Optional[str]) -> Optional[float]:
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_mygewo(html: str) -> List[Listing]:
-    """Parse the mygewo.at aggregated co-op search results.
+    """Parse mygewo's aggregated co-op search into Wien RENTAL listings only.
 
-    Each result is an <a href="/genossenschaftswohnungen/angebot/…-<uuid>"> card
-    whose text reads like: "gefunden auf oesw.at · vor 13 Tagen · Miete: €945 ·
-    70,09 m² · 3 Zimmer · Kapital: €2.922 · Erzherzog-Karl-Straße 140 1220 Wien".
-    """
+    Buy-option units (`buyable`, e.g. "…miete-mit-eo") are dropped — the user
+    wants Genossenschaft rentals, never for-sale. Non-Wien rows (should already be
+    excluded by states=28_ in the URL) are dropped defensively via zipcode.
+
+    `url` stays the mygewo /angebot/ page (recovered from the rendered card that
+    shares the unit's uuid) — the SAME key earlier records used — so a re-poll
+    updates a unit in place instead of forking a duplicate. The builder's own
+    reservation page (the unit's `url` in the data) goes to `builder_url`, which the
+    dashboard and Telegram link to directly."""
     soup = BeautifulSoup(html, "html.parser")
-    out: List[Listing] = []
-    seen: set = set()
+    uuid_to_offer = {}
     for a in soup.select('a[href^="/genossenschaftswohnungen/angebot/"]'):
         href = a.get("href", "")
-        if not href or href in seen:
+        m = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", href)
+        if m:
+            uuid_to_offer[m.group(1)] = _MYGEWO_BASE + href
+
+    out: List[Listing] = []
+    dropped_buy = dropped_nonwien = 0
+    for u in _mygewo_units(html):
+        builder_url = u["url"]
+        if not builder_url:
             continue
-        seen.add(href)
-        text = a.get_text(" ", strip=True)
+        if u["buyable"]:                       # for-sale / rent-with-buy-option → not a rental
+            dropped_buy += 1
+            continue
+        zipcode = u["zipcode"]
+        if not (zipcode and re.match(r"^1\d{3}$", zipcode)):  # Wien PLZ are 1xxx
+            dropped_nonwien += 1
+            continue
 
-        area = _num_before_keyword(text, "m²")
-        rooms = _num_before_keyword(text, "Zimmer")
-        rent = None
-        m = re.search(r"Miete:\s*€?\s*([\d.,]+)", text)
-        if m:
-            rent = _parse_number(m.group(1))
-        if rooms is None and area is None and rent is None:
-            continue  # not a real unit card
+        url = uuid_to_offer.get(u["uuid"] or "", builder_url)
+        listing = _new_coop_listing(url, u["company"])
+        listing.builder_url = builder_url      # the builder's own reservation page
+        listing.buyable = False                # every emitted unit is a rental
+        listing.area_m2 = _to_float(u["area"])
+        listing.rooms = _to_float(u["rooms"])
+        listing.price_total = _to_float(u["rent"])
+        listing.own_funds = _to_float(u["capital"])
+        listing.bezirk = zipcode
+        street = u["street"]
+        city = f"{zipcode} Wien"
+        listing.address = f"{street}, {city}" if street else city
+        listing.balcony_terrace = u["has_balcony"] or u["has_terrace"]
+        feats = [name for flag, name in (
+            (u["has_balcony"], "Balkon"), (u["has_terrace"], "Terrasse"),
+            (u["has_loggia"], "Loggia"), (u["has_garden"], "Garten")) if flag]
+        listing.special_features = feats
 
-        url = href if href.startswith("http") else _MYGEWO_BASE + href
-        bautraeger = _mygewo_bautraeger(text, href)
-        listing = _new_coop_listing(url, bautraeger)
-        listing.area_m2 = area
-        listing.rooms = rooms
-        listing.price_total = rent
-
-        m = re.search(r"Kapital:\s*€?\s*([\d.,]+)", text)
-        if m:
-            listing.own_funds = _parse_number(m.group(1))
-
-        # Address: mygewo splits it across two <p>s — the street sits in the
-        # <p> immediately preceding the "<PLZ> Wien , Wien" line.
-        ps = a.find_all("p")
-        for i, p in enumerate(ps):
-            ptext = p.get_text(" ", strip=True)
-            plz_m = re.search(r"(\d{4})\s+Wien", ptext)
-            if not plz_m:
-                continue
-            listing.bezirk = plz_m.group(1)
-            city = f"{plz_m.group(1)} Wien"
-            street = ps[i - 1].get_text(" ", strip=True) if i > 0 else None
-            # guard: preceding <p> must look like a street, not a meta/price line
-            if street and not re.search(r"€|m²|Miete|Kapital|Zimmer|gefunden", street):
-                listing.address = f"{street}, {city}"
-            else:
-                listing.address = city
-            break
-
-        if re.search(r"Kaufoption|Kaufopt|Kaufmöglichkeit|kaufoption", text, re.I) \
-                or re.search(r"kauf", href, re.I):
-            listing.special_features = ["Kaufoption"]
-
-        parts = [f"{int(rooms)} Zimmer" if rooms else None,
-                 f"{area:.0f} m²" if area else None,
-                 bautraeger]
-        summary = " · ".join(p for p in parts if p)
-        listing.title = (listing.address + (f" – {summary}" if summary else "")) \
-            if listing.address else (summary or "Genossenschaftswohnung")
+        rooms, area = listing.rooms, listing.area_m2
+        summary = " · ".join(p for p in (
+            f"{int(rooms)} Zimmer" if rooms else None,
+            f"{area:.0f} m²" if area else None,
+            u["company"]) if p)
+        listing.title = f"{listing.address} – {summary}" if summary else listing.address
         out.append(listing)
-    logger.info(f"🔍 mygewo: {len(out)} listing(s) parsed")
+    logger.info(f"🔍 mygewo: {len(out)} rental(s) parsed "
+                f"(dropped {dropped_buy} buy-option, {dropped_nonwien} non-Wien)")
     return out
 
 
