@@ -11,13 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Require TELEGRAM_COOP_CHANNEL_ID secret
+      - name: Warn if TELEGRAM_COOP_CHANNEL_ID secret is missing
         env:
           COOP_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
         run: |
           if [ -z "$COOP_ID" ]; then
-            echo "::error::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — coop alerts would silently no-op. Add it under Settings → Secrets."
-            exit 1
+            # Non-fatal: run_coop.py still polls + upserts (feeds the /coop dashboard);
+            # only the Telegram alert is skipped. Add the secret under Settings → Secrets
+            # to re-enable co-op alerts.
+            echo "::warning::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — polling/upserts continue, Telegram co-op alerts are DISABLED until it is set."
           fi
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
