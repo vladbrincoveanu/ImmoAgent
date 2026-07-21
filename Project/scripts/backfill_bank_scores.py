@@ -31,50 +31,52 @@ def main():
     print(f"Backfilling {total} listings (belehnungswert_factor missing)")
 
     processed = updated = skipped = 0
-    ops = []
 
     try:
-        cursor = col.find(query, no_cursor_timeout=True).batch_size(BATCH_SIZE)
-        for doc in cursor:
-            processed += 1
+        # Paginate by re-querying instead of a long-lived server cursor:
+        # every processed doc gets belehnungswert_factor set, so it drops out
+        # of `query` and the next find() returns the following unprocessed batch.
+        # This avoids no_cursor_timeout=True, which Atlas shared tiers disallow.
+        while True:
+            batch = list(col.find(query).limit(BATCH_SIZE))
+            if not batch:
+                break
 
-            listing = SimpleNamespace(
-                price_total=doc.get('price_total'),
-                energy_class=doc.get('energy_class'),
-                year_built=doc.get('year_built'),
-                facade_renovated=doc.get('facade_renovated'),
-                roof_renovated=doc.get('roof_renovated'),
-                window_type=doc.get('window_type'),
-                hwb_value=doc.get('hwb_value'),
-                condition=doc.get('condition'),
-                title=doc.get('title'),
-            )
+            ops = []
+            for doc in batch:
+                processed += 1
 
-            bank = compute_bank_score(listing)
+                listing = SimpleNamespace(
+                    price_total=doc.get('price_total'),
+                    energy_class=doc.get('energy_class'),
+                    year_built=doc.get('year_built'),
+                    facade_renovated=doc.get('facade_renovated'),
+                    roof_renovated=doc.get('roof_renovated'),
+                    window_type=doc.get('window_type'),
+                    hwb_value=doc.get('hwb_value'),
+                    condition=doc.get('condition'),
+                    title=doc.get('title'),
+                )
 
-            if bank.estimated_down_pct is None:
-                skipped += 1
+                bank = compute_bank_score(listing)
 
-            ops.append(UpdateOne(
-                {'_id': doc['_id']},
-                {'$set': {
-                    'belehnungswert_factor':   bank.belehnungswert_factor,
-                    'estimated_down_pct':      bank.estimated_down_pct,
-                    'estimated_down_pct_kimv': bank.estimated_down_pct_kimv,
-                    'estimated_equity_eur':    bank.estimated_equity_eur,
-                    'bank_score_confidence':   bank.bank_score_confidence,
-                }}
-            ))
+                if bank.estimated_down_pct is None:
+                    skipped += 1
 
-            if len(ops) >= BATCH_SIZE:
-                col.bulk_write(ops)
-                updated += len(ops)
-                ops = []
-                print(f"  {processed}/{total} — {updated} written")
+                ops.append(UpdateOne(
+                    {'_id': doc['_id']},
+                    {'$set': {
+                        'belehnungswert_factor':   bank.belehnungswert_factor,
+                        'estimated_down_pct':      bank.estimated_down_pct,
+                        'estimated_down_pct_kimv': bank.estimated_down_pct_kimv,
+                        'estimated_equity_eur':    bank.estimated_equity_eur,
+                        'bank_score_confidence':   bank.bank_score_confidence,
+                    }}
+                ))
 
-        if ops:
             col.bulk_write(ops)
             updated += len(ops)
+            print(f"  {processed}/{total} — {updated} written")
 
     finally:
         mongo.close()
