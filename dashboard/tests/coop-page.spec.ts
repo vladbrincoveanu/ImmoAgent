@@ -15,9 +15,10 @@ test.describe('/coop co-op listings page', () => {
     await expect(page.getByRole('heading', { name: 'Genossenschaftswohnungen' })).toBeVisible();
 
     // RENTALS-ONLY: exactly the two confirmed-rental (buyable:false) units. All
-    // four controls excluded — the buy-option unit (buyable:true), the legacy row
-    // without a buyable flag, the non-coop purchase, and the mis-tagged Willhaben
-    // "co-op" (coop_source=willhaben).
+    // six controls excluded — the buy-option unit (buyable:true), the legacy row
+    // without a buyable flag, the non-coop purchase, the mis-tagged Willhaben
+    // "co-op" (coop_source=willhaben), a real Wien rental outside the livable-area
+    // floor (garage/storage), and a real rental outside Wien entirely.
     const items = page.getByTestId('coop-item');
     await expect(items).toHaveCount(2);
     await expect(page.getByTestId('coop-count')).toHaveText('2 Treffer');
@@ -25,6 +26,8 @@ test.describe('/coop co-op listings page', () => {
     await expect(page.locator('body')).not.toContainText('WILLHABEN-COOP-CONTROL');
     await expect(page.locator('body')).not.toContainText('BUYOPTION-CONTROL');
     await expect(page.locator('body')).not.toContainText('LEGACY-CONTROL');
+    await expect(page.locator('body')).not.toContainText('STEYR-CONTROL');
+    await expect(page.locator('body')).not.toContainText('GARAGE-CONTROL');
     // No buy-option badge exists anywhere on this rentals-only page.
     await expect(page.getByTestId('coop-buyoption')).toHaveCount(0);
 
@@ -56,22 +59,39 @@ test.describe('/coop co-op listings page', () => {
     expect(errors).toHaveLength(0);
   });
 
-  test('district / rooms / rent filters narrow the list via GET params', async ({ page }) => {
+  test('district / rooms / rent / capital / feature / builder filters narrow the list via GET params', async ({ page }) => {
     // District filter: only the 1130 unit remains.
     await page.goto('/coop?bezirk=1130');
     await expect(page.getByTestId('coop-item')).toHaveCount(1);
     await expect(page.getByTestId('coop-count')).toHaveText('1 Treffer');
     await expect(page.getByTestId('coop-address')).toContainText('Thomas-Morus-Gasse 2-12');
 
-    // Max-rent filter: €600 keeps the 1130 (€550) unit, drops the 1220 (€945) one.
-    await page.goto('/coop?maxRent=600');
+    // Rent bucket €500–749 keeps the 1130 (€550) unit, drops the 1220 (€945) one.
+    await page.goto('/coop?rent=500-749');
     await expect(page.getByTestId('coop-item')).toHaveCount(1);
     await expect(page.getByTestId('coop-address')).toContainText('Thomas-Morus-Gasse 2-12');
 
-    // Both seeded rentals are 3-Zimmer, so "ab 4 Zimmer" yields the empty state.
-    await page.goto('/coop?minRooms=4');
+    // Both seeded rentals are 3-Zimmer, so the "4+" Zimmer bucket yields the empty state.
+    await page.goto('/coop?rooms=4');
     await expect(page.getByTestId('coop-item')).toHaveCount(0);
     await expect(page.getByTestId('coop-empty')).toBeVisible();
+
+    // Only the 1220 unit has a Balkon.
+    await page.goto('/coop?feature=Balkon');
+    await expect(page.getByTestId('coop-item')).toHaveCount(1);
+    await expect(page.getByTestId('coop-address')).toContainText('Erzherzog-Karl-Straße 140');
+
+    // Freiflächen is OR-within-category, like mygewo's own checkboxes (confirmed
+    // live: checking a 2nd amenity there WIDENS the count, it doesn't narrow it).
+    // 1220 has Balkon, 1130 has Terrasse — checking both must return BOTH units,
+    // not the (empty) intersection an AND implementation would produce.
+    await page.goto('/coop?feature=Balkon&feature=Terrasse');
+    await expect(page.getByTestId('coop-item')).toHaveCount(2);
+
+    // Bauträger filter: only OEVW's 1130 unit remains.
+    await page.goto('/coop?bautraeger=OEVW');
+    await expect(page.getByTestId('coop-item')).toHaveCount(1);
+    await expect(page.getByTestId('coop-address')).toContainText('Thomas-Morus-Gasse 2-12');
 
     // The district dropdown is built from present districts and preserves selection.
     await page.goto('/coop?bezirk=1220');
