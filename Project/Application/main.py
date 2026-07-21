@@ -774,8 +774,10 @@ def main():
 
             # Co-op listings that passed the cooldown check are eligible for the
             # co-op channel broadcast below, independent of the main channel's
-            # score threshold.
-            if listing.is_genossenschaft:
+            # score threshold. Willhaben-sourced co-ops are excluded: the co-op
+            # surfaces are builder-direct only (they'd link to Willhaben, not the
+            # builder's reservation page, and can leak mis-tagged for-sale units).
+            if listing.is_genossenschaft and listing.coop_source != 'willhaben':
                 coop_broadcast_candidates.append(listing)
 
             # Calculate score for the listing (always needed for MongoDB storage)

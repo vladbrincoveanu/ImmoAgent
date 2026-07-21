@@ -82,4 +82,5 @@ class Listing:
     bautraeger:             Optional[str]   = None   # "ÖVW" | "BWSG" | "Familienwohnbau" | ...
     allocation_model:       Optional[str]   = None   # 'first_come' | 'wohn_ticket'
     coop_source:            Optional[str]   = None   # 'bautraeger_direct' | 'willhaben'
+    builder_url:            Optional[str]   = None   # builder's own reservation URL (mygewo → "Original-Anzeige")
     content_fingerprint_xsrc: Optional[str] = None   # source-independent dedup key

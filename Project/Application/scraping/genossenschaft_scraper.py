@@ -251,6 +251,33 @@ def parse_mygewo(html: str) -> List[Listing]:
     return out
 
 
+def resolve_builder_url(offer_url: str) -> Optional[str]:
+    """Resolve a mygewo /angebot/ URL to the builder's own reservation page.
+
+    mygewo detail pages (TanStack SSR) carry an "Original-Anzeige" anchor linking
+    straight to the Bauträger's listing (wohnen.at, arwag.at, …) — that's where a
+    unit is actually reserved. bs4's find(string=…) misses it (the anchor wraps
+    nested markup), so scan anchors by visible text. Fall back to the builder's
+    homepage ("gefunden auf <domain>.at") when the deep link is absent, else None."""
+    try:
+        html = fetch(offer_url)
+    except Exception as e:
+        logger.warning(f"builder-url fetch failed for {offer_url}: {e}")
+        return None
+    soup = BeautifulSoup(html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        if "Original-Anzeige" in a.get_text():
+            href = a["href"]
+            if href.startswith("http") and "mygewo.at" not in href:
+                return href
+    m = re.search(r"gefunden auf\s+([\w.\-]+\.at)", html, re.I)
+    if m:
+        domain = m.group(1)
+        domain = domain[4:] if domain.startswith("www.") else domain
+        return "https://www." + domain
+    return None
+
+
 def scrape_all() -> List[Listing]:
     out: List[Listing] = []
     for name, cfg in SOURCES.items():

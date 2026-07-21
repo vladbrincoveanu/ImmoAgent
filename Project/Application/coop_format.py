@@ -14,7 +14,8 @@ def format_coop_message(l: Listing) -> str:
     Telegram's HTML parser rejects unescaped &/</> in the message body."""
     bautraeger = html.escape(l.bautraeger) if l.bautraeger else None
     bezirk = html.escape(l.bezirk) if l.bezirk else None
-    url = html.escape(l.url, quote=False) if l.url else ''
+    link = l.builder_url or l.url  # prefer the builder's own reservation page
+    url = html.escape(link, quote=False) if link else ''
     ppm2 = f"{l.price_total / l.area_m2:.1f}€/m²" if (l.price_total and l.area_m2) else "–"
     tags = " ".join(t for t in [f"#{bezirk}" if bezirk else None,
                                 f"#{bautraeger}" if bautraeger else None] if t)
