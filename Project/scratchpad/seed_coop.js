@@ -5,6 +5,9 @@
 //   - legacy rows scraped before the buyable flag existed (field absent)
 //   - Willhaben-sourced co-ops (coop_source:'willhaben')
 //   - normal purchase listings (is_genossenschaft:false)
+//   - non-Wien rows (bezirk not a 1xxx PLZ) — the old standalone ÖVW/
+//     Familienwohnbau/BWSG adapters had no geo scoping
+//   - garage/storage rows mis-tagged as housing (area_m2 below the livable floor)
 const now = Math.floor(Date.now() / 1000);
 db = db.getSiblingDB('immo');
 db.listings.deleteMany({});
@@ -15,7 +18,7 @@ db.listings.insertMany([
     title: 'Erzherzog-Karl-Straße 140, 1220 Wien – 3 Zimmer · 70 m² · OESW',
     address: 'Erzherzog-Karl-Straße 140, 1220 Wien',
     bezirk: '1220', rooms: 3, area_m2: 70.09, price_total: 945, own_funds: 2922,
-    bautraeger: 'OESW', special_features: [], is_genossenschaft: true, buyable: false,
+    bautraeger: 'OESW', special_features: ['Balkon'], is_genossenschaft: true, buyable: false,
     source_enum: 'genossenschaft', coop_source: 'bautraeger_direct',
     url_is_valid: true, processed_at: now - 3 * 86400,
   },
@@ -29,6 +32,24 @@ db.listings.insertMany([
     source_enum: 'genossenschaft', coop_source: 'bautraeger_direct',
     builder_url: 'https://www.oevw.at/suche/6127-leopoldauer-strasse-157a-2-23',
     url_is_valid: true, processed_at: now - 3600,
+  },
+  {
+    // EXCLUDED: real rental (buyable:false) but OUTSIDE Wien — the exact class of
+    // bug the user hit (a Steyr/Familienwohnbau garage leaking onto /coop).
+    url: 'https://mygewo.at/genossenschaftswohnungen/angebot/STEYR-CONTROL-nonwien',
+    title: 'STEYR-CONTROL Schweizergasse 2a', address: '4400 Steyr, Schweizergasse 2a',
+    bezirk: '4400', rooms: null, area_m2: 12.5, price_total: 60, is_genossenschaft: true,
+    buyable: false, bautraeger: 'Familienwohnbau', source_enum: 'genossenschaft',
+    coop_source: 'bautraeger_direct', url_is_valid: true, processed_at: now,
+  },
+  {
+    // EXCLUDED: real Wien rental (buyable:false) but too small to be housing
+    // (a parking/storage unit mis-tagged as a Wohnung).
+    url: 'https://mygewo.at/genossenschaftswohnungen/angebot/GARAGE-CONTROL-1100',
+    title: 'GARAGE-CONTROL 1100 Wien', address: '1100 Wien', bezirk: '1100',
+    rooms: 1, area_m2: 12.5, price_total: 60, is_genossenschaft: true, buyable: false,
+    bautraeger: 'Familienwohnbau', source_enum: 'genossenschaft',
+    coop_source: 'bautraeger_direct', url_is_valid: true, processed_at: now,
   },
   {
     // EXCLUDED: buy-option unit (buyable:true) — the exact thing the user rejects.
