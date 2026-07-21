@@ -14,11 +14,14 @@ test.describe('/coop co-op listings page', () => {
     // Page + heading present
     await expect(page.getByRole('heading', { name: 'Genossenschaftswohnungen' })).toBeVisible();
 
-    // Exactly the two seeded co-op units (the willhaben purchase control is excluded)
+    // Exactly the two builder-direct co-op units. Both excluded controls: the
+    // non-coop purchase listing AND the mis-tagged Willhaben "co-op" (coop_source
+    // = willhaben) — /coop is builder-direct only.
     const items = page.getByTestId('coop-item');
     await expect(items).toHaveCount(2);
     await expect(page.getByTestId('coop-count')).toHaveText('2 Treffer');
     await expect(page.locator('body')).not.toContainText('450.000');
+    await expect(page.locator('body')).not.toContainText('WILLHABEN-COOP-CONTROL');
 
     // Newest first: 1130 OEVW (processed 1h ago) before 1220 OESW (3 days ago)
     const first = items.nth(0);
@@ -37,9 +40,16 @@ test.describe('/coop co-op listings page', () => {
     // 1220 unit has no buy option
     await expect(second.getByTestId('coop-buyoption')).toHaveCount(0);
 
-    // Each card links out to the mygewo offer page
-    const href = await first.getByRole('link').first().getAttribute('href');
-    expect(href).toContain('mygewo.at/genossenschaftswohnungen/angebot/');
+    // The 1130 unit has a resolved builder_url → links to the builder's own
+    // reservation page, NOT to mygewo and NOT to willhaben.
+    const firstHref = await first.getByRole('link').first().getAttribute('href');
+    expect(firstHref).toBe('https://www.oevw.at/suche/6127-leopoldauer-strasse-157a-2-23');
+    expect(firstHref).not.toContain('mygewo.at');
+    expect(firstHref).not.toContain('willhaben');
+
+    // The 1220 unit has no builder_url → falls back to the mygewo offer page.
+    const secondHref = await second.getByRole('link').first().getAttribute('href');
+    expect(secondHref).toContain('mygewo.at/genossenschaftswohnungen/angebot/');
 
     expect(errors).toHaveLength(0);
   });

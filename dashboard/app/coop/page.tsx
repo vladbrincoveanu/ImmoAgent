@@ -19,6 +19,7 @@ type CoopRow = {
   own_funds: number | null;
   bautraeger: string | null;
   buy_option: boolean;
+  builder_url: string | null;
   processed_at: number | null;
 };
 
@@ -30,7 +31,10 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
       .collection<Document>('listings')
       // Co-op RENTALS have a low €/m² and no purchase price, so the purchase-tuned
       // map filters don't apply here — just show valid co-op units, newest first.
-      .find({ is_genossenschaft: true, url_is_valid: { $ne: false } })
+      // Builder-direct only: Willhaben-sourced rows are excluded because they link
+      // to Willhaben (not the builder's reservation page) and can leak mis-tagged
+      // for-sale (Eigentum) units onto this rentals-only page.
+      .find({ is_genossenschaft: true, url_is_valid: { $ne: false }, coop_source: { $ne: 'willhaben' } })
       .sort({ processed_at: -1, _id: -1 })
       .limit(100)
       .toArray();
@@ -47,6 +51,7 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
         own_funds: typeof d.own_funds === 'number' ? d.own_funds : null,
         bautraeger: (d.bautraeger as string) ?? null,
         buy_option: feats.some((f) => /kaufoption/i.test(f)),
+        builder_url: (d.builder_url as string) ?? null,
         processed_at: typeof d.processed_at === 'number' ? d.processed_at : null,
       };
     });
@@ -126,7 +131,7 @@ export default async function CoopPage() {
           return (
             <li key={r.url} data-testid="coop-item">
               <a
-                href={r.url}
+                href={r.builder_url || r.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block rounded-lg border border-[#E8E4E0] bg-white px-4 py-3 transition-colors hover:bg-[#FBFAF8]"

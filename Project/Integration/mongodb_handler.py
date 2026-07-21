@@ -240,6 +240,7 @@ class MongoDBHandler:
                                     "url": listing.get('url'),
                                     "coop_source": 'bautraeger_direct',
                                     "bautraeger": listing.get('bautraeger'),
+                                    "builder_url": listing.get('builder_url'),
                                 }})
                         logging.info(f"🚫 coop xsrc duplicate: {xfp}")
                         return "duplicate"

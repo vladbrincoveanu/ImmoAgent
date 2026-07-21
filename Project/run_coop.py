@@ -167,6 +167,12 @@ def run(no_send: bool = False) -> int:
         return 1
 
     for listing in seen:
+        # mygewo units store the aggregator URL; resolve the builder's own
+        # reservation page once (reuse a previously-resolved value from the DB so
+        # we only fetch a detail page for genuinely new offers).
+        if "mygewo.at" in (listing.url or "") and not listing.builder_url:
+            existing = handler.get_listing(listing.url) or {}
+            listing.builder_url = existing.get("builder_url") or coop.resolve_builder_url(listing.url)
         handler.upsert_coop_listing(_to_doc(listing))
 
     sent = 0
