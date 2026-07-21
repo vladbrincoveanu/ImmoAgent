@@ -254,6 +254,10 @@ class MongoDBHandler:
                 for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
                     if k in existing_by_url:
                         listing[k] = existing_by_url[k]
+                # Keep a previously-resolved builder_url if this update lacks one
+                # (only run_coop resolves it; other write paths would else wipe it).
+                if not listing.get('builder_url') and existing_by_url.get('builder_url'):
+                    listing['builder_url'] = existing_by_url['builder_url']
                 self.collection.replace_one({"_id": existing_by_url['_id']}, listing)
                 return "updated"
 
