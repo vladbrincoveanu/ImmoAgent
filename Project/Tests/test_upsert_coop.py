@@ -71,9 +71,12 @@ class TestUpsertCoopListing(unittest.TestCase):
 
     def test_rejects_invalid_by_price_per_m2(self):
         h = _handler()
+        # Co-op RENTALS are exempt from the purchase €/m² floor (see
+        # is_valid_listing_data), so this must be a buyable unit — an actual
+        # purchase — to still exercise the floor.
         # price_per_m2 = 10,000,000 — above any realistic GLOBAL_VALIDATION
         # max (robust regardless of the exact min, which could be 0).
-        status = h.upsert_coop_listing(_doc(price_total=10_000_000.0, area_m2=1.0))
+        status = h.upsert_coop_listing(_doc(price_total=10_000_000.0, area_m2=1.0, buyable=True))
         self.assertEqual(status, "invalid")
         h.collection.insert_one.assert_not_called()
 
