@@ -85,3 +85,4 @@ class Listing:
     builder_url:            Optional[str]   = None   # builder's own reservation URL (mygewo → "Original-Anzeige")
     buyable:                Optional[bool]  = None   # mygewo "mit Kaufoption"; True = purchase-option unit (excluded from the rent-only feed)
     content_fingerprint_xsrc: Optional[str] = None   # source-independent dedup key
+    first_seen_at:          Optional[str]   = None   # ISO8601; earliest date the source recorded this unit (mygewo: `first_seen`) — proxy for a "posted" date, not the Bauträger's own publish date

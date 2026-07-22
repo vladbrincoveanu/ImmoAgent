@@ -30,7 +30,8 @@ def _ref(i):
 
 def _unit(i, uuid, url, rooms, rent, area, zip_node, company_node, *,
           buyable=_NULL, capital="1000.00", street="Teststrasse 1",
-          balcony=_NULL, terrace=_NULL):
+          balcony=_NULL, terrace=_NULL, coordinates=_NULL,
+          first_seen=_str("2024-01-01T00:00:00.000Z")):
     return _obj(i, {
         "uuid": _str(uuid), "url": _str(url), "buyable": buyable,
         "rooms": _str(rooms), "rent": _str(rent), "capital": _str(capital),
@@ -38,6 +39,7 @@ def _unit(i, uuid, url, rooms, rent, area, zip_node, company_node, *,
         "has_balcony": balcony, "has_terrace": terrace,
         "has_garden": _NULL, "has_loggia": _NULL,
         "company": company_node, "city": zip_node,
+        "coordinates": coordinates, "first_seen": first_seen,
     })
 
 
@@ -75,9 +77,12 @@ def test_seroval_decode_resolves_back_references():
 
 
 def test_rpc_units_map_to_wien_rentals_and_drop_buy_and_nonwien():
+    # Real mygewo EWKB point (little-endian, SRID 4326) -> lat 48.25254, lon 16.43728.
+    ewkb = "0101000020E6100000E4310395F16F30404777103B53204840"
     resp = _response([
         _unit(10, "u1", "https://oevw.at/rental", "2.00", "600.00", "60.00",
-              _city(60, "1210"), _company(50, "ÖVW"), terrace=_TRUE),
+              _city(60, "1210"), _company(50, "ÖVW"), terrace=_TRUE,
+              coordinates=_str(ewkb), first_seen=_str("2026-07-20T12:08:02.203Z")),
         _unit(11, "u2", "https://wohnen.at/buy", "2.00", "800.00", "55.00",
               _city(61, "1220"), _company(51, "Neues Leben"), buyable=_TRUE),
         _unit(12, "u3", "https://gedesag.at/nö", "3.00", "700.00", "75.00",
@@ -92,6 +97,10 @@ def test_rpc_units_map_to_wien_rentals_and_drop_buy_and_nonwien():
     assert l.buyable is False and l.is_genossenschaft is True
     assert l.builder_url == "https://oevw.at/rental"
     assert "Terrasse" in (l.special_features or []) and l.balcony_terrace is True
+    assert l.coordinates is not None
+    assert round(l.coordinates.lat, 4) == 48.2525 and round(l.coordinates.lon, 4) == 16.4373
+    assert l.coordinate_source == "exact"
+    assert l.first_seen_at == "2026-07-20T12:08:02.203Z"
 
 
 def test_fetch_all_mygewo_pages_until_complete_and_dedups(monkeypatch):

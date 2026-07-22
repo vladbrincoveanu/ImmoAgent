@@ -1,15 +1,18 @@
 """Genossenschaft (co-op) Bauträger scrapers — v1 pilot: ÖVW, Familienwohnbau, BWSG.
 Concrete parsers (no shared engine yet). Each parse_<x>(html) -> List[Listing].
 Post-pilot: review HTML variance to decide whether to extract a shared engine."""
+import binascii
 import json
 import logging
 import os
 import re
+import struct
 import requests
 from typing import List, Optional, Tuple
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 from Domain.listing import Listing
+from Domain.location import Coordinates
 from Domain.sources import Source
 
 logger = logging.getLogger(__name__)
@@ -273,6 +276,8 @@ def _mygewo_units(html: str) -> List[dict]:
             "has_terrace": s(r"\bhas_terrace:(!0|!1|null)") == "!0",
             "has_garden": s(r"\bhas_garden:(!0|!1|null)") == "!0",
             "has_loggia": s(r"\bhas_loggia:(!0|!1|null)") == "!0",
+            "coordinates": s(r'\bcoordinates:"([^"]*)"'),
+            "first_seen": s(r'\bfirst_seen:"([^"]*)"'),
         })
     return units
 
@@ -281,6 +286,27 @@ def _to_float(v: Optional[str]) -> Optional[float]:
     try:
         return float(v) if v not in (None, "") else None
     except (TypeError, ValueError):
+        return None
+
+
+def _decode_ewkb_point(hex_str: Optional[str]) -> Optional[Tuple[float, float]]:
+    """Decode mygewo's `coordinates` field — a PostGIS EWKB-encoded POINT
+    (little-endian, SRID 4326 = WGS84) — into (lat, lon).
+
+    Layout: 1B byte-order, 4B geometry type (high bit 0x20000000 flags an SRID
+    follows), optional 4B SRID, then 8B X (lon) + 8B Y (lat) doubles. Returns
+    None on any malformed/unexpected input — one bad listing must not abort the
+    whole crawl."""
+    if not hex_str:
+        return None
+    try:
+        raw = binascii.unhexlify(hex_str)
+        order = "<" if raw[0] == 1 else ">"
+        geom_type = struct.unpack(order + "I", raw[1:5])[0]
+        offset = 9 if geom_type & 0x20000000 else 5  # skip 4B SRID if present
+        lon, lat = struct.unpack(order + "dd", raw[offset:offset + 16])
+        return (lat, lon)
+    except (struct.error, binascii.Error, IndexError, ValueError):
         return None
 
 
@@ -342,6 +368,15 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
             (u["has_balcony"], "Balkon"), (u["has_terrace"], "Terrasse"),
             (u["has_loggia"], "Loggia"), (u["has_garden"], "Garten")) if flag]
         listing.special_features = feats
+
+        latlon = _decode_ewkb_point(u.get("coordinates"))
+        if latlon:
+            try:
+                listing.coordinates = Coordinates(lat=latlon[0], lon=latlon[1])
+                listing.coordinate_source = "exact"
+            except ValueError:  # out-of-range decode (corrupt geometry) — skip, not fatal
+                pass
+        listing.first_seen_at = u.get("first_seen")
 
         rooms, area = listing.rooms, listing.area_m2
         summary = " · ".join(p for p in (
@@ -471,6 +506,8 @@ def _mygewo_units_from_rpc(units_json: List[dict]) -> List[dict]:
             "has_terrace": u.get("has_terrace") is True,
             "has_garden": u.get("has_garden") is True,
             "has_loggia": u.get("has_loggia") is True,
+            "coordinates": u.get("coordinates"),
+            "first_seen": u.get("first_seen"),
         })
     return out
 
