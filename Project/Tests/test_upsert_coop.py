@@ -64,10 +64,38 @@ class TestUpsertCoopListing(unittest.TestCase):
         h.collection.find_one.return_value = {
             "_id": 7, "url": "https://willhaben.at/x", "coop_source": "willhaben"}
         status = h.upsert_coop_listing(_doc(buyable=False))
+        self.assertEqual(status, "updated")
+        replaced = h.collection.replace_one.call_args[0][1]
+        self.assertIs(replaced["buyable"], False)
+        self.assertEqual(replaced["coop_source"], "bautraeger_direct")
+        self.assertEqual(replaced["_id"], 7)
+
+    def test_xsrc_migration_refreshes_all_fields_and_keeps_send_state(self):
+        # The migration used to $set only 4 fields, so rent/area/features stayed
+        # frozen at the Willhaben values forever. It must replace wholesale —
+        # while still carrying send-state so no re-spam.
+        h = _handler()
+        h.collection.find_one.return_value = {
+            "_id": 7, "url": "https://willhaben.at/x", "coop_source": "willhaben",
+            "area_m2": 55.0, "price_total": 999.0, "sent_to_telegram": True,
+            "sent_to_telegram_at": 111.0, "builder_url": "https://oevw.at/old"}
+        status = h.upsert_coop_listing(_doc(area_m2=70.0, buyable=False))
+        self.assertEqual(status, "updated")
+        replaced = h.collection.replace_one.call_args[0][1]
+        self.assertEqual(replaced["area_m2"], 70.0)             # fresh, not 55
+        self.assertEqual(replaced["url"], "https://www.oevw.at/a")
+        self.assertTrue(replaced["sent_to_telegram"])            # not reset!
+        self.assertEqual(replaced["sent_to_telegram_at"], 111.0)
+        self.assertEqual(replaced["builder_url"], "https://oevw.at/old")  # kept
+
+    def test_xsrc_match_from_willhaben_never_downgrades_a_direct_row(self):
+        h = _handler()
+        h.collection.find_one.return_value = {
+            "_id": 8, "url": "https://oevw.at/a", "coop_source": "bautraeger_direct"}
+        status = h.upsert_coop_listing(
+            _doc(url="https://willhaben.at/y", coop_source="willhaben"))
         self.assertEqual(status, "duplicate")
-        set_doc = h.collection.update_one.call_args[0][1]["$set"]
-        self.assertIs(set_doc["buyable"], False)
-        self.assertEqual(set_doc["coop_source"], "bautraeger_direct")
+        h.collection.replace_one.assert_not_called()
 
     def test_rejects_invalid_by_price_per_m2(self):
         h = _handler()

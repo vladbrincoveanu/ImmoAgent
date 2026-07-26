@@ -224,6 +224,19 @@ class MongoDBHandler:
             print(f"MongoDB insert error: {e}")
             return False
 
+    def _replace_preserving_state(self, existing: Dict, listing: Dict) -> None:
+        """Replace an existing co-op doc with fresh data, carrying over the state
+        the scrape can't know: send-state (NEVER reset on re-poll → no 5-minute
+        re-spam) and a previously-resolved builder_url (only run_coop resolves
+        it; other write paths would else wipe it)."""
+        listing['_id'] = existing['_id']
+        for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
+            if k in existing:
+                listing[k] = existing[k]
+        if not listing.get('builder_url') and existing.get('builder_url'):
+            listing['builder_url'] = existing['builder_url']
+        self.collection.replace_one({"_id": existing['_id']}, listing)
+
     def upsert_coop_listing(self, listing: Dict) -> str:
         """Upsert a co-op listing WITHOUT the price>0 gate (co-op units often
         have no purchase price). Mirrors the co-op branch of
@@ -249,17 +262,13 @@ class MongoDBHandler:
                     if existing and existing.get('url') != listing.get('url'):
                         if (listing.get('coop_source') == 'bautraeger_direct'
                                 and existing.get('coop_source') == 'willhaben'):
-                            self.collection.update_one(
-                                {"_id": existing["_id"]},
-                                {"$set": {
-                                    "url": listing.get('url'),
-                                    "coop_source": 'bautraeger_direct',
-                                    "bautraeger": listing.get('bautraeger'),
-                                    "builder_url": listing.get('builder_url'),
-                                    # carry the rental flag so the dashboard's
-                                    # buyable:false filter still shows this unit
-                                    "buyable": listing.get('buyable'),
-                                }})
+                            # Migrate the Willhaben row to the Bauträger-direct
+                            # one: replace wholesale (not a 4-field $set) so rent,
+                            # area, features, coordinates etc. don't go stale.
+                            listing['content_fingerprint'] = compute_content_fingerprint(listing)
+                            self._replace_preserving_state(existing, listing)
+                            logging.info(f"🔁 coop xsrc migrated to bautraeger_direct: {xfp}")
+                            return "updated"
                         logging.info(f"🚫 coop xsrc duplicate: {xfp}")
                         return "duplicate"
 
@@ -267,16 +276,7 @@ class MongoDBHandler:
 
             existing_by_url = self.collection.find_one({"url": listing.get('url')})
             if existing_by_url:
-                listing['_id'] = existing_by_url['_id']
-                # NEVER reset send-state on re-poll → no 5-minute re-spam.
-                for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
-                    if k in existing_by_url:
-                        listing[k] = existing_by_url[k]
-                # Keep a previously-resolved builder_url if this update lacks one
-                # (only run_coop resolves it; other write paths would else wipe it).
-                if not listing.get('builder_url') and existing_by_url.get('builder_url'):
-                    listing['builder_url'] = existing_by_url['builder_url']
-                self.collection.replace_one({"_id": existing_by_url['_id']}, listing)
+                self._replace_preserving_state(existing_by_url, listing)
                 return "updated"
 
             source_enum = listing.get('source_enum', listing.get('source', ''))

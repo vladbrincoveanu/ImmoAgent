@@ -118,7 +118,15 @@ def _to_doc(listing: Listing) -> dict:
 
 
 def poll_source(name: str, cfg: dict, handler, session=requests) -> List[Listing]:
-    """Fetch one adapter with conditional GET; parse only when the page changed."""
+    """Fetch one adapter. HTML parsers use a conditional GET and parse only when
+    the page changed; self-crawling fetchers always run (see below)."""
+    if cfg.get("fetcher"):
+        # Self-contained crawl (mygewo pages its full inventory via an RPC).
+        # NO change-gate here: the gate hashes SSR page 0 only, so a unit added
+        # on page 3 would leave page 0 byte-identical and the whole crawl would
+        # be skipped. Always crawl — a few extra RPC calls beat missing units.
+        return _log_parsed(name, getattr(coop, cfg["fetcher"])(cfg.get("states", "28_")))
+
     meta = handler.get_source_meta(name) or {}
     changed, html_text, new_meta = conditional_fetch(cfg["url"], meta, session=session)
     if new_meta:
@@ -126,13 +134,10 @@ def poll_source(name: str, cfg: dict, handler, session=requests) -> List[Listing
     if not changed:
         logger.info(f"↔️  {name}: unchanged, skipping parse")
         return []
-    if cfg.get("fetcher"):
-        # Self-contained crawl (mygewo pages its full inventory via an RPC); the
-        # change-gate above still gets us the free 304/unchanged skip on the SSR
-        # page, but the listings come from the fetcher, not the fetched HTML.
-        listings = getattr(coop, cfg["fetcher"])(cfg.get("states", "28_"))
-    else:
-        listings = getattr(coop, cfg["parser"])(html_text)
+    return _log_parsed(name, getattr(coop, cfg["parser"])(html_text))
+
+
+def _log_parsed(name: str, listings: List[Listing]) -> List[Listing]:
     logger.info(f"🔍 {name}: {len(listings)} listing(s) parsed")
     return listings
 
