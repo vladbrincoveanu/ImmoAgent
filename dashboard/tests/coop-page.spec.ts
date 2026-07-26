@@ -100,6 +100,16 @@ test.describe('/coop co-op listings page', () => {
     await expect(page.getByTestId('coop-address')).toContainText('Erzherzog-Karl-Straße 140');
   });
 
+  test('district dropdown lists every district even while filtered', async ({ page }) => {
+    // Options come from the full inventory, not the filtered page — otherwise
+    // picking 1220 would drop 1130 from its own dropdown and strand the user.
+    await page.goto('/coop?bezirk=1220');
+    const options = page.getByTestId('filter-bezirk').locator('option');
+    await expect(options).toHaveCount(3); // "Alle Bezirke" + 1130 + 1220
+    await expect(options.nth(1)).toHaveText('1130');
+    await expect(options.nth(2)).toHaveText('1220');
+  });
+
   test('nav header exposes the Genossenschaft link', async ({ page }) => {
     await page.goto('/dashboard');
     const link = page.getByRole('link', { name: 'Genossenschaft' });

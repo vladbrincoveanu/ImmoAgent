@@ -2,9 +2,19 @@ import sys, os, pytest, requests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "Project"))
 from Application.scraping import genossenschaft_scraper as g
 
+# ÖVW/Familienwohnbau/BWSG are disabled in SOURCES (mygewo aggregates them and
+# these standalone adapters leaked non-Wien and buy-option units) but their
+# parse_* functions are kept for reference — smoke test them directly against
+# their real URLs rather than through the (now adapter-less) SOURCES dict.
+_URLS = {
+    "ÖVW": "https://www.oevw.at/suche/wohnen",
+    "Familienwohnbau": "https://www.familienwohnbau.at/de/immobilien",
+    "BWSG": "https://www.bwsg.at/immobilien/immobilie-suchen/",
+}
+
 
 def _fetch_or_skip(name):
-    url = g.SOURCES[name]["url"]
+    url = _URLS[name]
     try:
         return g.fetch(url)
     except (requests.RequestException, Exception) as e:

@@ -27,38 +27,95 @@ type CoopRow = {
   processed_at: number | null;
 };
 
-async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
+const ROW_LIMIT = 200;
+
+// Co-op RENTALS have a low €/m² and no purchase price, so the purchase-tuned
+// map filters don't apply here — just show valid co-op units, newest first.
+// Builder-direct only: Willhaben-sourced rows are excluded because they link
+// to Willhaben (not the builder's reservation page) and can leak mis-tagged
+// for-sale (Eigentum) units onto this rentals-only page.
+// buyable:false is a POSITIVE rental confirmation the poller stamps on every
+// unit it emits (buy-option units are dropped at scrape). Requiring it (not
+// just $ne:true) also hides legacy rows scraped before this flag existed —
+// they reappear within one poll cycle once re-scraped as rentals.
+// bezirk + area_m2 are a defense-in-depth guard, independent of the flags
+// above: the (now-disabled) standalone ÖVW/Familienwohnbau/BWSG adapters had
+// no Vienna scoping and no housing-size floor, so a stray non-Wien or
+// garage/storage row must never render here regardless of DB state.
+const BASE_QUERY: Document = {
+  is_genossenschaft: true,
+  url_is_valid: { $ne: false },
+  coop_source: { $ne: 'willhaben' },
+  buyable: false,
+  bezirk: { $regex: '^1\\d{3}$' },
+  // { area_m2: null } already matches missing/undefined fields in MongoDB —
+  // no separate $exists:false clause needed.
+  $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
+};
+
+type Filters = {
+  bezirk: string;
+  bautraeger: string;
+  rooms: string[];
+  area: string[];
+  rent: string[];
+  capital: string[];
+  feature: string[];
+};
+
+/** Filters run in MongoDB, NOT in JS over the fetched page: filtering client-side
+ * would only ever search the newest ROW_LIMIT rows, so a match older than that
+ * would silently not exist. */
+function buildQuery(f: Filters): Document {
+  // Every group is its own $and entry: a bare $or key would collide with
+  // BASE_QUERY's area-floor $or and with the other groups' $or clauses.
+  const and: Document[] = [BASE_QUERY];
+  if (f.bezirk) and.push({ bezirk: f.bezirk });
+  if (f.bautraeger) and.push({ bautraeger: f.bautraeger });
+  for (const [field, buckets, selected] of [
+    ['rooms', ROOM_BUCKETS, f.rooms],
+    ['area_m2', AREA_BUCKETS, f.area],
+    ['price_total', RENT_BUCKETS, f.rent],
+    ['own_funds', CAPITAL_BUCKETS, f.capital],
+  ] as [string, Bucket[], string[]][]) {
+    const clauses = bucketClauses(field, buckets, selected);
+    // An unknown bucket value must not silently widen the result set — an
+    // active-but-unmatchable filter yields nothing rather than everything.
+    if (selected.length) and.push(clauses.length ? { $or: clauses } : { _id: null });
+  }
+  // OR-within-category, same as every other filter here — confirmed live on
+  // mygewo.at: checking a 2nd Freifläche WIDENS the result count, it doesn't
+  // narrow it (their checkboxes are "any of", not "all of").
+  if (f.feature.length) and.push({ special_features: { $in: f.feature } });
+  return { $and: and };
+}
+
+async function getCoopListings(
+  filters: Filters,
+): Promise<{
+  rows: CoopRow[];
+  districts: string[];
+  builders: string[];
+  total: number;
+  dbUp: boolean;
+}> {
   const db = getDb();
-  if (!db) return { rows: [], dbUp: false };
+  if (!db) return { rows: [], districts: [], builders: [], total: 0, dbUp: false };
   try {
-    const docs = await db
-      .collection<Document>('listings')
-      // Co-op RENTALS have a low €/m² and no purchase price, so the purchase-tuned
-      // map filters don't apply here — just show valid co-op units, newest first.
-      // Builder-direct only: Willhaben-sourced rows are excluded because they link
-      // to Willhaben (not the builder's reservation page) and can leak mis-tagged
-      // for-sale (Eigentum) units onto this rentals-only page.
-      // buyable:false is a POSITIVE rental confirmation the poller stamps on every
-      // unit it emits (buy-option units are dropped at scrape). Requiring it (not
-      // just $ne:true) also hides legacy rows scraped before this flag existed —
-      // they reappear within one poll cycle once re-scraped as rentals.
-      // bezirk + area_m2 are a defense-in-depth guard, independent of the flags
-      // above: the (now-disabled) standalone ÖVW/Familienwohnbau/BWSG adapters had
-      // no Vienna scoping and no housing-size floor, so a stray non-Wien or
-      // garage/storage row must never render here regardless of DB state.
-      .find({
-        is_genossenschaft: true,
-        url_is_valid: { $ne: false },
-        coop_source: { $ne: 'willhaben' },
-        buyable: false,
-        bezirk: { $regex: '^1\\d{3}$' },
-        // { area_m2: null } already matches missing/undefined fields in MongoDB —
-        // no separate $exists:false clause needed.
-        $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
-      })
-      .sort({ processed_at: -1, _id: -1 })
-      .limit(200)
-      .toArray();
+    const coll = db.collection<Document>('listings');
+    const query = buildQuery(filters);
+    // Dropdown options come from the FULL unfiltered set, not the current page —
+    // otherwise picking a district could remove it from its own dropdown.
+    const [docs, total, allDistricts, allBuilders] = await Promise.all([
+      coll.find(query).sort({ processed_at: -1, _id: -1 }).limit(ROW_LIMIT).toArray(),
+      coll.countDocuments(query),
+      coll.distinct('bezirk', BASE_QUERY),
+      coll.distinct('bautraeger', BASE_QUERY),
+    ]);
+    const strings = (v: unknown[]) =>
+      v.filter((d): d is string => typeof d === 'string' && d.length > 0).sort();
+    const districts = strings(allDistricts as unknown[]);
+    const builders = strings(allBuilders as unknown[]);
     const rows = docs.map((d): CoopRow => {
       return {
         url: String(d.url ?? ''),
@@ -75,9 +132,9 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
         processed_at: typeof d.processed_at === 'number' ? d.processed_at : null,
       };
     });
-    return { rows, dbUp: true };
+    return { rows, districts, builders, total, dbUp: true };
   } catch {
-    return { rows: [], dbUp: false };
+    return { rows: [], districts: [], builders: [], total: 0, dbUp: false };
   }
 }
 
@@ -104,37 +161,53 @@ function ago(ts: number | null): string | null {
 // Bucket definitions mirror mygewo.at/genossenschaftswohnungen/suche's own
 // filter panel (Zimmer / Fläche / Miete / Kapital / Freiflächen) so /coop reads
 // as the same filter vocabulary a mygewo user already knows.
-type Bucket = { value: string; label: string; test: (n: number) => boolean };
+type Bucket = { value: string; label: string; min?: number; max?: number };
 
+/** Bucket → a Mongo range on `field`. Bounds are inclusive on both ends where
+ * the mygewo labels overlap (€500–749 next to "bis €500"), matching the JS
+ * predicates this replaced. */
+function bucketClauses(field: string, buckets: Bucket[], selected: string[]): Document[] {
+  return selected.flatMap((v) => {
+    const b = buckets.find((x) => x.value === v);
+    if (!b) return [];
+    const range: Document = {};
+    if (b.min != null) range.$gte = b.min;
+    if (b.max != null) range.$lte = b.max;
+    return [{ [field]: range }];
+  });
+}
+
+// Rooms are matched on the rounded value the UI shows, so 2.5 Zimmer lands in
+// the "3" bucket exactly as `Math.round` did client-side.
 const ROOM_BUCKETS: Bucket[] = [
-  { value: '1', label: '1', test: (n) => Math.round(n) === 1 },
-  { value: '2', label: '2', test: (n) => Math.round(n) === 2 },
-  { value: '3', label: '3', test: (n) => Math.round(n) === 3 },
-  { value: '4', label: '4+', test: (n) => Math.round(n) >= 4 },
+  { value: '1', label: '1', min: 0.5, max: 1.49 },
+  { value: '2', label: '2', min: 1.5, max: 2.49 },
+  { value: '3', label: '3', min: 2.5, max: 3.49 },
+  { value: '4', label: '4+', min: 3.5 },
 ];
 
 // Bounds are contiguous (not >=51/>=75 as the mygewo labels might suggest) so a
 // float area like 50.4 m² — routine given real scraped values (e.g. 70.09) —
 // always falls in exactly one bucket instead of none.
 const AREA_BUCKETS: Bucket[] = [
-  { value: '0-50', label: 'bis 50 m²', test: (n) => n <= 50 },
-  { value: '51-74', label: '51–74 m²', test: (n) => n > 50 && n <= 74 },
-  { value: '75-99', label: '75–99 m²', test: (n) => n > 74 && n <= 99 },
-  { value: '100-', label: 'ab 100 m²', test: (n) => n > 99 },
+  { value: '0-50', label: 'bis 50 m²', max: 50 },
+  { value: '51-74', label: '51–74 m²', min: 50.01, max: 74 },
+  { value: '75-99', label: '75–99 m²', min: 74.01, max: 99 },
+  { value: '100-', label: 'ab 100 m²', min: 99.01 },
 ];
 
 const RENT_BUCKETS: Bucket[] = [
-  { value: '0-500', label: 'bis €500', test: (n) => n <= 500 },
-  { value: '500-749', label: '€500–749', test: (n) => n >= 500 && n <= 749 },
-  { value: '750-999', label: '€750–999', test: (n) => n >= 750 && n <= 999 },
-  { value: '1000-', label: 'ab €1.000', test: (n) => n >= 1000 },
+  { value: '0-500', label: 'bis €500', max: 500 },
+  { value: '500-749', label: '€500–749', min: 500, max: 749 },
+  { value: '750-999', label: '€750–999', min: 750, max: 999 },
+  { value: '1000-', label: 'ab €1.000', min: 1000 },
 ];
 
 const CAPITAL_BUCKETS: Bucket[] = [
-  { value: '0-5000', label: 'bis €5.000', test: (n) => n <= 5000 },
-  { value: '5000-9999', label: '€5.000–9.999', test: (n) => n >= 5000 && n <= 9999 },
-  { value: '10000-19999', label: '€10.000–19.999', test: (n) => n >= 10000 && n <= 19999 },
-  { value: '20000-', label: 'ab €20.000', test: (n) => n >= 20000 },
+  { value: '0-5000', label: 'bis €5.000', max: 5000 },
+  { value: '5000-9999', label: '€5.000–9.999', min: 5000, max: 9999 },
+  { value: '10000-19999', label: '€10.000–19.999', min: 10000, max: 19999 },
+  { value: '20000-', label: 'ab €20.000', min: 20000 },
 ];
 
 const FEATURE_OPTIONS = ['Garten', 'Loggia', 'Balkon', 'Terrasse'] as const;
@@ -142,15 +215,6 @@ const FEATURE_OPTIONS = ['Garten', 'Loggia', 'Balkon', 'Terrasse'] as const;
 function toArray(v: string | string[] | undefined): string[] {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
-}
-
-// Bucket filters are OR-within-category (any checked range matches, like mygewo's
-// own checkboxes) — a row with no value at all is excluded once a filter is active,
-// since we can't confirm it belongs to any checked bucket.
-function matchesBuckets(value: number | null, buckets: Bucket[], selected: string[]): boolean {
-  if (!selected.length) return true;
-  if (value == null) return false;
-  return selected.some((s) => buckets.find((b) => b.value === s)?.test(value));
 }
 
 type Search = {
@@ -168,11 +232,10 @@ export default async function CoopPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  const { rows, dbUp } = await getCoopListings();
   const sp = await searchParams;
 
-  // Filter controls are pure GET params (SSR, no client JS): dropdown options are
-  // built from values actually present, so they never offer an empty result.
+  // Filter controls are pure GET params (SSR, no client JS); they're applied in
+  // the DB query, so they search the whole inventory, not just the first page.
   const bezirk = typeof sp.bezirk === 'string' ? sp.bezirk : '';
   const bautraeger = typeof sp.bautraeger === 'string' ? sp.bautraeger : '';
   const rooms = toArray(sp.rooms);
@@ -181,22 +244,15 @@ export default async function CoopPage({
   const capital = toArray(sp.capital);
   const feature = toArray(sp.feature);
 
-  const districts = [...new Set(rows.map((r) => r.bezirk).filter(Boolean))].sort() as string[];
-  const builders = [...new Set(rows.map((r) => r.bautraeger).filter(Boolean))].sort() as string[];
-
-  const filtered = rows.filter(
-    (r) =>
-      (!bezirk || r.bezirk === bezirk) &&
-      (!bautraeger || r.bautraeger === bautraeger) &&
-      matchesBuckets(r.rooms, ROOM_BUCKETS, rooms) &&
-      matchesBuckets(r.area_m2, AREA_BUCKETS, area) &&
-      matchesBuckets(r.price_total, RENT_BUCKETS, rent) &&
-      matchesBuckets(r.own_funds, CAPITAL_BUCKETS, capital) &&
-      // OR-within-category, same as every other filter here — confirmed live on
-      // mygewo.at: checking a 2nd Freifläche WIDENS the result count, it doesn't
-      // narrow it (their checkboxes are "any of", not "all of").
-      (!feature.length || feature.some((f) => r.special_features.includes(f))),
-  );
+  const { rows: filtered, districts, builders, total, dbUp } = await getCoopListings({
+    bezirk,
+    bautraeger,
+    rooms,
+    area,
+    rent,
+    capital,
+    feature,
+  });
 
   const inputCls =
     'rounded-lg border border-[#E8E4E0] bg-white px-3 py-1.5 text-sm text-[#2D2D2D]';
@@ -321,7 +377,8 @@ export default async function CoopPage({
         </form>
 
         <p className="mt-3 text-sm font-medium text-[#3D405B]" data-testid="coop-count">
-          {filtered.length} {filtered.length === 1 ? 'Treffer' : 'Treffer'}
+          {total} Treffer
+          {total > filtered.length && ` · zeigt die ${filtered.length} neuesten`}
         </p>
       </div>
 

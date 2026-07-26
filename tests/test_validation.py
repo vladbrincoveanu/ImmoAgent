@@ -65,6 +65,7 @@ def test_coop_rental_low_per_m2_valid():
         "price_total": 720,   # 720/60 = 12/m² monthly rent
         "area_m2": 60,
         "is_genossenschaft": True,
+        "coop_source": "bautraeger_direct",
         "buyable": False,
     }
     valid, reason = is_valid_listing_data(listing)
@@ -83,15 +84,33 @@ def test_non_coop_low_per_m2_still_fails():
     assert "price_per_m2" in reason.lower()
 
 def test_coop_buyable_unit_still_validated():
-    """A co-op BUY unit (buyable=True) is a purchase — the €/m² band still applies."""
+    """A co-op BUY unit (buyable=True) is a purchase — the €/m² band still applies,
+    even from the mygewo rental feed (coop_source='bautraeger_direct')."""
     listing = {
         "price_total": 60000,  # 750/m² — below the 1000 purchase floor
         "area_m2": 80,
         "is_genossenschaft": True,
+        "coop_source": "bautraeger_direct",
         "buyable": True,
     }
     valid, reason = is_valid_listing_data(listing)
     assert not valid, "Buyable co-op unit below the €/m² floor must still fail"
+
+def test_willhaben_mistagged_coop_still_validated():
+    """Willhaben tags ordinary purchase listings is_genossenschaft=True via a
+    keyword match on page text and never sets buyable or coop_source to
+    'bautraeger_direct' (only mygewo does). The rental exemption must NOT key off
+    is_genossenschaft alone, or these mistagged purchase listings would silently
+    bypass the €/m² purchase floor/ceiling."""
+    listing = {
+        "price_total": 60000,  # 750/m² — below the 1000 purchase floor
+        "area_m2": 80,
+        "is_genossenschaft": True,
+        "coop_source": "willhaben",
+    }
+    valid, reason = is_valid_listing_data(listing)
+    assert not valid, "Willhaben-tagged co-op purchase listing must still be validated"
+    assert "price_per_m2" in reason.lower()
 
 def test_missing_price():
     """Listing with no price should pass (price is on request case)."""
@@ -163,6 +182,10 @@ if __name__ == "__main__":
     test_area_too_small()
     test_per_m2_too_low()
     test_per_m2_too_high()
+    test_coop_rental_low_per_m2_valid()
+    test_non_coop_low_per_m2_still_fails()
+    test_coop_buyable_unit_still_validated()
+    test_willhaben_mistagged_coop_still_validated()
     test_missing_price()
     test_missing_area()
     test_both_missing()

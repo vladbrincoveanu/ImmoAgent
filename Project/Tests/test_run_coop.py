@@ -134,6 +134,23 @@ class TestPollSourceParse(unittest.TestCase):
         self.assertEqual(out, [listing])
         handler.set_source_meta.assert_called_once()   # new_meta present → persisted
 
+    def test_fetcher_source_bypasses_the_change_gate(self):
+        # The gate only hashes SSR page 0; a unit added on page 3 leaves it
+        # byte-identical. A self-crawling fetcher must run regardless — and must
+        # not spend a request on the gate at all.
+        handler = MagicMock()
+        handler.get_source_meta.return_value = {"page_hash": "same", "etag": "e1"}
+        sess = MagicMock()
+        listing = _l()
+        with patch.object(run_coop.coop, "fetch_all_mygewo",
+                          return_value=[listing], create=True) as fetcher:
+            out = run_coop.poll_source(
+                "mygewo", {"url": "u", "fetcher": "fetch_all_mygewo", "states": "28_"},
+                handler, session=sess)
+        self.assertEqual(out, [listing])
+        fetcher.assert_called_once_with("28_")
+        sess.get.assert_not_called()
+
 
 def _mongo_mock(get_listing_ret=None):
     h = MagicMock()
