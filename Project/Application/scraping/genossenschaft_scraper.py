@@ -516,6 +516,22 @@ def _mygewo_ssr_url(states: str) -> str:
     return f"{_MYGEWO_BASE}/genossenschaftswohnungen/suche?states={states}"
 
 
+def _mygewo_rpc_fallback(reason: str, html: str, uuid_to_offer: dict) -> List[Listing]:
+    """Page-0 RPC unusable (e.g. mygewo redeployed → new server-fn hash).
+
+    Degrade to the SSR page instead of silently returning an empty feed; if the
+    SSR page yields nothing either, raise so `run_coop` counts the adapter as
+    failed rather than exiting 0 on a dead source."""
+    logger.error(f"❌ mygewo: {reason}; falling back to SSR page 0")
+    listings = _units_to_listings(_mygewo_units(html), uuid_to_offer) if html else []
+    if not listings:
+        raise RuntimeError(f"mygewo crawl produced no listings: {reason}, "
+                           "and the SSR fallback was empty")
+    logger.warning(f"mygewo: SSR fallback yielded {len(listings)} rental(s) "
+                   "(page 0 only — full inventory NOT crawled)")
+    return listings
+
+
 def fetch_all_mygewo(states: str = "28_") -> List[Listing]:
     """Fetch the COMPLETE Wien co-op rental inventory from mygewo across all pages.
 
@@ -523,8 +539,10 @@ def fetch_all_mygewo(states: str = "28_") -> List[Listing]:
     dedup key for continuity with existing DB rows); every unit (page 0..N) is
     pulled authoritatively from the paginated RPC so nothing past the first screen
     is dropped. Buy-option and non-Wien units are filtered in `_units_to_listings`."""
+    html = ""
     try:
-        uuid_to_offer = _offer_url_map(fetch(_mygewo_ssr_url(states)))
+        html = fetch(_mygewo_ssr_url(states))
+        uuid_to_offer = _offer_url_map(html)
     except Exception as e:  # SSR page optional — only supplies nicer /angebot/ keys
         logger.warning(f"mygewo SSR page fetch failed ({e}); offer-url map empty")
         uuid_to_offer = {}
@@ -532,13 +550,20 @@ def fetch_all_mygewo(states: str = "28_") -> List[Listing]:
     units: List[dict] = []
     seen: set = set()
     page, total = 0, 0
+    has_next = False
     while page < _MYGEWO_MAX_PAGES:
         try:
             page_units, total, has_next = _fetch_mygewo_page(states, page)
         except Exception as e:  # transient RPC hiccup mid-crawl → keep pages fetched so far
+            if page == 0:
+                return _mygewo_rpc_fallback(f"page 0 RPC failed ({e})", html, uuid_to_offer)
             logger.warning(f"mygewo RPC page {page} fetch failed ({e}); returning "
                             f"{len(units)} unit(s) collected from page(s) 0..{page - 1}")
             break
+        if page == 0 and not page_units:
+            return _mygewo_rpc_fallback(
+                "page 0 RPC returned no units (server-fn id likely stale)",
+                html, uuid_to_offer)
         for u in page_units:
             uid = u.get("uuid")
             if uid and uid in seen:
@@ -549,6 +574,11 @@ def fetch_all_mygewo(states: str = "28_") -> List[Listing]:
         if not page_units or not has_next or (total and len(units) >= total):
             break
         page += 1
+    else:
+        if has_next:  # cap hit with more pages waiting — loud, not silent truncation
+            logger.error(f"❌ mygewo: page cap {_MYGEWO_MAX_PAGES} reached with "
+                         f"hasNextPage=true — inventory TRUNCATED at {len(units)} "
+                         f"of {total} unit(s); raise _MYGEWO_MAX_PAGES")
 
     listings = _units_to_listings(_mygewo_units_from_rpc(units), uuid_to_offer)
     logger.info(f"🔍 mygewo: {len(units)} unit(s) across {page + 1} page(s) "

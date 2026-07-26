@@ -182,3 +182,66 @@ def test_fetch_all_mygewo_stops_on_max_pages(monkeypatch):
     monkeypatch.setattr(g, "fetch", lambda url: "<html></html>")
     listings = g.fetch_all_mygewo("28_")
     assert len(listings) == g._MYGEWO_MAX_PAGES     # capped, no infinite loop
+
+
+def _ssr_unit(uuid="s1", zipcode="1150"):
+    return {"uuid": uuid, "url": f"https://b.at/{uuid}", "buyable": False, "rooms": "2.0",
+            "rent": "500", "capital": "0", "area": "50", "street": "S1", "zipcode": zipcode,
+            "company": "B", "has_balcony": False, "has_terrace": False,
+            "has_garden": False, "has_loggia": False}
+
+
+def test_page0_rpc_failure_falls_back_to_ssr_page(monkeypatch):
+    # mygewo redeploys → the pinned server-fn hash 404s. The crawl must degrade to
+    # the SSR page instead of silently reporting an empty inventory.
+    def fake_page(states, page):
+        raise ConnectionError("404 server-fn id stale")
+
+    monkeypatch.setattr(g, "_fetch_mygewo_page", fake_page)
+    monkeypatch.setattr(g, "fetch", lambda url: "<html>ssr</html>")
+    monkeypatch.setattr(g, "_offer_url_map", lambda html: {})
+    monkeypatch.setattr(g, "_mygewo_units", lambda html: [_ssr_unit()])
+
+    listings = g.fetch_all_mygewo("28_")
+    assert len(listings) == 1 and listings[0].bezirk == "1150"
+
+
+def test_page0_empty_rpc_falls_back_to_ssr_page(monkeypatch):
+    # RPC answers 200 but with zero units (shape drift) — same fallback path.
+    monkeypatch.setattr(g, "_fetch_mygewo_page", lambda states, page: ([], 0, False))
+    monkeypatch.setattr(g, "fetch", lambda url: "<html>ssr</html>")
+    monkeypatch.setattr(g, "_offer_url_map", lambda html: {})
+    monkeypatch.setattr(g, "_mygewo_units", lambda html: [_ssr_unit("s2", "1160")])
+
+    listings = g.fetch_all_mygewo("28_")
+    assert len(listings) == 1 and listings[0].bezirk == "1160"
+
+
+def test_dead_rpc_and_dead_ssr_raises_so_the_poll_fails_loudly(monkeypatch):
+    # Both paths dead → must RAISE, so run_coop counts the adapter as failed and
+    # exits non-zero rather than reporting "0 new listings" on a dead feed.
+    def fake_page(states, page):
+        raise ConnectionError("404 server-fn id stale")
+
+    monkeypatch.setattr(g, "_fetch_mygewo_page", fake_page)
+    monkeypatch.setattr(g, "fetch", lambda url: "<html>ssr</html>")
+    monkeypatch.setattr(g, "_offer_url_map", lambda html: {})
+    monkeypatch.setattr(g, "_mygewo_units", lambda html: [])
+
+    try:
+        g.fetch_all_mygewo("28_")
+    except RuntimeError as e:
+        assert "no listings" in str(e)
+    else:
+        raise AssertionError("expected RuntimeError when RPC and SSR both yield nothing")
+
+
+def test_max_pages_truncation_is_logged_as_error(monkeypatch, caplog):
+    def fake_page(states, page):
+        return ([{**_ssr_unit(f"u{page}")}], 9999, True)
+    monkeypatch.setattr(g, "_fetch_mygewo_page", fake_page)
+    monkeypatch.setattr(g, "_mygewo_units_from_rpc", lambda units: list(units))
+    monkeypatch.setattr(g, "fetch", lambda url: "<html></html>")
+    with caplog.at_level("ERROR"):
+        g.fetch_all_mygewo("28_")
+    assert any("TRUNCATED" in r.message for r in caplog.records)
