@@ -33,10 +33,12 @@ export async function GET(request: NextRequest) {
     date_desc: { processed_at: -1 },
     area_desc: { area_m2: -1 },
   };
-  // Co-op rentals carry no score, so score_desc would order them arbitrarily —
-  // fall back to newest-first unless the caller asked for a specific sort.
-  const defaultSort = genossenschaft ? sortOptions.date_desc : sortOptions.score_desc;
-  const sortBy = searchParams.get('sort') ? (sortOptions[sort] ?? defaultSort) : defaultSort;
+  // Co-op rentals carry no score, so score_desc — which the map page always
+  // sends as its default — would order them arbitrarily. Newest-first instead;
+  // any other explicitly chosen sort (price, area, date) still applies.
+  const sortBy = genossenschaft && (sortOptions[sort] ?? sortOptions.score_desc) === sortOptions.score_desc
+    ? sortOptions.date_desc
+    : (sortOptions[sort] ?? sortOptions.score_desc);
 
   try {
     const db = getDb();

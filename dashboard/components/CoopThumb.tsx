@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** Thumbnail for one co-op row.
  *
@@ -14,6 +14,17 @@ import { useState } from 'react';
  * client boundary. */
 export function CoopThumb({ src, bezirk }: { src: string | null; bezirk: string | null }) {
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // /coop is server-rendered, so the browser starts loading this <img> from the
+  // HTML long before React hydrates. An image that has already failed by then
+  // fires no error event React can hear, and onError alone would leave the
+  // broken-image glyph on screen forever. A finished load with zero intrinsic
+  // width is exactly that case.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setFailed(true);
+  }, [src]);
 
   if (!src || failed) {
     return (
@@ -32,6 +43,7 @@ export function CoopThumb({ src, bezirk }: { src: string | null; bezirk: string 
     // eslint-disable-next-line @next/next/no-img-element
     <img
       data-testid="coop-thumb"
+      ref={imgRef}
       src={src}
       alt=""
       loading="lazy"
