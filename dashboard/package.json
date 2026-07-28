@@ -10,7 +10,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "@react-leaflet/core": "^2.0.0",
     "@types/nodemailer": "^8.0.1",
     "leaflet": "^1.9.4",
     "mongodb": "^6.3.0",
