@@ -20,10 +20,17 @@ export default defineConfig({
     },
   ],
 
+  // Run the suite against a production build, not `next dev`.
+  // react-leaflet v4 double-initialises the Leaflet map under React StrictMode's
+  // dev-only double-invoke of layout effects ("Map container is already
+  // initialized"), which crashes /dashboard/map and takes the whole React tree
+  // down with it. Production builds do not double-invoke, so the map renders
+  // correctly there — testing the prod build exercises what users actually get.
   webServer: {
-    command: 'PORT=3010 MONGODB_URI=mongodb://localhost:27017/immo npm run dev',
+    command:
+      'npm run build && PORT=3010 MONGODB_URI=mongodb://localhost:27017/immo npm run start',
     port: 3010,
     reuseExistingServer: true,
-    timeout: 120000,
+    timeout: 300000,
   },
 });
