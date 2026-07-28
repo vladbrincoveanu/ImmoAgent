@@ -29,6 +29,11 @@ from Integration.telegram_bot import TelegramBot
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("run_coop")
 
+# Ceiling on per-unit mygewo offer-page fetches in a single poll (see the loop in
+# `run`). Wien's whole co-op inventory is <150 units, so a cold start settles
+# within a few */5 cycles while no single run hammers mygewo.
+MAX_DETAIL_FETCHES_PER_RUN = 40
+
 
 def load_coop_alerts() -> dict:
     """Alert filter. Precedence: COOP_ALERTS env (JSON) > config.json coop_alerts
@@ -176,13 +181,31 @@ def run(no_send: bool = False) -> int:
         handler.close()
         return 1
 
+    # The offer-page fetch is the only per-unit request this poll makes. It runs
+    # at most once per unit ever (the resolved values are read back from the DB
+    # on later polls) and is capped per run so a mass re-scrape — or a mygewo
+    # change that blanks the stored values — can't turn a */5 cron into a crawl
+    # of the entire inventory.
+    detail_fetches = 0
     for listing in seen:
         # mygewo units store the aggregator URL; resolve the builder's own
-        # reservation page once (reuse a previously-resolved value from the DB so
-        # we only fetch a detail page for genuinely new offers).
-        if "mygewo.at" in (listing.url or "") and not listing.builder_url:
+        # reservation page and the unit photo once (reusing previously-resolved
+        # values from the DB so we only fetch for genuinely new offers).
+        if "mygewo.at" in (listing.url or "") and not (listing.builder_url and listing.image_url):
             existing = handler.get_listing(listing.url) or {}
-            listing.builder_url = existing.get("builder_url") or coop.resolve_builder_url(listing.url)
+            listing.builder_url = listing.builder_url or existing.get("builder_url")
+            listing.image_url = listing.image_url or existing.get("image_url")
+            if not (listing.builder_url and listing.image_url):
+                if detail_fetches < MAX_DETAIL_FETCHES_PER_RUN:
+                    detail_fetches += 1
+                    details = coop.resolve_offer_details(listing.url)
+                    listing.builder_url = listing.builder_url or details["builder_url"]
+                    listing.image_url = listing.image_url or details["image_url"]
+                elif detail_fetches == MAX_DETAIL_FETCHES_PER_RUN:
+                    detail_fetches += 1  # log the cap once, not per remaining unit
+                    logger.warning(
+                        f"offer-detail fetches capped at {MAX_DETAIL_FETCHES_PER_RUN} "
+                        "this run; remaining units resolve on the next poll")
         handler.upsert_coop_listing(_to_doc(listing))
 
     sent = 0

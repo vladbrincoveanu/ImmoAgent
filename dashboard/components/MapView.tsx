@@ -29,7 +29,9 @@ function formatPrice(price: number): string {
 }
 
 function createPriceIcon(price: number, selected: boolean, isCoop: boolean): L.DivIcon {
-  const label = isCoop ? `🏘️ €${formatPrice(price)}` : `€${formatPrice(price)}`;
+  // A co-op pin's price is a MONTHLY RENT, not a purchase price — "/Mt" keeps
+  // €700 from reading as a €700 apartment next to a €450k one.
+  const label = isCoop ? `🏘️ €${formatPrice(price)}/Mt` : `€${formatPrice(price)}`;
   const color = isCoop
     ? (selected ? PIN_COLOR_COOP_SELECTED : PIN_COLOR_COOP)
     : (selected ? PIN_COLOR_SELECTED : PIN_COLOR_DEFAULT);

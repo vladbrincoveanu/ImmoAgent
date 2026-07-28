@@ -1,5 +1,7 @@
 import { getDb } from '@/lib/mongodb';
 import { Document } from 'mongodb';
+import { coopBaseQuery } from '@/lib/coop-query';
+import { CoopThumb } from '@/components/CoopThumb';
 
 // Always render fresh — new co-op units land every few minutes via the poller.
 export const dynamic = 'force-dynamic';
@@ -7,10 +9,6 @@ export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Genossenschaftswohnungen — Live',
 };
-
-// Parking spots / storage units occasionally slip through a builder's own site
-// tagged as "Wohnung" (e.g. a 12,5 m² Stellplatz) — below this, it isn't housing.
-const MIN_LIVABLE_AREA_M2 = 15;
 
 type CoopRow = {
   url: string;
@@ -23,35 +21,16 @@ type CoopRow = {
   own_funds: number | null;
   bautraeger: string | null;
   builder_url: string | null;
+  image_url: string | null;
   special_features: string[];
   processed_at: number | null;
 };
 
 const ROW_LIMIT = 200;
 
-// Co-op RENTALS have a low €/m² and no purchase price, so the purchase-tuned
-// map filters don't apply here — just show valid co-op units, newest first.
-// Builder-direct only: Willhaben-sourced rows are excluded because they link
-// to Willhaben (not the builder's reservation page) and can leak mis-tagged
-// for-sale (Eigentum) units onto this rentals-only page.
-// buyable:false is a POSITIVE rental confirmation the poller stamps on every
-// unit it emits (buy-option units are dropped at scrape). Requiring it (not
-// just $ne:true) also hides legacy rows scraped before this flag existed —
-// they reappear within one poll cycle once re-scraped as rentals.
-// bezirk + area_m2 are a defense-in-depth guard, independent of the flags
-// above: the (now-disabled) standalone ÖVW/Familienwohnbau/BWSG adapters had
-// no Vienna scoping and no housing-size floor, so a stray non-Wien or
-// garage/storage row must never render here regardless of DB state.
-const BASE_QUERY: Document = {
-  is_genossenschaft: true,
-  url_is_valid: { $ne: false },
-  coop_source: { $ne: 'willhaben' },
-  buyable: false,
-  bezirk: { $regex: '^1\\d{3}$' },
-  // { area_m2: null } already matches missing/undefined fields in MongoDB —
-  // no separate $exists:false clause needed.
-  $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
-};
+// Shared with /api/listings/map so this page and the map agree on what a
+// listable co-op unit is — see lib/coop-query.ts for the full rationale.
+const BASE_QUERY: Document = coopBaseQuery();
 
 type Filters = {
   bezirk: string;
@@ -128,6 +107,7 @@ async function getCoopListings(
         own_funds: typeof d.own_funds === 'number' ? d.own_funds : null,
         bautraeger: (d.bautraeger as string) ?? null,
         builder_url: (d.builder_url as string) ?? null,
+        image_url: (d.image_url as string) ?? null,
         special_features: Array.isArray(d.special_features) ? (d.special_features as string[]) : [],
         processed_at: typeof d.processed_at === 'number' ? d.processed_at : null,
       };
@@ -412,8 +392,9 @@ export default async function CoopPage({
                 rel="noopener noreferrer"
                 className="block rounded-lg border border-[#E8E4E0] bg-white px-4 py-3 transition-colors hover:bg-[#FBFAF8]"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex items-start gap-3">
+                  <CoopThumb src={r.image_url} bezirk={r.bezirk} />
+                  <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold text-[#3D405B]" data-testid="coop-address">
                       {r.address || r.title || 'Genossenschaftswohnung'}
                     </div>
