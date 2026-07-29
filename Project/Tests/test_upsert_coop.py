@@ -97,6 +97,70 @@ class TestUpsertCoopListing(unittest.TestCase):
         self.assertEqual(status, "duplicate")
         h.collection.replace_one.assert_not_called()
 
+    def test_coop_uid_match_updates_in_place_even_when_the_url_changed(self):
+        # A unit's url flips between the mygewo /angebot/ page and the builder's
+        # project page as it moves across result pages. Identity must survive
+        # that, or every page shuffle forks a duplicate document.
+        h = _handler()
+        h.collection.find_one.return_value = {
+            "_id": 5, "url": "https://mygewo.at/angebot/old", "coop_uid": "mygewo:u1",
+            "sent_to_telegram": True}
+        status = h.upsert_coop_listing(_doc(coop_uid="mygewo:u1"))
+        self.assertEqual(status, "updated")
+        h.collection.find_one.assert_called_once_with({"coop_uid": "mygewo:u1"})
+        replaced = h.collection.replace_one.call_args[0][1]
+        self.assertEqual(replaced["_id"], 5)
+        self.assertTrue(replaced["sent_to_telegram"])            # no re-spam
+
+    def test_sibling_unit_is_not_swallowed_by_its_neighbours_fingerprint(self):
+        # THE regression: two flats in one project share address/area/rooms and
+        # the project reservation url. The xsrc key cannot tell them apart, so
+        # coop_uid must — otherwise the second is logged as a duplicate and lost.
+        h = _handler()
+        neighbour = {"_id": 9, "url": "https://www.oevw.at/projekt#mygewo-u1",
+                     "coop_uid": "mygewo:u1", "coop_source": "bautraeger_direct"}
+        h.collection.find_one.side_effect = [
+            None,        # by coop_uid: this unit is new
+            neighbour,   # by xsrc fingerprint: its identical neighbour
+            None,        # by url
+            neighbour,   # by content fingerprint: the neighbour again
+        ]
+        status = h.upsert_coop_listing(
+            _doc(coop_uid="mygewo:u2", url="https://www.oevw.at/projekt#mygewo-u2"))
+        self.assertEqual(status, "inserted")
+        h.collection.insert_one.assert_called_once()
+        h.collection.replace_one.assert_not_called()
+
+    def test_legacy_row_without_a_uid_is_adopted_not_duplicated(self):
+        # Rows stored before coop_uid existed must be taken over on the next
+        # poll — dropping them as duplicates would strand their send-state.
+        h = _handler()
+        h.collection.find_one.side_effect = [
+            None,
+            {"_id": 11, "url": "https://www.oevw.at/legacy",
+             "coop_source": "bautraeger_direct", "sent_to_telegram": True},
+        ]
+        status = h.upsert_coop_listing(_doc(coop_uid="mygewo:u3"))
+        self.assertEqual(status, "updated")
+        replaced = h.collection.replace_one.call_args[0][1]
+        self.assertEqual(replaced["_id"], 11)
+        self.assertEqual(replaced["coop_uid"], "mygewo:u3")
+        self.assertTrue(replaced["sent_to_telegram"])
+
+    def test_shared_project_url_does_not_overwrite_a_sibling(self):
+        # Even if two units end up on one url, a row already claimed by another
+        # uid must not be replaced — that was the silent overwrite.
+        h = _handler()
+        h.collection.find_one.side_effect = [
+            None,                                            # by coop_uid
+            None,                                            # by xsrc
+            {"_id": 12, "url": "https://www.oevw.at/a", "coop_uid": "mygewo:other"},
+            None,                                            # by content fp
+        ]
+        status = h.upsert_coop_listing(_doc(coop_uid="mygewo:u4"))
+        self.assertEqual(status, "inserted")
+        h.collection.replace_one.assert_not_called()
+
     def test_rejects_invalid_by_price_per_m2(self):
         h = _handler()
         # Co-op RENTALS are exempt from the purchase €/m² floor (see

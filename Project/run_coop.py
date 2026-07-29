@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+from collections import Counter
 from dataclasses import asdict
 from typing import List, Optional, Tuple
 
@@ -176,6 +177,7 @@ def run(no_send: bool = False) -> int:
         handler.close()
         return 1
 
+    outcomes = Counter()
     for listing in seen:
         # mygewo units store the aggregator URL; resolve the builder's own
         # reservation page once (reuse a previously-resolved value from the DB so
@@ -183,7 +185,17 @@ def run(no_send: bool = False) -> int:
         if "mygewo.at" in (listing.url or "") and not listing.builder_url:
             existing = handler.get_listing(listing.url) or {}
             listing.builder_url = existing.get("builder_url") or coop.resolve_builder_url(listing.url)
-        handler.upsert_coop_listing(_to_doc(listing))
+        outcomes[handler.upsert_coop_listing(_to_doc(listing))] += 1
+
+    # Upsert outcomes were discarded before, which is precisely why a dedup key
+    # that silently swallowed two thirds of the inventory went unnoticed for so
+    # long. A rising `duplicate` count against a flat `inserted` count is the
+    # signature of an identity bug; log it every run.
+    logger.info("📊 coop upserts: " + ", ".join(
+        f"{k}={outcomes[k]}" for k in ("inserted", "updated", "duplicate", "invalid", "error")))
+    if outcomes["duplicate"] > outcomes["inserted"] + outcomes["updated"]:
+        logger.warning(f"⚠️  more coop duplicates ({outcomes['duplicate']}) than stored units "
+                       f"({outcomes['inserted'] + outcomes['updated']}) — suspect unit identity")
 
     sent = 0
     for listing in seen:

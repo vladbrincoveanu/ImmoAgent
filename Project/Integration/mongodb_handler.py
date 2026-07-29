@@ -118,6 +118,14 @@ class MongoDBHandler:
                 partialFilterExpression={"content_fingerprint_xsrc": {"$exists": True}},
                 name="coop_xsrc_fp",
             )
+            # Per-unit co-op identity. UNIQUE: two docs claiming one unit is a
+            # bug we want surfaced as a write error, not absorbed. Partial so
+            # the ~50k non-co-op listings (no coop_uid) are exempt.
+            self.collection.create_index(
+                "coop_uid", unique=True,
+                partialFilterExpression={"coop_uid": {"$exists": True, "$type": "string"}},
+                name="coop_uid_unique",
+            )
             # Per-profile score indexes (compound with processed_at for stable tiebreak)
             for _profile in PROFILE_NAMES:
                 try:
@@ -253,13 +261,40 @@ class MongoDBHandler:
             logging.info(f"🚫 coop upsert skipped — {reason}")
             return "invalid"
         try:
+            # Identity first: coop_uid, not url. Many units share one builder
+            # reservation URL (mygewo serves a per-unit /angebot/ page only for
+            # the first result page), so url-keyed upserts made later-page units
+            # overwrite each other.
+            uid = listing.get('coop_uid')
+            if uid:
+                existing_by_uid = self.collection.find_one({"coop_uid": uid})
+                if existing_by_uid:
+                    self._replace_preserving_state(existing_by_uid, listing)
+                    return "updated"
+
             # Cross-source dedup (Willhaben ↔ Bauträger-direct for one unit).
             if listing.get('is_genossenschaft'):
                 xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
                 if xfp:
                     listing['content_fingerprint_xsrc'] = xfp
                     existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
+                    # Two units of one source that hash alike are DISTINCT
+                    # apartments, not a duplicate pair — this key exists to
+                    # bridge sources, and within a source coop_uid is the
+                    # authority. Without this guard a new-build's eight
+                    # identical 3-Zimmer/68 m² flats collapse to one.
+                    other_uid = (existing or {}).get('coop_uid')
+                    if existing and uid and other_uid and other_uid != uid:
+                        existing = None
                     if existing and existing.get('url') != listing.get('url'):
+                        if uid and not other_uid and existing.get('coop_source') == listing.get('coop_source'):
+                            # Same source, and the stored row predates coop_uid:
+                            # adopt it rather than dropping this unit, so the
+                            # backfill happens on first re-poll and send-state
+                            # survives.
+                            self._replace_preserving_state(existing, listing)
+                            logging.info(f"🆔 coop row adopted onto coop_uid {uid}")
+                            return "updated"
                         if (listing.get('coop_source') == 'bautraeger_direct'
                                 and existing.get('coop_source') == 'willhaben'):
                             # Migrate the Willhaben row to the Bauträger-direct
@@ -276,14 +311,28 @@ class MongoDBHandler:
 
             existing_by_url = self.collection.find_one({"url": listing.get('url')})
             if existing_by_url:
-                self._replace_preserving_state(existing_by_url, listing)
-                return "updated"
+                # A url can be a whole project's reservation page, shared by
+                # every unit in it. With a coop_uid in hand, only a row that has
+                # none is ours to take over (a pre-coop_uid row for this unit);
+                # a row already claimed by a different uid is a sibling unit.
+                if uid and existing_by_url.get('coop_uid'):
+                    pass
+                else:
+                    self._replace_preserving_state(existing_by_url, listing)
+                    return "updated"
 
             source_enum = listing.get('source_enum', listing.get('source', ''))
             existing_by_fp = self.collection.find_one(
                 {"content_fingerprint": listing['content_fingerprint'],
                  "source_enum": source_enum})
-            if existing_by_fp:
+            # content_fingerprint is title+area+rooms+bezirk+source — no unit
+            # identifier either, so it collapses sibling units exactly like the
+            # xsrc key did. A row already claimed by a *different* uid is a
+            # known-distinct sibling; anything else keeps the old verdict.
+            fp_is_sibling = bool(uid and existing_by_fp
+                                 and existing_by_fp.get('coop_uid')
+                                 and existing_by_fp.get('coop_uid') != uid)
+            if existing_by_fp and not fp_is_sibling:
                 logging.info(f"🚫 coop fingerprint duplicate: {listing.get('url')}")
                 return "duplicate"
 

@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 from Domain.listing import Listing
 from Domain.location import Coordinates
 from Domain.sources import Source
+from Application.scraping.coop.identity import coop_uid, derive_unit_id
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +263,11 @@ def _mygewo_units(html: str) -> List[dict]:
         city_ref = s(r"\bcity:\$R\[(\d+)\]")
         company_ref = s(r"\bcompany:\$R\[(\d+)\]")
         units.append({
+            # mygewo's own row PK, from the `{id:NNN,manualData:` segment opener.
+            # Captured because it is the only per-unit identifier guaranteed
+            # present in every segment (uuid is regex-optional, and
+            # external_unit_id is the builder's URL — shared across a project).
+            "id": s(r"^\{id:(\d+),manualData:"),
             "uuid": s(r'\buuid:"([0-9a-f-]{36})"'),
             "url": s(r'\burl:"([^"]*)"'),
             "buyable": s(r"\bbuyable:(!0|!1|true|false|null)") in ("!0", "true"),
@@ -351,8 +357,23 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
             dropped_nonwien += 1
             continue
 
-        url = uuid_to_offer.get(u["uuid"] or "", builder_url)
+        # Identity, NOT the url: only page 0's ~25 units get their own /angebot/
+        # url; every later-page unit falls back to the project reservation page
+        # it shares with its neighbours. uuid first (globally unique), mygewo's
+        # row PK as fallback, and a derived hash when the graph gave us neither.
+        uid = (coop_uid("mygewo", u.get("uuid"))
+               or coop_uid("mygewo", u.get("id"))
+               or coop_uid("mygewo", derive_unit_id(
+                   builder_url, u["street"], u["area"], u["rooms"], u["rent"])))
+        # The `url` index is UNIQUE, so units falling back to the shared project
+        # page cannot coexist under it — they'd collide on insert and only one
+        # would survive. Disambiguate with a fragment: servers ignore it, so the
+        # link a user clicks is unchanged, but each unit gets its own row.
+        url = uuid_to_offer.get(u["uuid"] or "")
+        if not url:
+            url = f"{builder_url}#{uid.replace(':', '-')}" if uid else builder_url
         listing = _new_coop_listing(url, u["company"])
+        listing.coop_uid = uid
         listing.builder_url = builder_url      # the builder's own reservation page
         listing.buyable = False                # every emitted unit is a rental
         listing.area_m2 = _to_float(u["area"])
@@ -492,6 +513,7 @@ def _mygewo_units_from_rpc(units_json: List[dict]) -> List[dict]:
         company = u.get("company") if isinstance(u.get("company"), dict) else {}
         city = u.get("city") if isinstance(u.get("city"), dict) else {}
         out.append({
+            "id": u.get("id"),          # mygewo row PK — coop_uid fallback when uuid is absent
             "uuid": u.get("uuid"),
             "url": u.get("url"),
             "buyable": u.get("buyable") is True,

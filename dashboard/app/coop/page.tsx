@@ -14,6 +14,7 @@ const MIN_LIVABLE_AREA_M2 = 15;
 
 type CoopRow = {
   url: string;
+  coop_uid: string | null;
   title: string | null;
   address: string | null;
   bezirk: string | null;
@@ -119,6 +120,7 @@ async function getCoopListings(
     const rows = docs.map((d): CoopRow => {
       return {
         url: String(d.url ?? ''),
+        coop_uid: typeof d.coop_uid === 'string' ? d.coop_uid : null,
         title: (d.title as string) ?? null,
         address: (d.address as string) ?? null,
         bezirk: (d.bezirk as string) ?? null,
@@ -404,8 +406,11 @@ export default async function CoopPage({
       <ul className="space-y-3" data-testid="coop-list">
         {filtered.map((r) => {
           const posted = ago(r.processed_at);
+          // Keyed on coop_uid, not url: several units of one project
+          // legitimately share a builder reservation URL, and a duplicate React
+          // key would drop rows from the rendered list.
           return (
-            <li key={r.url} data-testid="coop-item">
+            <li key={r.coop_uid || r.url} data-testid="coop-item">
               <a
                 href={r.builder_url || r.url}
                 target="_blank"

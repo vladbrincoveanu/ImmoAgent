@@ -117,17 +117,41 @@ def test_extracts_core_fields_and_builder_url():
     assert "Terrasse" in (a.special_features or []) and a.balcony_terrace is True
 
 
-def test_url_falls_back_to_builder_when_no_card():
-    # A structured unit with no matching rendered card falls back to the builder url.
-    no_card = ("<script>window.x={units:$R[35]=[" + _unit(
+def _no_card_html(*units):
+    return "<script>window.x={units:$R[35]=[" + ",".join(units) + "]}</script>"
+
+
+def test_url_falls_back_to_builder_with_unit_fragment_when_no_card():
+    # A structured unit with no matching rendered card falls back to the
+    # builder url — plus a per-unit fragment, because that url is the whole
+    # PROJECT's reservation page and `url` carries a UNIQUE index.
+    ls = parse_mygewo(_no_card_html(_unit(
         36, 99999, "https://www.example-bt.at/objekt/1200-wien-x",
         "2.00", "600.00", "3000.00", "55.00", "Beispielgasse",
         company=_company(37, 13, "example-bt.at", "ExampleBT"),
-        city=_city(38, 28, "1200", 39)) + "]}</script>")
-    ls = parse_mygewo(no_card)
+        city=_city(38, 28, "1200", 39))))
     assert len(ls) == 1
-    assert ls[0].url == "https://www.example-bt.at/objekt/1200-wien-x"
-    assert ls[0].builder_url == ls[0].url
+    assert ls[0].builder_url == "https://www.example-bt.at/objekt/1200-wien-x"
+    assert ls[0].url.startswith("https://www.example-bt.at/objekt/1200-wien-x#")
+    assert ls[0].coop_uid == "mygewo:" + _uuid(99999)
+
+
+def test_sibling_units_sharing_a_project_url_stay_distinct():
+    """The regression that lost ~2/3 of the inventory: several apartments in one
+    project share the builder reservation page and, street-level addresses being
+    all mygewo gives us, are otherwise identical. They must not collapse."""
+    common = dict(company=_company(37, 13, "example-bt.at", "ExampleBT"),
+                  city=_city(38, 28, "1200", 39))
+    url = "https://www.example-bt.at/objekt/1200-wien-x"
+    ls = parse_mygewo(_no_card_html(
+        _unit(36, 1001, url, "3.00", "700.00", "9000.00", "68.00", "Beispielgasse", **common),
+        _unit(40, 1002, url, "3.00", "700.00", "9000.00", "68.00", "Beispielgasse", **common),
+        _unit(44, 1003, url, "3.00", "700.00", "9000.00", "68.00", "Beispielgasse", **common),
+    ))
+    assert len(ls) == 3
+    assert len({l.coop_uid for l in ls}) == 3       # distinct identities
+    assert len({l.url for l in ls}) == 3            # and distinct unique-index keys
+    assert all(l.builder_url == url for l in ls)    # same page for the user to click
 
 
 def test_resolves_bare_company_and_city_refs():

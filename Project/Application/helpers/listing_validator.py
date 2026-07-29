@@ -96,14 +96,35 @@ def _norm(s: str) -> str:
 def compute_xsrc_fingerprint(listing) -> "str | None":
     """Source-INDEPENDENT fingerprint for co-op units so the same unit on
     Willhaben and on its Bauträger site collapse to one record.
-    Key = md5(norm(bautraeger)|norm(address)|round(area)|rooms). No source, no price.
+
+    Key = md5(norm(bautraeger)|norm(address)|round(area)|rooms|unit|floor|price_bucket).
+    No source.
+
+    The original key stopped at rooms, which made it blind *within* a source: a
+    Genossenschaft new-build with eight 3-Zimmer/68 m² flats at one street-level
+    address produced eight identical fingerprints, and seven were discarded as
+    duplicates. `unit` (Top/Stiege), `floor` and a coarse price bucket are what
+    actually tell those apartments apart.
+
+    price_bucket rounds to the nearest €25 so that cross-source rounding
+    differences (Willhaben publishes gross, builders often net of a rounded
+    Betriebskosten) do not split a genuine pair. Unknown unit/floor/price
+    contribute "" — the degradation path back to the old, weaker key, which is
+    exactly the Willhaben case and is guarded by a collapse regression test.
+
     Returns None when bautraeger or address is missing (weak key → don't collapse)."""
     if not getattr(listing, "bautraeger", None) or not getattr(listing, "address", None):
         return None
     area = listing.area_m2
     area_key = str(int(round(area))) if area else ""
     rooms_key = str(listing.rooms) if listing.rooms is not None else ""
-    raw = f"{_norm(listing.bautraeger)}|{_norm(listing.address)}|{area_key}|{rooms_key}"
+    unit_key = _norm(getattr(listing, "unit_number", None) or "")
+    floor = getattr(listing, "floor", None)
+    floor_key = str(floor) if floor is not None else ""
+    price = getattr(listing, "price_total", None)
+    price_key = str(int(round(price / 25.0)) * 25) if price else ""
+    raw = (f"{_norm(listing.bautraeger)}|{_norm(listing.address)}|{area_key}|{rooms_key}"
+           f"|{unit_key}|{floor_key}|{price_key}")
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 

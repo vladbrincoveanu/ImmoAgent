@@ -103,6 +103,44 @@ def test_rpc_units_map_to_wien_rentals_and_drop_buy_and_nonwien():
     assert l.first_seen_at == "2026-07-20T12:08:02.203Z"
 
 
+def test_rpc_units_from_one_project_keep_separate_identities():
+    """RPC pages are where the loss was worst: none of these units has its own
+    /angebot/ card, so all three fall back to the project reservation page. They
+    must still come out as three units with three keys."""
+    url = "https://oevw.at/projekt-nord"
+    comp = _company(50, "ÖVW")
+    resp = _response([
+        _unit(10, "u1", url, "3.00", "700.00", "68.00", _city(60, "1210"), comp),
+        _unit(11, "u2", url, "3.00", "700.00", "68.00", _city(61, "1210"), _ref(50)),
+        _unit(12, "u3", url, "3.00", "700.00", "68.00", _city(62, "1210"), _ref(50)),
+    ], total=3, has_next=False)
+    decoded = g._find_units_payload(g._seroval_json_decode(resp, {}))
+    listings = g._units_to_listings(g._mygewo_units_from_rpc(decoded["units"]), {})
+    assert len(listings) == 3
+    assert {l.coop_uid for l in listings} == {"mygewo:u1", "mygewo:u2", "mygewo:u3"}
+    assert len({l.url for l in listings}) == 3          # `url` is a UNIQUE index
+    assert all(l.builder_url == url for l in listings)  # one page to reserve on
+
+
+def test_coop_uid_falls_back_to_the_row_id_then_to_a_derived_hash():
+    # Hand-built dicts rather than seroval nodes: the point is a unit whose
+    # uuid (and then id) is missing, which the wire-format builders always set.
+    units = g._mygewo_units_from_rpc([
+        {"id": 4711, "uuid": None, "url": "https://oevw.at/a", "rooms": "2.00",
+         "rent": "600.00", "capital": "0", "area": "60.00", "street": "Testgasse",
+         "city": {"zipcode": "1210"}, "company": {"name": "ÖVW"}},
+        {"id": None, "uuid": None, "url": "https://oevw.at/b", "rooms": "2.00",
+         "rent": "610.00", "capital": "0", "area": "60.00", "street": "Testgasse",
+         "city": {"zipcode": "1210"}, "company": {"name": "ÖVW"}},
+    ])
+    listings = g._units_to_listings(units, {})
+    assert listings[0].coop_uid == "mygewo:4711"        # row PK when uuid is gone
+    # Neither id nor uuid: a derived hash, so the unit still gets an identity
+    # rather than sharing an empty key with every other id-less unit.
+    assert listings[1].coop_uid.startswith("mygewo:")
+    assert listings[1].coop_uid != listings[0].coop_uid
+
+
 def test_fetch_all_mygewo_pages_until_complete_and_dedups(monkeypatch):
     # 3 pages of 2 units each; last page repeats a uuid (dedup) and flips has_next.
     pages = {
