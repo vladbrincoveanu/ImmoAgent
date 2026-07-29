@@ -25,10 +25,6 @@ export const PROFILES: ProfileMeta[] = [
 
 export const PROFILE_KEYS: string[] = PROFILES.map((p) => p.key);
 
-export const PROFILE_LABELS: Record<string, string> = Object.fromEntries(
-  PROFILES.map((p) => [p.key, p.label]),
-);
-
 export const DEFAULT_PROFILE = 'default';
 
 export function isValidProfile(s: string | null | undefined): s is string {
