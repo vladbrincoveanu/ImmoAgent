@@ -182,25 +182,40 @@ def run(no_send: bool = False) -> int:
         return 1
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
-    # at most once per unit ever (the resolved values are read back from the DB
-    # on later polls) and is capped per run so a mass re-scrape — or a mygewo
-    # change that blanks the stored values — can't turn a */5 cron into a crawl
-    # of the entire inventory.
+    # at most once per unit ever and is capped per run so a mass re-scrape — or a
+    # mygewo change that blanks the stored values — can't turn a */5 cron into a
+    # crawl of the entire inventory.
+    #
+    # "At most once" requires distinguishing "not resolved yet" from "resolved,
+    # and the page had no builder link / no photo". Both would otherwise read
+    # back as a falsy value and re-fetch on the next poll — forever, for every
+    # unit whose offer page simply has no og:image. At */5 over 15h that is ~180
+    # runs/day × the cap = thousands of pointless requests, and it is silent,
+    # because a missing photo is a placeholder tile rather than an error.
+    # So: None means "never fetched", "" means "fetched, nothing there" and is
+    # terminal. Downstream both are falsy — `builder_url || url` and CoopThumb's
+    # `!src` placeholder already treat "" exactly like None.
     detail_fetches = 0
     for listing in seen:
         # mygewo units store the aggregator URL; resolve the builder's own
-        # reservation page and the unit photo once (reusing previously-resolved
-        # values from the DB so we only fetch for genuinely new offers).
-        if "mygewo.at" in (listing.url or "") and not (listing.builder_url and listing.image_url):
+        # reservation page and the unit photo once, reusing values already
+        # resolved on an earlier poll.
+        if "mygewo.at" in (listing.url or "") and (
+                listing.builder_url is None or listing.image_url is None):
             existing = handler.get_listing(listing.url) or {}
-            listing.builder_url = listing.builder_url or existing.get("builder_url")
-            listing.image_url = listing.image_url or existing.get("image_url")
-            if not (listing.builder_url and listing.image_url):
+            if listing.builder_url is None:
+                listing.builder_url = existing.get("builder_url")
+            if listing.image_url is None:
+                listing.image_url = existing.get("image_url")
+            if listing.builder_url is None or listing.image_url is None:
                 if detail_fetches < MAX_DETAIL_FETCHES_PER_RUN:
                     detail_fetches += 1
                     details = coop.resolve_offer_details(listing.url)
-                    listing.builder_url = listing.builder_url or details["builder_url"]
-                    listing.image_url = listing.image_url or details["image_url"]
+                    # `or ""` is what makes a miss terminal — see above.
+                    if listing.builder_url is None:
+                        listing.builder_url = details["builder_url"] or ""
+                    if listing.image_url is None:
+                        listing.image_url = details["image_url"] or ""
                 elif detail_fetches == MAX_DETAIL_FETCHES_PER_RUN:
                     detail_fetches += 1  # log the cap once, not per remaining unit
                     logger.warning(

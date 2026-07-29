@@ -122,3 +122,46 @@ def test_falls_back_to_a_content_img_skipping_chrome():
 def test_offer_page_without_any_photo_yields_none():
     html = '<html><body><img src="/assets/logo.svg"><p>kein Bild</p></body></html>'
     assert _og_image(html) is None
+
+
+# --- T4: a resolved-but-empty result is terminal ------------------------------
+# The offer page is fetched at most once per unit. That only holds if "fetched,
+# and there was no photo" is stored distinguishably from "not fetched yet" —
+# otherwise every unit whose page has no og:image is re-fetched on every */5
+# poll, forever, and nothing surfaces it because a missing photo is a
+# placeholder tile rather than an error. "" is that terminal marker.
+
+class _FakeCollection:
+    def __init__(self):
+        self.replaced = None
+
+    def replace_one(self, _filter, doc):
+        self.replaced = doc
+
+
+def _preserving(existing: dict, incoming: dict) -> dict:
+    from Integration.mongodb_handler import MongoDBHandler
+    handler = MongoDBHandler.__new__(MongoDBHandler)  # no connection needed
+    handler.collection = _FakeCollection()
+    MongoDBHandler._replace_preserving_state(handler, existing, incoming)
+    return handler.collection.replaced
+
+
+def test_empty_sentinel_survives_a_re_scrape():
+    """The whole point: a re-poll must not wipe "" back to None."""
+    out = _preserving(
+        {"_id": 1, "builder_url": "", "image_url": ""},
+        {"builder_url": None, "image_url": None},
+    )
+    assert out["image_url"] == "", "'' wiped to None → offer page re-fetched every poll"
+    assert out["builder_url"] == ""
+
+
+def test_a_real_resolved_value_is_still_carried_over():
+    out = _preserving({"_id": 1, "image_url": _IMG}, {"image_url": None})
+    assert out["image_url"] == _IMG
+
+
+def test_a_freshly_scraped_value_beats_the_stored_one():
+    out = _preserving({"_id": 1, "image_url": ""}, {"image_url": _IMG})
+    assert out["image_url"] == _IMG

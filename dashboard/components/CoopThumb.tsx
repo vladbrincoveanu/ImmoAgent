@@ -22,6 +22,10 @@ export function CoopThumb({ src, bezirk }: { src: string | null; bezirk: string 
   // broken-image glyph on screen forever. A finished load with zero intrinsic
   // width is exactly that case.
   useEffect(() => {
+    // Reset first: a new src deserves its own attempt, otherwise one failure
+    // pins this slot to the placeholder for every later image React renders
+    // through it.
+    setFailed(false);
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth === 0) setFailed(true);
   }, [src]);
@@ -47,6 +51,9 @@ export function CoopThumb({ src, bezirk }: { src: string | null; bezirk: string 
       src={src}
       alt=""
       loading="lazy"
+      // Hotlinked from ~30 Bauträger domains — don't hand each of them the
+      // visitor's referring URL along with the request.
+      referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
       className="h-[72px] w-24 shrink-0 rounded-lg object-cover"
     />

@@ -233,8 +233,12 @@ class MongoDBHandler:
         for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
             if k in existing:
                 listing[k] = existing[k]
+        # `is not None`, NOT truthiness: "" is the terminal "offer page had no
+        # builder link / no photo" sentinel run_coop writes so it stops
+        # re-fetching that page every poll. A falsy check would drop the "" and
+        # silently restart the re-fetch loop it exists to prevent.
         for k in ("builder_url", "image_url"):
-            if not listing.get(k) and existing.get(k):
+            if listing.get(k) is None and existing.get(k) is not None:
                 listing[k] = existing[k]
         self.collection.replace_one({"_id": existing['_id']}, listing)
 
