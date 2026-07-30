@@ -21,7 +21,9 @@ from Domain.listing import Listing
 from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
-from Application.coop_alert_router import missing_channels
+from Application.coop_alert_router import missing_channels, route
+from Application.scraping.willhaben_private_coop import crawl_private_coop
+from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.coop_format import format_coop_message
 from Application.helpers.listing_validator import validate_url
 from Integration.mongodb_handler import MongoDBHandler
@@ -186,16 +188,18 @@ def run(no_send: bool = False) -> int:
         logger.error("❌ No MongoDB connection; aborting")
         return 1
 
-    bot = None
+    # One bot per feed. Co-op alerts go ONLY to co-op channels — the main channel
+    # excludes co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
+    bots = {}
     if not no_send:
         token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
-        # Coop alerts go ONLY to the coop channel — the main channel excludes
-        # co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
-        chat_id = os.environ.get("TELEGRAM_COOP_CHANNEL_ID")
-        if token and chat_id:
-            bot = TelegramBot(token, chat_id)
-        else:
-            logger.error("❌ TELEGRAM_COOP_CHANNEL_ID/bot token not set; "
+        if token:
+            for kind in ("mygewo", "private_transfer"):
+                chat_id = route(kind)
+                if chat_id:
+                    bots[kind] = TelegramBot(token, chat_id)
+        if not bots:
+            logger.error("❌ no bot token or no channel configured; "
                          "alerts DISABLED, polling/upserts continue")
 
     seen: List[Listing] = []
@@ -211,6 +215,27 @@ def run(no_send: bool = False) -> int:
         logger.error("❌ All adapters failed")
         handler.close()
         return 1
+
+    # Willhaben is polled here rather than in the daily scrape because private
+    # co-op transfers are first-come-first-served — a sitting tenant passing on
+    # their flat, gone within hours. Only genuinely new URLs cost a detail fetch,
+    # so this rides the 2-minute cadence without crawling the whole feed.
+    #
+    # Deliberately AFTER the all-adapters-failed gate and outside ok_adapters: it
+    # is an extra feed, not one of coop.SOURCES, and it must never mask a total
+    # mygewo outage by making a dead poll look half-alive.
+    if os.environ.get("WILLHABEN_PRIVATE_COOP", "1") != "0":
+        try:
+            transfers = crawl_private_coop(
+                WillhabenScraper(config=load_config() or {}),
+                is_new=lambda u: handler.get_listing(u) is None,
+            )
+            for listing in transfers:
+                listing.coop_kind = "private_transfer"
+            seen.extend(transfers)
+        except Exception as e:
+            # A Willhaben block must not take the mygewo half of the poll with it.
+            logger.error(f"❌ willhaben private-coop adapter failed: {e}")
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
@@ -256,8 +281,9 @@ def run(no_send: bool = False) -> int:
             # v1 probed the mygewo offer page, which has no unit photo, so every
             # unit above settled on "". Hop to the builder page once per unit.
             # Version-gated BEFORE spending a fetch slot: units already at v2 must
-            # not consume the budget that unprobed units need.
-            stored = handler.get_listing(listing.url) or {}
+            # not consume the budget that unprobed units need. Reuses `existing`
+            # rather than re-reading Mongo — this loop runs per unit per poll.
+            stored = existing
             if ((stored.get("image_probe_v") or 1) < IMAGE_PROBE_V
                     and listing.builder_url
                     and detail_fetches < MAX_DETAIL_FETCHES_PER_RUN):
@@ -287,6 +313,8 @@ def run(no_send: bool = False) -> int:
             logger.info(f"[no-send] would alert: {listing.url}")
             sent += 1
             continue
+        # mygewo units carry no coop_kind of their own — they are the default feed.
+        bot = bots.get(getattr(listing, "coop_kind", None) or "mygewo")
         if bot and bot.send_message(format_coop_message(listing)):
             handler.mark_sent(listing.url)
             sent += 1

@@ -82,6 +82,7 @@ class Listing:
     bautraeger:             Optional[str]   = None   # "ÖVW" | "BWSG" | "Familienwohnbau" | ...
     allocation_model:       Optional[str]   = None   # 'first_come' | 'wohn_ticket'
     coop_source:            Optional[str]   = None   # 'bautraeger_direct' | 'willhaben'
+    coop_kind:              Optional[str]   = None   # 'mygewo' | 'private_transfer' — routes the Telegram feed; see Application/coop_alert_router.py
     builder_url:            Optional[str]   = None   # builder's own reservation URL (mygewo → "Original-Anzeige")
     image_probe_v:          Optional[int]   = None   # photo-resolution strategy that last probed this unit; see run_coop.IMAGE_PROBE_V
     buyable:                Optional[bool]  = None   # mygewo "mit Kaufoption"; True = purchase-option unit (excluded from the rent-only feed)

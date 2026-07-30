@@ -27,6 +27,7 @@ from Application.scraping.field_extractors import (
     extract_ruecklage_eur_month, extract_sonderumlage_risk,
     extract_doppelmakler, extract_maklerprovision_pct,
     extract_document_urls, extract_is_genossenschaft, extract_bautraeger,
+    extract_is_private_coop_transfer,
 )
 
 
@@ -487,6 +488,16 @@ class WillhabenScraper:
             listing.facade_renovated = extract_facade_renovated(_full_text)
             listing.parifizierung_complete = extract_parifizierung_complete(_full_text)
             listing.roof_renovated = extract_roof_renovated(_full_text)
+
+            # A sitting tenant passing on their co-op flat is a different animal
+            # from a Bauträger listing one: no waiting list, first-come-first-served,
+            # and gone within hours. Tag it off the same single fetch so the fast
+            # poll can route it to its own channel.
+            if extract_is_private_coop_transfer(_full_text):
+                listing.coop_kind = "private_transfer"
+                listing.is_genossenschaft = True
+                listing.coop_source = "willhaben"
+                listing.allocation_model = "first_come"
 
             # Tag as co-op (Genossenschaft) if detected
             is_coop = extract_is_genossenschaft(_full_text)

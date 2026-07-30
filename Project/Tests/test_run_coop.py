@@ -330,3 +330,75 @@ def test_reprobe_skipped_without_builder_url():
         lambda url: calls.append(url))
     assert calls == []
     assert got.get("image_probe_v") == 1
+
+
+# --- Willhaben private-coop adapter wiring ------------------------------------
+# run() now polls Willhaben as well as mygewo. These tests must never touch the
+# network, so the adapter is disabled by default for the whole module and
+# enabled explicitly, with the crawl patched, where the wiring is under test.
+
+def setUpModule():
+    os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
+
+
+def tearDownModule():
+    os.environ.pop("WILLHABEN_PRIVATE_COOP", None)
+
+
+class TestWillhabenPrivateCoopWiring(unittest.TestCase):
+    def setUp(self):
+        os.environ["WILLHABEN_PRIVATE_COOP"] = "1"
+
+    def tearDown(self):
+        os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
+
+    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.crawl_private_coop")
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_transfers_are_tagged_and_upserted(self, MH, poll, WS, crawl, vurl, alerts):
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        poll.return_value = []
+        transfer = _l(url="https://www.willhaben.at/iad/immobilien/d/x-1/")
+        crawl.return_value = [transfer]
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True):
+            rc = run_coop.run(no_send=True)
+        self.assertEqual(rc, 0)
+        self.assertEqual(transfer.coop_kind, "private_transfer")
+        MH.return_value.upsert_coop_listing.assert_called_once()
+
+    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.crawl_private_coop", side_effect=RuntimeError("blocked"))
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_willhaben_failure_does_not_fail_the_poll(self, MH, poll, WS, crawl,
+                                                      vurl, alerts):
+        """A Willhaben block must leave the mygewo half of the poll running."""
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        poll.return_value = [_l(url="https://mygewo.at/angebot/1")]
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True):
+            rc = run_coop.run(no_send=True)
+        self.assertEqual(rc, 0)
+        MH.return_value.upsert_coop_listing.assert_called_once()
+
+    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.crawl_private_coop")
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source", side_effect=RuntimeError("mygewo down"))
+    @patch("run_coop.MongoDBHandler")
+    def test_willhaben_cannot_mask_a_total_mygewo_outage(self, MH, poll, WS, crawl,
+                                                         alerts):
+        """Every mygewo adapter failing is still exit 1, even if Willhaben works —
+        otherwise a dead poll looks half-alive."""
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True):
+            rc = run_coop.run(no_send=True)
+        self.assertEqual(rc, 1)
+        crawl.assert_not_called()
