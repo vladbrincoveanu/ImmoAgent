@@ -54,14 +54,43 @@ const BASE_QUERY: Document = {
 };
 
 type Filters = {
+  q: string;
   bezirk: string;
+  /** Legacy exact-match URL param. The heavy "Alle Bauträger" dropdown it drove
+   * was replaced by the free-text `q` box, but old bookmarks and Telegram deep
+   * links still carry `?bautraeger=OEVW`, so the param stays honoured. */
   bautraeger: string;
+  /** Legacy bucket params (`?rooms=4`, `?area=75-99`). The chips they drove are
+   * now min/max boxes; kept so existing links don't silently widen to "all". */
   rooms: string[];
   area: string[];
+  roomsMin: number | null;
+  roomsMax: number | null;
+  areaMin: number | null;
+  areaMax: number | null;
   rent: string[];
   capital: string[];
   feature: string[];
 };
+
+/** User input is interpolated into a Mongo `$regex`, so every metacharacter has
+ * to be neutralised first. Unescaped, a search for `(a+)+$` becomes catastrophic
+ * backtracking (ReDoS) against every row BASE_QUERY admits, and even a stray `.`
+ * silently over-matches. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** `null` on both ends means "no constraint" — distinct from a 0 bound. A min
+ * above the max yields an unsatisfiable range that matches nothing, which is the
+ * same choice the bucket path makes for an unmatchable filter (see below). */
+function rangeClause(min: number | null, max: number | null): Document | null {
+  if (min == null && max == null) return null;
+  const r: Document = {};
+  if (min != null) r.$gte = min;
+  if (max != null) r.$lte = max;
+  return r;
+}
 
 /** Filters run in MongoDB, NOT in JS over the fetched page: filtering client-side
  * would only ever search the newest ROW_LIMIT rows, so a match older than that
@@ -72,6 +101,27 @@ function buildQuery(f: Filters): Document {
   const and: Document[] = [BASE_QUERY];
   if (f.bezirk) and.push({ bezirk: f.bezirk });
   if (f.bautraeger) and.push({ bautraeger: f.bautraeger });
+  if (f.q) {
+    // Substring, case-insensitive, across the three human-readable name fields —
+    // typing "ÖVW" narrows to a builder, "Thomas-Morus" to a street. Unanchored
+    // + case-insensitive can't use an index, but BASE_QUERY has already reduced
+    // the candidate set to Wien co-op rentals (tens of rows), not all listings.
+    const rx = { $regex: escapeRegex(f.q), $options: 'i' };
+    and.push({ $or: [{ bautraeger: rx }, { address: rx }, { title: rx }] });
+  }
+  // Rooms match the ROUNDED value the card renders (`Math.round(r.rooms)`), so
+  // "von 3" includes a 2,5-Zimmer unit that displays as "3 Zimmer" — the same
+  // convention ROOM_BUCKETS encodes with its 2.5/3.49 bounds. Without this a
+  // user filtering "3" would not see a row the page labels "3 Zimmer".
+  const rooms = rangeClause(
+    f.roomsMin == null ? null : f.roomsMin - 0.5,
+    f.roomsMax == null ? null : f.roomsMax + 0.49,
+  );
+  if (rooms) and.push({ rooms });
+  // Area matches the raw m² value: an open "ab 75 m²" needs none of the .01
+  // nudging AREA_BUCKETS uses to keep its closed buckets disjoint.
+  const areaM2 = rangeClause(f.areaMin, f.areaMax);
+  if (areaM2) and.push({ area_m2: areaM2 });
   for (const [field, buckets, selected] of [
     ['rooms', ROOM_BUCKETS, f.rooms],
     ['area_m2', AREA_BUCKETS, f.area],
@@ -217,11 +267,29 @@ function toArray(v: string | string[] | undefined): string[] {
   return Array.isArray(v) ? v : [v];
 }
 
+/** Long enough for any Bauträger or street name; a cap keeps a pathological URL
+ * from becoming a huge regex. */
+const Q_MAX_LEN = 100;
+
+/** An empty or junk box means "no bound" — NOT 0. `Number('')` is 0, which would
+ * silently clamp `area_m2 >= 0` onto the query and read as a real filter.
+ * Negative bounds are meaningless here and rejected the same way. */
+function numParam(v: string | undefined): number | null {
+  if (typeof v !== 'string' || v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 type Search = {
+  q?: string;
   bezirk?: string;
   bautraeger?: string;
   rooms?: string | string[];
   area?: string | string[];
+  rooms_min?: string;
+  rooms_max?: string;
+  area_min?: string;
+  area_max?: string;
   rent?: string | string[];
   capital?: string | string[];
   feature?: string | string[];
@@ -236,19 +304,29 @@ export default async function CoopPage({
 
   // Filter controls are pure GET params (SSR, no client JS); they're applied in
   // the DB query, so they search the whole inventory, not just the first page.
+  const q = (typeof sp.q === 'string' ? sp.q : '').trim().slice(0, Q_MAX_LEN);
   const bezirk = typeof sp.bezirk === 'string' ? sp.bezirk : '';
   const bautraeger = typeof sp.bautraeger === 'string' ? sp.bautraeger : '';
   const rooms = toArray(sp.rooms);
   const area = toArray(sp.area);
+  const roomsMin = numParam(sp.rooms_min);
+  const roomsMax = numParam(sp.rooms_max);
+  const areaMin = numParam(sp.area_min);
+  const areaMax = numParam(sp.area_max);
   const rent = toArray(sp.rent);
   const capital = toArray(sp.capital);
   const feature = toArray(sp.feature);
 
   const { rows: filtered, districts, builders, total, dbUp } = await getCoopListings({
+    q,
     bezirk,
     bautraeger,
     rooms,
     area,
+    roomsMin,
+    roomsMax,
+    areaMin,
+    areaMax,
     rent,
     capital,
     feature,
@@ -277,6 +355,34 @@ export default async function CoopPage({
     </div>
   );
 
+  const rangeInputs = (
+    name: string,
+    minVal: number | null,
+    maxVal: number | null,
+    unit: string,
+    step: string,
+  ) => (
+    <div className="flex items-center gap-2">
+      {(['min', 'max'] as const).map((bound) => (
+        <div key={bound} className="flex items-center gap-2">
+          {bound === 'max' && <span className="text-sm text-[#6B6B6B]">–</span>}
+          <input
+            type="number"
+            name={`${name}_${bound}`}
+            defaultValue={(bound === 'min' ? minVal : maxVal) ?? ''}
+            placeholder={bound === 'min' ? 'von' : 'bis'}
+            aria-label={`${unit} ${bound === 'min' ? 'von' : 'bis'}`}
+            min="0"
+            step={step}
+            data-testid={`filter-${name}-${bound}`}
+            className={`${inputCls} w-20`}
+          />
+        </div>
+      ))}
+      <span className="text-xs text-[#6B6B6B]">{unit}</span>
+    </div>
+  );
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8" data-testid="coop-page">
       <div className="mb-6">
@@ -292,7 +398,7 @@ export default async function CoopPage({
             mygewo.at
           </a>{' '}
           über alle Bauträger · nur Miete (keine Kaufoption) · Wien ·
-          Aktualisierung alle 5&nbsp;Min.
+          laufend aktualisiert (ca. alle 5&nbsp;Min.)
         </p>
 
         <form
@@ -309,29 +415,36 @@ export default async function CoopPage({
                 </option>
               ))}
             </select>
-            <select
-              name="bautraeger"
-              defaultValue={bautraeger}
-              data-testid="filter-bautraeger"
-              className={inputCls}
-            >
-              <option value="">Alle Bauträger</option>
+            {/* Free text instead of the old "Alle Bauträger" <select>: that
+                dropdown grew one <option> per builder in the inventory and was
+                unusable to scan. The datalist keeps every builder name
+                discoverable as you type without rendering a wall of options. */}
+            <input
+              type="search"
+              name="q"
+              defaultValue={q}
+              maxLength={Q_MAX_LEN}
+              list="coop-builder-names"
+              placeholder="Bauträger oder Adresse…"
+              aria-label="Bauträger oder Adresse suchen"
+              data-testid="filter-q"
+              className={`${inputCls} min-w-[13rem] flex-1`}
+            />
+            <datalist id="coop-builder-names">
               {builders.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
+                <option key={b} value={b} />
               ))}
-            </select>
+            </datalist>
           </div>
 
           <div>
             <span className={groupLabelCls}>Zimmer</span>
-            {chipGroup('rooms', ROOM_BUCKETS, rooms, 'filter-rooms')}
+            {rangeInputs('rooms', roomsMin, roomsMax, 'Zimmer', '1')}
           </div>
 
           <div>
             <span className={groupLabelCls}>Fläche</span>
-            {chipGroup('area', AREA_BUCKETS, area, 'filter-area')}
+            {rangeInputs('area', areaMin, areaMax, 'm²', '1')}
           </div>
 
           <div>
