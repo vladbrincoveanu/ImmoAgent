@@ -37,7 +37,10 @@ Every claim below was checked against running code or the live deployment on
 | `nhg.at` | **no** | 6 |
 
 `og:image` alone covers roughly half the builders. A fallback that picks a
-plausible `<img>` is required, or half the inventory keeps the placeholder.
+plausible `<img>` is therefore load-bearing — and it **already exists**:
+`_og_image()` (`genossenschaft_scraper.py:349-357`) falls back to the first
+`<img>` that is not a logo/icon/sprite/placeholder/avatar and that looks like a
+real image path. Nothing new is needed there. P1 is *only* the second hop.
 
 ## Decisions taken
 
@@ -84,16 +87,13 @@ the poisoned values.
 ### Module: `coop_image_resolver`
 - **Responsibility:** Given a builder page URL, return an absolute unit-photo URL.
 - **Interface:** `resolve_builder_image(builder_url) -> Optional[str]`
-- **Dependencies:** `fetch()`, `_og_image()`, existing absolute-URL helper, `BeautifulSoup`
-- **Size target:** ~90 lines
+- **Dependencies:** `fetch()`, `_og_image()`
+- **Size target:** ~30 lines
 
-Resolution order:
-
-1. `og:image` / `twitter:image` on the builder page.
-2. Fallback: first `<img>` whose `src` does not match a logo/icon/sprite/svg
-   pattern and whose path segment count suggests a content image. Reject
-   anything under `/logo`, `/icon`, `/static/ui`, or ending `.svg`.
-3. `None` if neither yields a candidate.
+The whole extraction ladder (og:image → twitter:image → first non-logo `<img>`)
+is already inside `_og_image()`. This module only points it at the builder page
+instead of the mygewo offer page, and swallows fetch failures so one dead
+builder site cannot abort a poll.
 
 ### Re-probe safety
 
