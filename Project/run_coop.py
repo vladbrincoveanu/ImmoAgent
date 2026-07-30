@@ -21,6 +21,7 @@ from Domain.listing import Listing
 from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
+from Application.coop_alert_router import missing_channels
 from Application.coop_format import format_coop_message
 from Application.helpers.listing_validator import validate_url
 from Integration.mongodb_handler import MongoDBHandler
@@ -174,6 +175,12 @@ def _log_parsed(name: str, listings: List[Listing]) -> List[Listing]:
 def run(no_send: bool = False) -> int:
     """Poll → upsert → alert. Exit 0 unless MongoDB is down or ALL adapters fail."""
     alerts = load_coop_alerts()
+    # Name every unset channel up front. Previously a missing secret produced one
+    # warning that looked identical to a quiet market, and the poll ran green for
+    # weeks while delivering nothing.
+    for name in missing_channels():
+        logger.error(f"🔴 {name} is unset — alerts for that feed are DISABLED. "
+                     "Scraping and upserts continue.")
     handler = MongoDBHandler()
     if handler.collection is None:
         logger.error("❌ No MongoDB connection; aborting")
