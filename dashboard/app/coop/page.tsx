@@ -12,6 +12,13 @@ export const metadata = {
 // tagged as "Wohnung" (e.g. a 12,5 m² Stellplatz) — below this, it isn't housing.
 const MIN_LIVABLE_AREA_M2 = 15;
 
+// Genossenschaft-only guard: mygewo also aggregates freifinanzierte (market-rate)
+// rentals from the same non-profit builders. A genuine subsidized co-op either
+// requires Eigenmittel (own_funds) OR is priced at Kostenmiete (low €/m²). This
+// mirrors _is_subsidized_coop / _COOP_MAX_EUR_PER_M2 in genossenschaft_scraper.py
+// and also hides legacy rows the poller ingested before that filter existed.
+const COOP_MAX_EUR_PER_M2 = 13.5;
+
 type CoopRow = {
   url: string;
   title: string | null;
@@ -52,9 +59,19 @@ async function getCoopListings(): Promise<{ rows: CoopRow[]; dbUp: boolean }> {
         coop_source: { $ne: 'willhaben' },
         buyable: false,
         bezirk: { $regex: '^1\\d{3}$' },
-        // { area_m2: null } already matches missing/undefined fields in MongoDB —
-        // no separate $exists:false clause needed.
-        $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
+        // Builder deep-links 404 (unit gets wrongly hidden) or redirect to a generic
+        // search page (click lands on unrelated rentals), so every co-op row is now
+        // keyed by its mygewo /angebot/ page. Requiring that here also collapses
+        // legacy builder-URL-keyed duplicates and drops the disabled standalone
+        // ÖVW/Familienwohnbau/BWSG adapters' rows to a single canonical row per unit.
+        url: { $regex: 'mygewo\\.at' },
+        $and: [
+          // { area_m2: null } already matches missing/undefined fields in MongoDB.
+          { $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }] },
+          // Genossenschaft-only (see COOP_MAX_EUR_PER_M2): keep Eigenmittel-bearing
+          // OR Kostenmiete-priced units; drop freifinanzierte market-rate rentals.
+          { $or: [{ own_funds: { $gt: 0 } }, { price_per_m2: { $lte: COOP_MAX_EUR_PER_M2 } }] },
+        ],
       })
       .sort({ processed_at: -1, _id: -1 })
       .limit(200)
@@ -349,8 +366,11 @@ export default async function CoopPage({
           const posted = ago(r.processed_at);
           return (
             <li key={r.url} data-testid="coop-item">
+              {/* Link to the mygewo /angebot/ page (always valid, shows THIS unit,
+                  one click to the builder). The builder deep-link (builder_url) is a
+                  fallback only — it often 404s or redirects to a generic search page. */}
               <a
-                href={r.builder_url || r.url}
+                href={r.url || r.builder_url || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block rounded-lg border border-[#E8E4E0] bg-white px-4 py-3 transition-colors hover:bg-[#FBFAF8]"

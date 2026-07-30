@@ -117,8 +117,10 @@ def test_extracts_core_fields_and_builder_url():
     assert "Terrasse" in (a.special_features or []) and a.balcony_terrace is True
 
 
-def test_url_falls_back_to_builder_when_no_card():
-    # A structured unit with no matching rendered card falls back to the builder url.
+def test_url_constructs_angebot_when_no_card():
+    # A structured unit with no matching rendered card still gets mygewo's own
+    # /angebot/ page — deterministically constructed from rooms/area/company-slug/
+    # uuid — NOT the builder deep-link (which 404s or redirects to a generic page).
     no_card = ("<script>window.x={units:$R[35]=[" + _unit(
         36, 99999, "https://www.example-bt.at/objekt/1200-wien-x",
         "2.00", "600.00", "3000.00", "55.00", "Beispielgasse",
@@ -126,8 +128,50 @@ def test_url_falls_back_to_builder_when_no_card():
         city=_city(38, 28, "1200", 39)) + "]}</script>")
     ls = parse_mygewo(no_card)
     assert len(ls) == 1
-    assert ls[0].url == "https://www.example-bt.at/objekt/1200-wien-x"
+    assert ls[0].url == ("https://mygewo.at/genossenschaftswohnungen/angebot/"
+                         "genossenschaftswohnung-wien-2-zimmer-55-m2-examplebt-" + _uuid(99999))
+    # builder deep-link is preserved for reference, but is NOT the canonical url
+    assert ls[0].builder_url == "https://www.example-bt.at/objekt/1200-wien-x"
+
+
+def test_url_falls_back_to_builder_when_slug_incomplete():
+    # No company object → no slug → the /angebot/ url can't be built, so we fall
+    # back to the builder deep-link rather than emit a broken mygewo link.
+    no_company = ("<script>window.x={units:$R[35]=[" + _unit(
+        36, 88888, "https://www.example-bt.at/objekt/1200-wien-y",
+        "2.00", "600.00", "3000.00", "55.00", "Beispielgasse",
+        company="", city=_city(38, 28, "1200", 39)) + "]}</script>")
+    ls = parse_mygewo(no_company)
+    assert len(ls) == 1
+    assert ls[0].url == "https://www.example-bt.at/objekt/1200-wien-y"
     assert ls[0].builder_url == ls[0].url
+
+
+def _one_unit(rent, capital, area, **kw):
+    fx = ("<script>window.x={units:$R[35]=[" + _unit(
+        36, 77777, "https://www.example-bt.at/objekt/1200-wien-z",
+        "2.00", rent, capital, area, "Beispielgasse",
+        company=_company(37, 13, "example-bt.at", "ExampleBT"),
+        city=_city(38, 28, "1200", 39), **kw) + "]}</script>")
+    return parse_mygewo(fx)
+
+
+def test_drops_market_rate_freifinanziert():
+    # High €/m² (1500/50 = 30) AND no Eigenmittel → freifinanzierte market-rate
+    # rental mygewo also lists → dropped (user wants subsidized co-ops only).
+    assert _one_unit("1500.00", "0.00", "50.00") == []
+
+
+def test_keeps_low_eur_per_m2_without_capital():
+    # No Eigenmittel but Kostenmiete-priced (500/50 = 10 €/m² ≤ 13.5) → kept.
+    ls = _one_unit("500.00", "0.00", "50.00")
+    assert len(ls) == 1 and ls[0].price_total == 500.0
+
+
+def test_keeps_high_eur_per_m2_with_capital():
+    # Above the €/m² line (900/50 = 18) but requires Eigenmittel → still a co-op → kept.
+    ls = _one_unit("900.00", "3000.00", "50.00")
+    assert len(ls) == 1 and ls[0].own_funds == 3000.0
 
 
 def test_resolves_bare_company_and_city_refs():

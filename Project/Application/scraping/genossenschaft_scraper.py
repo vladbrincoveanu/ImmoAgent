@@ -198,6 +198,51 @@ def parse_bwsg(html: str) -> List[Listing]:
 
 _MYGEWO_BASE = "https://mygewo.at"
 
+# A subsidized Genossenschaftswohnung is identified by its Kostenmiete rent level
+# (low €/m²) OR by requiring Eigenmittel/Genossenschaftsanteil upfront (`capital`).
+# mygewo ALSO aggregates freifinanzierte (market-rate) rentals from the same
+# non-profit builders — they run €14–33/m² and carry NO Anteil — which the user
+# does not want. Keep a unit when EITHER co-op signal holds; drop the rest. 13.5
+# €/m² sits just above the subsidized cluster (≤~12.5, observed live) yet below the
+# market-rate band, and every real co-op above that line still lists an Eigenmittel
+# figure (so the OR keeps it, e.g. the €945/70 m² ÖSW unit mygewo showcases at
+# 13.5 €/m² with €2.9k Kapital). Mirrored in dashboard/app/coop/page.tsx.
+_COOP_MAX_EUR_PER_M2 = 13.5
+
+
+def _is_subsidized_coop(rent: Optional[float], area: Optional[float],
+                        own_funds: Optional[float]) -> bool:
+    """True if a rental looks like a genuine (subsidized) co-op unit, not a
+    market-rate freifinanzierte rental mygewo also lists (see _COOP_MAX_EUR_PER_M2)."""
+    if own_funds and own_funds > 0:            # requires a Genossenschaftsanteil
+        return True
+    if rent and area and area > 0 and rent / area <= _COOP_MAX_EUR_PER_M2:
+        return True
+    return False
+
+
+def _slugnum(v: Optional[str]) -> Optional[str]:
+    """Format a numeric string the way mygewo's /angebot/ slug does: drop trailing
+    zeros and swap the decimal point for '-' (70.09 → '70-09', 3.00 → '3')."""
+    f = _to_float(v)
+    return ("%g" % f).replace(".", "-") if f is not None else None
+
+
+def _mygewo_offer_url(u: dict) -> Optional[str]:
+    """mygewo's canonical /angebot/ detail URL for a unit, built from its own fields.
+
+    Verified to resolve (HTTP 200) for EVERY unit — page 0 AND deeper RPC pages —
+    unlike the builder's own deep-link, which 404s (→ the unit gets wrongly marked
+    url-invalid and vanishes from /coop) or 302-redirects to a generic search page
+    (→ a click lands on unrelated market-rate rentals). Returns None when a slug
+    component is missing so the caller can fall back."""
+    uuid, slug = u.get("uuid"), u.get("company_slug")
+    rooms, area = _slugnum(u.get("rooms")), _slugnum(u.get("area"))
+    if not (uuid and slug and rooms and area):
+        return None
+    return (f"{_MYGEWO_BASE}/genossenschaftswohnungen/angebot/"
+            f"genossenschaftswohnung-wien-{rooms}-zimmer-{area}-m2-{slug}-{uuid}")
+
 
 def _seroval_ref_bodies(html: str) -> dict:
     """Map seroval ref id -> its object body text, for the `$R[NN]={…}` blocks
@@ -241,6 +286,8 @@ def _mygewo_units(html: str) -> List[dict]:
     bodies = _seroval_ref_bodies(html)
     ref_company = {rid: mm.group(1) for rid, b in bodies.items()
                    if "readable_url:" in b and (mm := re.search(r'\bname:"([^"]*)"', b))}
+    ref_company_slug = {rid: mm.group(1) for rid, b in bodies.items()
+                        if (mm := re.search(r'\bpublic_slug:"([^"]*)"', b))}
     ref_zip = {rid: mm.group(1) for rid, b in bodies.items()
                if (mm := re.search(r'zipcode:"(\d+)"', b))}
 
@@ -269,6 +316,7 @@ def _mygewo_units(html: str) -> List[dict]:
             "street": s(r'\bstreet:"([^"]*)"'),
             "zipcode": ref_zip.get(city_ref or ""),
             "company": ref_company.get(company_ref or ""),
+            "company_slug": ref_company_slug.get(company_ref or ""),
             "has_balcony": s(r"\bhas_balcony:(!0|!1|null)") == "!0",
             "has_terrace": s(r"\bhas_terrace:(!0|!1|null)") == "!0",
             "has_garden": s(r"\bhas_garden:(!0|!1|null)") == "!0",
@@ -300,19 +348,21 @@ def _offer_url_map(html: str) -> dict:
 
 
 def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
-    """Map extracted mygewo unit dicts → Wien RENTAL Listings.
+    """Map extracted mygewo unit dicts → Wien subsidized co-op RENTAL Listings.
 
-    Buy-option units (`buyable`, e.g. "…miete-mit-eo") are dropped — the user
-    wants Genossenschaft rentals, never for-sale. Non-Wien rows (should already be
-    excluded by states=28_) are dropped defensively via zipcode.
+    Three drops, all so ONLY the genossenschaft rentals the user wants survive:
+      • buy-option units (`buyable`, e.g. "…miete-mit-eo") — never for-sale;
+      • non-Wien rows (should already be excluded by states=28_) — via zipcode;
+      • market-rate freifinanzierte rentals mygewo also lists — via _is_subsidized_coop.
 
-    `url` stays the mygewo /angebot/ page when a rendered card exists for the
-    unit's uuid — the SAME key earlier records used — so a re-poll updates in
-    place instead of forking a duplicate; otherwise it falls back to the builder's
-    own reservation page. That builder page always goes to `builder_url`, which the
-    dashboard and Telegram link to directly."""
+    `url` is mygewo's own /angebot/ detail page for EVERY unit: the exact scraped
+    card URL when page 0 rendered it, else the deterministically-constructed one
+    (both resolve, both keyed by uuid, so a re-poll updates in place). We do NOT key
+    on the builder deep-link — it 404s (unit wrongly hidden) or redirects to a
+    generic search page (click lands on unrelated rentals). The builder deep-link is
+    still kept on `builder_url` for reference."""
     out: List[Listing] = []
-    dropped_buy = dropped_nonwien = 0
+    dropped_buy = dropped_nonwien = dropped_market = 0
     for u in units:
         builder_url = u["url"]
         if not builder_url:
@@ -325,14 +375,23 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
             dropped_nonwien += 1
             continue
 
-        url = uuid_to_offer.get(u["uuid"] or "", builder_url)
+        area = _to_float(u["area"])
+        rent = _to_float(u["rent"])
+        own_funds = _to_float(u["capital"])
+        if not _is_subsidized_coop(rent, area, own_funds):    # freifinanziert / market-rate
+            dropped_market += 1
+            continue
+
+        # Canonical mygewo /angebot/ page (valid for all units); builder deep-link is
+        # unreliable so it is never the dedup key, only a reference on builder_url.
+        url = uuid_to_offer.get(u["uuid"] or "") or _mygewo_offer_url(u) or builder_url
         listing = _new_coop_listing(url, u["company"])
-        listing.builder_url = builder_url      # the builder's own reservation page
+        listing.builder_url = builder_url      # the builder's own (deep) reservation link
         listing.buyable = False                # every emitted unit is a rental
-        listing.area_m2 = _to_float(u["area"])
+        listing.area_m2 = area
         listing.rooms = _to_float(u["rooms"])
-        listing.price_total = _to_float(u["rent"])
-        listing.own_funds = _to_float(u["capital"])
+        listing.price_total = rent
+        listing.own_funds = own_funds
         listing.bezirk = zipcode
         street = u["street"]
         city = f"{zipcode} Wien"
@@ -350,8 +409,9 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
             u["company"]) if p)
         listing.title = f"{listing.address} – {summary}" if summary else listing.address
         out.append(listing)
-    logger.info(f"🔍 mygewo: {len(out)} rental(s) parsed "
-                f"(dropped {dropped_buy} buy-option, {dropped_nonwien} non-Wien)")
+    logger.info(f"🔍 mygewo: {len(out)} co-op rental(s) parsed (dropped "
+                f"{dropped_buy} buy-option, {dropped_nonwien} non-Wien, "
+                f"{dropped_market} market-rate)")
     return out
 
 
@@ -467,6 +527,7 @@ def _mygewo_units_from_rpc(units_json: List[dict]) -> List[dict]:
             "street": u.get("street"),
             "zipcode": city.get("zipcode"),
             "company": company.get("name"),
+            "company_slug": company.get("public_slug"),
             "has_balcony": u.get("has_balcony") is True,
             "has_terrace": u.get("has_terrace") is True,
             "has_garden": u.get("has_garden") is True,
