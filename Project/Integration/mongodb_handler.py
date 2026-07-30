@@ -610,6 +610,22 @@ class MongoDBHandler:
             print(f"MongoDB query error: {e}")
             return None
     
+    def get_active_alerts(self, kind: str) -> List[Dict]:
+        """Confirmed alert subscriptions for one feed.
+
+        Unconfirmed email subscriptions are excluded: anyone can type someone
+        else's address into the form, so an unconfirmed one must never be
+        delivered to. Telegram subscriptions are stored already-confirmed —
+        supplying a chat id the bot can post to is itself the consent."""
+        try:
+            return list(self.db["alert_subscriptions"].find(
+                {"kind": kind, "confirmed": True}))
+        except Exception as e:
+            # An alert lookup failure must not abort a poll — the scrape and the
+            # upserts that feed the website still have to run.
+            print(f"MongoDB alert query error: {e}")
+            return []
+
     def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30,
                         excluded_districts: List[str] = None, min_rooms: float = 0.0,
                         exclude_recently_sent: bool = True, recently_sent_days: int = 7,

@@ -402,3 +402,65 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
             rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 1)
         crawl.assert_not_called()
+
+
+class TestDeliverUserAlerts(unittest.TestCase):
+    """Alerts users create on /alerts, delivered from the poll."""
+
+    def _handler(self, alerts):
+        h = MagicMock()
+        h.get_active_alerts.return_value = alerts
+        return h
+
+    @patch("run_coop.TelegramBot")
+    def test_telegram_alert_is_delivered(self, TB):
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "1100",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Weitergabe 1100 Wien"
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        TB.assert_called_once_with("tok", "-100")
+
+    @patch("run_coop.TelegramBot")
+    def test_non_matching_keyword_delivers_nothing(self, TB):
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "garten",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Weitergabe ohne Freiflaeche"
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 0)
+        TB.return_value.send_message.assert_not_called()
+
+    @patch("run_coop.send_alert_email", return_value=True)
+    def test_confirmed_email_alert_is_delivered(self, mail):
+        handler = self._handler([{"_id": "a", "keyword": "", "email": "u@x.at",
+                                  "telegram_chat_id": None, "confirmed": True}])
+        listing = _l(url="https://willhaben.at/x")
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        mail.assert_called_once()
+
+    @patch("run_coop.send_alert_email")
+    def test_unconfirmed_email_is_never_mailed(self, mail):
+        """Anyone can type someone else's address into the form."""
+        handler = self._handler([{"_id": "a", "keyword": "", "email": "victim@x.at",
+                                  "telegram_chat_id": None, "confirmed": False}])
+        self.assertEqual(
+            run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)
+        mail.assert_not_called()
+
+    def test_alert_load_failure_does_not_raise(self):
+        """A broken alert lookup must not fail the poll that feeds the website."""
+        h = MagicMock()
+        h.get_active_alerts.side_effect = RuntimeError("mongo down")
+        self.assertEqual(
+            run_coop.deliver_user_alerts(h, [_l(url="https://willhaben.at/x")]), 0)
+
+    @patch("run_coop.TelegramBot", side_effect=RuntimeError("telegram down"))
+    def test_send_failure_is_swallowed(self, TB):
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        self.assertEqual(
+            run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)

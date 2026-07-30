@@ -11,6 +11,25 @@ interface SubscribeBody {
   saved_search_id?: string;
   params?: Record<string, string>;
   frequency?: 'instant' | 'daily' | 'weekly';
+  /** Which feed to watch. 'listings' is the original behaviour and stays the
+   * default so existing callers are unaffected. */
+  kind?: 'listings' | 'coop_private';
+  /** Free-text match for coop_private alerts, tested against title, address and
+   * the ad body by the poller. */
+  keyword?: string;
+  /** Telegram destination. Either this or an email is required — a co-op
+   * Weitergabe is gone in hours, and email is often too slow to be the only
+   * channel. */
+  telegram_chat_id?: string;
+}
+
+const KEYWORD_MAX_LEN = 80;
+
+/** A Telegram chat id is a signed integer (channels are negative, often -100…).
+ * Rejecting @usernames on purpose: resolving one needs a bot API round trip, and
+ * a silently unresolvable handle is an alert that never arrives. */
+function isValidChatId(s: string): boolean {
+  return /^-?\d{5,20}$/.test(s);
 }
 
 // POST /api/saved-searches/alert
@@ -33,9 +52,27 @@ export async function POST(req: NextRequest) {
   let body: SubscribeBody = {};
   try { body = await req.json(); } catch { body = {}; }
   const email = (body.email ?? '').trim().toLowerCase();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const telegramChatId = (body.telegram_chat_id ?? '').trim();
+  const hasEmail = !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const hasTelegram = !!telegramChatId && isValidChatId(telegramChatId);
+
+  if (telegramChatId && !hasTelegram) {
+    return NextResponse.json({ error: 'Invalid Telegram chat id' }, { status: 400 });
+  }
+  // At least one reachable channel, or the alert is a record of nothing.
+  if (!hasEmail && !hasTelegram) {
+    return NextResponse.json(
+      { error: 'Valid email or Telegram chat id required' }, { status: 400 });
+  }
+  if (email && !hasEmail) {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
   }
+
+  const kind = body.kind ?? 'listings';
+  if (!['listings', 'coop_private'].includes(kind)) {
+    return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
+  }
+  const keyword = (body.keyword ?? '').toString().trim().slice(0, KEYWORD_MAX_LEN);
   const frequency = body.frequency ?? 'daily';
   if (!['instant', 'daily', 'weekly'].includes(frequency)) {
     return NextResponse.json({ error: 'Invalid frequency' }, { status: 400 });
@@ -46,11 +83,17 @@ export async function POST(req: NextRequest) {
   const doc = {
     _id: new ObjectId(),
     user_id: userId,
-    email,
+    email: hasEmail ? email : null,
+    telegram_chat_id: hasTelegram ? telegramChatId : null,
+    kind,
+    keyword,
     saved_search_id: body.saved_search_id ?? null,
     params,
     frequency,
-    confirmed: false,
+    // Telegram needs no double opt-in: supplying a chat id the bot can post to is
+    // itself the consent, and there is no third party to protect from spam. Email
+    // still does — anyone can type someone else's address.
+    confirmed: !hasEmail && hasTelegram,
     confirm_token: confirmToken,
     created_at: new Date(),
   };
@@ -60,21 +103,30 @@ export async function POST(req: NextRequest) {
     ? `https://${process.env.VERCEL_URL}`
     : 'http://localhost:3000';
   const confirmUrl = `${appUrl}/api/saved-searches/confirm?token=${confirmToken}`;
-  const mailResult = await sendMail({
-    to: email,
-    subject: 'Confirm your ImmoScouter listing alert',
-    html: confirmationEmail(email, params, confirmUrl),
-  });
+  // Telegram-only alerts have no address to confirm — sending here would mail ''.
+  const mailResult = hasEmail
+    ? await sendMail({
+        to: email,
+        subject: 'Confirm your ImmoScouter listing alert',
+        html: confirmationEmail(email, params, confirmUrl),
+      })
+    : { ok: false as const, error: 'Telegram-only alert — no email to confirm.' };
 
   const res = NextResponse.json({
     ok: true,
     subscription_id: doc._id.toString(),
-    email,
+    email: doc.email,
+    telegram_chat_id: doc.telegram_chat_id,
+    kind,
+    keyword,
     frequency,
+    confirmed: doc.confirmed,
     email_sent: mailResult.ok,
     message: mailResult.ok
       ? 'Subscription created. Check your inbox to confirm.'
-      : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
+      : doc.confirmed
+        ? 'Subscription active — alerts will arrive on Telegram.'
+        : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
   }, { status: 201 });
   setUserCookie(res, userId);
   return res;
@@ -92,7 +144,11 @@ export async function GET(req: NextRequest) {
     .toArray();
   return NextResponse.json({ items: items.map((s) => ({
     _id: s._id.toString(),
-    email: s.email,
+    email: s.email ?? null,
+    telegram_chat_id: s.telegram_chat_id ?? null,
+    kind: s.kind ?? 'listings',
+    keyword: s.keyword ?? null,
+    confirmed: !!s.confirmed,
     frequency: s.frequency,
     params: s.params,
     created_at: s.created_at,

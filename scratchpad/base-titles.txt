@@ -1,0 +1,5 @@
+map page header has ProfileSelector
+MapLayersPopover toggles U-Bahn + Schools; default state has only Listings on
+School dots render on the map when Schools layer is enabled
+T8: SelectedCard opens at bottom-left 320px wide with fact chips and View listing CTA
+U-Bahn dots render with a permanent name label on the map (the literal complaint: "dots do not say anything")

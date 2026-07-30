@@ -21,6 +21,8 @@ from Domain.listing import Listing
 from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
+from Application.alert_email import send_alert_email
+from Application.alert_matcher import channels_for, match
 from Application.coop_alert_router import missing_channels, route
 from Application.scraping.willhaben_private_coop import crawl_private_coop
 from Application.scraping.willhaben_scraper import WillhabenScraper
@@ -44,6 +46,41 @@ MAX_DETAIL_FETCHES_PER_RUN = 40
 # exactly one re-probe; afterwards "" is terminal again, which is what stops a
 # genuinely photo-less builder from being re-fetched on every poll of every day.
 IMAGE_PROBE_V = 2
+
+
+def deliver_user_alerts(handler, listings: List[Listing]) -> int:
+    """Deliver newly-seen private transfers to the alerts users created on /alerts.
+
+    Returns the number of successful deliveries. Never raises: an alert-delivery
+    failure must not fail the poll that feeds the website."""
+    try:
+        alerts = handler.get_active_alerts("coop_private")
+    except Exception as e:
+        logger.error(f"❌ could not load user alerts: {e}")
+        return 0
+    if not alerts:
+        return 0
+
+    token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
+    delivered = 0
+    for alert, listing in match(listings, alerts):
+        chat_id, email = channels_for(alert)
+        message = format_coop_message(listing)
+        if chat_id and token:
+            try:
+                if TelegramBot(token, chat_id).send_message(message):
+                    delivered += 1
+            except Exception as e:
+                logger.error(f"❌ alert telegram send failed ({chat_id}): {e}")
+        if email:
+            try:
+                if send_alert_email(email, listing):
+                    delivered += 1
+            except Exception as e:
+                logger.error(f"❌ alert email send failed ({email}): {e}")
+    logger.info(f"🔔 user alerts: {delivered} delivery(ies) "
+                f"for {len(listings)} new transfer(s) across {len(alerts)} alert(s)")
+    return delivered
 
 
 def maybe_reprobe_image(stored: dict, resolve) -> dict:
@@ -224,15 +261,16 @@ def run(no_send: bool = False) -> int:
     # Deliberately AFTER the all-adapters-failed gate and outside ok_adapters: it
     # is an extra feed, not one of coop.SOURCES, and it must never mask a total
     # mygewo outage by making a dead poll look half-alive.
+    new_transfers: List[Listing] = []
     if os.environ.get("WILLHABEN_PRIVATE_COOP", "1") != "0":
         try:
-            transfers = crawl_private_coop(
+            new_transfers = crawl_private_coop(
                 WillhabenScraper(config=load_config() or {}),
                 is_new=lambda u: handler.get_listing(u) is None,
             )
-            for listing in transfers:
+            for listing in new_transfers:
                 listing.coop_kind = "private_transfer"
-            seen.extend(transfers)
+            seen.extend(new_transfers)
         except Exception as e:
             # A Willhaben block must not take the mygewo half of the poll with it.
             logger.error(f"❌ willhaben private-coop adapter failed: {e}")
@@ -320,6 +358,18 @@ def run(no_send: bool = False) -> int:
             sent += 1
         elif bot:
             logger.error(f"❌ send failed (retry next run): {listing.url}")
+
+    # User-created alerts (/alerts) on the private-transfer feed. Distinct from
+    # the channel feeds above: those are the owner's firehose, these are per-user
+    # keyword watches with their own destinations.
+    #
+    # Only `new_transfers` are considered, never the whole `seen` list. That list
+    # holds exactly the URLs this poll saw for the first time, so a listing is
+    # delivered once without needing a per-(alert, url) ledger. The trade-off is
+    # honest: if a poll dies between the upsert and here, that ad is never
+    # delivered — it will not be "new" again.
+    if new_transfers and not no_send:
+        deliver_user_alerts(handler, new_transfers)
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")
