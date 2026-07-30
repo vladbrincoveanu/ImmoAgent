@@ -5,6 +5,7 @@ import {
   validateMinScore,
   validateLimit,
   validateObjectId,
+  validateStatus,
 } from './validators';
 
 describe('validateDistrict', () => {
@@ -28,6 +29,41 @@ describe('validateDistrict', () => {
 
   it('trims whitespace from valid districts', () => {
     expect(validateDistrict(' 1010 ')).toBe('1010');
+  });
+
+  it('expands single-digit shorthand to the full postal code', () => {
+    expect(validateDistrict('1')).toBe('1010');
+    expect(validateDistrict('2')).toBe('1020');
+    expect(validateDistrict('9')).toBe('1090');
+  });
+
+  it('expands zero-padded and two-digit shorthand', () => {
+    expect(validateDistrict('01')).toBe('1010');
+    expect(validateDistrict('02')).toBe('1020');
+    expect(validateDistrict('09')).toBe('1090');
+    expect(validateDistrict('10')).toBe('1100');
+    expect(validateDistrict('15')).toBe('1150');
+    expect(validateDistrict('23')).toBe('1230');
+  });
+
+  it('returns null for out-of-range shorthand', () => {
+    expect(validateDistrict('0')).toBeNull();
+    expect(validateDistrict('24')).toBeNull();
+    expect(validateDistrict('99')).toBeNull();
+  });
+});
+
+describe('validateStatus', () => {
+  it('returns valid status options unchanged', () => {
+    expect(validateStatus('all')).toBe('all');
+    expect(validateStatus('active')).toBe('active');
+    expect(validateStatus('taken')).toBe('taken');
+  });
+
+  it('returns all for invalid or null input', () => {
+    expect(validateStatus('archived')).toBe('all');
+    expect(validateStatus('')).toBe('all');
+    expect(validateStatus(null)).toBe('all');
   });
 });
 

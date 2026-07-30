@@ -19,8 +19,4 @@ export function getDb(): Db | null {
   return getClient()?.db ?? null;
 }
 
-export function getMongoClient(): MongoClient | null {
-  return getClient()?.client ?? null;
-}
-
 export { ObjectId };

@@ -124,6 +124,8 @@ dashboard/.next/
 
 # Playwright test artifacts
 test-results/
+# Screenshots from tests/map-visual-check.spec.ts
+dashboard/.test-out/
 
 # Session handoffs (local state)
 .claude/handoffs/*.md
