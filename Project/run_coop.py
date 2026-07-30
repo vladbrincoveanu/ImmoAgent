@@ -34,6 +34,30 @@ logger = logging.getLogger("run_coop")
 # within a few */5 cycles while no single run hammers mygewo.
 MAX_DETAIL_FETCHES_PER_RUN = 40
 
+# Bumped whenever the photo-resolution strategy changes. v1 read og:image off the
+# mygewo offer page, which never carries a unit photo, so every unit settled on
+# the terminal "" and /coop rendered a placeholder on every row. v2 hops to the
+# builder's own page instead. A unit whose stored version is below this earns
+# exactly one re-probe; afterwards "" is terminal again, which is what stops a
+# genuinely photo-less builder from being re-fetched on every poll of every day.
+IMAGE_PROBE_V = 2
+
+
+def maybe_reprobe_image(stored: dict, resolve) -> dict:
+    """Re-probe one unit's photo if it predates the current probe version.
+
+    Returns the fields to persist. `resolve` is injected so the poll passes the
+    real network call and tests pass a stub."""
+    out = dict(stored)
+    if (out.get("image_probe_v") or 1) >= IMAGE_PROBE_V:
+        return out
+    if not out.get("builder_url"):
+        return out
+    # `or ""` is what makes a miss terminal within this version.
+    out["image_url"] = resolve(out["builder_url"]) or ""
+    out["image_probe_v"] = IMAGE_PROBE_V
+    return out
+
 
 def load_coop_alerts() -> dict:
     """Alert filter. Precedence: COOP_ALERTS env (JSON) > config.json coop_alerts
@@ -221,6 +245,24 @@ def run(no_send: bool = False) -> int:
                     logger.warning(
                         f"offer-detail fetches capped at {MAX_DETAIL_FETCHES_PER_RUN} "
                         "this run; remaining units resolve on the next poll")
+
+            # v1 probed the mygewo offer page, which has no unit photo, so every
+            # unit above settled on "". Hop to the builder page once per unit.
+            # Version-gated BEFORE spending a fetch slot: units already at v2 must
+            # not consume the budget that unprobed units need.
+            stored = handler.get_listing(listing.url) or {}
+            if ((stored.get("image_probe_v") or 1) < IMAGE_PROBE_V
+                    and listing.builder_url
+                    and detail_fetches < MAX_DETAIL_FETCHES_PER_RUN):
+                detail_fetches += 1
+                probed = maybe_reprobe_image(
+                    {"builder_url": listing.builder_url,
+                     "image_url": stored.get("image_url"),
+                     "image_probe_v": stored.get("image_probe_v")},
+                    coop.resolve_builder_image,
+                )
+                listing.image_url = probed["image_url"] or None
+                listing.image_probe_v = probed["image_probe_v"]
         handler.upsert_coop_listing(_to_doc(listing))
 
     sent = 0

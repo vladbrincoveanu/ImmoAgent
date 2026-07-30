@@ -268,3 +268,65 @@ class TestMain(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# --- photo re-probe versioning ------------------------------------------------
+# v1 read og:image off the mygewo offer page, which carries none, so every unit
+# stored the terminal "" and /coop showed a placeholder on every row. v2 hops to
+# the builder page. The version marker is what keeps the retry to exactly once.
+
+from run_coop import IMAGE_PROBE_V, maybe_reprobe_image  # noqa: E402
+
+
+def test_unit_with_old_probe_version_is_reprobed_once():
+    calls = []
+
+    def fake_resolve(url):
+        calls.append(url)
+        return "https://cdn.builder.at/a.jpg"
+
+    got = maybe_reprobe_image(
+        {"builder_url": "https://www.gesiba.at/x", "image_url": "",
+         "image_probe_v": 1}, fake_resolve)
+    assert got["image_url"] == "https://cdn.builder.at/a.jpg"
+    assert got["image_probe_v"] == IMAGE_PROBE_V
+    assert len(calls) == 1
+
+
+def test_unit_missing_probe_version_is_treated_as_v1():
+    """Every unit already in Mongo predates the field entirely."""
+    got = maybe_reprobe_image(
+        {"builder_url": "https://www.gesiba.at/x", "image_url": ""},
+        lambda url: "https://cdn.builder.at/b.jpg")
+    assert got["image_url"] == "https://cdn.builder.at/b.jpg"
+    assert got["image_probe_v"] == IMAGE_PROBE_V
+
+
+def test_unit_at_current_probe_version_is_not_refetched():
+    """Terminal within a version: no photo stays no photo, and costs no request."""
+    calls = []
+    got = maybe_reprobe_image(
+        {"builder_url": "https://www.nhg.at/x", "image_url": "",
+         "image_probe_v": IMAGE_PROBE_V}, lambda url: calls.append(url))
+    assert got["image_url"] == ""
+    assert calls == []
+
+
+def test_reprobe_miss_is_terminal_at_new_version():
+    """A v2 miss records "" and bumps the version, so it never retries again."""
+    got = maybe_reprobe_image(
+        {"builder_url": "https://www.nhg.at/x", "image_url": "",
+         "image_probe_v": 1}, lambda url: None)
+    assert got["image_url"] == ""
+    assert got["image_probe_v"] == IMAGE_PROBE_V
+
+
+def test_reprobe_skipped_without_builder_url():
+    """No builder page to hop to — no request, and no version bump, so the unit
+    stays eligible once its builder_url does resolve."""
+    calls = []
+    got = maybe_reprobe_image(
+        {"builder_url": None, "image_url": "", "image_probe_v": 1},
+        lambda url: calls.append(url))
+    assert calls == []
+    assert got.get("image_probe_v") == 1
