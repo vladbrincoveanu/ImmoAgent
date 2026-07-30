@@ -380,6 +380,18 @@ export default async function CoopPage({
           über alle Bauträger · nur Miete (keine Kaufoption) · Wien ·
           laufend aktualisiert (ca. alle 5&nbsp;Min.)
         </p>
+        <p className="mt-2 text-sm">
+          <a
+            href="/coop/private"
+            data-testid="coop-private-link"
+            className="font-medium text-[#3D405B] underline"
+          >
+            → Private Weitergaben von Mieter:innen
+          </a>{' '}
+          <span className="text-[#6B6B6B]">
+            (ohne Warteliste, wer zuerst kommt)
+          </span>
+        </p>
 
         <form
           method="get"
