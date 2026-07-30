@@ -1,15 +1,51 @@
 name: coop-fast-poll
 on:
   schedule:
-    - cron: "*/5 6-20 * * 1-6"   # every 5 min, ~08:00–22:00 Vienna, Mon–Sat
-  workflow_dispatch: {}
+    # This USED to be "*/5", but GitHub never actually delivered that cadence.
+    # Measured over 2026-07-29 the gaps between consecutive delivered runs were
+    # 153, 106, 140, 79, 84, 57, 80, 46, 53 min — a median of ~80 min, not 5.
+    # Nothing was failing (40/40 runs green, 0 cancelled); GitHub simply drops
+    # most ticks of a high-frequency schedule under runner load, and it
+    # deprioritises the more aggressively you ask.
+    #
+    # So cadence no longer comes from the scheduler. We ask less often (which
+    # improves delivery odds) and each delivered run polls in a LOOP for
+    # POLL_WINDOW_MINUTES. That turns one delivered run into ~11 polls instead
+    # of 1. Actions minutes are free and unlimited on this repo (it is public),
+    # so the long-running job costs nothing.
+    #
+    # For a hard 5-minute guarantee the trigger has to come from outside
+    # GitHub's scheduler — see the repository_dispatch note below.
+    - cron: "*/15 6-20 * * 1-6"   # ~08:00–22:00 Vienna, Mon–Sat
+  workflow_dispatch:
+    inputs:
+      window_minutes:
+        description: "How long this run keeps polling (minutes). 0 = single poll."
+        required: false
+        default: "55"
+  # Lets an external scheduler drive real cadence, bypassing GitHub's throttle:
+  #   curl -X POST -H "Accept: application/vnd.github+json" \
+  #     -H "Authorization: Bearer $GH_PAT" \
+  #     https://api.github.com/repos/vladbrincoveanu/ImmoAgent/dispatches \
+  #     -d '{"event_type":"coop-poll"}'
+  # Point cron-job.org (or a Vercel cron route) at that every 5 min with a PAT
+  # scoped to `repo`. Dispatch-triggered runs are NOT throttled like schedules.
+  repository_dispatch:
+    types: [coop-poll]
 concurrency:
   group: coop-fast-poll
-  cancel-in-progress: true       # a slow run must not stack on the next tick
+  # A newly delivered run replaces the in-flight loop rather than stacking on
+  # it. Coverage continues seamlessly: the new run starts its own poll window.
+  cancel-in-progress: true
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # Must exceed POLL_WINDOW_MINUTES plus one poll's own runtime, or the job is
+    # killed mid-poll and the final iteration is lost.
+    timeout-minutes: 70
+    env:
+      POLL_INTERVAL_SECONDS: 300
+      POLL_WINDOW_MINUTES: ${{ github.event.inputs.window_minutes || '55' }}
     steps:
       - name: Warn if TELEGRAM_COOP_CHANNEL_ID secret is missing
         env:
@@ -30,7 +66,7 @@ jobs:
           cache: pip
           cache-dependency-path: Project/requirements-coop.txt
       - run: pip install -r Project/requirements-coop.txt
-      - name: Fast co-op poll → Telegram
+      - name: Fast co-op poll → Telegram (repeating for the poll window)
         working-directory: Project
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -43,4 +79,7 @@ jobs:
           # Wien rental inventory; setting a narrower URL (e.g. rooms/rent bands) only
           # shrinks coverage — it is NOT needed to exclude buys or non-Wien units.
           MYGEWO_SEARCH_URL: ${{ vars.MYGEWO_SEARCH_URL }}
-        run: python run_coop.py
+        # The loop lives in a script so it can be unit-tested off CI — see
+        # tests/tests/test_coop_poll_window.py, run by `cd tests && python run_tests.py`.
+        # (The repo tracks that directory lower-case; macOS only makes "Tests" work.)
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/coop-poll-window.sh"
