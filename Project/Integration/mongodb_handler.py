@@ -227,14 +227,19 @@ class MongoDBHandler:
     def _replace_preserving_state(self, existing: Dict, listing: Dict) -> None:
         """Replace an existing co-op doc with fresh data, carrying over the state
         the scrape can't know: send-state (NEVER reset on re-poll → no 5-minute
-        re-spam) and a previously-resolved builder_url (only run_coop resolves
-        it; other write paths would else wipe it)."""
+        re-spam) and the detail-page-resolved builder_url / image_url (only
+        run_coop resolves those; other write paths would else wipe them)."""
         listing['_id'] = existing['_id']
         for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
             if k in existing:
                 listing[k] = existing[k]
-        if not listing.get('builder_url') and existing.get('builder_url'):
-            listing['builder_url'] = existing['builder_url']
+        # `is not None`, NOT truthiness: "" is the terminal "offer page had no
+        # builder link / no photo" sentinel run_coop writes so it stops
+        # re-fetching that page every poll. A falsy check would drop the "" and
+        # silently restart the re-fetch loop it exists to prevent.
+        for k in ("builder_url", "image_url"):
+            if listing.get(k) is None and existing.get(k) is not None:
+                listing[k] = existing[k]
         self.collection.replace_one({"_id": existing['_id']}, listing)
 
     def upsert_coop_listing(self, listing: Dict) -> str:

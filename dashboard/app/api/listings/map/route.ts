@@ -5,6 +5,7 @@ import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import { resolveCoordinates } from '@/lib/district-centroids';
+import { coopBaseQuery } from '@/lib/coop-query';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -32,7 +33,12 @@ export async function GET(request: NextRequest) {
     date_desc: { processed_at: -1 },
     area_desc: { area_m2: -1 },
   };
-  const sortBy = sortOptions[sort] ?? sortOptions.score_desc;
+  // Co-op rentals carry no score, so score_desc — which the map page always
+  // sends as its default — would order them arbitrarily. Newest-first instead;
+  // any other explicitly chosen sort (price, area, date) still applies.
+  const sortBy = genossenschaft && (sortOptions[sort] ?? sortOptions.score_desc) === sortOptions.score_desc
+    ? sortOptions.date_desc
+    : (sortOptions[sort] ?? sortOptions.score_desc);
 
   try {
     const db = getDb();
@@ -42,17 +48,32 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
-    const filter: Record<string, unknown> = {
-      $and: [
-        { url_is_valid: { $ne: false } },
-        { listing_status: { $ne: "taken" } },
-        { price_total: { $gt: 0 } },
-        { area_m2: { $gt: 0 } },
-        { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
-        { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
-        { title: { $nin: [null, ""] } },
-      ],
-    };
+    // Co-op rentals store the MONTHLY RENT in price_total, so the purchase €/m²
+    // band below (2500–20000) rejects every one of them (€700 / 60 m² ≈ €12).
+    // They therefore get their own gates — the shared /coop definition, which
+    // already carries the Wien + livable-area guards — and the purchase map
+    // excludes them explicitly rather than relying on that band to do it.
+    const filter: Record<string, unknown> = genossenschaft
+      ? {
+          $and: [
+            coopBaseQuery(),
+            { listing_status: { $ne: 'taken' } },
+            { price_total: { $gt: 0 } },
+            { title: { $nin: [null, ''] } },
+          ],
+        }
+      : {
+          $and: [
+            { url_is_valid: { $ne: false } },
+            { listing_status: { $ne: "taken" } },
+            { is_genossenschaft: { $ne: true } },
+            { price_total: { $gt: 0 } },
+            { area_m2: { $gt: 0 } },
+            { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
+            { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
+            { title: { $nin: [null, ""] } },
+          ],
+        };
 
     // min_score is applied AFTER mapping (below), on the profile-resolved
     // score the client actually displays — the raw `score` field can differ
@@ -62,9 +83,6 @@ export async function GET(request: NextRequest) {
       filter.bezirk = district;
     }
 
-    if (genossenschaft) {
-      filter.is_genossenschaft = true;
-    }
 
     const listings = await db
       .collection<Document>('listings')
@@ -123,7 +141,10 @@ export async function GET(request: NextRequest) {
       const scores = (l as { scores?: Record<string, number | null> }).scores;
       const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
       const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
-      const priceVsAvgPct = price_total != null && zoneAvg && zoneAvg > 0
+      // A co-op's price_total is a monthly rent; comparing it to the district's
+      // average PURCHASE price would render as "-99% vs Bezirk".
+      const isCoop = l.is_genossenschaft === true;
+      const priceVsAvgPct = !isCoop && price_total != null && zoneAvg && zoneAvg > 0
         ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
         : null;
       return {
@@ -149,7 +170,7 @@ export async function GET(request: NextRequest) {
         bank_score_confidence: l.bank_score_confidence ?? undefined,
         price_vs_avg_pct: priceVsAvgPct,
         ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
-        is_genossenschaft: l.is_genossenschaft === true,
+        is_genossenschaft: isCoop,
       };
     });
 

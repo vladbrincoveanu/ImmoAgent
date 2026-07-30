@@ -278,8 +278,85 @@ def _mygewo_units(html: str) -> List[dict]:
             "has_loggia": s(r"\bhas_loggia:(!0|!1|null)") == "!0",
             "coordinates": s(r'\bcoordinates:"([^"]*)"'),
             "first_seen": s(r'\bfirst_seen:"([^"]*)"'),
+            # Anchored to the known key names so a stray `background_image:` in
+            # surrounding markup can't be mistaken for the unit's own photo.
+            "image": s(r'\b(?:' + "|".join(_IMAGE_KEYS) + r'):"([^"]*)"'),
         })
     return units
+
+
+# mygewo has never been observed to expose a photo field under a documented
+# name, and the payload key (if any) may change with a redeploy — so every
+# plausible spelling is probed and a miss is not an error: the unit simply
+# carries no image and `run_coop` falls back to the offer page's og:image,
+# then the dashboard renders a placeholder tile.
+_IMAGE_KEYS = ("image", "images", "image_url", "main_image", "title_image",
+               "photo", "photos", "picture", "thumbnail")
+_IMAGE_EXT_RE = re.compile(r"\.(?:jpe?g|png|webp|avif|gif)(?:[?#]|$)", re.I)
+
+
+def _normalize_image_url(v) -> Optional[str]:
+    """A raw payload value → an absolute image URL, or None.
+
+    Accepts a bare string, a {url:…}/{src:…} dict, or a list of either (first
+    usable entry wins), because the shape is unknown until mygewo ships one.
+    Site-relative paths are absolutised against mygewo; anything that is neither
+    http(s) nor root-relative (e.g. a bare storage key) is rejected rather than
+    guessed at — a broken <img> src is worse than the placeholder."""
+    if isinstance(v, (list, tuple)):
+        for item in v:
+            got = _normalize_image_url(item)
+            if got:
+                return got
+        return None
+    if isinstance(v, dict):
+        for k in ("url", "src", "path", "href"):
+            got = _normalize_image_url(v.get(k))
+            if got:
+                return got
+        return None
+    if not isinstance(v, str) or not v.strip():
+        return None
+    s = v.strip()
+    if s.startswith("//"):
+        return "https:" + s
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    if s.startswith("/"):
+        return _MYGEWO_BASE + s
+    return None
+
+
+def _image_from_unit(u: dict) -> Optional[str]:
+    """First usable image URL among the candidate keys of a decoded RPC unit."""
+    for k in _IMAGE_KEYS:
+        got = _normalize_image_url(u.get(k))
+        if got:
+            return got
+    return None
+
+
+def _og_image(html: str) -> Optional[str]:
+    """The offer page's share image (og:image / twitter:image), else the first
+    real <img> that looks like a photo rather than an icon or logo."""
+    soup = BeautifulSoup(html, "html.parser")
+    for prop in ("og:image", "twitter:image"):
+        tag = (soup.find("meta", attrs={"property": prop})
+               or soup.find("meta", attrs={"name": prop}))
+        if tag:
+            got = _normalize_image_url(tag.get("content"))
+            if got:
+                return got
+    for img in soup.find_all("img", src=True):
+        src = img["src"]
+        if re.search(r"logo|icon|sprite|placeholder|avatar", src, re.I):
+            continue
+        if not _IMAGE_EXT_RE.search(src) and "/image" not in src.lower():
+            continue
+        got = _normalize_image_url(src)
+        if got:
+            return got
+    return None
 
 
 def _to_float(v: Optional[str]) -> Optional[float]:
@@ -377,6 +454,9 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
             except ValueError:  # out-of-range decode (corrupt geometry) — skip, not fatal
                 pass
         listing.first_seen_at = u.get("first_seen")
+        # None here is normal, not a failure — run_coop back-fills from the offer
+        # page and the dashboard falls back to a placeholder tile.
+        listing.image_url = _normalize_image_url(u.get("image"))
 
         rooms, area = listing.rooms, listing.area_m2
         summary = " · ".join(p for p in (
@@ -508,6 +588,7 @@ def _mygewo_units_from_rpc(units_json: List[dict]) -> List[dict]:
             "has_loggia": u.get("has_loggia") is True,
             "coordinates": u.get("coordinates"),
             "first_seen": u.get("first_seen"),
+            "image": _image_from_unit(u),
         })
     return out
 
@@ -586,19 +667,36 @@ def fetch_all_mygewo(states: str = "28_") -> List[Listing]:
     return listings
 
 
+def resolve_offer_details(offer_url: str) -> dict:
+    """One fetch of a mygewo /angebot/ page → {"builder_url", "image_url"}.
+
+    Deliberately a single request serving both needs: `run_coop` already fetched
+    this page per new unit for the builder link, so the photo rides along for
+    free instead of doubling the crawl's request count. Missing values come back
+    as None; a failed fetch yields both None (never raises — one dead offer page
+    must not abort the poll)."""
+    try:
+        html = fetch(offer_url)
+    except Exception as e:
+        logger.warning(f"offer-page fetch failed for {offer_url}: {e}")
+        return {"builder_url": None, "image_url": None}
+    return {"builder_url": _builder_url_from(html), "image_url": _og_image(html)}
+
+
 def resolve_builder_url(offer_url: str) -> Optional[str]:
-    """Resolve a mygewo /angebot/ URL to the builder's own reservation page.
+    """Builder reservation page for a mygewo /angebot/ URL (see
+    `resolve_offer_details`, which gets this plus the photo in one fetch)."""
+    return resolve_offer_details(offer_url)["builder_url"]
+
+
+def _builder_url_from(html: str) -> Optional[str]:
+    """The builder's own reservation page, from a fetched mygewo offer page.
 
     mygewo detail pages (TanStack SSR) carry an "Original-Anzeige" anchor linking
     straight to the Bauträger's listing (wohnen.at, arwag.at, …) — that's where a
     unit is actually reserved. bs4's find(string=…) misses it (the anchor wraps
     nested markup), so scan anchors by visible text. Fall back to the builder's
     homepage ("gefunden auf <domain>.at") when the deep link is absent, else None."""
-    try:
-        html = fetch(offer_url)
-    except Exception as e:
-        logger.warning(f"builder-url fetch failed for {offer_url}: {e}")
-        return None
     soup = BeautifulSoup(html, "html.parser")
     for a in soup.find_all("a", href=True):
         if "Original-Anzeige" in a.get_text():

@@ -13,8 +13,12 @@ interface SelectedCardProps {
 export function SelectedCard({ listing, onClose, onViewDetails }: SelectedCardProps) {
   if (listing == null) return null;
 
+  // A co-op's price_total is a monthly rent: "€12/m²" next to purchase listings
+  // at "€7.000/m²" is a false comparison, so the €/m² fact is dropped for them
+  // and the headline figure is labelled as rent instead.
+  const isCoop = listing.is_genossenschaft === true;
   const pricePerM2 =
-    listing.price_total != null && listing.area_m2
+    !isCoop && listing.price_total != null && listing.area_m2
       ? Math.round(listing.price_total / listing.area_m2)
       : null;
 
@@ -33,6 +37,7 @@ export function SelectedCard({ listing, onClose, onViewDetails }: SelectedCardPr
       </button>
       <div data-testid="price" className="text-[20px] font-bold tracking-tight">
         {formatPrice(listing.price_total, listing.price_is_estimated)}
+        {isCoop && <span className="text-[13px] font-semibold text-ink-2"> Miete/Mt</span>}
       </div>
       <div data-testid="title" className="text-[13px] text-ink-2 mt-1 mb-3 leading-snug line-clamp-2">
         {listing.title || 'Untitled'}
