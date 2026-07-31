@@ -30,6 +30,20 @@ type Alert = {
 const inputCls =
   'rounded-lg border border-[#E8E4E0] bg-white px-3 py-2 text-sm text-[#2D2D2D]';
 
+/** Prefilled keys for the case the page exists for: a co-op flat being passed on
+ * by the tenant sitting in it.
+ *
+ * German on purpose — these are matched against the ad text, not shown as UI
+ * copy. Every term is a co-op marker that stands on its own, because keys are
+ * OR-ed: adding "Ablöse" or "Nachmieter" here would widen the alert to every
+ * kitchen buyout on the feed rather than narrow it. The handover half of the
+ * question is answered by the private-transfer rubric below, not by a key. */
+const DEFAULT_KEYWORDS = [
+  'Genossenschaftswohnung', 'Genossenschaft', 'Genossenschaftsanteil',
+  'gemeinnützig', 'gefördert', 'Finanzierungsbeitrag', 'Eigenmittelanteil',
+  'Wohnbauförderung', 'Baurechtszins', 'Mietkauf',
+].join(', ');
+
 /** "Ablöse, Nachmieter , " → ["Ablöse", "Nachmieter"]. Split on the comma only:
  * a space is legitimate inside a key ("Nachmieter gesucht"). */
 function parseKeywords(raw: string): string[] {
@@ -60,7 +74,11 @@ function describeFilters(f: Alert['filters']): string {
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(DEFAULT_KEYWORDS);
+  // Defaults on: an alert over the raw newest-first Wien rental feed is a
+  // firehose, and the co-op keys alone still let a "gefördert" free-market ad
+  // through. Clearing it is one click for someone who wants the wide feed.
+  const [privateOnly, setPrivateOnly] = useState(true);
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
   const [minRooms, setMinRooms] = useState('');
@@ -71,11 +89,6 @@ export default function AlertsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  // null = entitlement not known yet, so neither the form nor the unlock box
-  // flashes before /api/me answers.
-  const [isPro, setIsPro] = useState<boolean | null>(null);
-  const [password, setPassword] = useState('');
-  const [unlocking, setUnlocking] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -91,55 +104,9 @@ export default function AlertsPage() {
     }
   }, []);
 
-  const loadEntitlement = useCallback(async () => {
-    try {
-      const res = await fetch('/api/me', { cache: 'no-store' });
-      const json = await res.json().catch(() => ({}));
-      // An unreachable /api/me must not claim Pro — the server gate decides
-      // anyway, and assuming false only costs one visible unlock box.
-      setIsPro(res.ok ? Boolean(json.is_pro) : false);
-    } catch {
-      setIsPro(false);
-    }
-  }, []);
-
   useEffect(() => {
     void load();
-    void loadEntitlement();
-  }, [load, loadEntitlement]);
-
-  /** Trade the shared password for the Pro flag on this browser's user id. The
-   * password is only ever checked server-side; a wrong one changes nothing. */
-  async function unlock(e: React.FormEvent) {
-    e.preventDefault();
-    setUnlocking(true);
-    setStatus(null);
-    try {
-      const res = await fetch('/api/unlock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setIsPro(true);
-        setPassword('');
-        setStatus('Unlocked — alerts are ready to use.');
-      } else if (res.status === 401) {
-        setStatus('Wrong password.');
-      } else if (res.status === 429) {
-        setStatus('Too many attempts — please try again later.');
-      } else if (json.error === 'unlock_not_configured') {
-        setStatus('No password configured (PRO_UNLOCK_PASSWORD is missing).');
-      } else {
-        setStatus('Unlock failed.');
-      }
-    } catch {
-      setStatus('Network error while unlocking.');
-    } finally {
-      setUnlocking(false);
-    }
-  }
+  }, [load]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -150,7 +117,8 @@ export default function AlertsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kind: 'keyword',
+          // 'coop_private' is the rubric-gated feed; 'keyword' is everything new.
+          kind: privateOnly ? 'coop_private' : 'keyword',
           keywords: parseKeywords(keyword),
           filters: {
             min_area: num(minArea), max_area: num(maxArea),
@@ -165,7 +133,9 @@ export default function AlertsPage() {
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         setStatus(json.message ?? 'Alert created.');
-        setKeyword('');
+        // Back to the default rather than blank: the next alert is almost always
+        // a variation on the same co-op watch, not a search for nothing.
+        setKeyword(DEFAULT_KEYWORDS);
         setMinArea('');
         setMaxArea('');
         setMinRooms('');
@@ -174,11 +144,6 @@ export default function AlertsPage() {
         setEmail('');
         setChatId('');
         void load();
-      } else if (res.status === 402) {
-        // The cookie may have been Pro when the page loaded but is not now;
-        // surfacing the unlock box beats a dead end.
-        setIsPro(false);
-        setStatus('Alerts are Pro-only — unlock above to continue.');
       } else {
         setStatus(json.error ?? 'Could not create the alert.');
       }
@@ -233,42 +198,6 @@ export default function AlertsPage() {
         expect 2–3&nbsp;min from the ad going live to the Telegram message.
       </p>
 
-      {isPro === false && (
-        <form
-          onSubmit={unlock}
-          data-testid="unlock-form"
-          className="mt-6 space-y-3 rounded-xl border border-[#E8C97A] bg-[#FDF7E7] p-4"
-        >
-          <p className="text-sm font-medium text-[#3D405B]">
-            Alerts are a Pro feature. Unlock them with the access password:
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Access password"
-              aria-label="Access password"
-              data-testid="unlock-password"
-              autoComplete="current-password"
-              className={`${inputCls} flex-1`}
-            />
-            <button
-              type="submit"
-              disabled={unlocking || !password}
-              data-testid="unlock-submit"
-              className="rounded-lg bg-[#3D405B] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {unlocking ? 'Checking…' : 'Unlock'}
-            </button>
-          </div>
-          <p className="text-xs text-[#6B6B6B]">
-            Applies to this browser only (cookie). Enter it again in another
-            browser or after clearing cookies.
-          </p>
-        </form>
-      )}
-
       <form
         onSubmit={create}
         data-testid="alert-form"
@@ -286,8 +215,28 @@ export default function AlertsPage() {
         <p className="text-xs text-[#6B6B6B]">
           One hit is enough: you are notified as soon as ANY of the keywords
           appears in the title or the ad text. Keywords match the German ad text,
-          so German terms work best. Leave it empty to get every new ad.
+          so German terms work best — the defaults are the co-op wording. Leave
+          it empty to get every new ad.
         </p>
+
+        <label className="flex items-start gap-2 text-sm text-[#2D2D2D]">
+          <input
+            type="checkbox"
+            checked={privateOnly}
+            onChange={(e) => setPrivateOnly(e.target.checked)}
+            data-testid="alert-private-only"
+            className="mt-0.5"
+          />
+          <span>
+            Co-op passed on by a private tenant only
+            <span className="block text-xs text-[#6B6B6B]">
+              Requires both a co-op marker and a handover marker (Weitergabe,
+              Nachmieter, Ablöse) in the same ad. Keywords alone cannot do this —
+              they are OR-ed, so &ldquo;Ablöse&rdquo; on its own would let every
+              kitchen buyout through. Uncheck to watch the whole new-rentals feed.
+            </span>
+          </span>
+        </label>
 
         <div className="grid grid-cols-2 gap-3">
           <input type="number" min="0" value={minArea}

@@ -6,8 +6,9 @@ import { test, expect } from '@playwright/test';
  * is asserted on real rendered DOM, not screenshots: create with several keys
  * and numeric gates, see it listed, test it, delete it, get the empty state.
  *
- * Alerts are Pro-only, so an anonymous visitor gets a 402 and the page must say
- * so rather than appearing to succeed. */
+ * Creating one needs no entitlement: the password gate was removed, so an
+ * anonymous visitor must be able to go straight from the form to a stored
+ * alert. */
 
 const ALERT_API = '**/api/saved-searches/alert';
 
@@ -49,7 +50,7 @@ test('submitting with no channel surfaces an error instead of failing silently',
     await page.goto('/alerts');
     await page.getByTestId('alert-keywords').fill('1100');
     await page.getByTestId('alert-submit').click();
-    // Either the Pro gate or the missing-channel validation — both must be shown.
+    // The missing-channel validation — an alert with nowhere to send is refused.
     await expect(page.getByTestId('alert-status')).toBeVisible();
     const text = await page.getByTestId('alert-status').textContent();
     expect(text?.trim().length ?? 0).toBeGreaterThan(0);
@@ -95,7 +96,9 @@ test('keywords are sent as an array and blank filters stay undefined',
     expect(body).not.toBeNull();
     // Trailing empties dropped, not sent as blank strings.
     expect(body.keywords).toEqual(['Ablöse', 'Nachmieter']);
-    expect(body.kind).toBe('keyword');
+    // The private-handover box is on by default, so the alert lands on the
+    // rubric-gated feed rather than the whole newest-first stream.
+    expect(body.kind).toBe('coop_private');
     expect(body.filters.min_area).toBe(60);
     expect(body.filters.max_price).toBe(900);
     // An untouched field must stay undefined — 0 would match nothing.

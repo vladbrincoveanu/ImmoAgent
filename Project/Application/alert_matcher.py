@@ -5,7 +5,11 @@ and price gates, plus at least one channel (Telegram chat id, confirmed email,
 or both). The poller tests every newly seen ad against every active alert and
 returns the pairs to deliver.
 
-Two rules carry the design.
+Three rules carry the design.
+
+A `coop_private` alert is rubric-gated first. That kind means "a co-op flat being
+passed on by its tenant", which is an AND of two markers and therefore not
+expressible in OR-ed keys; the scraper's per-ad `coop_kind` verdict supplies it.
 
 Keys are OR, not AND. They are how a user lists synonyms for one thing —
 "Ablöse, Weitergabe, Nachmieter" — so requiring all of them would let a single
@@ -74,6 +78,23 @@ def keyword_hit(alert: Dict, listing) -> bool:
     return any(k in haystack for k in keys)
 
 
+def rubric_hit(alert: Dict, listing) -> bool:
+    """True unless the alert asks for private co-op transfers and this is not one.
+
+    Keys are OR-ed, so they cannot express "a co-op AND a private handover" — a
+    list containing "Ablöse" matches every kitchen buyout on the feed. The
+    scraper already answers that question per ad (`extract_is_private_coop_transfer`
+    requires both a co-op marker and a transfer marker, and run_coop stamps
+    `coop_kind`), so a `coop_private` alert reuses that verdict as an AND term in
+    front of its keys.
+
+    Any other kind passes: the general feed is what 'keyword' and 'listings' are
+    for."""
+    if alert.get("kind") != "coop_private":
+        return True
+    return getattr(listing, "coop_kind", None) == "private_transfer"
+
+
 def gate_result(alert: Dict, listing) -> Tuple[bool, bool]:
     """(passes, unverified) for one alert's numeric filters.
 
@@ -110,7 +131,9 @@ def alert_matches(alert: Dict, listing) -> bool:
     """True when this alert wants this listing, ignoring the unverified flag.
 
     Retained for callers that only need a boolean."""
-    return keyword_hit(alert, listing) and gate_result(alert, listing)[0]
+    return (rubric_hit(alert, listing)
+            and keyword_hit(alert, listing)
+            and gate_result(alert, listing)[0])
 
 
 def channels_for(alert: Dict) -> Tuple[Optional[str], Optional[str]]:
@@ -139,6 +162,8 @@ def match(listings: List, alerts: List[Dict]) -> List[Tuple[Dict, object, bool]]
                 f"alert {alert.get('_id')} has no usable channel — skipping")
             continue
         for listing in listings:
+            if not rubric_hit(alert, listing):
+                continue
             if not keyword_hit(alert, listing):
                 continue
             passes, unverified = gate_result(alert, listing)
