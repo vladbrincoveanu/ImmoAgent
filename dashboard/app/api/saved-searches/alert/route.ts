@@ -21,9 +21,48 @@ interface SubscribeBody {
    * Weitergabe is gone in hours, and email is often too slow to be the only
    * channel. */
   telegram_chat_id?: string;
+  /** Free-text keys, OR semantics: any one hitting the title or the ad body
+   * fires the alert. This is how a user lists synonyms for one thing, so
+   * requiring all of them would let a single absent word disable the alert. */
+  keywords?: string[];
+  /** Numeric gates. Every field optional; an unset gate always passes, and a
+   * listing value the source omitted never fails one. */
+  filters?: {
+    min_area?: number; max_area?: number;
+    min_rooms?: number; max_rooms?: number;
+    max_price?: number;
+  };
 }
 
 const KEYWORD_MAX_LEN = 80;
+const MAX_KEYWORDS = 10;
+const FILTER_KEYS = [
+  'min_area', 'max_area', 'min_rooms', 'max_rooms', 'max_price',
+] as const;
+
+/** Keep only finite, non-negative numbers. A NaN from a blank form field would
+ * otherwise be stored and then compare false against everything, silently
+ * disabling the alert it was supposed to narrow. */
+function cleanFilters(raw: Record<string, unknown> | undefined) {
+  const out: Record<string, number> = {};
+  for (const key of FILTER_KEYS) {
+    const v = Number(raw?.[key]);
+    if (Number.isFinite(v) && v >= 0) out[key] = v;
+  }
+  return out;
+}
+
+/** The alert's keys, capped in both count and length. Falls back to the legacy
+ * scalar so an older client keeps working. */
+function cleanKeywords(body: SubscribeBody): string[] {
+  const list = Array.isArray(body.keywords)
+    ? body.keywords
+    : (body.keyword ? [body.keyword] : []);
+  return list
+    .map((k) => String(k).trim().slice(0, KEYWORD_MAX_LEN))
+    .filter(Boolean)
+    .slice(0, MAX_KEYWORDS);
+}
 
 /** A Telegram chat id is a signed integer (channels are negative, often -100…).
  * Rejecting @usernames on purpose: resolving one needs a bot API round trip, and
@@ -69,10 +108,14 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = body.kind ?? 'listings';
-  if (!['listings', 'coop_private'].includes(kind)) {
+  if (!['listings', 'coop_private', 'keyword'].includes(kind)) {
     return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
   }
-  const keyword = (body.keyword ?? '').toString().trim().slice(0, KEYWORD_MAX_LEN);
+  const keywords = cleanKeywords(body);
+  // Bounds are accepted independently. An inverted pair (min 90, max 40) is
+  // stored as given and simply matches nothing — which is visible on the page,
+  // whereas silently swapping the values would not be.
+  const filters = cleanFilters(body.filters as Record<string, unknown> | undefined);
   const frequency = body.frequency ?? 'daily';
   if (!['instant', 'daily', 'weekly'].includes(frequency)) {
     return NextResponse.json({ error: 'Invalid frequency' }, { status: 400 });
@@ -86,7 +129,11 @@ export async function POST(req: NextRequest) {
     email: hasEmail ? email : null,
     telegram_chat_id: hasTelegram ? telegramChatId : null,
     kind,
-    keyword,
+    keywords,
+    // The legacy scalar is kept in sync so a rollback to the previous poller
+    // still matches on the primary key rather than silently matching everything.
+    keyword: keywords[0] ?? '',
+    filters,
     saved_search_id: body.saved_search_id ?? null,
     params,
     frequency,
@@ -118,7 +165,8 @@ export async function POST(req: NextRequest) {
     email: doc.email,
     telegram_chat_id: doc.telegram_chat_id,
     kind,
-    keyword,
+    keywords,
+    filters,
     frequency,
     confirmed: doc.confirmed,
     email_sent: mailResult.ok,
@@ -147,10 +195,39 @@ export async function GET(req: NextRequest) {
     email: s.email ?? null,
     telegram_chat_id: s.telegram_chat_id ?? null,
     kind: s.kind ?? 'listings',
+    // Older records only have the scalar; surface it as a one-element list so
+    // the page has a single shape to render.
+    keywords: Array.isArray(s.keywords) && s.keywords.length
+      ? s.keywords
+      : (s.keyword ? [s.keyword] : []),
     keyword: s.keyword ?? null,
+    filters: s.filters ?? null,
     confirmed: !!s.confirmed,
     frequency: s.frequency,
     params: s.params,
     created_at: s.created_at,
   })) });
+}
+
+// DELETE /api/saved-searches/alert?id=<id>
+// Scoped to the caller's user_id: an ObjectId is guessable from a response body,
+// and one user must never be able to delete another's alert.
+export async function DELETE(req: NextRequest) {
+  const db = getDb();
+  if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+  const userId = getOrCreateUserId(req);
+  const id = req.nextUrl.searchParams.get('id') ?? '';
+  if (!ObjectId.isValid(id)) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
+  const result = await db.collection('alert_subscriptions').deleteOne({
+    _id: new ObjectId(id),
+    user_id: userId,
+  });
+  if (result.deletedCount === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const res = NextResponse.json({ ok: true });
+  setUserCookie(res, userId);
+  return res;
 }
