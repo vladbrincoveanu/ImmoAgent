@@ -10,7 +10,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from Application.alert_matcher import (  # noqa: E402
-    alert_matches, channels_for, match, searchable_text,
+    alert_keywords, alert_matches, channels_for, gate_result, keyword_hit,
+    match, searchable_text,
 )
 
 
@@ -102,3 +103,122 @@ def test_each_alert_sees_every_matching_listing():
     pairs = match(listings, [{"_id": "k", "keyword": "1100",
                               "telegram_chat_id": "-1", "confirmed": True}])
     assert len(pairs) == 2
+
+
+# --- multi-key OR semantics + numeric gates -----------------------------------
+
+class _LN:
+    """Listing stub carrying the numeric fields the gates read."""
+
+    def __init__(self, title=None, description=None,
+                 area_m2=None, rooms=None, price_total=None):
+        self.title = title
+        self.address = None
+        self.bezirk = None
+        self.description = description
+        self.area_m2 = area_m2
+        self.rooms = rooms
+        self.price_total = price_total
+
+
+def _alert(**kw):
+    base = {"_id": "k1", "telegram_chat_id": "-100123456", "email": None,
+            "confirmed": True, "keywords": [], "filters": {}}
+    base.update(kw)
+    return base
+
+
+def test_any_key_hits_matches():
+    a = _alert(keywords=["ablöse", "nachmieter"])
+    assert keyword_hit(a, _LN(title="Nachmieter gesucht"))
+
+
+def test_no_key_hits_does_not_match():
+    a = _alert(keywords=["ablöse", "nachmieter"])
+    assert not keyword_hit(a, _LN(title="Schöne Altbauwohnung"))
+
+
+def test_key_matches_body_not_only_title():
+    a = _alert(keywords=["nachmieter"])
+    assert keyword_hit(a, _LN(title="Wohnung 1100", description="Nachmieter gesucht"))
+
+
+def test_empty_keyword_list_matches_everything():
+    assert keyword_hit(_alert(keywords=[]), _LN(title="irgendwas"))
+
+
+def test_legacy_scalar_keyword_still_matches():
+    a = _alert(keywords=None, keyword="ablöse")
+    assert keyword_hit(a, _LN(title="ABLÖSE für Küche"))
+
+
+def test_keywords_are_case_insensitive():
+    assert keyword_hit(_alert(keywords=["ABLÖSE"]), _LN(title="ablöse"))
+
+
+def test_alert_keywords_drops_blanks_and_lowercases():
+    assert alert_keywords(_alert(keywords=[" Ablöse ", "", "  "])) == ["ablöse"]
+
+
+def test_area_gate_accepts_value_in_range():
+    a = _alert(filters={"min_area": 50, "max_area": 80})
+    assert gate_result(a, _LN(area_m2=65)) == (True, False)
+
+
+def test_area_gate_rejects_value_below_min():
+    a = _alert(filters={"min_area": 50})
+    assert gate_result(a, _LN(area_m2=40)) == (False, False)
+
+
+def test_area_gate_rejects_value_above_max():
+    a = _alert(filters={"max_area": 80})
+    assert gate_result(a, _LN(area_m2=95)) == (False, False)
+
+
+def test_rooms_gate_rejects_value_below_min():
+    a = _alert(filters={"min_rooms": 3})
+    assert gate_result(a, _LN(rooms=2)) == (False, False)
+
+
+def test_price_gate_rejects_value_above_max():
+    a = _alert(filters={"max_price": 900})
+    assert gate_result(a, _LN(price_total=1200)) == (False, False)
+
+
+def test_price_gate_accepts_value_at_max():
+    a = _alert(filters={"max_price": 900})
+    assert gate_result(a, _LN(price_total=900)) == (True, False)
+
+
+def test_null_value_passes_a_set_gate_and_flags_unverified():
+    """Unknown never fails a gate — newest-first list pages routinely omit
+    size, and dropping those would lose exactly the freshest ads."""
+    a = _alert(filters={"min_area": 60})
+    assert gate_result(a, _LN(area_m2=None)) == (True, True)
+
+
+def test_null_value_with_no_gates_set_is_not_unverified():
+    assert gate_result(_alert(filters={}), _LN(area_m2=None)) == (True, False)
+
+
+def test_unverified_only_when_the_missing_field_has_a_gate():
+    a = _alert(filters={"min_area": 60})
+    assert gate_result(a, _LN(area_m2=70, rooms=None)) == (True, False)
+
+
+def test_match_returns_alert_listing_unverified_triples():
+    a = _alert(keywords=["nachmieter"], filters={"min_area": 60})
+    pairs = match([_LN(title="Nachmieter", area_m2=None)], [a])
+    assert len(pairs) == 1
+    alert, listing, unverified = pairs[0]
+    assert alert is a and unverified is True
+
+
+def test_match_drops_listings_failing_a_gate():
+    a = _alert(keywords=[], filters={"max_price": 800})
+    assert match([_LN(title="x", price_total=1500)], [a]) == []
+
+
+def test_match_skips_alerts_with_no_usable_channel():
+    a = _alert(telegram_chat_id=None, email="x@y.at", confirmed=False)
+    assert match([_LN(title="x")], [a]) == []
