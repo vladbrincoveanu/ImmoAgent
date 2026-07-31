@@ -71,6 +71,11 @@ export default function AlertsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // null = entitlement not known yet, so neither the form nor the unlock box
+  // flashes before /api/me answers.
+  const [isPro, setIsPro] = useState<boolean | null>(null);
+  const [password, setPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -86,9 +91,55 @@ export default function AlertsPage() {
     }
   }, []);
 
+  const loadEntitlement = useCallback(async () => {
+    try {
+      const res = await fetch('/api/me', { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      // An unreachable /api/me must not claim Pro — the server gate decides
+      // anyway, and assuming false only costs one visible unlock box.
+      setIsPro(res.ok ? Boolean(json.is_pro) : false);
+    } catch {
+      setIsPro(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadEntitlement();
+  }, [load, loadEntitlement]);
+
+  /** Trade the shared password for the Pro flag on this browser's user id. The
+   * password is only ever checked server-side; a wrong one changes nothing. */
+  async function unlock(e: React.FormEvent) {
+    e.preventDefault();
+    setUnlocking(true);
+    setStatus(null);
+    try {
+      const res = await fetch('/api/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setIsPro(true);
+        setPassword('');
+        setStatus('Freigeschaltet — Alerts sind jetzt nutzbar.');
+      } else if (res.status === 401) {
+        setStatus('Falsches Passwort.');
+      } else if (res.status === 429) {
+        setStatus('Zu viele Versuche — bitte später erneut probieren.');
+      } else if (json.error === 'unlock_not_configured') {
+        setStatus('Kein Passwort hinterlegt (PRO_UNLOCK_PASSWORD fehlt).');
+      } else {
+        setStatus('Freischalten fehlgeschlagen.');
+      }
+    } catch {
+      setStatus('Netzwerkfehler beim Freischalten.');
+    } finally {
+      setUnlocking(false);
+    }
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -124,7 +175,10 @@ export default function AlertsPage() {
         setChatId('');
         void load();
       } else if (res.status === 402) {
-        setStatus('Alerts sind Pro-only — bitte Upgrade durchführen.');
+        // The cookie may have been Pro when the page loaded but is not now;
+        // surfacing the unlock box beats a dead end.
+        setIsPro(false);
+        setStatus('Alerts sind Pro-only — bitte unten freischalten.');
       } else {
         setStatus(json.error ?? 'Alert konnte nicht angelegt werden.');
       }
@@ -179,6 +233,42 @@ export default function AlertsPage() {
         2&nbsp;Min.; von der Anzeige bis Telegram vergehen typisch
         2–3&nbsp;Min.
       </p>
+
+      {isPro === false && (
+        <form
+          onSubmit={unlock}
+          data-testid="unlock-form"
+          className="mt-6 space-y-3 rounded-xl border border-[#E8C97A] bg-[#FDF7E7] p-4"
+        >
+          <p className="text-sm font-medium text-[#3D405B]">
+            Alerts sind Pro. Mit dem Zugangspasswort freischalten:
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Zugangspasswort"
+              aria-label="Zugangspasswort"
+              data-testid="unlock-password"
+              autoComplete="current-password"
+              className={`${inputCls} flex-1`}
+            />
+            <button
+              type="submit"
+              disabled={unlocking || !password}
+              data-testid="unlock-submit"
+              className="rounded-lg bg-[#3D405B] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {unlocking ? 'Prüfe…' : 'Freischalten'}
+            </button>
+          </div>
+          <p className="text-xs text-[#6B6B6B]">
+            Gilt für diesen Browser (Cookie). In einem anderen Browser oder nach
+            dem Löschen der Cookies erneut eingeben.
+          </p>
+        </form>
+      )}
 
       <form
         onSubmit={create}
