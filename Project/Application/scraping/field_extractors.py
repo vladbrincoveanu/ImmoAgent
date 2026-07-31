@@ -155,6 +155,45 @@ def extract_doppelmakler(text: str) -> Optional[bool]:
     return None
 
 
+_TRANSFER_MARKERS = [
+    r'ablöse', r'abloese',
+    r'weitergabe', r'weiterzugeben', r'weiter\s?zu\s?geben',
+    r'nachmieter(?:in)?',
+    r'abzugeben',
+    r'wohnungstausch',
+    r'übergabe\s+der\s+genossenschaftswohnung',
+]
+
+# "Ablöse" on its own is the dominant false positive: ordinary free-financed
+# rentals routinely ask one for a fitted kitchen or furniture. A co-op marker has
+# to be present too, or the feed fills with kitchen buyouts. Reuses the same
+# vocabulary as extract_is_genossenschaft so the two agree on what "co-op" means.
+_COOP_CONTEXT_MARKERS = [
+    r'genossenschaft', r'gemeinnützig', r'gemeinnutzig',
+    r'gefördert', r'geforderte?r?', r'\bwgg\b',
+    r'finanzierungsbeitrag', r'eigenmittelanteil', r'wohnbauförderung',
+    r'baurechtszins', r'mietkauf',
+]
+
+
+def extract_is_private_coop_transfer(text: str) -> Optional[bool]:
+    """True when an ad is a private tenant passing on a co-op flat.
+
+    These are the first-come-first-served ones: no waiting list, no Bauträger
+    allocation, whoever reaches the current tenant first gets it. That is a
+    different thing from a builder listing a co-op unit, which is what
+    `extract_is_genossenschaft` catches, so both markers are required.
+
+    False when the ad is explicitly free-financed — a `freifinanziert` flat with an
+    Ablöse is a kitchen buyout, not a co-op transfer. None when there is no signal.
+    Input is pre-lowercased full page text (title + description + body)."""
+    if _any_match(text, [r'freifinanziert', r'frei\s+finanziert']):
+        return False
+    if _any_match(text, _TRANSFER_MARKERS) and _any_match(text, _COOP_CONTEXT_MARKERS):
+        return True
+    return None
+
+
 def extract_is_genossenschaft(text: str) -> Optional[bool]:
     """True if co-op/subsidized markers present, False if explicitly free-financed,
     None if no signal. Input is pre-lowercased full page text."""

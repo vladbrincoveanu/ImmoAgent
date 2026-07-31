@@ -8,15 +8,20 @@ on:
     # most ticks of a high-frequency schedule under runner load, and it
     # deprioritises the more aggressively you ask.
     #
-    # So cadence no longer comes from the scheduler. We ask less often (which
-    # improves delivery odds) and each delivered run polls in a LOOP for
-    # POLL_WINDOW_MINUTES. That turns one delivered run into ~11 polls instead
-    # of 1. Actions minutes are free and unlimited on this repo (it is public),
-    # so the long-running job costs nothing.
+    # So cadence no longer comes from the scheduler at all. An external trigger
+    # fires repository_dispatch every ~2 minutes and each dispatched run does a
+    # SINGLE poll — see docs/ALERTS_SETUP.md. Dispatch runs are not throttled
+    # the way schedules are.
     #
-    # For a hard 5-minute guarantee the trigger has to come from outside
-    # GitHub's scheduler — see the repository_dispatch note below.
-    - cron: "*/15 6-20 * * 1-6"   # ~08:00–22:00 Vienna, Mon–Sat
+    # This schedule is now only a FALLBACK: if the external trigger dies, a
+    # windowed run every 30 min keeps the feed alive instead of going silent.
+    # Asking less often also improves the odds these ticks are delivered.
+    #
+    # The window is deliberately broad. The hours you actually want alerts are
+    # configured on the external trigger, in LOCAL time, where DST is handled
+    # for us. GitHub cron has no timezone, so a narrow window here would drift
+    # an hour every winter — which is exactly what "*/15 4-15" did.
+    - cron: "*/30 6-20 * * 1-6"   # fallback only; ~08:00–22:00 Vienna, Mon–Sat
   workflow_dispatch:
     inputs:
       window_minutes:
@@ -28,8 +33,9 @@ on:
   #     -H "Authorization: Bearer $GH_PAT" \
   #     https://api.github.com/repos/vladbrincoveanu/ImmoAgent/dispatches \
   #     -d '{"event_type":"coop-poll"}'
-  # Point cron-job.org (or a Vercel cron route) at that every 5 min with a PAT
-  # scoped to `repo`. Dispatch-triggered runs are NOT throttled like schedules.
+  # Point cron-job.org (or a Vercel cron route) at that every 2 min with a
+  # fine-grained PAT that has Contents: write on this repo only. Full setup and
+  # verification steps: docs/ALERTS_SETUP.md.
   repository_dispatch:
     types: [coop-poll]
 concurrency:
@@ -44,8 +50,16 @@ jobs:
     # killed mid-poll and the final iteration is lost.
     timeout-minutes: 70
     env:
-      POLL_INTERVAL_SECONDS: 300
-      POLL_WINDOW_MINUTES: ${{ github.event.inputs.window_minutes || '55' }}
+      # 2 min, not 5: private Ablöse ads are first-come-first-served and draw
+      # replies within minutes, so the poll gap is the whole margin.
+      POLL_INTERVAL_SECONDS: 120
+      # Only the manual override is passed here; empty for every other trigger.
+      # The dispatch-vs-fallback default is decided in coop-poll-window.sh from
+      # $GITHUB_EVENT_NAME, because the natural expression for it
+      # (`event_name == 'repository_dispatch' && '0' || '55'`) is a known GitHub
+      # trap: '0' casts to falsy, the `||` swallows it, and every dispatched run
+      # would silently loop for 55 minutes instead of doing a single poll.
+      POLL_WINDOW_MINUTES: ${{ github.event.inputs.window_minutes }}
     steps:
       - name: Warn if TELEGRAM_COOP_CHANNEL_ID secret is missing
         env:
@@ -72,6 +86,13 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
+          # Separate channel for private Ablöse hits — see Application/coop_alert_router.py
+          TELEGRAM_PRIVATE_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_PRIVATE_COOP_CHANNEL_ID }}
+          # User-created alerts (/alerts) can deliver by email as well as Telegram.
+          # Without these the poll still runs and Telegram alerts still land; only
+          # the email half is disabled, and it says so loudly in the log.
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           # Optional mygewo filter-URL override (repo variable MYGEWO_SEARCH_URL under
           # Settings → Secrets and variables → Actions → Variables). Empty/unset uses the
           # baked default: Wien, ALL rooms/sizes/rents (states=28_) — the parser keeps only

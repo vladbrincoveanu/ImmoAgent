@@ -2,7 +2,7 @@ import pymongo
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
 from typing import Dict, Any, Optional, List, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 import json
 import time
@@ -610,6 +610,92 @@ class MongoDBHandler:
             print(f"MongoDB query error: {e}")
             return None
     
+    def get_active_alerts(self, kind) -> List[Dict]:
+        """Confirmed alert subscriptions for one feed, or several.
+
+        `kind` is a string or a list of strings — the poller watches both the
+        legacy 'coop_private' feed and the newer 'keyword' feed in one query.
+
+        Unconfirmed email subscriptions are excluded: anyone can type someone
+        else's address into the form, so an unconfirmed one must never be
+        delivered to. Telegram subscriptions are stored already-confirmed —
+        supplying a chat id the bot can post to is itself the consent."""
+        kinds = [kind] if isinstance(kind, str) else list(kind)
+        try:
+            return list(self.db["alert_subscriptions"].find(
+                {"kind": {"$in": kinds}, "confirmed": True}))
+        except Exception as e:
+            # An alert lookup failure must not abort a poll — the scrape and the
+            # upserts that feed the website still have to run.
+            print(f"MongoDB alert query error: {e}")
+            return []
+
+    # --- alert delivery ledger -------------------------------------------------
+    #
+    # Why a ledger at all: delivery used to be driven from the in-memory list of
+    # listings a poll had just seen. A poll dying between the Mongo upsert and
+    # the Telegram send lost that ad permanently — the next poll no longer
+    # considered it new, so nobody was told and nothing recorded the loss.
+
+    def ensure_delivery_index(self) -> None:
+        """The unique index is what makes `claim_delivery` a real claim.
+
+        Without it two concurrent polls both read "no row" and both send."""
+        try:
+            self.db["alert_deliveries"].create_index(
+                [("alert_id", 1), ("url_hash", 1)], unique=True)
+        except Exception as e:
+            print(f"MongoDB delivery index error: {e}")
+
+    def claim_delivery(self, alert_id, url_hash: str,
+                       chat_id: Optional[str] = None,
+                       message: Optional[str] = None) -> bool:
+        """Take ownership of one (alert, ad) delivery. True if we now own it.
+
+        False means another poll already claimed it — including a poll that
+        claimed it and then died. That case is recovered by
+        `stale_pending_deliveries`, not by re-claiming here, because a blind
+        re-claim would double-send every ad on every poll.
+
+        `chat_id` and `message` are stored so a retry can send from the row
+        alone. Without them, recovering a lost delivery would need a
+        url_hash -> listing reverse lookup that this schema does not support."""
+        try:
+            self.db["alert_deliveries"].insert_one({
+                "alert_id": alert_id,
+                "url_hash": url_hash,
+                "chat_id": chat_id,
+                "message": message,
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc),
+            })
+            return True
+        except Exception:
+            # DuplicateKeyError is the expected path here, not an error.
+            return False
+
+    def mark_delivery_sent(self, alert_id, url_hash: str) -> None:
+        try:
+            self.db["alert_deliveries"].update_one(
+                {"alert_id": alert_id, "url_hash": url_hash},
+                {"$set": {"status": "sent",
+                          "sent_at": datetime.now(timezone.utc)}})
+        except Exception as e:
+            print(f"MongoDB delivery update error: {e}")
+
+    def stale_pending_deliveries(self, older_than_minutes: int = 5) -> List[Dict]:
+        """Claimed-but-never-sent deliveries, i.e. polls that died mid-send.
+
+        The age cutoff keeps a poll from retrying rows another poll is sending
+        right now."""
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+        try:
+            return list(self.db["alert_deliveries"].find(
+                {"status": "pending", "created_at": {"$lt": cutoff}}))
+        except Exception as e:
+            print(f"MongoDB pending delivery query error: {e}")
+            return []
+
     def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30,
                         excluded_districts: List[str] = None, min_rooms: float = 0.0,
                         exclude_recently_sent: bool = True, recently_sent_days: int = 7,

@@ -683,6 +683,28 @@ def resolve_offer_details(offer_url: str) -> dict:
     return {"builder_url": _builder_url_from(html), "image_url": _og_image(html)}
 
 
+def resolve_builder_image(builder_url: Optional[str]) -> Optional[str]:
+    """One fetch of a Bauträger's own page → a unit photo URL, or None.
+
+    mygewo's /angebot/ pages carry no unit photo — measured 2026-07-30, every
+    unit in the live inventory had resolved to the terminal "" under the probe in
+    `resolve_offer_details`, so /coop rendered the placeholder for every row. The
+    builder pages those offers link to do carry one: of four sampled builders,
+    lebenswert-wohnen and frieden expose og:image, while gesiba and nhg expose
+    only a content <img>. Both shapes are already handled by `_og_image`, so this
+    is purely a second hop, not a second extractor.
+
+    Never raises: one dead builder site must not abort a poll."""
+    if not builder_url:
+        return None
+    try:
+        html = fetch(builder_url)
+    except Exception as e:
+        logger.warning(f"builder-page fetch failed for {builder_url}: {e}")
+        return None
+    return _og_image(html)
+
+
 def resolve_builder_url(offer_url: str) -> Optional[str]:
     """Builder reservation page for a mygewo /angebot/ URL (see
     `resolve_offer_details`, which gets this plus the photo in one fetch)."""

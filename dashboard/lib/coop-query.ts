@@ -22,6 +22,30 @@ export const MIN_LIVABLE_AREA_M2 = 15;
  * above: the (now-disabled) standalone ÖVW/Familienwohnbau/BWSG adapters had
  * no Vienna scoping and no housing-size floor, so a stray non-Wien or
  * garage/storage row must never render regardless of DB state. */
+/** "A private co-op transfer we are willing to show" — the /coop/private rubric.
+ *
+ * Deliberately NOT coopBaseQuery() with a flag flipped. That query is
+ * builder-direct by construction: it excludes `coop_source: 'willhaben'` and
+ * requires the `buyable:false` stamp that only the mygewo poller writes. Private
+ * transfers are the exact opposite — they are Willhaben ads, and no builder ever
+ * stamps them. Sharing one query would mean either letting for-sale units leak
+ * into /coop or showing nothing here.
+ *
+ * `coop_kind` is the whole gate: it is written only after BOTH a transfer marker
+ * and a co-op marker matched (see extract_is_private_coop_transfer), so a fitted-
+ * kitchen Ablöse on an ordinary rental never reaches this page.
+ *
+ * bezirk + area_m2 mirror the builder-direct guard: a stray non-Wien row or a
+ * garage tagged "Wohnung" must not render regardless of DB state. */
+export function privateCoopQuery(): Document {
+  return {
+    coop_kind: 'private_transfer',
+    url_is_valid: { $ne: false },
+    bezirk: { $regex: '^1\\d{3}$' },
+    $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
+  };
+}
+
 export function coopBaseQuery(): Document {
   return {
     is_genossenschaft: true,

@@ -21,6 +21,12 @@ from Domain.listing import Listing
 from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
+from Application.alert_dispatcher import dispatch, retry_pending
+from Application.alert_matcher import match
+from Application.coop_alert_router import missing_channels, route
+from Application.scraping.willhaben_private_coop import (
+    crawl_newest, is_private_transfer)
+from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.coop_format import format_coop_message
 from Application.helpers.listing_validator import validate_url
 from Integration.mongodb_handler import MongoDBHandler
@@ -33,6 +39,77 @@ logger = logging.getLogger("run_coop")
 # `run`). Wien's whole co-op inventory is <150 units, so a cold start settles
 # within a few */5 cycles while no single run hammers mygewo.
 MAX_DETAIL_FETCHES_PER_RUN = 40
+
+# Bumped whenever the photo-resolution strategy changes. v1 read og:image off the
+# mygewo offer page, which never carries a unit photo, so every unit settled on
+# the terminal "" and /coop rendered a placeholder on every row. v2 hops to the
+# builder's own page instead. A unit whose stored version is below this earns
+# exactly one re-probe; afterwards "" is terminal again, which is what stops a
+# genuinely photo-less builder from being re-fetched on every poll of every day.
+IMAGE_PROBE_V = 2
+
+
+# Feeds that user-created alerts watch. 'coop_private' is the original
+# private-transfer rubric; 'keyword' is the general feed created on /alerts.
+ALERT_KINDS = ["coop_private", "keyword"]
+
+
+def is_coop_listing(listing) -> bool:
+    """True for the co-op inventory the Telegram CHANNEL feeds carry.
+
+    mygewo units come from `coop.SOURCES` and carry no `coop_kind` of their own,
+    so they are identified by their aggregator URL. Willhaben ads only qualify
+    once the scraper has actually classified them."""
+    if getattr(listing, "coop_kind", None):
+        return True
+    if getattr(listing, "is_genossenschaft", None):
+        return True
+    return "mygewo.at" in (getattr(listing, "url", None) or "")
+
+
+def deliver_user_alerts(handler, listings: List[Listing]) -> int:
+    """Deliver newly-seen listings to the alerts users created on /alerts.
+
+    Returns the number of successful deliveries. Never raises: an alert-delivery
+    failure must not fail the poll that feeds the website."""
+    try:
+        alerts = handler.get_active_alerts(ALERT_KINDS)
+    except Exception as e:
+        logger.error(f"❌ could not load user alerts: {e}")
+        return 0
+    if not alerts:
+        return 0
+
+    handler.ensure_delivery_index()
+    token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
+
+    # Repair before delivering. A previous poll that died mid-send left rows
+    # claimed but unsent; those ads are no longer in the "new" set, so this is
+    # the only path that can still deliver them.
+    delivered = retry_pending(handler, token)
+
+    for alert, listing, unverified in match(listings, alerts):
+        if dispatch(alert, listing, unverified, handler, token):
+            delivered += 1
+    logger.info(f"🔔 user alerts: {delivered} delivery(ies) "
+                f"for {len(listings)} new listing(s) across {len(alerts)} alert(s)")
+    return delivered
+
+
+def maybe_reprobe_image(stored: dict, resolve) -> dict:
+    """Re-probe one unit's photo if it predates the current probe version.
+
+    Returns the fields to persist. `resolve` is injected so the poll passes the
+    real network call and tests pass a stub."""
+    out = dict(stored)
+    if (out.get("image_probe_v") or 1) >= IMAGE_PROBE_V:
+        return out
+    if not out.get("builder_url"):
+        return out
+    # `or ""` is what makes a miss terminal within this version.
+    out["image_url"] = resolve(out["builder_url"]) or ""
+    out["image_probe_v"] = IMAGE_PROBE_V
+    return out
 
 
 def load_coop_alerts() -> dict:
@@ -150,21 +227,29 @@ def _log_parsed(name: str, listings: List[Listing]) -> List[Listing]:
 def run(no_send: bool = False) -> int:
     """Poll → upsert → alert. Exit 0 unless MongoDB is down or ALL adapters fail."""
     alerts = load_coop_alerts()
+    # Name every unset channel up front. Previously a missing secret produced one
+    # warning that looked identical to a quiet market, and the poll ran green for
+    # weeks while delivering nothing.
+    for name in missing_channels():
+        logger.error(f"🔴 {name} is unset — alerts for that feed are DISABLED. "
+                     "Scraping and upserts continue.")
     handler = MongoDBHandler()
     if handler.collection is None:
         logger.error("❌ No MongoDB connection; aborting")
         return 1
 
-    bot = None
+    # One bot per feed. Co-op alerts go ONLY to co-op channels — the main channel
+    # excludes co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
+    bots = {}
     if not no_send:
         token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
-        # Coop alerts go ONLY to the coop channel — the main channel excludes
-        # co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
-        chat_id = os.environ.get("TELEGRAM_COOP_CHANNEL_ID")
-        if token and chat_id:
-            bot = TelegramBot(token, chat_id)
-        else:
-            logger.error("❌ TELEGRAM_COOP_CHANNEL_ID/bot token not set; "
+        if token:
+            for kind in ("mygewo", "private_transfer"):
+                chat_id = route(kind)
+                if chat_id:
+                    bots[kind] = TelegramBot(token, chat_id)
+        if not bots:
+            logger.error("❌ no bot token or no channel configured; "
                          "alerts DISABLED, polling/upserts continue")
 
     seen: List[Listing] = []
@@ -180,6 +265,37 @@ def run(no_send: bool = False) -> int:
         logger.error("❌ All adapters failed")
         handler.close()
         return 1
+
+    # Willhaben is polled here rather than in the daily scrape because private
+    # co-op transfers are first-come-first-served — a sitting tenant passing on
+    # their flat, gone within hours. Only genuinely new URLs cost a detail fetch,
+    # so this rides the 2-minute cadence without crawling the whole feed.
+    #
+    # Deliberately AFTER the all-adapters-failed gate and outside ok_adapters: it
+    # is an extra feed, not one of coop.SOURCES, and it must never mask a total
+    # mygewo outage by making a dead poll look half-alive.
+    new_from_willhaben: List[Listing] = []
+    if os.environ.get("WILLHABEN_PRIVATE_COOP", "1") != "0":
+        try:
+            new_from_willhaben = crawl_newest(
+                WillhabenScraper(config=load_config() or {}),
+                is_new=lambda u: handler.get_listing(u) is None,
+                # Everything new: keyword alerts do their own matching, and the
+                # transfer rubric is re-applied per listing just below. Narrowing
+                # here would make an alert for "Balkon" silently unmatchable.
+                keep=lambda listing: True,
+            )
+            # Per listing, not blanket. Every ad this returned used to be a
+            # transfer by construction; with the widened feed, tagging them all
+            # would route ordinary rentals into the private-Ablöse channel and
+            # corrupt /coop/private.
+            for listing in new_from_willhaben:
+                if is_private_transfer(listing):
+                    listing.coop_kind = "private_transfer"
+            seen.extend(new_from_willhaben)
+        except Exception as e:
+            # A Willhaben block must not take the mygewo half of the poll with it.
+            logger.error(f"❌ willhaben newest adapter failed: {e}")
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
@@ -221,10 +337,35 @@ def run(no_send: bool = False) -> int:
                     logger.warning(
                         f"offer-detail fetches capped at {MAX_DETAIL_FETCHES_PER_RUN} "
                         "this run; remaining units resolve on the next poll")
+
+            # v1 probed the mygewo offer page, which has no unit photo, so every
+            # unit above settled on "". Hop to the builder page once per unit.
+            # Version-gated BEFORE spending a fetch slot: units already at v2 must
+            # not consume the budget that unprobed units need. Reuses `existing`
+            # rather than re-reading Mongo — this loop runs per unit per poll.
+            stored = existing
+            if ((stored.get("image_probe_v") or 1) < IMAGE_PROBE_V
+                    and listing.builder_url
+                    and detail_fetches < MAX_DETAIL_FETCHES_PER_RUN):
+                detail_fetches += 1
+                probed = maybe_reprobe_image(
+                    {"builder_url": listing.builder_url,
+                     "image_url": stored.get("image_url"),
+                     "image_probe_v": stored.get("image_probe_v")},
+                    coop.resolve_builder_image,
+                )
+                listing.image_url = probed["image_url"] or None
+                listing.image_probe_v = probed["image_probe_v"]
         handler.upsert_coop_listing(_to_doc(listing))
 
     sent = 0
     for listing in seen:
+        # The channel feeds are co-op only. `seen` now also carries every new
+        # Willhaben rental, because keyword alerts poll the whole newest-first
+        # feed — without this guard the mygewo channel would receive the entire
+        # Wien rental market.
+        if not is_coop_listing(listing):
+            continue
         if not matches_coop_alerts(listing, alerts):
             continue
         doc = handler.get_listing(listing.url)
@@ -238,11 +379,24 @@ def run(no_send: bool = False) -> int:
             logger.info(f"[no-send] would alert: {listing.url}")
             sent += 1
             continue
+        # mygewo units carry no coop_kind of their own — they are the default feed.
+        bot = bots.get(getattr(listing, "coop_kind", None) or "mygewo")
         if bot and bot.send_message(format_coop_message(listing)):
             handler.mark_sent(listing.url)
             sent += 1
         elif bot:
             logger.error(f"❌ send failed (retry next run): {listing.url}")
+
+    # User-created alerts (/alerts). Distinct from the channel feeds above: those
+    # are the owner's co-op firehose, these are per-user keyword watches with
+    # their own destinations, over the whole newest-first feed.
+    #
+    # Only the ads this poll saw for the first time are matched. Delivery is no
+    # longer at the mercy of that, though — `deliver_user_alerts` claims each
+    # (alert, ad) pair in a ledger before sending and retries anything a previous
+    # poll claimed but never sent, so a poll dying mid-send no longer loses an ad.
+    if not no_send:
+        deliver_user_alerts(handler, new_from_willhaben)
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")

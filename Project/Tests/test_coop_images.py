@@ -165,3 +165,76 @@ def test_a_real_resolved_value_is_still_carried_over():
 def test_a_freshly_scraped_value_beats_the_stored_one():
     out = _preserving({"_id": 1, "image_url": ""}, {"image_url": _IMG})
     assert out["image_url"] == _IMG
+
+
+# --- T4: builder-page hop -----------------------------------------------------
+# mygewo offer pages carry no unit photo, so `resolve_offer_details` stored "" for
+# every unit and /coop rendered a placeholder on every row. The photo lives on the
+# builder's own page instead. Shapes below are real, sampled 2026-07-30.
+
+from unittest.mock import patch  # noqa: E402
+
+from Application.scraping.genossenschaft_scraper import (  # noqa: E402
+    resolve_builder_image,
+)
+
+_LEBENSWERT = (
+    '<html><head><meta property="og:image" '
+    'content="https://storage.justimmo.at/thumb/abc/fc_h1080/XezxUq.jpg"/>'
+    '</head><body></body></html>'
+)
+_FRIEDEN = (
+    '<html><head><meta data-react-helmet="true" property="og:image" '
+    'content="https://portego.frieden.at/PublicFile/jVjKAN5jy5"/>'
+    '</head><body></body></html>'
+)
+_GESIBA = (
+    '<html><head></head><body>'
+    '<img src="/assets/logo.svg"/>'
+    '<img src="/media/objekte/010001418110016/wohnzimmer.jpg"/>'
+    '</body></html>'
+)
+_NO_PHOTO = '<html><head></head><body><img src="/assets/icon-menu.svg"/></body></html>'
+
+
+def test_builder_image_from_og_image():
+    with patch("Application.scraping.genossenschaft_scraper.fetch",
+               return_value=_LEBENSWERT):
+        assert resolve_builder_image("https://www.lebenswert-wohnen.at/objekt/7769786") == \
+            "https://storage.justimmo.at/thumb/abc/fc_h1080/XezxUq.jpg"
+
+
+def test_builder_image_from_helmet_og_image():
+    """frieden.at renders og:image through react-helmet, so the tag carries an
+    extra data attribute — the lookup must key on property, not exact markup."""
+    with patch("Application.scraping.genossenschaft_scraper.fetch",
+               return_value=_FRIEDEN):
+        assert resolve_builder_image("https://www.frieden.at/immobiliensuche/1840") == \
+            "https://portego.frieden.at/PublicFile/jVjKAN5jy5"
+
+
+def test_builder_image_falls_back_to_content_img_when_no_og():
+    """gesiba/nhg publish no og:image; half the inventory depends on this path."""
+    with patch("Application.scraping.genossenschaft_scraper.fetch",
+               return_value=_GESIBA):
+        got = resolve_builder_image("https://www.gesiba.at/immobilien/wohnungen/detail")
+    assert got is not None and got.endswith("/wohnzimmer.jpg")
+    assert "logo" not in got
+
+
+def test_builder_image_none_when_only_icons():
+    with patch("Application.scraping.genossenschaft_scraper.fetch",
+               return_value=_NO_PHOTO):
+        assert resolve_builder_image("https://www.nhg.at/Projekte/Details/?id=610") is None
+
+
+def test_builder_image_none_on_fetch_failure():
+    """One dead builder site must not abort a poll."""
+    with patch("Application.scraping.genossenschaft_scraper.fetch",
+               side_effect=Exception("boom")):
+        assert resolve_builder_image("https://dead.example.at/x") is None
+
+
+def test_builder_image_none_for_empty_url():
+    assert resolve_builder_image("") is None
+    assert resolve_builder_image(None) is None

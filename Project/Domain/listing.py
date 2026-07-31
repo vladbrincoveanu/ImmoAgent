@@ -82,7 +82,10 @@ class Listing:
     bautraeger:             Optional[str]   = None   # "ÖVW" | "BWSG" | "Familienwohnbau" | ...
     allocation_model:       Optional[str]   = None   # 'first_come' | 'wohn_ticket'
     coop_source:            Optional[str]   = None   # 'bautraeger_direct' | 'willhaben'
+    coop_kind:              Optional[str]   = None   # 'mygewo' | 'private_transfer' — routes the Telegram feed; see Application/coop_alert_router.py
+    description:            Optional[str]   = None   # ad free text, bounded; searched by /coop/private (title alone misses "Nachmieter gesucht" buried in the body)
     builder_url:            Optional[str]   = None   # builder's own reservation URL (mygewo → "Original-Anzeige")
+    image_probe_v:          Optional[int]   = None   # photo-resolution strategy that last probed this unit; see run_coop.IMAGE_PROBE_V
     buyable:                Optional[bool]  = None   # mygewo "mit Kaufoption"; True = purchase-option unit (excluded from the rent-only feed)
     content_fingerprint_xsrc: Optional[str] = None   # source-independent dedup key
     first_seen_at:          Optional[str]   = None   # ISO8601; earliest date the source recorded this unit (mygewo: `first_seen`) — proxy for a "posted" date, not the Bauträger's own publish date
