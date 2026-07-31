@@ -6,8 +6,9 @@ import { test, expect } from '@playwright/test';
  * is asserted on real rendered DOM, not screenshots: create with several keys
  * and numeric gates, see it listed, test it, delete it, get the empty state.
  *
- * Alerts are Pro-only, so an anonymous visitor gets a 402 and the page must say
- * so rather than appearing to succeed. */
+ * Creating one needs no entitlement: the password gate was removed, so an
+ * anonymous visitor must be able to go straight from the form to a stored
+ * alert. */
 
 const ALERT_API = '**/api/saved-searches/alert';
 
@@ -49,7 +50,7 @@ test('submitting with no channel surfaces an error instead of failing silently',
     await page.goto('/alerts');
     await page.getByTestId('alert-keywords').fill('1100');
     await page.getByTestId('alert-submit').click();
-    // Either the Pro gate or the missing-channel validation — both must be shown.
+    // The missing-channel validation — an alert with nowhere to send is refused.
     await expect(page.getByTestId('alert-status')).toBeVisible();
     const text = await page.getByTestId('alert-status').textContent();
     expect(text?.trim().length ?? 0).toBeGreaterThan(0);
@@ -70,7 +71,7 @@ test('keywords are sent as an array and blank filters stay undefined',
         posted = route.request().postDataJSON();
         return route.fulfill({
           status: 201, contentType: 'application/json',
-          body: JSON.stringify({ ok: true, message: 'Alert angelegt.' }),
+          body: JSON.stringify({ ok: true, message: 'Alert created.' }),
         });
       }
       return route.fulfill({
@@ -95,7 +96,9 @@ test('keywords are sent as an array and blank filters stay undefined',
     expect(body).not.toBeNull();
     // Trailing empties dropped, not sent as blank strings.
     expect(body.keywords).toEqual(['Ablöse', 'Nachmieter']);
-    expect(body.kind).toBe('keyword');
+    // The private-handover box is on by default, so the alert lands on the
+    // rubric-gated feed rather than the whole newest-first stream.
+    expect(body.kind).toBe('coop_private');
     expect(body.filters.min_area).toBe(60);
     expect(body.filters.max_price).toBe(900);
     // An untouched field must stay undefined — 0 would match nothing.
@@ -184,19 +187,26 @@ test('the private rubric is reachable from /coop', async ({ page }) => {
 });
 
 /** /alerts and /coop/private shipped without a link in the global nav, so the
- * only way to reach them was typing the URL. Assert both are navigable. */
-test('global nav links reach the alerts page and the private rubric', async ({ page }) => {
+ * only way to reach them was typing the URL. The private feed no longer has its
+ * own header entry — it lives one click deeper, under the single Co-op tab — so
+ * assert that path end to end rather than just the header link. */
+test('global nav reaches the alerts page and the private rubric', async ({ page }) => {
   await page.goto('/dashboard');
   const nav = page.locator('body > header');
 
   await expect(nav.getByRole('link', { name: 'Alerts' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Ablöse' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Co-op' })).toBeVisible();
+  // The old second co-op entry must be gone, or the tabs were not consolidated.
+  await expect(nav.getByRole('link', { name: 'Ablöse' })).toHaveCount(0);
 
   await nav.getByRole('link', { name: 'Alerts' }).click();
   await expect(page).toHaveURL(/\/alerts$/);
   await expect(page.getByTestId('alerts-page')).toBeVisible();
 
-  await nav.getByRole('link', { name: 'Ablöse' }).click();
+  await page.goto('/dashboard');
+  await nav.getByRole('link', { name: 'Co-op' }).click();
+  await expect(page).toHaveURL(/\/coop$/);
+  await page.getByTestId('coop-tab-private').click();
   await expect(page).toHaveURL(/\/coop\/private$/);
   await expect(page.getByTestId('coop-private-page')).toBeVisible();
 });

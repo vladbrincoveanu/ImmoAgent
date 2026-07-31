@@ -30,6 +30,20 @@ type Alert = {
 const inputCls =
   'rounded-lg border border-[#E8E4E0] bg-white px-3 py-2 text-sm text-[#2D2D2D]';
 
+/** Prefilled keys for the case the page exists for: a co-op flat being passed on
+ * by the tenant sitting in it.
+ *
+ * German on purpose — these are matched against the ad text, not shown as UI
+ * copy. Every term is a co-op marker that stands on its own, because keys are
+ * OR-ed: adding "Ablöse" or "Nachmieter" here would widen the alert to every
+ * kitchen buyout on the feed rather than narrow it. The handover half of the
+ * question is answered by the private-transfer rubric below, not by a key. */
+const DEFAULT_KEYWORDS = [
+  'Genossenschaftswohnung', 'Genossenschaft', 'Genossenschaftsanteil',
+  'gemeinnützig', 'gefördert', 'Finanzierungsbeitrag', 'Eigenmittelanteil',
+  'Wohnbauförderung', 'Baurechtszins', 'Mietkauf',
+].join(', ');
+
 /** "Ablöse, Nachmieter , " → ["Ablöse", "Nachmieter"]. Split on the comma only:
  * a space is legitimate inside a key ("Nachmieter gesucht"). */
 function parseKeywords(raw: string): string[] {
@@ -53,14 +67,18 @@ function describeFilters(f: Alert['filters']): string {
   if (!f) return '';
   const parts: string[] = [];
   if (f.min_area || f.max_area) parts.push(`${f.min_area ?? '–'}–${f.max_area ?? '–'} m²`);
-  if (f.min_rooms || f.max_rooms) parts.push(`${f.min_rooms ?? '–'}–${f.max_rooms ?? '–'} Zi.`);
+  if (f.min_rooms || f.max_rooms) parts.push(`${f.min_rooms ?? '–'}–${f.max_rooms ?? '–'} rm`);
   if (f.max_price) parts.push(`≤ ${f.max_price} €`);
   return parts.join(' · ');
 }
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(DEFAULT_KEYWORDS);
+  // Defaults on: an alert over the raw newest-first Wien rental feed is a
+  // firehose, and the co-op keys alone still let a "gefördert" free-market ad
+  // through. Clearing it is one click for someone who wants the wide feed.
+  const [privateOnly, setPrivateOnly] = useState(true);
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
   const [minRooms, setMinRooms] = useState('');
@@ -71,11 +89,6 @@ export default function AlertsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  // null = entitlement not known yet, so neither the form nor the unlock box
-  // flashes before /api/me answers.
-  const [isPro, setIsPro] = useState<boolean | null>(null);
-  const [password, setPassword] = useState('');
-  const [unlocking, setUnlocking] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -91,55 +104,9 @@ export default function AlertsPage() {
     }
   }, []);
 
-  const loadEntitlement = useCallback(async () => {
-    try {
-      const res = await fetch('/api/me', { cache: 'no-store' });
-      const json = await res.json().catch(() => ({}));
-      // An unreachable /api/me must not claim Pro — the server gate decides
-      // anyway, and assuming false only costs one visible unlock box.
-      setIsPro(res.ok ? Boolean(json.is_pro) : false);
-    } catch {
-      setIsPro(false);
-    }
-  }, []);
-
   useEffect(() => {
     void load();
-    void loadEntitlement();
-  }, [load, loadEntitlement]);
-
-  /** Trade the shared password for the Pro flag on this browser's user id. The
-   * password is only ever checked server-side; a wrong one changes nothing. */
-  async function unlock(e: React.FormEvent) {
-    e.preventDefault();
-    setUnlocking(true);
-    setStatus(null);
-    try {
-      const res = await fetch('/api/unlock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setIsPro(true);
-        setPassword('');
-        setStatus('Freigeschaltet — Alerts sind jetzt nutzbar.');
-      } else if (res.status === 401) {
-        setStatus('Falsches Passwort.');
-      } else if (res.status === 429) {
-        setStatus('Zu viele Versuche — bitte später erneut probieren.');
-      } else if (json.error === 'unlock_not_configured') {
-        setStatus('Kein Passwort hinterlegt (PRO_UNLOCK_PASSWORD fehlt).');
-      } else {
-        setStatus('Freischalten fehlgeschlagen.');
-      }
-    } catch {
-      setStatus('Netzwerkfehler beim Freischalten.');
-    } finally {
-      setUnlocking(false);
-    }
-  }
+  }, [load]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -150,7 +117,8 @@ export default function AlertsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kind: 'keyword',
+          // 'coop_private' is the rubric-gated feed; 'keyword' is everything new.
+          kind: privateOnly ? 'coop_private' : 'keyword',
           keywords: parseKeywords(keyword),
           filters: {
             min_area: num(minArea), max_area: num(maxArea),
@@ -164,8 +132,10 @@ export default function AlertsPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
-        setStatus(json.message ?? 'Alert angelegt.');
-        setKeyword('');
+        setStatus(json.message ?? 'Alert created.');
+        // Back to the default rather than blank: the next alert is almost always
+        // a variation on the same co-op watch, not a search for nothing.
+        setKeyword(DEFAULT_KEYWORDS);
         setMinArea('');
         setMaxArea('');
         setMinRooms('');
@@ -174,16 +144,11 @@ export default function AlertsPage() {
         setEmail('');
         setChatId('');
         void load();
-      } else if (res.status === 402) {
-        // The cookie may have been Pro when the page loaded but is not now;
-        // surfacing the unlock box beats a dead end.
-        setIsPro(false);
-        setStatus('Alerts sind Pro-only — bitte unten freischalten.');
       } else {
-        setStatus(json.error ?? 'Alert konnte nicht angelegt werden.');
+        setStatus(json.error ?? 'Could not create the alert.');
       }
     } catch {
-      setStatus('Netzwerkfehler — bitte erneut versuchen.');
+      setStatus('Network error — please try again.');
     } finally {
       setBusy(false);
     }
@@ -199,10 +164,10 @@ export default function AlertsPage() {
         void load();
       } else {
         const json = await res.json().catch(() => ({}));
-        setStatus(json.error ?? 'Löschen fehlgeschlagen.');
+        setStatus(json.error ?? 'Delete failed.');
       }
     } catch {
-      setStatus('Netzwerkfehler beim Löschen.');
+      setStatus('Network error while deleting.');
     }
   }
 
@@ -218,10 +183,10 @@ export default function AlertsPage() {
       });
       const json = await res.json().catch(() => ({}));
       setStatus(res.ok
-        ? 'Testnachricht gesendet.'
-        : (json.error ?? 'Test fehlgeschlagen.'));
+        ? 'Test message sent.'
+        : (json.error ?? 'Test failed.'));
     } catch {
-      setStatus('Netzwerkfehler beim Test.');
+      setStatus('Network error during the test.');
     }
   }
 
@@ -229,46 +194,9 @@ export default function AlertsPage() {
     <main className="mx-auto max-w-2xl px-4 py-8" data-testid="alerts-page">
       <h1 className="text-2xl font-bold text-[#3D405B]">Alerts</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
-        Stichwort-Alarm auf neu erschienene Inserate. Der Poller läuft alle
-        2&nbsp;Min.; von der Anzeige bis Telegram vergehen typisch
-        2–3&nbsp;Min.
+        Keyword alerts on newly posted ads. The poller runs every 2&nbsp;min;
+        expect 2–3&nbsp;min from the ad going live to the Telegram message.
       </p>
-
-      {isPro === false && (
-        <form
-          onSubmit={unlock}
-          data-testid="unlock-form"
-          className="mt-6 space-y-3 rounded-xl border border-[#E8C97A] bg-[#FDF7E7] p-4"
-        >
-          <p className="text-sm font-medium text-[#3D405B]">
-            Alerts sind Pro. Mit dem Zugangspasswort freischalten:
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Zugangspasswort"
-              aria-label="Zugangspasswort"
-              data-testid="unlock-password"
-              autoComplete="current-password"
-              className={`${inputCls} flex-1`}
-            />
-            <button
-              type="submit"
-              disabled={unlocking || !password}
-              data-testid="unlock-submit"
-              className="rounded-lg bg-[#3D405B] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {unlocking ? 'Prüfe…' : 'Freischalten'}
-            </button>
-          </div>
-          <p className="text-xs text-[#6B6B6B]">
-            Gilt für diesen Browser (Cookie). In einem anderen Browser oder nach
-            dem Löschen der Cookies erneut eingeben.
-          </p>
-        </form>
-      )}
 
       <form
         onSubmit={create}
@@ -279,50 +207,70 @@ export default function AlertsPage() {
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="Stichwörter, kommagetrennt — z. B. Ablöse, Nachmieter, 1100"
-          aria-label="Stichwörter"
+          placeholder="Keywords, comma-separated — e.g. Ablöse, Nachmieter, 1100"
+          aria-label="Keywords"
           data-testid="alert-keywords"
           className={`${inputCls} w-full`}
         />
         <p className="text-xs text-[#6B6B6B]">
-          Ein Treffer genügt: sobald EINES der Stichwörter im Titel oder im
-          Anzeigentext vorkommt, wird gemeldet. Ohne Stichwort kommt jede neue
-          Anzeige.
+          One hit is enough: you are notified as soon as ANY of the keywords
+          appears in the title or the ad text. Keywords match the German ad text,
+          so German terms work best — the defaults are the co-op wording. Leave
+          it empty to get every new ad.
         </p>
+
+        <label className="flex items-start gap-2 text-sm text-[#2D2D2D]">
+          <input
+            type="checkbox"
+            checked={privateOnly}
+            onChange={(e) => setPrivateOnly(e.target.checked)}
+            data-testid="alert-private-only"
+            className="mt-0.5"
+          />
+          <span>
+            Co-op passed on by a private tenant only
+            <span className="block text-xs text-[#6B6B6B]">
+              Requires both a co-op marker and a handover marker (Weitergabe,
+              Nachmieter, Ablöse) in the same ad. Keywords alone cannot do this —
+              they are OR-ed, so &ldquo;Ablöse&rdquo; on its own would let every
+              kitchen buyout through. Uncheck to watch the whole new-rentals feed.
+            </span>
+          </span>
+        </label>
 
         <div className="grid grid-cols-2 gap-3">
           <input type="number" min="0" value={minArea}
             onChange={(e) => setMinArea(e.target.value)}
-            placeholder="Größe ab (m²)" aria-label="Größe ab"
+            placeholder="Size from (m²)" aria-label="Size from"
             data-testid="alert-min-area" className={inputCls} />
           <input type="number" min="0" value={maxArea}
             onChange={(e) => setMaxArea(e.target.value)}
-            placeholder="Größe bis (m²)" aria-label="Größe bis"
+            placeholder="Size to (m²)" aria-label="Size to"
             data-testid="alert-max-area" className={inputCls} />
           <input type="number" min="0" step="0.5" value={minRooms}
             onChange={(e) => setMinRooms(e.target.value)}
-            placeholder="Zimmer ab" aria-label="Zimmer ab"
+            placeholder="Rooms from" aria-label="Rooms from"
             data-testid="alert-min-rooms" className={inputCls} />
           <input type="number" min="0" step="0.5" value={maxRooms}
             onChange={(e) => setMaxRooms(e.target.value)}
-            placeholder="Zimmer bis" aria-label="Zimmer bis"
+            placeholder="Rooms to" aria-label="Rooms to"
             data-testid="alert-max-rooms" className={inputCls} />
           <input type="number" min="0" value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value)}
-            placeholder="Preis max (€)" aria-label="Preis max"
+            placeholder="Max price (€)" aria-label="Max price"
             data-testid="alert-max-price" className={`${inputCls} col-span-2`} />
         </div>
         <p className="text-xs text-[#6B6B6B]">
-          Leer lassen heißt „egal“. Fehlt eine Angabe im Inserat, wird trotzdem
-          gemeldet — markiert als ungeprüft. Lieber ein Treffer zu viel als
-          einer zu spät.
+          Leave a field empty for &ldquo;don&rsquo;t care&rdquo;. If the ad omits
+          a value you still get notified — flagged as unverified. Better one hit
+          too many than one too late.
         </p>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="E-Mail (optional)"
-          aria-label="E-Mail"
+          placeholder="Email (optional)"
+          aria-label="Email"
           data-testid="alert-email"
           className={`${inputCls} w-full`}
         />
@@ -330,14 +278,18 @@ export default function AlertsPage() {
           type="text"
           value={chatId}
           onChange={(e) => setChatId(e.target.value)}
-          placeholder="Telegram Chat-ID (optional, z. B. -1001234567890)"
-          aria-label="Telegram Chat-ID"
+          placeholder="Telegram chat ID (optional, e.g. -1001234567890)"
+          aria-label="Telegram chat ID"
           data-testid="alert-chatid"
           className={`${inputCls} w-full`}
         />
+        {/* Spelled out because a bot token pasted here is a real mistake: it
+            leaks the token and the id never validates. */}
         <p className="text-xs text-[#6B6B6B]">
-          Mindestens ein Kanal ist nötig. E-Mail muss bestätigt werden, Telegram
-          nicht — eine Chat-ID anzugeben ist bereits die Zustimmung.
+          At least one channel is required. Email needs confirmation, Telegram
+          does not — supplying a chat ID is itself the consent. The chat ID is a
+          plain number (message @userinfobot to get yours), <strong>not</strong>{' '}
+          a bot token — this app uses its own bot.
         </p>
         <button
           type="submit"
@@ -345,7 +297,7 @@ export default function AlertsPage() {
           data-testid="alert-submit"
           className="rounded-lg bg-[#3D405B] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
-          {busy ? 'Speichern…' : 'Alert anlegen'}
+          {busy ? 'Saving…' : 'Create alert'}
         </button>
         {status && (
           <p data-testid="alert-status" className="text-sm text-[#2D2D2D]">
@@ -354,12 +306,12 @@ export default function AlertsPage() {
         )}
       </form>
 
-      <h2 className="mt-8 text-lg font-semibold text-[#3D405B]">Aktive Alerts</h2>
+      <h2 className="mt-8 text-lg font-semibold text-[#3D405B]">Active alerts</h2>
       {!loaded ? (
-        <p className="mt-2 text-sm text-[#6B6B6B]">Lade…</p>
+        <p className="mt-2 text-sm text-[#6B6B6B]">Loading…</p>
       ) : alerts.length === 0 ? (
         <p data-testid="alerts-empty" className="mt-2 text-sm text-[#6B6B6B]">
-          Noch keine Alerts angelegt.
+          No alerts created yet.
         </p>
       ) : (
         <ul className="mt-2 space-y-2" data-testid="alerts-list">
@@ -370,7 +322,7 @@ export default function AlertsPage() {
               className="rounded-lg border border-[#E8E4E0] bg-white px-4 py-3 text-sm"
             >
               <span className="font-medium text-[#3D405B]">
-                {keysOf(a).join(', ') || '(alle Treffer)'}
+                {keysOf(a).join(', ') || '(all hits)'}
               </span>
               {describeFilters(a.filters) && (
                 <span className="text-[#6B6B6B]">
@@ -381,7 +333,7 @@ export default function AlertsPage() {
                 {' · '}
                 {a.telegram_chat_id ? 'Telegram' : null}
                 {a.telegram_chat_id && a.email ? ' + ' : null}
-                {a.email ? `E-Mail${a.confirmed ? '' : ' (unbestätigt)'}` : null}
+                {a.email ? `Email${a.confirmed ? '' : ' (unconfirmed)'}` : null}
               </span>
               <span className="ml-2 inline-flex gap-2">
                 <button
@@ -398,7 +350,7 @@ export default function AlertsPage() {
                   onClick={() => void remove(a._id)}
                   className="rounded border border-[#E8E4E0] px-2 py-1 text-xs text-[#B23A3A]"
                 >
-                  Löschen
+                  Delete
                 </button>
               </span>
             </li>

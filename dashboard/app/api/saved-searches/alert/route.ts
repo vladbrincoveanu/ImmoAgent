@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import crypto from 'crypto';
 import { sendMail, confirmationEmail } from '@/lib/mailer';
-import { COOKIE_NAME, getOrCreateUserId, setUserCookie, isPro } from '@/lib/user';
+import { COOKIE_NAME, getOrCreateUserId, setUserCookie } from '@/lib/user';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +12,11 @@ interface SubscribeBody {
   params?: Record<string, string>;
   frequency?: 'instant' | 'daily' | 'weekly';
   /** Which feed to watch. 'listings' is the original behaviour and stays the
-   * default so existing callers are unaffected. */
-  kind?: 'listings' | 'coop_private';
+   * default so existing callers are unaffected. 'coop_private' additionally
+   * requires the poller's private-transfer rubric (co-op marker AND handover
+   * marker) — the keys alone are OR-ed and cannot express that. 'keyword' is the
+   * same feed with no rubric. */
+  kind?: 'listings' | 'coop_private' | 'keyword';
   /** Free-text match for coop_private alerts, tested against title, address and
    * the ad body by the poller. */
   keyword?: string;
@@ -79,15 +82,11 @@ function isValidChatId(s: string): boolean {
 export async function POST(req: NextRequest) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+  // Alert creation is deliberately ungated: it was behind the shared-password
+  // Pro flag, which only ever cost the owner a round trip through /api/unlock in
+  // every new browser. Volume is still bounded — the caller must supply a
+  // reachable channel, keys are capped, and the poller only sends new ads.
   const userId = getOrCreateUserId(req);
-  if (!(await isPro(db, userId))) {
-    const res = NextResponse.json({
-      error: 'upgrade_required',
-      reason: 'alerts_pro_only',
-    }, { status: 402 });
-    setUserCookie(res, userId);
-    return res;
-  }
   let body: SubscribeBody = {};
   try { body = await req.json(); } catch { body = {}; }
   const email = (body.email ?? '').trim().toLowerCase();

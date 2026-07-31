@@ -188,7 +188,7 @@ test.describe('/coop rooms range matches the displayed rounded value', () => {
     await page.goto('/coop?q=ROUNDFIXTURE');
     await expect(count(page)).toHaveCount(1);
     // Confirm the premise: the page really does show it as 3 Zimmer.
-    await expect(page.getByTestId('coop-rooms')).toHaveText('3 Zimmer');
+    await expect(page.getByTestId('coop-rooms')).toHaveText('3 rooms');
 
     await page.goto('/coop?q=ROUNDFIXTURE&rooms_min=3');
     await expect(count(page)).toHaveCount(1);

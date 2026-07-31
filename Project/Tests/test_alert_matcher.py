@@ -111,7 +111,7 @@ class _LN:
     """Listing stub carrying the numeric fields the gates read."""
 
     def __init__(self, title=None, description=None,
-                 area_m2=None, rooms=None, price_total=None):
+                 area_m2=None, rooms=None, price_total=None, coop_kind=None):
         self.title = title
         self.address = None
         self.bezirk = None
@@ -119,6 +119,9 @@ class _LN:
         self.area_m2 = area_m2
         self.rooms = rooms
         self.price_total = price_total
+        # What the scraper concluded about the ad. None is the common case: most
+        # of the newest-first feed is ordinary free-market rentals.
+        self.coop_kind = coop_kind
 
 
 def _alert(**kw):
@@ -222,3 +225,40 @@ def test_match_drops_listings_failing_a_gate():
 def test_match_skips_alerts_with_no_usable_channel():
     a = _alert(telegram_chat_id=None, email="x@y.at", confirmed=False)
     assert match([_LN(title="x")], [a]) == []
+
+
+# --- the coop_private rubric --------------------------------------------------
+#
+# "A co-op flat being passed on by its tenant" is an AND of two markers, and the
+# keys are OR-ed, so it cannot be written as a keyword list — an alert for
+# "Ablöse" matches every kitchen buyout on the feed. The scraper answers it per
+# ad via `coop_kind`, and a coop_private alert reuses that verdict.
+
+def test_coop_private_requires_the_scrapers_verdict():
+    a = _alert(kind="coop_private", keywords=["genossenschaft"])
+    hit = _LN(title="Genossenschaftswohnung", coop_kind="private_transfer")
+    assert alert_matches(a, hit) is True
+
+
+def test_coop_private_rejects_an_ad_the_rubric_did_not_tag():
+    """The failure this exists to prevent: an ordinary free-financed rental that
+    happens to say "Ablöse" for the fitted kitchen reaching a co-op alert."""
+    a = _alert(kind="coop_private", keywords=["ablöse"])
+    miss = _LN(title="Ablöse für Küche", description="freifinanziert")
+    assert alert_matches(a, miss) is False
+    assert match([miss], [a]) == []
+
+
+def test_coop_private_still_applies_its_keywords():
+    """The rubric is an extra AND term, not a replacement for the keys."""
+    a = _alert(kind="coop_private", keywords=["1100"])
+    other = _LN(title="Wohnung", coop_kind="private_transfer")
+    assert alert_matches(a, other) is False
+
+
+def test_other_kinds_see_the_whole_feed():
+    """'keyword' and the legacy default must not inherit the rubric, or every
+    pre-existing alert silently narrows to co-op transfers."""
+    plain = _LN(title="Dachgeschoss mit Terrasse")
+    assert alert_matches(_alert(kind="keyword", keywords=["terrasse"]), plain) is True
+    assert alert_matches(_alert(keywords=["terrasse"]), plain) is True

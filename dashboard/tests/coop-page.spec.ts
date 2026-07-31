@@ -12,7 +12,7 @@ test.describe('/coop co-op listings page', () => {
     await page.goto('/coop');
 
     // Page + heading present
-    await expect(page.getByRole('heading', { name: 'Genossenschaftswohnungen' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Co-op flats' })).toBeVisible();
 
     // RENTALS-ONLY: exactly the two confirmed-rental (buyable:false) units. All
     // six controls excluded — the buy-option unit (buyable:true), the legacy row
@@ -21,7 +21,7 @@ test.describe('/coop co-op listings page', () => {
     // floor (garage/storage), and a real rental outside Wien entirely.
     const items = page.getByTestId('coop-item');
     await expect(items).toHaveCount(2);
-    await expect(page.getByTestId('coop-count')).toHaveText('2 Treffer');
+    await expect(page.getByTestId('coop-count')).toHaveText('2 matches');
     await expect(page.locator('body')).not.toContainText('450.000');
     await expect(page.locator('body')).not.toContainText('WILLHABEN-COOP-CONTROL');
     await expect(page.locator('body')).not.toContainText('BUYOPTION-CONTROL');
@@ -35,7 +35,7 @@ test.describe('/coop co-op listings page', () => {
     const first = items.nth(0);
     await expect(first.getByTestId('coop-address')).toContainText('Thomas-Morus-Gasse 2-12');
     await expect(first.getByTestId('coop-district')).toHaveText('1130');
-    await expect(first.getByTestId('coop-rooms')).toHaveText('3 Zimmer');
+    await expect(first.getByTestId('coop-rooms')).toHaveText('3 rooms');
     await expect(first.getByTestId('coop-rent')).toContainText('€550');
     await expect(first.getByTestId('coop-dev')).toHaveText('OEVW');
 
@@ -63,7 +63,7 @@ test.describe('/coop co-op listings page', () => {
     // District filter: only the 1130 unit remains.
     await page.goto('/coop?bezirk=1130');
     await expect(page.getByTestId('coop-item')).toHaveCount(1);
-    await expect(page.getByTestId('coop-count')).toHaveText('1 Treffer');
+    await expect(page.getByTestId('coop-count')).toHaveText('1 match');
     await expect(page.getByTestId('coop-address')).toContainText('Thomas-Morus-Gasse 2-12');
 
     // Rent bucket €500–749 keeps the 1130 (€550) unit, drops the 1220 (€945) one.
@@ -105,14 +105,28 @@ test.describe('/coop co-op listings page', () => {
     // picking 1220 would drop 1130 from its own dropdown and strand the user.
     await page.goto('/coop?bezirk=1220');
     const options = page.getByTestId('filter-bezirk').locator('option');
-    await expect(options).toHaveCount(3); // "Alle Bezirke" + 1130 + 1220
+    await expect(options).toHaveCount(3); // "All districts" + 1130 + 1220
     await expect(options.nth(1)).toHaveText('1130');
     await expect(options.nth(2)).toHaveText('1220');
   });
 
-  test('nav header exposes the Genossenschaft link', async ({ page }) => {
+  test('nav header exposes a single Co-op link', async ({ page }) => {
     await page.goto('/dashboard');
-    const link = page.getByRole('link', { name: 'Genossenschaft' });
+    const link = page.getByRole('link', { name: 'Co-op' });
     await expect(link).toHaveAttribute('href', '/coop');
+  });
+
+  test('both co-op feeds live under one tab with a sub-tab switcher', async ({ page }) => {
+    await page.goto('/coop');
+    const tabs = page.getByTestId('coop-tabs');
+    await expect(tabs.getByTestId('coop-tab-offers')).toHaveAttribute('aria-current', 'page');
+
+    await tabs.getByTestId('coop-tab-private').click();
+    await expect(page).toHaveURL(/\/coop\/private$/);
+    // The switcher survives the crossing — otherwise the private feed is a
+    // dead end and the consolidation only works in one direction.
+    await expect(page.getByTestId('coop-tab-private')).toHaveAttribute('aria-current', 'page');
+    await page.getByTestId('coop-tab-offers').click();
+    await expect(page).toHaveURL(/\/coop$/);
   });
 });

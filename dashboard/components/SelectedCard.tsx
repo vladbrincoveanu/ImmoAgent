@@ -37,7 +37,7 @@ export function SelectedCard({ listing, onClose, onViewDetails }: SelectedCardPr
       </button>
       <div data-testid="price" className="text-[20px] font-bold tracking-tight">
         {formatPrice(listing.price_total, listing.price_is_estimated)}
-        {isCoop && <span className="text-[13px] font-semibold text-ink-2"> Miete/Mt</span>}
+        {isCoop && <span className="text-[13px] font-semibold text-ink-2"> rent/mo</span>}
       </div>
       <div data-testid="title" className="text-[13px] text-ink-2 mt-1 mb-3 leading-snug line-clamp-2">
         {listing.title || 'Untitled'}

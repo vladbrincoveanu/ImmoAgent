@@ -139,7 +139,7 @@ test('co-op pins label the rent as monthly', async ({ page }) => {
 
   // €945 on a co-op pin is a monthly rent; without the suffix it reads as a
   // €945 apartment sitting next to €450k ones.
-  await expect(page.locator('.leaflet-marker-icon', { hasText: '€945/Mt' }).first())
+  await expect(page.locator('.leaflet-marker-icon', { hasText: '€945/mo' }).first())
     .toBeVisible({ timeout: 15000 });
   expect(errors).toHaveLength(0);
 });

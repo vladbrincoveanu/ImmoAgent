@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test';
 
-/** Password unlock for the Pro gate on /alerts.
+/** The password unlock that used to gate /alerts, asserted absent.
  *
- * The point of these tests is that the password is worth something: the box
- * only appears for a non-Pro user, the secret leaves the browser to be checked
- * server-side, a wrong one changes nothing, and an unconfigured deployment
- * fails closed instead of open. */
+ * The gate was removed on both sides: no unlock box on the page, and the create
+ * route no longer answers 402. These tests are the regression guard — the gate
+ * cost the owner a round trip through a shared secret in every new browser, and
+ * re-introducing it silently would look exactly like an alert that never fires.
+ *
+ * The file keeps its name so the history of the feature stays in one place. */
 
 const ME_API = '**/api/me';
-const UNLOCK_API = '**/api/unlock';
 const ALERT_API = '**/api/saved-searches/alert';
 
 /** Keep the alert list quiet so these tests only exercise the gate. */
@@ -20,134 +21,78 @@ async function stubAlerts(page: import('@playwright/test').Page) {
     }));
 }
 
-async function stubMe(page: import('@playwright/test').Page, isPro: boolean) {
+test('a free user gets the create form, not an unlock box', async ({ page }) => {
+  await stubAlerts(page);
   await page.route(ME_API, (route) =>
     route.fulfill({
       status: 200, contentType: 'application/json',
-      body: JSON.stringify({ is_pro: isPro, saved_search_count: 0 }),
+      body: JSON.stringify({ is_pro: false, saved_search_count: 0 }),
     }));
-}
 
-test('a free user gets the unlock box', async ({ page }) => {
-  await stubAlerts(page);
-  await stubMe(page, false);
   await page.goto('/alerts');
-  await expect(page.getByTestId('unlock-form')).toBeVisible();
-  await expect(page.getByTestId('unlock-password')).toBeVisible();
-});
-
-test('a pro user never sees the unlock box', async ({ page }) => {
-  await stubAlerts(page);
-  await stubMe(page, true);
-  await page.goto('/alerts');
-  await expect(page.getByTestId('alerts-page')).toBeVisible();
+  await expect(page.getByTestId('alert-form')).toBeVisible();
   await expect(page.getByTestId('unlock-form')).toHaveCount(0);
+  await expect(page.getByTestId('unlock-password')).toHaveCount(0);
 });
 
-test('the password is posted to the server, not compared in the browser',
+/** The page must not depend on /api/me at all any more. A deployment where that
+ * route is broken used to hide the form behind a permanent unlock box. */
+test('the form works even when the entitlement route is down', async ({ page }) => {
+  await stubAlerts(page);
+  await page.route(ME_API, (route) => route.fulfill({ status: 500, body: '' }));
+
+  await page.goto('/alerts');
+  await expect(page.getByTestId('alert-form')).toBeVisible();
+  await expect(page.getByTestId('alert-submit')).toBeEnabled();
+});
+
+/** Hits the real route with no cookie and no entitlement. A 402 here means the
+ * server-side gate came back. Any other refusal (400 for the missing channel,
+ * 503 with no database) is fine — this asserts one specific status is absent. */
+test('the real create endpoint no longer answers 402', async ({ request }) => {
+  const res = await request.post('/api/saved-searches/alert', {
+    data: { kind: 'coop_private', keywords: ['Genossenschaft'],
+            telegram_chat_id: '-100123456' },
+  });
+  expect(res.status()).not.toBe(402);
+});
+
+test('the keyword field is prefilled with the co-op vocabulary', async ({ page }) => {
+  await stubAlerts(page);
+  await page.goto('/alerts');
+  const keywords = page.getByTestId('alert-keywords');
+  await expect(keywords).toHaveValue(/Genossenschaftswohnung/);
+  await expect(keywords).toHaveValue(/Finanzierungsbeitrag/);
+  // Handover words must NOT be defaults: keys are OR-ed, so "Ablöse" alone
+  // would widen the alert to every kitchen buyout on the feed.
+  await expect(keywords).not.toHaveValue(/Ablöse/);
+});
+
+test('the private-handover rubric is on by default and can be turned off',
   async ({ page }) => {
-    await stubAlerts(page);
-    await stubMe(page, false);
-    let posted: { password?: string } | null = null;
-    await page.route(UNLOCK_API, (route) => {
-      posted = route.request().postDataJSON();
+    let posted: { kind?: string } | null = null;
+    await page.route(ALERT_API, (route) => {
+      if (route.request().method() === 'POST') {
+        posted = route.request().postDataJSON();
+        return route.fulfill({
+          status: 201, contentType: 'application/json',
+          body: JSON.stringify({ ok: true, message: 'Alert created.' }),
+        });
+      }
       return route.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify({ ok: true, is_pro: true }),
+        body: JSON.stringify({ items: [] }),
       });
     });
 
     await page.goto('/alerts');
-    await page.getByTestId('unlock-password').fill('open-sesame-1234');
-    await page.getByTestId('unlock-submit').click();
+    await expect(page.getByTestId('alert-private-only')).toBeChecked();
 
-    await expect.poll(() => posted?.password).toBe('open-sesame-1234');
-    // Entitlement came back true, so the box is gone and the form is usable.
-    await expect(page.getByTestId('unlock-form')).toHaveCount(0);
-    await expect(page.getByTestId('alert-status')).toContainText('Freigeschaltet');
+    await page.getByTestId('alert-private-only').uncheck();
+    await page.getByTestId('alert-chatid').fill('-100123456');
+    await page.getByTestId('alert-submit').click();
+
+    // Unchecked means the wide feed, which is the only way to watch ads that
+    // are not co-op handovers.
+    await expect.poll(() => posted?.kind).toBe('keyword');
   });
-
-test('a wrong password leaves the gate shut', async ({ page }) => {
-  await stubAlerts(page);
-  await stubMe(page, false);
-  await page.route(UNLOCK_API, (route) =>
-    route.fulfill({
-      status: 401, contentType: 'application/json',
-      body: JSON.stringify({ error: 'invalid_password' }),
-    }));
-
-  await page.goto('/alerts');
-  await page.getByTestId('unlock-password').fill('wrong');
-  await page.getByTestId('unlock-submit').click();
-
-  await expect(page.getByTestId('alert-status')).toContainText('Falsches Passwort');
-  await expect(page.getByTestId('unlock-form')).toBeVisible();
-});
-
-test('repeated guessing is throttled and says so', async ({ page }) => {
-  await stubAlerts(page);
-  await stubMe(page, false);
-  await page.route(UNLOCK_API, (route) =>
-    route.fulfill({
-      status: 429, contentType: 'application/json',
-      body: JSON.stringify({ error: 'too_many_attempts' }),
-    }));
-
-  await page.goto('/alerts');
-  await page.getByTestId('unlock-password').fill('guess');
-  await page.getByTestId('unlock-submit').click();
-
-  await expect(page.getByTestId('alert-status')).toContainText('Zu viele Versuche');
-});
-
-test('a deployment with no password configured fails closed', async ({ page }) => {
-  await stubAlerts(page);
-  await stubMe(page, false);
-  await page.route(UNLOCK_API, (route) =>
-    route.fulfill({
-      status: 503, contentType: 'application/json',
-      body: JSON.stringify({ error: 'unlock_not_configured' }),
-    }));
-
-  await page.goto('/alerts');
-  await page.getByTestId('unlock-password').fill('anything');
-  await page.getByTestId('unlock-submit').click();
-
-  await expect(page.getByTestId('alert-status')).toContainText('PRO_UNLOCK_PASSWORD');
-  await expect(page.getByTestId('unlock-form')).toBeVisible();
-});
-
-/** Hits the real route. The test server runs without PRO_UNLOCK_PASSWORD, so
- * the correct behaviour is a refusal — an unset secret must never mean
- * "everyone is Pro". */
-test('the real unlock endpoint refuses when unconfigured', async ({ request }) => {
-  const res = await request.post('/api/unlock', {
-    data: { password: 'whatever' },
-  });
-  expect(res.ok()).toBeFalsy();
-  expect([401, 503]).toContain(res.status());
-});
-
-/** A 402 from the create call reveals the unlock box, so a cookie that lost its
- * entitlement is not a dead end. */
-test('a 402 on create reveals the unlock box', async ({ page }) => {
-  await stubMe(page, true);
-  await page.route(ALERT_API, (route) => {
-    if (route.request().method() === 'POST') {
-      return route.fulfill({
-        status: 402, contentType: 'application/json',
-        body: JSON.stringify({ error: 'upgrade_required' }),
-      });
-    }
-    return route.fulfill({
-      status: 200, contentType: 'application/json',
-      body: JSON.stringify({ items: [] }),
-    });
-  });
-
-  await page.goto('/alerts');
-  await expect(page.getByTestId('unlock-form')).toHaveCount(0);
-  await page.getByTestId('alert-chatid').fill('-100123456');
-  await page.getByTestId('alert-submit').click();
-  await expect(page.getByTestId('unlock-form')).toBeVisible();
-});
