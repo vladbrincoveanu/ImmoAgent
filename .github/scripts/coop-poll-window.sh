@@ -11,7 +11,8 @@
 #
 # Knobs (all optional):
 #   POLL_INTERVAL_SECONDS  gap between polls                        (default 300)
-#   POLL_WINDOW_MINUTES    how long to keep polling                  (default 55)
+#   POLL_WINDOW_MINUTES    how long to keep polling      (default 0 on dispatch,
+#                                                         otherwise 55)
 #   POLL_WINDOW_SECONDS    same, in seconds; overrides the minutes   (derived)
 #   POLL_HARD_STOP_UTC     "HH:MM" after which the window ends       (default 21:00)
 #   POLL_CMD               the poll command to run       (default python run_coop.py)
@@ -23,7 +24,22 @@
 set -uo pipefail
 
 : "${POLL_INTERVAL_SECONDS:=300}"
-: "${POLL_WINDOW_MINUTES:=55}"
+
+# A repository_dispatch run is ONE poll and exits: an external trigger fires
+# every ~2 minutes and owns the cadence, so looping here would only collide with
+# the next dispatch and be cancelled by it. Everything else (the fallback cron,
+# a manual run) keeps the window.
+#
+# This lives in bash rather than in a workflow `${{ }}` expression on purpose.
+# The obvious expression — `event_name == 'repository_dispatch' && '0' || '55'`
+# — is a trap: GitHub casts the string '0' to falsy, so the `||` swallows it and
+# every dispatched run would quietly loop for 55 minutes instead of exiting.
+: "${GITHUB_EVENT_NAME:=}"
+if [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
+  : "${POLL_WINDOW_MINUTES:=0}"
+else
+  : "${POLL_WINDOW_MINUTES:=55}"
+fi
 : "${POLL_WINDOW_SECONDS:=$(( POLL_WINDOW_MINUTES * 60 ))}"
 : "${POLL_HARD_STOP_UTC:=21:00}"
 : "${POLL_CMD:=python run_coop.py}"

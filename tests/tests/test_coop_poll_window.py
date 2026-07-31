@@ -137,5 +137,47 @@ class CoopPollWindowTest(unittest.TestCase):
         self.assertIn("window complete: 1 polls, 0 failed", r.stdout)
 
 
+    # --- dispatch vs fallback default ----------------------------------------
+    #
+    # Cadence comes from an external trigger firing repository_dispatch every ~2
+    # minutes, so a dispatched run must do ONE poll and exit. If it looped, each
+    # run would still be polling when the next dispatch arrived and would be
+    # cancelled mid-poll by `cancel-in-progress`.
+
+    def _run_bare(self, env_extra, timeout=60):
+        """Like `_run`, but WITHOUT the POLL_WINDOW_SECONDS override, so the
+        script's own default logic is what gets exercised."""
+        env = {**os.environ, "POLL_INTERVAL_SECONDS": "1",
+               "POLL_WINDOW_SECONDS": "", "POLL_WINDOW_MINUTES": ""}
+        env.update(env_extra)
+        return subprocess.run(["bash", str(SCRIPT)], capture_output=True,
+                              text=True, env=env, timeout=timeout)
+
+    def test_a_dispatched_run_polls_exactly_once(self):
+        ok = self._stub("ok.sh", 'exit 0')
+        r = self._run_bare({"POLL_CMD": str(ok),
+                            "GITHUB_EVENT_NAME": "repository_dispatch"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("window complete: 1 polls, 0 failed", r.stdout)
+
+    def test_a_scheduled_run_keeps_the_fallback_window(self):
+        """The fallback must still loop — it is what covers a dead trigger."""
+        ok = self._stub("ok.sh", 'exit 0')
+        r = self._run_bare({"POLL_CMD": str(ok), "GITHUB_EVENT_NAME": "schedule",
+                            # Clamp it so the test does not actually run 55 min.
+                            "POLL_WINDOW_SECONDS": "3"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("window complete: 1 polls", r.stdout)
+
+    def test_an_explicit_window_overrides_the_dispatch_default(self):
+        """Debugging a dispatched run must still be possible."""
+        ok = self._stub("ok.sh", 'exit 0')
+        r = self._run_bare({"POLL_CMD": str(ok),
+                            "GITHUB_EVENT_NAME": "repository_dispatch",
+                            "POLL_WINDOW_SECONDS": "3"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("window complete: 1 polls", r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
