@@ -123,16 +123,28 @@ require a long-lived process off GitHub — explicitly out of scope.
 
 ### §2 Poller tier
 
-`run_coop.py` gains a second adapter and keeps its existing upsert/dedup path.
+**Correction to the original plan of a new `willhaben_newest` module.**
+`crawl_private_coop` (`Application/scraping/willhaben_private_coop.py:41`)
+*already* fetches the newest-first Wien rental feed, page 1, with dedup via
+`is_new` and a per-poll detail cap. It differs from what alerts need by exactly
+one line — its final `coop_kind == "private_transfer"` filter. Writing a second
+adapter would duplicate the fetch, the cap, and the block handling.
 
-#### Module: `willhaben_newest`
-- **Responsibility:** Fetch Willhaben Wien rentals sorted newest-first and return the ads on page 1 as `Listing` objects.
-- **Interface:** `fetch_newest(session, max_rows: int = 90) -> List[Listing]`
-- **Dependencies:** `willhaben_scraper` fetch primitives and field extractors
-- **Size target:** ~120 lines
+So: generalise the existing function instead of adding a module.
 
-Page 1 only. At a 2-minute cadence, anything past page 1 was already seen on a
-previous poll; paging deeper multiplies block risk for no new ads.
+#### Module: `willhaben_private_coop` (generalised in place)
+- **Responsibility:** One poll of the newest-first Willhaben feed → new listings the caller wants to keep.
+- **Interface:** `crawl_newest(scraper, is_new, keep: Callable[[Listing], bool], search_url=None, max_details=25) -> List[Listing]`; `crawl_private_coop(...)` is retained as a thin wrapper passing `keep=is_private_transfer`, so existing callers and tests are untouched.
+- **Dependencies:** unchanged
+- **Size target:** ~120 lines (from ~100)
+
+Page 1 only, as today. At a 2-minute cadence anything past page 1 was already
+seen on an earlier poll; paging deeper multiplies block risk for no new ads.
+
+One consequence to accept: the alert feed's `keep` is "everything new", so the
+per-poll detail-fetch cap (`MAX_DETAIL_FETCHES_PER_POLL = 25`) now binds on a
+much larger candidate set. The existing `skipped_for_cap` warning already makes
+that visible, and skipped URLs resolve on the next poll.
 
 Adapter failures are isolated: a Willhaben block raises inside its own adapter
 and is logged, and the Genossenschaft adapter still runs in the same poll.
