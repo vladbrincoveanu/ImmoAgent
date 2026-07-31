@@ -2,12 +2,13 @@ import { getDb } from '@/lib/mongodb';
 import { Document } from 'mongodb';
 import { coopBaseQuery } from '@/lib/coop-query';
 import { CoopThumb } from '@/components/CoopThumb';
+import { CoopTabs } from '@/components/CoopTabs';
 
 // Always render fresh — new co-op units land every few minutes via the poller.
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Genossenschaftswohnungen — Live',
+  title: 'Co-op flats — live',
 };
 
 type CoopRow = {
@@ -168,12 +169,14 @@ async function getCoopListings(
   }
 }
 
+// en-GB, not de-AT: the UI is English, so thousands group with commas and the
+// decimal is a dot. Currency stays € — that's the market, not the language.
 function fmtInt(n: number | null): string {
-  return n == null ? '—' : new Intl.NumberFormat('de-AT').format(Math.round(n));
+  return n == null ? '—' : new Intl.NumberFormat('en-GB').format(Math.round(n));
 }
 
 function fmtArea(n: number | null): string {
-  return n == null ? '—' : `${new Intl.NumberFormat('de-AT', { maximumFractionDigits: 1 }).format(n)} m²`;
+  return n == null ? '—' : `${new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 }).format(n)} m²`;
 }
 
 function ago(ts: number | null): string | null {
@@ -181,11 +184,11 @@ function ago(ts: number | null): string | null {
   const secs = Math.floor(Date.now() / 1000) - ts;
   if (secs < 0) return null;
   const d = Math.floor(secs / 86400);
-  if (d >= 1) return `vor ${d} ${d === 1 ? 'Tag' : 'Tagen'}`;
+  if (d >= 1) return `${d} ${d === 1 ? 'day' : 'days'} ago`;
   const h = Math.floor(secs / 3600);
-  if (h >= 1) return `vor ${h} h`;
+  if (h >= 1) return `${h} h ago`;
   const m = Math.max(1, Math.floor(secs / 60));
-  return `vor ${m} min`;
+  return `${m} min ago`;
 }
 
 // Bucket definitions mirror mygewo.at/genossenschaftswohnungen/suche's own
@@ -220,27 +223,35 @@ const ROOM_BUCKETS: Bucket[] = [
 // float area like 50.4 m² — routine given real scraped values (e.g. 70.09) —
 // always falls in exactly one bucket instead of none.
 const AREA_BUCKETS: Bucket[] = [
-  { value: '0-50', label: 'bis 50 m²', max: 50 },
+  { value: '0-50', label: 'up to 50 m²', max: 50 },
   { value: '51-74', label: '51–74 m²', min: 50.01, max: 74 },
   { value: '75-99', label: '75–99 m²', min: 74.01, max: 99 },
-  { value: '100-', label: 'ab 100 m²', min: 99.01 },
+  { value: '100-', label: '100 m²+', min: 99.01 },
 ];
 
 const RENT_BUCKETS: Bucket[] = [
-  { value: '0-500', label: 'bis €500', max: 500 },
+  { value: '0-500', label: 'up to €500', max: 500 },
   { value: '500-749', label: '€500–749', min: 500, max: 749 },
   { value: '750-999', label: '€750–999', min: 750, max: 999 },
-  { value: '1000-', label: 'ab €1.000', min: 1000 },
+  { value: '1000-', label: '€1,000+', min: 1000 },
 ];
 
 const CAPITAL_BUCKETS: Bucket[] = [
-  { value: '0-5000', label: 'bis €5.000', max: 5000 },
-  { value: '5000-9999', label: '€5.000–9.999', min: 5000, max: 9999 },
-  { value: '10000-19999', label: '€10.000–19.999', min: 10000, max: 19999 },
-  { value: '20000-', label: 'ab €20.000', min: 20000 },
+  { value: '0-5000', label: 'up to €5,000', max: 5000 },
+  { value: '5000-9999', label: '€5,000–9,999', min: 5000, max: 9999 },
+  { value: '10000-19999', label: '€10,000–19,999', min: 10000, max: 19999 },
+  { value: '20000-', label: '€20,000+', min: 20000 },
 ];
 
-const FEATURE_OPTIONS = ['Garten', 'Loggia', 'Balkon', 'Terrasse'] as const;
+/** The VALUES are the German strings stored in `special_features` and matched
+ * verbatim by the `$in` query — only the visible label is translated. Renaming
+ * a value here would silently stop matching every scraped row. */
+const FEATURE_OPTIONS = [
+  { value: 'Garten', label: 'Garden' },
+  { value: 'Loggia', label: 'Loggia' },
+  { value: 'Balkon', label: 'Balcony' },
+  { value: 'Terrasse', label: 'Terrace' },
+] as const;
 
 function toArray(v: string | string[] | undefined): string[] {
   if (!v) return [];
@@ -350,8 +361,8 @@ export default async function CoopPage({
             type="number"
             name={`${name}_${bound}`}
             defaultValue={(bound === 'min' ? minVal : maxVal) ?? ''}
-            placeholder={bound === 'min' ? 'von' : 'bis'}
-            aria-label={`${unit} ${bound === 'min' ? 'von' : 'bis'}`}
+            placeholder={bound === 'min' ? 'from' : 'to'}
+            aria-label={`${unit} ${bound === 'min' ? 'from' : 'to'}`}
             min="0"
             step={step}
             data-testid={`filter-${name}-${bound}`}
@@ -366,9 +377,10 @@ export default async function CoopPage({
   return (
     <main className="mx-auto max-w-4xl px-4 py-8" data-testid="coop-page">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#3D405B]">Genossenschaftswohnungen</h1>
+        <CoopTabs active="offers" />
+        <h1 className="text-2xl font-bold text-[#3D405B]">Co-op flats</h1>
         <p className="mt-1 text-sm text-[#6B6B6B]">
-          Live-Treffer, aggregiert von{' '}
+          Live results, aggregated from{' '}
           <a
             href="https://mygewo.at/genossenschaftswohnungen/suche"
             className="underline hover:text-[#3D405B]"
@@ -377,8 +389,8 @@ export default async function CoopPage({
           >
             mygewo.at
           </a>{' '}
-          über alle Bauträger · nur Miete (keine Kaufoption) · Wien ·
-          laufend aktualisiert (ca. alle 5&nbsp;Min.)
+          across all developers · rentals only (no buy-in option) · Vienna ·
+          refreshed continuously (about every 5&nbsp;min)
         </p>
         <p className="mt-2 text-sm">
           <a
@@ -386,10 +398,10 @@ export default async function CoopPage({
             data-testid="coop-private-link"
             className="font-medium text-[#3D405B] underline"
           >
-            → Private Weitergaben von Mieter:innen
+            → Private transfers straight from tenants
           </a>{' '}
           <span className="text-[#6B6B6B]">
-            (ohne Warteliste, wer zuerst kommt)
+            (no waiting list, first come first served)
           </span>
         </p>
 
@@ -400,7 +412,7 @@ export default async function CoopPage({
         >
           <div className="flex flex-wrap gap-2">
             <select name="bezirk" defaultValue={bezirk} data-testid="filter-bezirk" className={inputCls}>
-              <option value="">Alle Bezirke</option>
+              <option value="">All districts</option>
               {districts.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -417,8 +429,8 @@ export default async function CoopPage({
               defaultValue={q}
               maxLength={Q_MAX_LEN}
               list="coop-builder-names"
-              placeholder="Bauträger oder Adresse…"
-              aria-label="Bauträger oder Adresse suchen"
+              placeholder="Developer or address…"
+              aria-label="Search developer or address"
               data-testid="filter-q"
               className={`${inputCls} min-w-[13rem] flex-1`}
             />
@@ -430,38 +442,38 @@ export default async function CoopPage({
           </div>
 
           <div>
-            <span className={groupLabelCls}>Zimmer</span>
-            {rangeInputs('rooms', roomsMin, roomsMax, 'Zimmer', '1')}
+            <span className={groupLabelCls}>Rooms</span>
+            {rangeInputs('rooms', roomsMin, roomsMax, 'rooms', '1')}
           </div>
 
           <div>
-            <span className={groupLabelCls}>Fläche</span>
+            <span className={groupLabelCls}>Size</span>
             {rangeInputs('area', areaMin, areaMax, 'm²', '1')}
           </div>
 
           <div>
-            <span className={groupLabelCls}>Miete</span>
+            <span className={groupLabelCls}>Rent</span>
             {chipGroup('rent', RENT_BUCKETS, rent, 'filter-rent')}
           </div>
 
           <div>
-            <span className={groupLabelCls}>Kapital</span>
+            <span className={groupLabelCls}>Equity</span>
             {chipGroup('capital', CAPITAL_BUCKETS, capital, 'filter-capital')}
           </div>
 
           <div>
-            <span className={groupLabelCls}>Freiflächen</span>
+            <span className={groupLabelCls}>Outdoor space</span>
             <div className="flex flex-wrap gap-1.5">
               {FEATURE_OPTIONS.map((f) => (
-                <label key={f} className={chipCls} data-testid={`filter-feature-${f}`}>
+                <label key={f.value} className={chipCls} data-testid={`filter-feature-${f.value}`}>
                   <input
                     type="checkbox"
                     name="feature"
-                    value={f}
-                    defaultChecked={feature.includes(f)}
+                    value={f.value}
+                    defaultChecked={feature.includes(f.value)}
                     className="sr-only"
                   />
-                  {f}
+                  {f.label}
                 </label>
               ))}
             </div>
@@ -473,17 +485,17 @@ export default async function CoopPage({
               data-testid="filter-apply"
               className="rounded-lg bg-[#3D405B] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
             >
-              Filtern
+              Filter
             </button>
             <a href="/coop" data-testid="filter-reset" className="px-2 py-1.5 text-sm text-[#6B6B6B] underline">
-              Zurücksetzen
+              Reset
             </a>
           </div>
         </form>
 
         <p className="mt-3 text-sm font-medium text-[#3D405B]" data-testid="coop-count">
-          {total} Treffer
-          {total > filtered.length && ` · zeigt die ${filtered.length} neuesten`}
+          {total} {total === 1 ? 'match' : 'matches'}
+          {total > filtered.length && ` · showing the ${filtered.length} newest`}
         </p>
       </div>
 
@@ -492,7 +504,7 @@ export default async function CoopPage({
           data-testid="coop-db-error"
           className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
         >
-          Datenbank nicht erreichbar — bitte später erneut versuchen.
+          Database unreachable — please try again later.
         </div>
       )}
 
@@ -501,8 +513,8 @@ export default async function CoopPage({
           data-testid="coop-empty"
           className="rounded-lg border border-[#E8E4E0] bg-white px-4 py-8 text-center text-sm text-[#6B6B6B]"
         >
-          Aktuell keine passenden Genossenschaftswohnungen. Sobald ein neues Angebot
-          erscheint, taucht es hier (und im Telegram-Kanal) auf.
+          No matching co-op flats right now. As soon as a new offer appears it
+          shows up here (and in the Telegram channel).
         </div>
       )}
 
@@ -521,20 +533,20 @@ export default async function CoopPage({
                   <CoopThumb src={r.image_url} bezirk={r.bezirk} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold text-[#3D405B]" data-testid="coop-address">
-                      {r.address || r.title || 'Genossenschaftswohnung'}
+                      {r.address || r.title || 'Co-op flat'}
                     </div>
                     <div className="mt-1 text-sm text-[#2D2D2D]" data-testid="coop-specs">
-                      <span data-testid="coop-rooms">{r.rooms != null ? `${Math.round(r.rooms)} Zimmer` : '—'}</span>
+                      <span data-testid="coop-rooms">{r.rooms != null ? `${Math.round(r.rooms)} rooms` : '—'}</span>
                       {' · '}
                       <span data-testid="coop-area">{fmtArea(r.area_m2)}</span>
                       {' · '}
                       <span className="font-medium" data-testid="coop-rent">
-                        {r.price_total != null ? `€${fmtInt(r.price_total)} Miete` : 'Miete —'}
+                        {r.price_total != null ? `€${fmtInt(r.price_total)} rent` : 'rent —'}
                       </span>
                       {r.own_funds != null && (
                         <>
                           {' · '}
-                          <span data-testid="coop-capital">Kapital €{fmtInt(r.own_funds)}</span>
+                          <span data-testid="coop-capital">Equity €{fmtInt(r.own_funds)}</span>
                         </>
                       )}
                     </div>
@@ -558,7 +570,7 @@ export default async function CoopPage({
                 <div className="mt-1 flex items-center gap-2 text-xs text-[#6B6B6B]">
                   {r.bautraeger && <span data-testid="coop-dev">{r.bautraeger}</span>}
                   {posted && <span>· {posted}</span>}
-                  <span className="ml-auto text-[#3D405B]">Zum Angebot →</span>
+                  <span className="ml-auto text-[#3D405B]">View offer →</span>
                 </div>
               </a>
             </li>

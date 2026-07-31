@@ -64,7 +64,7 @@ test('the password is posted to the server, not compared in the browser',
     await expect.poll(() => posted?.password).toBe('open-sesame-1234');
     // Entitlement came back true, so the box is gone and the form is usable.
     await expect(page.getByTestId('unlock-form')).toHaveCount(0);
-    await expect(page.getByTestId('alert-status')).toContainText('Freigeschaltet');
+    await expect(page.getByTestId('alert-status')).toContainText('Unlocked');
   });
 
 test('a wrong password leaves the gate shut', async ({ page }) => {
@@ -80,7 +80,7 @@ test('a wrong password leaves the gate shut', async ({ page }) => {
   await page.getByTestId('unlock-password').fill('wrong');
   await page.getByTestId('unlock-submit').click();
 
-  await expect(page.getByTestId('alert-status')).toContainText('Falsches Passwort');
+  await expect(page.getByTestId('alert-status')).toContainText('Wrong password');
   await expect(page.getByTestId('unlock-form')).toBeVisible();
 });
 
@@ -97,7 +97,7 @@ test('repeated guessing is throttled and says so', async ({ page }) => {
   await page.getByTestId('unlock-password').fill('guess');
   await page.getByTestId('unlock-submit').click();
 
-  await expect(page.getByTestId('alert-status')).toContainText('Zu viele Versuche');
+  await expect(page.getByTestId('alert-status')).toContainText('Too many attempts');
 });
 
 test('a deployment with no password configured fails closed', async ({ page }) => {

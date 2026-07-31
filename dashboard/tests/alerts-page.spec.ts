@@ -70,7 +70,7 @@ test('keywords are sent as an array and blank filters stay undefined',
         posted = route.request().postDataJSON();
         return route.fulfill({
           status: 201, contentType: 'application/json',
-          body: JSON.stringify({ ok: true, message: 'Alert angelegt.' }),
+          body: JSON.stringify({ ok: true, message: 'Alert created.' }),
         });
       }
       return route.fulfill({
@@ -184,19 +184,26 @@ test('the private rubric is reachable from /coop', async ({ page }) => {
 });
 
 /** /alerts and /coop/private shipped without a link in the global nav, so the
- * only way to reach them was typing the URL. Assert both are navigable. */
-test('global nav links reach the alerts page and the private rubric', async ({ page }) => {
+ * only way to reach them was typing the URL. The private feed no longer has its
+ * own header entry — it lives one click deeper, under the single Co-op tab — so
+ * assert that path end to end rather than just the header link. */
+test('global nav reaches the alerts page and the private rubric', async ({ page }) => {
   await page.goto('/dashboard');
   const nav = page.locator('body > header');
 
   await expect(nav.getByRole('link', { name: 'Alerts' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Ablöse' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Co-op' })).toBeVisible();
+  // The old second co-op entry must be gone, or the tabs were not consolidated.
+  await expect(nav.getByRole('link', { name: 'Ablöse' })).toHaveCount(0);
 
   await nav.getByRole('link', { name: 'Alerts' }).click();
   await expect(page).toHaveURL(/\/alerts$/);
   await expect(page.getByTestId('alerts-page')).toBeVisible();
 
-  await nav.getByRole('link', { name: 'Ablöse' }).click();
+  await page.goto('/dashboard');
+  await nav.getByRole('link', { name: 'Co-op' }).click();
+  await expect(page).toHaveURL(/\/coop$/);
+  await page.getByTestId('coop-tab-private').click();
   await expect(page).toHaveURL(/\/coop\/private$/);
   await expect(page.getByTestId('coop-private-page')).toBeVisible();
 });

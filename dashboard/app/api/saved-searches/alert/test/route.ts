@@ -35,13 +35,13 @@ export async function POST(req: NextRequest) {
   const chatId = alert.telegram_chat_id as string | null;
   if (!chatId) {
     return NextResponse.json(
-      { error: 'Dieser Alert hat keine Telegram Chat-ID.' }, { status: 400 });
+      { error: 'This alert has no Telegram chat ID.' }, { status: 400 });
   }
 
   const token = process.env.TELEGRAM_MAIN_BOT_TOKEN;
   if (!token) {
     return NextResponse.json(
-      { error: 'TELEGRAM_MAIN_BOT_TOKEN ist nicht gesetzt.' }, { status: 503 });
+      { error: 'TELEGRAM_MAIN_BOT_TOKEN is not set.' }, { status: 503 });
   }
 
   const keys: string[] = Array.isArray(alert.keywords) ? alert.keywords : [];
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     // need different fixes from the user, and a generic failure hides which.
     const detail = await tg.text().catch(() => '');
     return NextResponse.json(
-      { error: `Telegram lehnte die Nachricht ab: ${detail.slice(0, 200)}` },
+      { error: `Telegram rejected the message: ${detail.slice(0, 200)}` },
       { status: 502 });
   }
 

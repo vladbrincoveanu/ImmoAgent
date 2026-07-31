@@ -2,13 +2,14 @@ import { getDb } from '@/lib/mongodb';
 import { Document } from 'mongodb';
 import { privateCoopQuery } from '@/lib/coop-query';
 import { CoopThumb } from '@/components/CoopThumb';
+import { CoopTabs } from '@/components/CoopTabs';
 
 // Always fresh: these are first-come-first-served ads polled every 2 minutes, and
 // a cached page here is worse than no page.
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Private Genossenschafts-Weitergabe — Live',
+  title: 'Private co-op transfers — live',
 };
 
 type PrivateRow = {
@@ -34,12 +35,13 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// en-GB grouping to match the English UI — see the same note on /coop.
 function fmtInt(n: number | null): string {
-  return n == null ? '—' : new Intl.NumberFormat('de-AT').format(Math.round(n));
+  return n == null ? '—' : new Intl.NumberFormat('en-GB').format(Math.round(n));
 }
 
 function fmtArea(n: number | null): string {
-  return n == null ? '—' : `${new Intl.NumberFormat('de-AT').format(Math.round(n))} m²`;
+  return n == null ? '—' : `${new Intl.NumberFormat('en-GB').format(Math.round(n))} m²`;
 }
 
 function buildQuery(q: string, bezirk: string): Document {
@@ -110,18 +112,19 @@ export default async function PrivateCoopPage({
   return (
     <main className="mx-auto max-w-4xl px-4 py-8" data-testid="coop-private-page">
       <div className="mb-6">
+        <CoopTabs active="private" />
         <h1 className="text-2xl font-bold text-[#3D405B]">
-          Private Genossenschafts-Weitergabe
+          Private co-op transfers
         </h1>
         <p className="mt-1 text-sm text-[#6B6B6B]">
-          Wohnungen, die Mieter:innen direkt weitergeben — keine Warteliste,{' '}
-          <strong>wer zuerst kommt</strong>. Quelle: Willhaben · Wien · Poll alle
-          2&nbsp;Min. zwischen 06:00 und 17:00 Uhr.
+          Flats passed on directly by their tenants — no waiting list,{' '}
+          <strong>first come first served</strong>. Source: Willhaben · Vienna ·
+          polled every 2&nbsp;min between 06:00 and 17:00.
         </p>
         <p className="mt-1 text-xs text-[#6B6B6B]">
-          Treffer brauchen sowohl ein Weitergabe-Signal (Ablöse, Nachmieter,
-          Weitergabe) als auch ein Genossenschafts-Signal — eine Küchen-Ablöse in
-          einer freifinanzierten Wohnung landet nicht hier.
+          A hit needs both a transfer signal (Ablöse, Nachmieter, Weitergabe) and
+          a co-op signal — a kitchen buy-out in a privately financed flat does not
+          land here.
         </p>
 
         <form
@@ -135,7 +138,7 @@ export default async function PrivateCoopPage({
             data-testid="private-filter-bezirk"
             className={inputCls}
           >
-            <option value="">Alle Bezirke</option>
+            <option value="">All districts</option>
             {districts.map((d) => (
               <option key={d} value={d}>
                 {d}
@@ -147,8 +150,8 @@ export default async function PrivateCoopPage({
             name="q"
             defaultValue={q}
             maxLength={Q_MAX_LEN}
-            placeholder="Titel, Adresse oder Anzeigentext…"
-            aria-label="Titel, Adresse oder Anzeigentext durchsuchen"
+            placeholder="Title, address or ad text…"
+            aria-label="Search title, address or ad text"
             data-testid="private-filter-q"
             className={`${inputCls} min-w-[15rem] flex-1`}
           />
@@ -157,25 +160,25 @@ export default async function PrivateCoopPage({
             data-testid="private-filter-apply"
             className="rounded-lg bg-[#3D405B] px-3 py-1.5 text-sm font-medium text-white"
           >
-            Filtern
+            Filter
           </button>
           <a
             href="/coop/private"
             data-testid="private-filter-reset"
             className="px-2 py-1.5 text-sm text-[#6B6B6B] underline"
           >
-            Zurücksetzen
+            Reset
           </a>
         </form>
       </div>
 
       {dbDown ? (
         <p data-testid="private-db-error" className="text-sm text-[#B4654A]">
-          Datenbank nicht erreichbar — bitte später erneut versuchen.
+          Database unreachable — please try again later.
         </p>
       ) : rows.length === 0 ? (
         <p data-testid="private-empty" className="text-sm text-[#6B6B6B]">
-          Derzeit keine privaten Weitergaben gefunden.
+          No private transfers found right now.
         </p>
       ) : (
         <ul className="space-y-2" data-testid="private-list">
@@ -194,15 +197,15 @@ export default async function PrivateCoopPage({
                       className="truncate font-semibold text-[#3D405B]"
                       data-testid="private-title"
                     >
-                      {r.title || r.address || 'Genossenschaftswohnung'}
+                      {r.title || r.address || 'Co-op flat'}
                     </div>
                     <div className="mt-1 text-sm text-[#2D2D2D]" data-testid="private-specs">
-                      <span>{r.rooms != null ? `${Math.round(r.rooms)} Zimmer` : '—'}</span>
+                      <span>{r.rooms != null ? `${Math.round(r.rooms)} rooms` : '—'}</span>
                       {' · '}
                       <span>{fmtArea(r.area_m2)}</span>
                       {' · '}
                       <span className="font-medium">
-                        {r.price_total != null ? `€${fmtInt(r.price_total)} Miete` : 'Miete —'}
+                        {r.price_total != null ? `€${fmtInt(r.price_total)} rent` : 'rent —'}
                       </span>
                     </div>
                   </div>

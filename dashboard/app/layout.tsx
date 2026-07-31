@@ -21,8 +21,9 @@ export default function RootLayout({
         <header className="h-12 border-b border-[#E8E4E0] bg-white flex items-center px-4 shrink-0">
           <a href="/dashboard" className="text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Dashboard</a>
           <a href="/dashboard/map" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Map</a>
-          <a href="/coop" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Genossenschaft</a>
-          <a href="/coop/private" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Ablöse</a>
+          {/* One entry for both co-op feeds — the offers/private split lives in
+              CoopTabs inside the page, not in the top-level header. */}
+          <a href="/coop" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Co-op</a>
           <a href="/alerts" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Alerts</a>
         </header>
         {children}
