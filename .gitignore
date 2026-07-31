@@ -129,3 +129,6 @@ dashboard/.test-out/
 
 # Session handoffs (local state)
 .claude/handoffs/*.md
+
+# Scratch/temp work area (CLAUDE.md: temp files go here, never committed)
+scratchpad/

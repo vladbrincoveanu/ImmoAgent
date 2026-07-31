@@ -182,3 +182,21 @@ test('the private rubric is reachable from /coop', async ({ page }) => {
   await link.click();
   await expect(page.getByTestId('coop-private-page')).toBeVisible();
 });
+
+/** /alerts and /coop/private shipped without a link in the global nav, so the
+ * only way to reach them was typing the URL. Assert both are navigable. */
+test('global nav links reach the alerts page and the private rubric', async ({ page }) => {
+  await page.goto('/dashboard');
+  const nav = page.locator('body > header');
+
+  await expect(nav.getByRole('link', { name: 'Alerts' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Ablöse' })).toBeVisible();
+
+  await nav.getByRole('link', { name: 'Alerts' }).click();
+  await expect(page).toHaveURL(/\/alerts$/);
+  await expect(page.getByTestId('alerts-page')).toBeVisible();
+
+  await nav.getByRole('link', { name: 'Ablöse' }).click();
+  await expect(page).toHaveURL(/\/coop\/private$/);
+  await expect(page.getByTestId('coop-private-page')).toBeVisible();
+});
