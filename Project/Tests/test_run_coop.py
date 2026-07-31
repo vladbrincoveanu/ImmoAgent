@@ -354,14 +354,16 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
 
     @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
-    @patch("run_coop.crawl_private_coop")
+    @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
     def test_transfers_are_tagged_and_upserted(self, MH, poll, WS, crawl, vurl, alerts):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = []
+        # The scraper is what classifies an ad; the poll only re-affirms the tag.
         transfer = _l(url="https://www.willhaben.at/iad/immobilien/d/x-1/")
+        transfer.coop_kind = "private_transfer"
         crawl.return_value = [transfer]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
                         clear=True):
@@ -372,7 +374,57 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
 
     @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
-    @patch("run_coop.crawl_private_coop", side_effect=RuntimeError("blocked"))
+    @patch("run_coop.crawl_newest")
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_an_ordinary_rental_is_never_tagged_as_a_transfer(self, MH, poll, WS,
+                                                              crawl, vurl, alerts):
+        """The feed is now the whole newest-first rental list. Blanket-tagging it
+        would route ordinary rentals into the private-Ablöse channel and corrupt
+        /coop/private."""
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        poll.return_value = []
+        rental = _l(url="https://www.willhaben.at/iad/immobilien/d/y-2/")
+        crawl.return_value = [rental]
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True):
+            rc = run_coop.run(no_send=True)
+        self.assertEqual(rc, 0)
+        self.assertIsNone(rental.coop_kind)
+
+    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.crawl_newest")
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_ordinary_rentals_never_reach_the_coop_channel(self, MH, poll, WS,
+                                                           crawl, vurl, alerts):
+        """Without the co-op guard the mygewo channel would receive the entire
+        Wien rental market, since `seen` now carries every new ad."""
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        poll.return_value = []
+        # A plain rental: the `_l` helper defaults is_genossenschaft=True, which
+        # is exactly what this guard must NOT rely on being false by accident.
+        rental = Listing(url="https://www.willhaben.at/iad/immobilien/d/y-2/",
+                         source=Source.WILLHABEN, bezirk="1100", rooms=3,
+                         area_m2=70.0, is_genossenschaft=False)
+        crawl.return_value = [rental]
+        bot = MagicMock()
+        bot.send_message.return_value = True
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True), \
+                patch("run_coop.route", return_value="-100"), \
+                patch("run_coop.TelegramBot", return_value=bot), \
+                patch.dict(os.environ, {"TELEGRAM_MAIN_BOT_TOKEN": "tok"}):
+            rc = run_coop.run(no_send=False)
+        self.assertEqual(rc, 0)
+        bot.send_message.assert_not_called()
+
+    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.crawl_newest", side_effect=RuntimeError("blocked"))
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
@@ -388,7 +440,7 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         MH.return_value.upsert_coop_listing.assert_called_once()
 
     @patch("run_coop.load_coop_alerts", return_value={})
-    @patch("run_coop.crawl_private_coop")
+    @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source", side_effect=RuntimeError("mygewo down"))
     @patch("run_coop.MongoDBHandler")
@@ -408,11 +460,15 @@ class TestDeliverUserAlerts(unittest.TestCase):
     """Alerts users create on /alerts, delivered from the poll."""
 
     def _handler(self, alerts):
+        """A handler whose ledger is empty and whose claims always succeed —
+        i.e. every pair is being delivered for the first time."""
         h = MagicMock()
         h.get_active_alerts.return_value = alerts
+        h.claim_delivery.return_value = True
+        h.stale_pending_deliveries.return_value = []
         return h
 
-    @patch("run_coop.TelegramBot")
+    @patch("Integration.telegram_bot.TelegramBot")
     def test_telegram_alert_is_delivered(self, TB):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
@@ -423,7 +479,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
         TB.assert_called_once_with("tok", "-100")
 
-    @patch("run_coop.TelegramBot")
+    @patch("Integration.telegram_bot.TelegramBot")
     def test_non_matching_keyword_delivers_nothing(self, TB):
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "garten",
@@ -433,7 +489,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 0)
         TB.return_value.send_message.assert_not_called()
 
-    @patch("run_coop.send_alert_email", return_value=True)
+    @patch("Application.alert_email.send_alert_email", return_value=True)
     def test_confirmed_email_alert_is_delivered(self, mail):
         handler = self._handler([{"_id": "a", "keyword": "", "email": "u@x.at",
                                   "telegram_chat_id": None, "confirmed": True}])
@@ -441,7 +497,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
         mail.assert_called_once()
 
-    @patch("run_coop.send_alert_email")
+    @patch("Application.alert_email.send_alert_email")
     def test_unconfirmed_email_is_never_mailed(self, mail):
         """Anyone can type someone else's address into the form."""
         handler = self._handler([{"_id": "a", "keyword": "", "email": "victim@x.at",
@@ -457,10 +513,38 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(
             run_coop.deliver_user_alerts(h, [_l(url="https://willhaben.at/x")]), 0)
 
-    @patch("run_coop.TelegramBot", side_effect=RuntimeError("telegram down"))
+    @patch("Integration.telegram_bot.TelegramBot", side_effect=RuntimeError("telegram down"))
     def test_send_failure_is_swallowed(self, TB):
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "",
                                   "telegram_chat_id": "-100", "confirmed": True}])
         self.assertEqual(
             run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)
+
+    @patch("Integration.telegram_bot.TelegramBot")
+    def test_an_already_claimed_pair_is_not_sent_again(self, TB):
+        """The ledger, from the poll's point of view: a pair another poll already
+        owns must produce no second message."""
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        handler.claim_delivery.return_value = False
+        self.assertEqual(
+            run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)
+        TB.return_value.send_message.assert_not_called()
+
+    @patch("Integration.telegram_bot.TelegramBot")
+    def test_a_pending_row_from_a_dead_poll_is_retried(self, TB):
+        """The at-least-once guarantee, exercised through the poll entry point."""
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        handler.stale_pending_deliveries.return_value = [
+            {"alert_id": "a", "url_hash": "h1", "chat_id": "-100",
+             "message": "verlorene Anzeige"},
+        ]
+        # No new listings at all — the only delivery possible is the recovered one.
+        self.assertEqual(run_coop.deliver_user_alerts(handler, []), 1)
+        handler.mark_delivery_sent.assert_called_once_with("a", "h1")

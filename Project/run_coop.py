@@ -21,10 +21,11 @@ from Domain.listing import Listing
 from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
-from Application.alert_email import send_alert_email
-from Application.alert_matcher import channels_for, match
+from Application.alert_dispatcher import dispatch, retry_pending
+from Application.alert_matcher import match
 from Application.coop_alert_router import missing_channels, route
-from Application.scraping.willhaben_private_coop import crawl_private_coop
+from Application.scraping.willhaben_private_coop import (
+    crawl_newest, is_private_transfer)
 from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.coop_format import format_coop_message
 from Application.helpers.listing_validator import validate_url
@@ -48,38 +49,50 @@ MAX_DETAIL_FETCHES_PER_RUN = 40
 IMAGE_PROBE_V = 2
 
 
+# Feeds that user-created alerts watch. 'coop_private' is the original
+# private-transfer rubric; 'keyword' is the general feed created on /alerts.
+ALERT_KINDS = ["coop_private", "keyword"]
+
+
+def is_coop_listing(listing) -> bool:
+    """True for the co-op inventory the Telegram CHANNEL feeds carry.
+
+    mygewo units come from `coop.SOURCES` and carry no `coop_kind` of their own,
+    so they are identified by their aggregator URL. Willhaben ads only qualify
+    once the scraper has actually classified them."""
+    if getattr(listing, "coop_kind", None):
+        return True
+    if getattr(listing, "is_genossenschaft", None):
+        return True
+    return "mygewo.at" in (getattr(listing, "url", None) or "")
+
+
 def deliver_user_alerts(handler, listings: List[Listing]) -> int:
-    """Deliver newly-seen private transfers to the alerts users created on /alerts.
+    """Deliver newly-seen listings to the alerts users created on /alerts.
 
     Returns the number of successful deliveries. Never raises: an alert-delivery
     failure must not fail the poll that feeds the website."""
     try:
-        alerts = handler.get_active_alerts("coop_private")
+        alerts = handler.get_active_alerts(ALERT_KINDS)
     except Exception as e:
         logger.error(f"❌ could not load user alerts: {e}")
         return 0
     if not alerts:
         return 0
 
+    handler.ensure_delivery_index()
     token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
-    delivered = 0
-    for alert, listing in match(listings, alerts):
-        chat_id, email = channels_for(alert)
-        message = format_coop_message(listing)
-        if chat_id and token:
-            try:
-                if TelegramBot(token, chat_id).send_message(message):
-                    delivered += 1
-            except Exception as e:
-                logger.error(f"❌ alert telegram send failed ({chat_id}): {e}")
-        if email:
-            try:
-                if send_alert_email(email, listing):
-                    delivered += 1
-            except Exception as e:
-                logger.error(f"❌ alert email send failed ({email}): {e}")
+
+    # Repair before delivering. A previous poll that died mid-send left rows
+    # claimed but unsent; those ads are no longer in the "new" set, so this is
+    # the only path that can still deliver them.
+    delivered = retry_pending(handler, token)
+
+    for alert, listing, unverified in match(listings, alerts):
+        if dispatch(alert, listing, unverified, handler, token):
+            delivered += 1
     logger.info(f"🔔 user alerts: {delivered} delivery(ies) "
-                f"for {len(listings)} new transfer(s) across {len(alerts)} alert(s)")
+                f"for {len(listings)} new listing(s) across {len(alerts)} alert(s)")
     return delivered
 
 
@@ -261,19 +274,28 @@ def run(no_send: bool = False) -> int:
     # Deliberately AFTER the all-adapters-failed gate and outside ok_adapters: it
     # is an extra feed, not one of coop.SOURCES, and it must never mask a total
     # mygewo outage by making a dead poll look half-alive.
-    new_transfers: List[Listing] = []
+    new_from_willhaben: List[Listing] = []
     if os.environ.get("WILLHABEN_PRIVATE_COOP", "1") != "0":
         try:
-            new_transfers = crawl_private_coop(
+            new_from_willhaben = crawl_newest(
                 WillhabenScraper(config=load_config() or {}),
                 is_new=lambda u: handler.get_listing(u) is None,
+                # Everything new: keyword alerts do their own matching, and the
+                # transfer rubric is re-applied per listing just below. Narrowing
+                # here would make an alert for "Balkon" silently unmatchable.
+                keep=lambda listing: True,
             )
-            for listing in new_transfers:
-                listing.coop_kind = "private_transfer"
-            seen.extend(new_transfers)
+            # Per listing, not blanket. Every ad this returned used to be a
+            # transfer by construction; with the widened feed, tagging them all
+            # would route ordinary rentals into the private-Ablöse channel and
+            # corrupt /coop/private.
+            for listing in new_from_willhaben:
+                if is_private_transfer(listing):
+                    listing.coop_kind = "private_transfer"
+            seen.extend(new_from_willhaben)
         except Exception as e:
             # A Willhaben block must not take the mygewo half of the poll with it.
-            logger.error(f"❌ willhaben private-coop adapter failed: {e}")
+            logger.error(f"❌ willhaben newest adapter failed: {e}")
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
@@ -338,6 +360,12 @@ def run(no_send: bool = False) -> int:
 
     sent = 0
     for listing in seen:
+        # The channel feeds are co-op only. `seen` now also carries every new
+        # Willhaben rental, because keyword alerts poll the whole newest-first
+        # feed — without this guard the mygewo channel would receive the entire
+        # Wien rental market.
+        if not is_coop_listing(listing):
+            continue
         if not matches_coop_alerts(listing, alerts):
             continue
         doc = handler.get_listing(listing.url)
@@ -359,17 +387,16 @@ def run(no_send: bool = False) -> int:
         elif bot:
             logger.error(f"❌ send failed (retry next run): {listing.url}")
 
-    # User-created alerts (/alerts) on the private-transfer feed. Distinct from
-    # the channel feeds above: those are the owner's firehose, these are per-user
-    # keyword watches with their own destinations.
+    # User-created alerts (/alerts). Distinct from the channel feeds above: those
+    # are the owner's co-op firehose, these are per-user keyword watches with
+    # their own destinations, over the whole newest-first feed.
     #
-    # Only `new_transfers` are considered, never the whole `seen` list. That list
-    # holds exactly the URLs this poll saw for the first time, so a listing is
-    # delivered once without needing a per-(alert, url) ledger. The trade-off is
-    # honest: if a poll dies between the upsert and here, that ad is never
-    # delivered — it will not be "new" again.
-    if new_transfers and not no_send:
-        deliver_user_alerts(handler, new_transfers)
+    # Only the ads this poll saw for the first time are matched. Delivery is no
+    # longer at the mercy of that, though — `deliver_user_alerts` claims each
+    # (alert, ad) pair in a ledger before sending and retries anything a previous
+    # poll claimed but never sent, so a poll dying mid-send no longer loses an ad.
+    if not no_send:
+        deliver_user_alerts(handler, new_from_willhaben)
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")

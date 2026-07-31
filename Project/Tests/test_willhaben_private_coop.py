@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from Domain.listing import Listing  # noqa: E402
 from Domain.sources import Source  # noqa: E402
 from Application.scraping.willhaben_private_coop import (  # noqa: E402
-    crawl_private_coop,
+    crawl_newest, crawl_private_coop, is_private_transfer,
 )
 
 _SEARCH_HTML = """
@@ -120,3 +120,46 @@ def test_search_fetch_exception_returns_empty():
             raise RuntimeError("connection reset")
 
     assert crawl_private_coop(Exploding(), is_new=lambda u: True) == []
+
+
+# --- the generalised crawl, used by keyword alerts ----------------------------
+#
+# Keyword alerts need the SAME poll of the SAME newest-first feed, differing only
+# in the final filter. That filter is a parameter rather than a second adapter,
+# which is why these tests sit beside the private-transfer ones.
+
+def test_crawl_newest_keeps_everything_when_keep_is_always_true():
+    """The alert feed: no pre-filter, because narrowing here would make an alert
+    for "Balkon" silently unmatchable."""
+    scraper = FakeScraper(kinds={_A: "private_transfer", _B: None, _C: None})
+    got = crawl_newest(scraper, is_new=lambda u: True, keep=lambda listing: True)
+    assert [listing.url for listing in got] == [_A, _B, _C]
+
+
+def test_crawl_newest_honours_an_arbitrary_keep_predicate():
+    scraper = FakeScraper(kinds={_A: None, _B: None, _C: None})
+    got = crawl_newest(scraper, is_new=lambda u: True,
+                       keep=lambda listing: listing.url == _B)
+    assert [listing.url for listing in got] == [_B]
+
+
+def test_crawl_newest_still_respects_dedup_and_the_cap():
+    scraper = FakeScraper(kinds={_A: None, _B: None, _C: None})
+    got = crawl_newest(scraper, is_new=lambda u: True, keep=lambda l: True,
+                       max_details=2)
+    assert len(scraper.detail_calls) == 2
+    assert len(got) == 2
+
+
+def test_crawl_private_coop_is_crawl_newest_with_the_transfer_filter():
+    """The wrapper must not drift from the behaviour its own tests above pin."""
+    scraper = FakeScraper(kinds={_A: "private_transfer", _B: None})
+    direct = crawl_newest(scraper, is_new=lambda u: True, keep=is_private_transfer)
+    assert [listing.url for listing in direct] == [_A]
+
+
+def test_is_private_transfer_reads_coop_kind():
+    listing = Listing(url=_A, source=Source.WILLHABEN)
+    assert not is_private_transfer(listing)
+    listing.coop_kind = "private_transfer"
+    assert is_private_transfer(listing)
