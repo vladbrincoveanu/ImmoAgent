@@ -33,8 +33,38 @@ function MapLoadingState() {
   );
 }
 
+/**
+ * Tracks the Tailwind `md` breakpoint (768px) in JS.
+ *
+ * This page renders two full trees — `hidden md:flex` (desktop) and `md:hidden`
+ * (mobile). Tailwind's `hidden` is `display:none`, which hides but does not
+ * unmount, so without this gate BOTH trees mounted a Leaflet map on every load.
+ * Measured on /dashboard/map at 1440x900: the visible desktop map held 89
+ * markers (viewport-culled) while the invisible mobile map held 197 (the full
+ * set) — the hidden map was doing more work than the real one.
+ *
+ * Returns null until mounted so neither map is mounted on the first client
+ * paint; callers render the same "Loading map..." placeholder the `ssr: false`
+ * dynamic import already shows, so this adds no new visual state.
+ */
+function useIsDesktop(): boolean | null {
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  return isDesktop;
+}
+
 function MapPage() {
   const searchParams = useSearchParams();
+  // Ensures only the branch matching the viewport mounts a Leaflet map.
+  const isDesktop = useIsDesktop();
   const {
     minScore, district, sortBy, maxPrice, showUnfinanceable,
     equity, rate, maxEquity, profile, belowAvgPct,
@@ -357,28 +387,28 @@ function MapPage() {
               <div className="h-full flex items-center justify-center bg-gray-50">
                 <p className="text-gray-400">No listings match your filters.</p>
               </div>
+            ) : isDesktop ? (
+              <MapViewDynamic
+                listings={viewportListings}
+                selectedListingId={selectedListingId}
+                layers={layers}
+                stationData={stationData}
+                schoolData={schoolData}
+                layersPopoverSlot={
+                  <MapLayersPopover
+                    open={layersOpen}
+                    onClose={() => setLayersOpen(false)}
+                    layers={layers}
+                    onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
+                    counts={layerCounts}
+                  />
+                }
+                onPinClick={handlePinClick}
+                onMapClick={() => setSelectedListingId(null)}
+                onBoundsChange={setBounds}
+              />
             ) : (
-              <>
-                <MapViewDynamic
-                  listings={viewportListings}
-                  selectedListingId={selectedListingId}
-                  layers={layers}
-                  stationData={stationData}
-                  schoolData={schoolData}
-                  layersPopoverSlot={
-                    <MapLayersPopover
-                      open={layersOpen}
-                      onClose={() => setLayersOpen(false)}
-                      layers={layers}
-                      onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
-                      counts={layerCounts}
-                    />
-                  }
-                  onPinClick={handlePinClick}
-                  onMapClick={() => setSelectedListingId(null)}
-                  onBoundsChange={setBounds}
-                />
-              </>
+              <MapLoadingState />
             )}
 
             {selectedListing && !loading && (
@@ -424,7 +454,7 @@ function MapPage() {
                   <div className="h-full flex items-center justify-center bg-gray-50">
                     <p className="text-gray-400">No listings match your filters.</p>
                   </div>
-                ) : (
+                ) : isDesktop === false ? (
                   <MapViewDynamic
                     listings={listings}
                     selectedListingId={selectedListingId}
@@ -435,6 +465,8 @@ function MapPage() {
                     onMapClick={handleCloseDetail}
                     onBoundsChange={setBounds}
                   />
+                ) : (
+                  <MapLoadingState />
                 )}
               </div>
             </div>
