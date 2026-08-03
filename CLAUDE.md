@@ -17,7 +17,7 @@ Follow `~/.claude/rules/12-rule-template.md`.
 - `Project/Application/` — main.py (orchestration), scoring.py, buyer_profiles.py, analyzer.py, scraping/, outreach/
 - `Project/Integration/` — mongodb_handler.py, telegram_bot.py, minio_handler.py
 - `Project/Domain/` — listing.py, location.py, sources.py
-- `Project/UI/` (Flask), `dashboard/` (Next.js), `Tests/`
+- `dashboard/` (Next.js — the only UI; the legacy Flask app was removed 2026-06), `Project/Tests/`, root `tests/`
 - Buyer profiles: default, owner_occupier, diy_renovator, growing_family, urban_professional, eco_conscious, retiree, budget_buyer. Weights in buyer_profiles.py must sum to 1.0 (`validate_weights()`); ranges in scoring.py NORMALIZATION_RANGES.
 
 ## Config & security

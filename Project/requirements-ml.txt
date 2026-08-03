@@ -1,0 +1,20 @@
+# Optional ML stack for the PARKED OutlinesAnalyzer in Application/analyzer.py.
+#
+# Nothing in the running pipeline installs or needs this: OutlinesAnalyzer is
+# defined but never instantiated, and analyzer.py guards the import with
+# try/except ImportError (OUTLINES_AVAILABLE=False) so it degrades cleanly when
+# these packages are absent.
+#
+# Split out of requirements.txt on 2026-08-03 because five CI workflows
+# (scrapeJob, run_top5, run_outreach, migration) were installing ~2-3GB of
+# torch/transformers on every run for a code path that never executes, and
+# because `outlines` pulls diskcache 5.6.3 (PYSEC-2026-2447, no fixed version
+# published upstream) into the default install.
+#
+# Install only if you are reviving OutlinesAnalyzer:
+#     pip install -r Project/requirements-ml.txt
+outlines>=0.1.0
+transformers>=5.12.0
+torch>=2.12.0
+accelerate>=0.34.0
+datasets>=4.0.0

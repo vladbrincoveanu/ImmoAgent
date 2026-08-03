@@ -11,7 +11,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from Application.helpers.utils import smart_sleep
 
-# Try to import outlines for structured outputs
+# Try to import outlines for structured outputs.
+# The ML stack is NOT in requirements.txt — OutlinesAnalyzer below is parked
+# (defined, never instantiated), so the default install skips ~2-3GB of torch.
 try:
     import outlines
     from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -19,7 +21,8 @@ try:
     print("✅ Outlines available for guaranteed structured output")
 except ImportError:
     OUTLINES_AVAILABLE = False
-    print("❌ Outlines not available. Install with: pip install outlines transformers torch")
+    print("ℹ️  Outlines not installed (expected). To revive OutlinesAnalyzer: "
+          "pip install -r Project/requirements-ml.txt")
 
 logger = logging.getLogger(__name__)
 
