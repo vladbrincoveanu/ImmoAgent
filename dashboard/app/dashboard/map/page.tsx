@@ -351,12 +351,14 @@ function MapPage() {
           genossenschaftOnly={genossenschaft}
           onGenossenschaftClick={() => update({ genossenschaft: !genossenschaft })}
           profileSlot={
-            <ProfileSelector
-              value={profile}
-              onChange={(v) => {
-                if (isValidProfile(v)) update({ profile: v });
-              }}
-            />
+            isDesktop === false ? undefined : (
+              <ProfileSelector
+                value={profile}
+                onChange={(v) => {
+                  if (isValidProfile(v)) update({ profile: v });
+                }}
+              />
+            )
           }
           filterPopover={
             <MapFilterPopover
@@ -439,7 +441,9 @@ function MapPage() {
             </a>
             <h1 className="text-base font-semibold text-gray-900">Property Map</h1>
             <div className="ml-auto">
-              <ProfileSelector value={profile} onChange={(v) => update({ profile: v })} />
+              {isDesktop !== true && (
+                <ProfileSelector value={profile} onChange={(v) => update({ profile: v })} />
+              )}
             </div>
           </header>
 
