@@ -19,7 +19,7 @@ try:
     print("✅ Outlines available for guaranteed structured output")
 except ImportError:
     OUTLINES_AVAILABLE = False
-    print("❌ Outlines not available. Install with: pip install outlines transformers torch")
+    print("❌ Outlines not available. Install with: pip install -r Project/requirements-ml.txt")
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,12 @@
+# Optional ML stack for Application/analyzer.py's OutlinesAnalyzer.
+# Not installed by default: OutlinesAnalyzer is never instantiated anywhere
+# in the codebase (parked experiment, guarded by a try/except ImportError),
+# and outlines pulls in diskcache 5.6.3 (PYSEC-2026-2447, no fix available).
+#
+# Install only if reviving structured-extraction via Outlines:
+#   pip install -r Project/requirements-ml.txt
+outlines>=0.1.0
+transformers>=5.12.0
+torch>=2.12.0
+accelerate>=0.34.0
+datasets>=4.0.0
