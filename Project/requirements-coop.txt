@@ -4,3 +4,7 @@ requests==2.34.2
 beautifulsoup4==4.12.3
 pymongo==4.8.0
 certifi>=2023.7.22
+# WillhabenScraper (instantiated by run_coop.py for the private-Ablöse crawl)
+# unconditionally builds a StructuredAnalyzer, which imports pydantic — not
+# optional despite the "no scoring" docstring above.
+pydantic>=2.13.4
