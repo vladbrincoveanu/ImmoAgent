@@ -1,11 +1,6 @@
 requests==2.34.2
 beautifulsoup4==4.12.3
 python-telegram-bot==21.4
-outlines>=0.1.0
-transformers>=5.12.0
-torch>=2.12.0
-accelerate>=0.34.0
-datasets>=4.0.0
 pydantic>=2.13.4
 pymongo==4.8.0
 certifi>=2023.7.22
