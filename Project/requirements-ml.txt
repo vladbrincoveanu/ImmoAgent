@@ -1,0 +1,5 @@
+outlines>=0.1.0
+transformers>=5.12.0
+torch>=2.12.0
+accelerate>=0.34.0
+datasets>=4.0.0
