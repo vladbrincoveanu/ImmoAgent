@@ -44,6 +44,7 @@ class Listing:
     local_image_path: Optional[str] = None
     coordinates: Optional[Coordinates] = None
     coordinate_source: Optional[str] = None  # 'exact' | 'landmark' | 'none'
+    coordinate_precision_m: Optional[int] = None  # 10=exact, 200=landmark-guess, None=no coords
     landmark_hint: Optional[str] = None
     source_enum: Optional[Source] = None
     score: Optional[float] = None

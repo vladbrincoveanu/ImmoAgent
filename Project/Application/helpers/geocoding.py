@@ -534,6 +534,7 @@ def geocode_listing(listing: Dict) -> Dict:
 
     # Already geocoded — skip
     if coordinate_source in ('exact', 'landmark'):
+        listing['coordinate_precision_m'] = 10 if coordinate_source == 'exact' else 200
         return listing
 
     geocoder = ViennaGeocoder()
@@ -545,6 +546,7 @@ def geocode_listing(listing: Dict) -> Dict:
         if coords:
             listing['coordinates'] = {'lat': coords.lat, 'lon': coords.lon}
             listing['coordinate_source'] = 'exact'
+            listing['coordinate_precision_m'] = 10
             return listing
 
     # Try landmark hint from title
@@ -555,9 +557,11 @@ def geocode_listing(listing: Dict) -> Dict:
         if coords:
             listing['coordinates'] = {'lat': coords.lat, 'lon': coords.lon}
             listing['coordinate_source'] = 'landmark'
+            listing['coordinate_precision_m'] = 200
             listing['landmark_hint'] = hint.replace(', Wien, Austria', '')
             return listing
 
     # No usable location
     listing['coordinate_source'] = 'none'
+    listing['coordinate_precision_m'] = None
     return listing 
