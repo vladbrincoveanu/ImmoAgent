@@ -53,6 +53,24 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     return True, ""
 
 
+def _completeness_score(doc: Dict) -> int:
+    """Count of non-null fields, excluding Mongo/bookkeeping keys that are
+    always present and don't reflect scrape data quality."""
+    _EXCLUDE = {"_id", "content_fingerprint", "unit_fingerprint", "source_enum",
+                "url", "processed_at", "sent_to_telegram", "sent_to_telegram_at"}
+    return sum(1 for k, v in doc.items() if k not in _EXCLUDE and v not in (None, "", []))
+
+
+def pick_canonical_doc(docs: List[Dict]) -> Dict:
+    """Given multiple docs sharing a unit_fingerprint, pick the display
+    canonical one: most non-null fields wins; tie-break on earliest
+    first_scraped_at. Per spec 'Resolved decisions' table."""
+    return sorted(
+        docs,
+        key=lambda d: (-_completeness_score(d), d.get("first_scraped_at") or float("inf")),
+    )[0]
+
+
 class MongoDBHandler:
     def __init__(self, uri: str = None, db_name: str = "immo", collection_name: str = "listings"):
         config = load_config()
