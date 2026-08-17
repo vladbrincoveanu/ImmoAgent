@@ -173,6 +173,30 @@ test('a Telegram alert warns when email confirmation is pending', async ({ page 
     .toContainText('Confirm your email before testing email delivery.');
 });
 
+test('the test status renders sent and failed channels from a partial response', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 502, contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'Telegram rejected the message: chat not found',
+        sentChannels: ['email'],
+        failedChannels: ['telegram'],
+        errors: [{ channel: 'telegram', message: 'Telegram rejected the message: chat not found' }],
+      }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status')).toContainText('email');
+  await expect(page.getByTestId('alert-status')).toContainText('telegram');
+  await expect(page.getByTestId('alert-status')).toContainText('chat not found');
+});
+
 test('delete calls the API with the alert id', async ({ page }) => {
   let deletedUrl: string | null = null;
   await page.route(ALERT_API + '*', (route) => {

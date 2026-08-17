@@ -2,9 +2,125 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { getOrCreateUserId, setUserCookie } from '@/lib/user';
 import { alertTestEmail, sendMail } from '@/lib/mailer';
-import { testChannels, testErrorStatus } from '@/lib/alert-test';
+import {
+  type AlertKeywordRecord,
+  normalizeAlertKeywords,
+  testChannels,
+  testErrorStatus,
+} from '@/lib/alert-test';
 
 export const dynamic = 'force-dynamic';
+
+const DELIVERY_TIMEOUT_MS = 5_000;
+type AlertTestChannel = 'telegram' | 'email';
+
+type ChannelAttempt = {
+  channel: AlertTestChannel;
+  ok: boolean;
+  error?: string;
+  unavailable?: boolean;
+};
+
+type AlertTestError = {
+  channel: AlertTestChannel;
+  message: string;
+};
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  onTimeout?: () => void,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      onTimeout?.();
+      reject(new Error(`${label} timed out after ${DELIVERY_TIMEOUT_MS}ms.`));
+    }, DELIVERY_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
+async function sendTelegramProbe(
+  chatId: string | null,
+  keys: string[],
+): Promise<ChannelAttempt> {
+  const token = process.env.TELEGRAM_MAIN_BOT_TOKEN;
+  if (!token) {
+    return {
+      channel: 'telegram',
+      ok: false,
+      unavailable: true,
+      error: 'TELEGRAM_MAIN_BOT_TOKEN is not set.',
+    };
+  }
+
+  const controller = new AbortController();
+  const text =
+    '✅ Testnachricht von ImmoScouter.\n' +
+    `Alert: ${keys.length ? keys.join(', ') : '(alle Treffer)'}\n` +
+    'Diese Chat-ID funktioniert — echte Treffer kommen hier an.';
+
+  try {
+    const tg = await withTimeout(
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text }),
+        signal: controller.signal,
+      }),
+      'Telegram request',
+      () => controller.abort(),
+    );
+    if (!tg.ok) {
+      // Surface Telegram's own reason: "chat not found" and "bot was blocked"
+      // need different fixes from the user, and a generic failure hides which.
+      const detail = await withTimeout(tg.text(), 'Telegram error detail')
+        .catch(() => '');
+      return {
+        channel: 'telegram',
+        ok: false,
+        error: `Telegram rejected the message: ${detail.slice(0, 200)}`,
+      };
+    }
+    return { channel: 'telegram', ok: true };
+  } catch (err) {
+    return {
+      channel: 'telegram',
+      ok: false,
+      error: `Telegram request failed: ${String(err)}`,
+    };
+  }
+}
+
+async function sendEmailProbe(email: string, keys: string[]): Promise<ChannelAttempt> {
+  try {
+    const mail = await withTimeout(
+      sendMail({
+        to: email,
+        subject: 'ImmoScouter Alert-Test',
+        html: alertTestEmail(keys),
+      }),
+      'Email delivery',
+    );
+    return mail.ok
+      ? { channel: 'email', ok: true }
+      : {
+          channel: 'email',
+          ok: false,
+          error: `Email delivery failed: ${mail.error ?? 'SMTP provider rejected the message.'}`,
+        };
+  } catch (err) {
+    return {
+      channel: 'email',
+      ok: false,
+      error: `Email delivery failed: ${String(err)}`,
+    };
+  }
+}
 
 /** POST /api/saved-searches/alert/test  { id }
  *
@@ -34,7 +150,7 @@ export async function POST(req: NextRequest) {
   });
   if (!alert) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const keys: string[] = Array.isArray(alert.keywords) ? alert.keywords : [];
+  const keys = normalizeAlertKeywords(alert as AlertKeywordRecord);
   const chatId = (alert.telegram_chat_id as string | null) ?? null;
   const email = (alert.email as string | null) ?? null;
   const channels = testChannels({
@@ -43,73 +159,81 @@ export async function POST(req: NextRequest) {
     confirmed: Boolean(alert.confirmed),
   });
   if (channels.error) {
-    return NextResponse.json({ error: channels.error }, { status: 400 });
+    return NextResponse.json({
+      error: channels.error,
+      channels: [],
+      sentChannels: [],
+      failedChannels: [],
+      errors: [],
+    }, { status: 400 });
   }
 
-  const sentChannels: string[] = [];
-  const errors: string[] = [];
-  let telegramUnavailable = false;
-  let emailFailed = false;
-
+  const attempts: Array<{
+    channel: AlertTestChannel;
+    promise: Promise<ChannelAttempt>;
+  }> = [];
   if (channels.telegram) {
-    const token = process.env.TELEGRAM_MAIN_BOT_TOKEN;
-    if (!token) {
-      telegramUnavailable = true;
-      errors.push('TELEGRAM_MAIN_BOT_TOKEN is not set.');
-    } else {
-      const text =
-        '✅ Testnachricht von ImmoScouter.\n' +
-        `Alert: ${keys.length ? keys.join(', ') : '(alle Treffer)'}\n` +
-        'Diese Chat-ID funktioniert — echte Treffer kommen hier an.';
-
-      try {
-        const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text }),
-        });
-        if (!tg.ok) {
-          // Surface Telegram's own reason: "chat not found" and "bot was blocked"
-          // need different fixes from the user, and a generic failure hides which.
-          const detail = await tg.text().catch(() => '');
-          errors.push(`Telegram rejected the message: ${detail.slice(0, 200)}`);
-        } else {
-          sentChannels.push('telegram');
-        }
-      } catch (err) {
-        errors.push(`Telegram request failed: ${String(err)}`);
-      }
-    }
-  }
-
-  if (channels.email) {
-    const mail = await sendMail({
-      to: email as string,
-      subject: 'ImmoScouter Alert-Test',
-      html: alertTestEmail(keys),
+    attempts.push({
+      channel: 'telegram',
+      promise: sendTelegramProbe(chatId, keys),
     });
-    if (mail.ok) {
-      sentChannels.push('email');
-    } else {
-      emailFailed = true;
-      errors.push(`Email delivery failed: ${mail.error ?? 'SMTP provider rejected the message.'}`);
-    }
   }
+  if (channels.email) {
+    attempts.push({
+      channel: 'email',
+      promise: sendEmailProbe(email as string, keys),
+    });
+  }
+
+  const settled = await Promise.allSettled(attempts.map(({ promise }) => promise));
+  const results = settled.map((result, index): ChannelAttempt => (
+    result.status === 'fulfilled'
+      ? result.value
+      : {
+          channel: attempts[index].channel,
+          ok: false,
+          error: `${attempts[index].channel} delivery failed: ${String(result.reason)}`,
+        }
+  ));
+  const sentChannels = results
+    .filter((result) => result.ok)
+    .map((result) => result.channel);
+  const failedChannels = results
+    .filter((result) => !result.ok)
+    .map((result) => result.channel);
+  const errors: AlertTestError[] = results
+    .filter((result) => !result.ok)
+    .map((result) => ({
+      channel: result.channel,
+      message: result.error ?? `${result.channel} delivery failed.`,
+    }));
+  const telegramUnavailable = results.some((result) => (
+    result.channel === 'telegram' && !result.ok && result.unavailable
+  ));
+  const emailFailed = results.some((result) => (
+    result.channel === 'email' && !result.ok
+  ));
+  const responseFields = {
+    // Keep `channels` as the response field used by the first dashboard version.
+    channels: sentChannels,
+    sentChannels,
+    failedChannels,
+    errors,
+    ...(channels.warning ? { warning: channels.warning } : {}),
+  };
 
   if (errors.length) {
     return NextResponse.json(
       {
-        error: errors.join(' '),
-        channels: sentChannels,
-        ...(channels.warning ? { warning: channels.warning } : {}),
+        error: errors.map(({ message }) => message).join(' '),
+        ...responseFields,
       },
       { status: testErrorStatus({ telegramUnavailable, emailFailed }) });
   }
 
   const res = NextResponse.json({
     ok: true,
-    channels: sentChannels,
-    ...(channels.warning ? { warning: channels.warning } : {}),
+    ...responseFields,
   });
   setUserCookie(res, userId);
   return res;

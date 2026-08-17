@@ -48,7 +48,7 @@ export function alertTestEmail(keywords: string[]): string {
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#16243a">
       <h2 style="font-size:20px;margin-bottom:8px">ImmoScouter Alert-Test</h2>
       <p style="color:#5b6b80;font-size:14px">
-        Diese Test-E-Mail bestätigt, dass neue passende Genossenschaftswohnungen
+        Diese Test-E-Mail bestätigt, dass neue passende Anzeigen
         an diese Adresse gesendet werden.
       </p>
       <p style="font-size:13px;color:#5b6b80"><b>Suchbegriffe:</b> ${label}</p>
@@ -59,18 +59,20 @@ export function alertTestEmail(keywords: string[]): string {
 export function confirmationEmail(email: string, params: Record<string, string>, confirmUrl: string): string {
   const filterLines = Object.entries(params)
     .filter(([, v]) => v)
-    .map(([k, v]) => `<li style="margin:4px 0"><b>${k}:</b> ${v}</li>`)
+    .map(([k, v]) => (
+      `<li style="margin:4px 0"><b>${escapeHtml(k)}:</b> ${escapeHtml(v)}</li>`
+    ))
     .join('');
 
   return `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#16243a">
       <h2 style="font-size:20px;margin-bottom:8px">Confirm your ImmoScouter alert</h2>
       <p style="color:#5b6b80;font-size:14px;margin-bottom:16px">
-        You signed up for <b>${email}</b> to receive listing alerts.
+        You signed up for <b>${escapeHtml(email)}</b> to receive listing alerts.
         Click below to confirm and activate your alert.
       </p>
       ${filterLines ? `<ul style="font-size:13px;color:#5b6b80;padding-left:16px;margin-bottom:20px">${filterLines}</ul>` : ''}
-      <a href="${confirmUrl}"
+      <a href="${escapeHtml(confirmUrl)}"
         style="display:inline-block;background:#2456e6;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
         Confirm alert
       </a>

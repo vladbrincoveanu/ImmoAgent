@@ -4,6 +4,11 @@ export type AlertTestRecord = {
   confirmed?: boolean;
 };
 
+export type AlertKeywordRecord = {
+  keywords?: unknown;
+  keyword?: unknown;
+};
+
 export type AlertTestChannels = {
   telegram: boolean;
   email: boolean;
@@ -12,6 +17,21 @@ export type AlertTestChannels = {
 };
 
 const EMAIL_CONFIRMATION_WARNING = 'Confirm your email before testing email delivery.';
+
+export function normalizeAlertKeywords(alert: AlertKeywordRecord): string[] {
+  const keywords = Array.isArray(alert.keywords)
+    ? alert.keywords
+      .filter((keyword): keyword is string => (
+        typeof keyword === 'string' && keyword.trim().length > 0
+      ))
+      .map((keyword) => keyword.trim())
+    : [];
+  if (keywords.length) return keywords;
+
+  return typeof alert.keyword === 'string' && alert.keyword.trim().length > 0
+    ? [alert.keyword.trim()]
+    : [];
+}
 
 export function testChannels(alert: AlertTestRecord): AlertTestChannels {
   const telegram = Boolean(alert.telegram_chat_id);
