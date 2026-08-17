@@ -343,6 +343,18 @@ class MongoDBHandler:
         fingerprint = compute_content_fingerprint(listing)
         listing['content_fingerprint'] = fingerprint
 
+        from Application.helpers.listing_validator import compute_unit_fingerprint as _compute_unit_fp
+        from Domain.listing import Listing as _Listing
+        try:
+            _tmp = _Listing(url=listing.get('url', ''), source=listing.get('source_enum', listing.get('source')))
+            for _f in ("area_m2", "rooms", "bezirk", "address", "coordinates", "coordinate_source"):
+                if _f in listing:
+                    setattr(_tmp, _f, listing[_f])
+            listing['unit_fingerprint'] = _compute_unit_fp(_tmp)
+        except Exception as e:
+            logging.warning(f"unit_fingerprint computation failed: {e}")
+            listing['unit_fingerprint'] = None
+
         try:
             from datetime import datetime
             now = datetime.utcnow()
@@ -366,6 +378,7 @@ class MongoDBHandler:
                     'price_total': price_val,
                     'price_history': price_history,
                     'processed_at': listing.get('processed_at', now.timestamp()),
+                    'unit_fingerprint': listing.get('unit_fingerprint'),
                 }
                 if existing.get('price_at_scrape') is None:
                     update_set['price_at_scrape'] = old_price or price_val
