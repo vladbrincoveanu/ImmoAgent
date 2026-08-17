@@ -27,7 +27,7 @@ from Application.scraping.field_extractors import (
     extract_ruecklage_eur_month, extract_sonderumlage_risk,
     extract_doppelmakler, extract_maklerprovision_pct,
     extract_document_urls, extract_is_genossenschaft, extract_bautraeger,
-    extract_is_private_coop_transfer,
+    extract_is_private_coop_transfer, extract_seller_type,
 )
 
 
@@ -544,6 +544,7 @@ class WillhabenScraper:
             listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
             listing.doppelmakler = extract_doppelmakler(_combined)
             listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+            listing.seller_type = extract_seller_type(_combined, is_genossenschaft=listing.is_genossenschaft)
 
             _doc_urls = extract_document_urls(soup)
             listing.document_urls = _doc_urls if _doc_urls else None
