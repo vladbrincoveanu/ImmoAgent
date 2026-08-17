@@ -32,6 +32,12 @@ const EMAIL_ONLY_STORED = {
   confirmed: true,
 };
 
+const TELEGRAM_WITH_UNCONFIRMED_EMAIL_STORED = {
+  ...STORED,
+  email: 'u@example.at',
+  confirmed: false,
+};
+
 test('alerts page renders the create form with every filter', async ({ page }) => {
   await page.goto('/alerts');
   await expect(page.getByTestId('alerts-page')).toBeVisible();
@@ -143,6 +149,28 @@ test('an email-only stored alert can test its email notification', async ({ page
   await page.goto('/alerts');
   await page.getByTestId('alert-test').first().click();
   await expect(page.getByTestId('alert-status')).toContainText('email');
+});
+
+test('a Telegram alert warns when email confirmation is pending', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        channels: ['telegram'],
+        warning: 'Confirm your email before testing email delivery.',
+      }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [TELEGRAM_WITH_UNCONFIRMED_EMAIL_STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status'))
+    .toContainText('Confirm your email before testing email delivery.');
 });
 
 test('delete calls the API with the alert id', async ({ page }) => {
