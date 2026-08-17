@@ -4,14 +4,22 @@ that dies mid-send.
 The ledger is what makes both true: a claim is atomic, so two concurrent polls
 cannot both send, and a claimed-but-unsent row is retried by the next poll.
 """
+import logging
 import os
 import sys
+import time
+from unittest.mock import MagicMock
+
+import pymongo
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from Application.alert_dispatcher import (  # noqa: E402
     UNVERIFIED_PREFIX, dispatch, retry_pending,
 )
+from Application.alert_email import build_alert_email  # noqa: E402
+from Integration.mongodb_handler import MongoDBHandler  # noqa: E402
+from run_coop import deliver_user_alerts  # noqa: E402
 
 
 class _L:
@@ -37,6 +45,9 @@ class _Handler:
 
     def __init__(self):
         self.rows = {}
+        self.leases = {}
+        self.mark_calls = []
+        self.mark_results = {}
 
     def claim_delivery(self, alert_id, url_hash, chat_id=None, message=None,
                        email=None, email_subject=None, email_body=None):
@@ -53,15 +64,38 @@ class _Handler:
         return True
 
     def mark_delivery_sent(self, alert_id, url_hash):
+        self.mark_calls.append(("legacy", alert_id, url_hash))
+        if self.mark_results.get("telegram") is False:
+            return False
         self.rows[(alert_id, url_hash)]["status"] = "sent"
+        return True
 
     def mark_delivery_channel_sent(self, alert_id, url_hash, channel):
+        self.mark_calls.append((channel, alert_id, url_hash))
+        if self.mark_results.get(channel) is False:
+            return False
         row = self.rows[(alert_id, url_hash)]
         field = {"telegram": "telegram_sent", "email": "email_sent"}[channel]
         row[field] = True
+        self.leases.pop(((alert_id, url_hash), channel), None)
         if ((not row["chat_id"] or row["telegram_sent"])
                 and (not row["email"] or row["email_sent"])):
             row["status"] = "sent"
+        return True
+
+    def claim_pending_delivery_channel(self, alert_id, url_hash, channel,
+                                        lease_seconds=60):
+        row = self.rows[(alert_id, url_hash)]
+        field = {"telegram": "telegram_sent", "email": "email_sent"}[channel]
+        lease_key = ((alert_id, url_hash), channel)
+        if row.get(field, False) or self.leases.get(lease_key, 0) > time.monotonic():
+            return False
+        self.leases[lease_key] = time.monotonic() + lease_seconds
+        return True
+
+    def release_delivery_channel(self, alert_id, url_hash, channel):
+        self.leases.pop(((alert_id, url_hash), channel), None)
+        return True
 
     def stale_pending_deliveries(self, older_than_minutes=5):
         return [r for r in self.rows.values() if r["status"] == "pending"]
@@ -207,6 +241,190 @@ def test_pending_email_is_retried_from_stored_payload():
     assert sent == [("u@example.at", row["email_subject"], row["email_body"])]
     assert row["email_sent"] is True
     assert row["status"] == "sent"
+
+
+def test_marker_failure_keeps_successful_email_pending_and_uncounted():
+    handler = _Handler()
+    handler.mark_results["email"] = False
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+
+    assert dispatch(
+        alert, _L(), False, handler, token=None,
+        send_email=lambda address, listing: True,
+    ) is False
+
+    row = next(iter(handler.rows.values()))
+    assert row["status"] == "pending"
+    assert row["email_sent"] is False
+
+
+def test_second_retry_worker_cannot_claim_channel_with_active_lease():
+    handler = _Handler()
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+    dispatch(alert, _L(), False, handler, token=None,
+             send_email=lambda address, listing: False)
+    row = next(iter(handler.rows.values()))
+
+    assert handler.claim_pending_delivery_channel(
+        row["alert_id"], row["url_hash"], "email", lease_seconds=60
+    ) is True
+    sent = []
+    assert retry_pending(
+        handler, token=None,
+        send_email=lambda address, subject, body: sent.append(address) or True,
+    ) == 0
+    assert sent == []
+    assert row["status"] == "pending"
+
+
+def test_expired_channel_lease_can_be_claimed_again():
+    handler = _Handler()
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+    dispatch(alert, _L(), False, handler, token=None,
+             send_email=lambda address, listing: False)
+    row = next(iter(handler.rows.values()))
+    lease_key = ((row["alert_id"], row["url_hash"]), "email")
+    handler.leases[lease_key] = time.monotonic() - 1
+
+    assert handler.claim_pending_delivery_channel(
+        row["alert_id"], row["url_hash"], "email", lease_seconds=60
+    ) is True
+
+
+def test_legacy_pending_row_without_chat_id_stays_pending():
+    handler = _Handler()
+    handler.rows[("legacy", "h1")] = {
+        "alert_id": "legacy", "url_hash": "h1", "chat_id": None,
+        "message": "old Telegram message", "status": "pending",
+    }
+
+    sent = []
+    assert retry_pending(
+        handler, token="t",
+        send_telegram=lambda chat, message: sent.append(chat) or True,
+    ) == 0
+    assert sent == []
+    assert handler.rows[("legacy", "h1")]["status"] == "pending"
+    assert handler.mark_calls == []
+
+
+def test_alert_email_body_is_neutral_and_can_flag_unverified_values():
+    subject, body = build_alert_email(_L(), unverified=True)
+
+    assert subject == "Neue passende Wohnungsanzeige"
+    assert "Private Genossenschafts-Weitergabe" not in body
+    assert UNVERIFIED_PREFIX.strip() in body
+
+
+def test_alert_email_body_tolerates_malformed_numeric_values():
+    listing = _L(area_m2="unknown", rooms=object(), price_total=object())
+
+    _, body = build_alert_email(listing)
+
+    assert "unknown" not in body
+    assert body
+
+
+def test_dispatch_malformed_listing_payload_never_raises():
+    handler = _Handler()
+    listing = _L(title=object())
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+
+    assert dispatch(
+        alert, listing, False, handler, token=None,
+        send_email=lambda address, value: True,
+    ) is False
+    assert handler.rows == {}
+
+
+def test_dispatch_malformed_numeric_payload_never_raises():
+    handler = _Handler()
+    listing = _L(area_m2="unknown", rooms=object(), price_total=object())
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+
+    assert dispatch(
+        alert, listing, False, handler, token=None,
+        send_email=lambda address, value: True,
+    ) is True
+
+
+def test_default_email_sender_uses_stored_unverified_payload(monkeypatch):
+    handler = _Handler()
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+    sent = []
+
+    def send(address, listing, unverified=False):
+        sent.append(build_alert_email(listing, unverified)[1])
+        return True
+
+    monkeypatch.setattr("Application.alert_email.send_alert_email", send)
+    assert dispatch(alert, _L(), True, handler, token=None) is True
+    row = next(iter(handler.rows.values()))
+    assert sent == [row["email_body"]]
+
+
+def test_mongo_claim_duplicate_is_distinct_from_operational_failure(caplog):
+    class _Collection:
+        def __init__(self, error):
+            self.error = error
+
+        def insert_one(self, document):
+            raise self.error
+
+    handler = object.__new__(MongoDBHandler)
+    duplicate = _Collection(pymongo.errors.DuplicateKeyError("duplicate"))
+    handler.db = {"alert_deliveries": duplicate}
+    assert handler.claim_delivery("a", "h") is False
+
+    operational = _Collection(pymongo.errors.OperationFailure("database down"))
+    handler.db = {"alert_deliveries": operational}
+    with caplog.at_level(logging.ERROR):
+        assert handler.claim_delivery("a", "h") is False
+    assert "delivery claim failed" in caplog.text
+
+
+def test_mongo_delivery_index_fails_closed(caplog):
+    class _Collection:
+        def create_index(self, fields, unique):
+            raise pymongo.errors.OperationFailure("index unavailable")
+
+    handler = object.__new__(MongoDBHandler)
+    handler.db = {"alert_deliveries": _Collection()}
+    with caplog.at_level(logging.ERROR):
+        assert handler.ensure_delivery_index() is False
+    assert "delivery index setup failed" in caplog.text
+
+
+def test_mongo_channel_lease_uses_atomic_expiry_filter():
+    class _Collection:
+        def __init__(self):
+            self.filter = None
+            self.update = None
+
+        def find_one_and_update(self, filter_doc, update_doc, **kwargs):
+            self.filter = filter_doc
+            self.update = update_doc
+            return {"alert_id": "a", "url_hash": "h"}
+
+    collection = _Collection()
+    handler = object.__new__(MongoDBHandler)
+    handler.db = {"alert_deliveries": collection}
+
+    assert handler.claim_pending_delivery_channel("a", "h", "email") is True
+    assert collection.filter["email_sent"] == {"$ne": True}
+    assert collection.filter["email"] == {"$exists": True, "$nin": [None, ""]}
+    assert len(collection.filter["$or"]) == 3
+    assert "email_lease_until" in collection.update["$set"]
+
+
+def test_delivery_stops_when_index_is_unavailable():
+    handler = MagicMock()
+    handler.get_active_alerts.return_value = [_ALERT]
+    handler.ensure_delivery_index.return_value = False
+
+    assert deliver_user_alerts(handler, [_L()]) == 0
+    handler.stale_pending_deliveries.assert_not_called()
+    handler.claim_delivery.assert_not_called()
 
 
 def test_telegram_success_does_not_hide_email_failure():

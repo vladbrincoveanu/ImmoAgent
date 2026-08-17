@@ -17,29 +17,38 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 ALERT_EMAIL_SUBJECT = "Neue passende Wohnungsanzeige"
 
 
-def _body(listing) -> str:
+def _format_number(value, label: str):
+    if value is None:
+        return None
+    try:
+        return f"{round(float(value))} {label}"
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _body(listing, unverified: bool = False) -> str:
     bits = []
     title = getattr(listing, "title", None) or getattr(listing, "address", None)
     if title:
-        bits.append(title)
-    rooms = getattr(listing, "rooms", None)
-    area = getattr(listing, "area_m2", None)
-    rent = getattr(listing, "price_total", None)
+        bits.append(str(title))
+    rent = _format_number(getattr(listing, "price_total", None), "Miete")
     spec = " · ".join(s for s in [
-        f"{round(rooms)} Zimmer" if rooms else None,
-        f"{round(area)} m²" if area else None,
-        f"€{round(rent)} Miete" if rent else None,
+        _format_number(getattr(listing, "rooms", None), "Zimmer"),
+        _format_number(getattr(listing, "area_m2", None), "m²"),
+        f"€{rent}" if rent else None,
     ] if s)
     if spec:
         bits.append(spec)
-    bits.append(getattr(listing, "url", "") or "")
+    bits.append(str(getattr(listing, "url", "") or ""))
     bits.append("")
-    bits.append("Private Genossenschafts-Weitergabe — wer zuerst kommt.")
+    bits.append("Passende Wohnungsanzeige — Angaben bitte vor Ort prüfen.")
+    if unverified:
+        bits.append("⚠️ Größe/Zimmer/Preis unbekannt — vor Ort prüfen")
     return "\n".join(bits)
 
 
-def build_alert_email(listing) -> tuple[str, str]:
-    return ALERT_EMAIL_SUBJECT, _body(listing)
+def build_alert_email(listing, unverified: bool = False) -> tuple[str, str]:
+    return ALERT_EMAIL_SUBJECT, _body(listing, unverified)
 
 
 def send_alert_email_content(to_addr: str, subject: str, body: str) -> bool:
@@ -72,7 +81,7 @@ def send_alert_email_content(to_addr: str, subject: str, body: str) -> bool:
         return False
 
 
-def send_alert_email(to_addr: str, listing) -> bool:
+def send_alert_email(to_addr: str, listing, unverified: bool = False) -> bool:
     """Build and send one alert using the shared SMTP implementation."""
-    subject, body = build_alert_email(listing)
+    subject, body = build_alert_email(listing, unverified)
     return send_alert_email_content(to_addr, subject, body)
