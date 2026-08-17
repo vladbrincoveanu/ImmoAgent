@@ -383,6 +383,32 @@ class MongoDBHandler:
                 if existing.get('price_at_scrape') is None:
                     update_set['price_at_scrape'] = old_price or price_val
 
+                # Relist detection: only fires for a same-source match on a
+                # previously-taken doc. A cross-source fingerprint match on an
+                # *active* doc from a different source is a plain new insert
+                # elsewhere in this function, never a relist event here -
+                # matching only happens by (content_fingerprint, source_enum),
+                # so `existing` is always same-source by construction.
+                if existing.get('listing_status') == 'taken':
+                    taken_at = existing.get('taken_at')
+                    days_off_market = None
+                    if taken_at:
+                        try:
+                            delta = now - taken_at
+                            days_off_market = delta.days
+                        except TypeError:
+                            days_off_market = None
+                    relist_events = existing.get('relist_events', [])
+                    relist_events.append({
+                        'delisted_at': taken_at,
+                        'republished_at': now,
+                        'days_off_market': days_off_market,
+                        'price_at_relist': price_val,
+                    })
+                    update_set['relist_events'] = relist_events
+                    update_set['times_relisted'] = existing.get('times_relisted', 0) + 1
+                    update_set['listing_status'] = 'active'
+
                 self.collection.update_one(
                     {"_id": existing["_id"]},
                     {"$set": update_set}
