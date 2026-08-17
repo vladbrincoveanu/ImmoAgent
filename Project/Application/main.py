@@ -494,6 +494,17 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
 
             if existing_by_url:
                 listing_dict['_id'] = existing_by_url['_id']
+                listing_dict['listing_status'] = existing_by_url.get('listing_status', 'active')
+                listing_dict['taken_at'] = existing_by_url.get('taken_at')
+
+                old_price = existing_by_url.get('price_total')
+                new_price = listing_dict.get('price_total')
+                price_history = list(existing_by_url.get('price_history', []))
+                if new_price is not None and old_price is not None and new_price != old_price:
+                    from datetime import datetime
+                    price_history.append({'price_total': old_price, 'recorded_at': datetime.utcnow()})
+                listing_dict['price_history'] = price_history
+
                 collection.replace_one({"_id": existing_by_url['_id']}, listing_dict)
                 duplicate_count += 1
                 logging.debug(f"🔄 Updated existing listing: {listing.title}")
