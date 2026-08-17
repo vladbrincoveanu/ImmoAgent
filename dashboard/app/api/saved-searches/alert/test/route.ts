@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { getOrCreateUserId, setUserCookie } from '@/lib/user';
-import { alertTestEmail, sendMail } from '@/lib/mailer';
+import { alertTestEmail, sendMail, SMTP_TIMEOUT_MS } from '@/lib/mailer';
 import {
   type AlertKeywordRecord,
   normalizeAlertKeywords,
@@ -11,7 +11,6 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const DELIVERY_TIMEOUT_MS = 5_000;
 type AlertTestChannel = 'telegram' | 'email';
 
 type ChannelAttempt = {
@@ -26,17 +25,24 @@ type AlertTestError = {
   message: string;
 };
 
-function withTimeout<T>(
+function withDeadline<T>(
   promise: Promise<T>,
+  deadline: number,
   label: string,
   onTimeout?: () => void,
 ): Promise<T> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    onTimeout?.();
+    return Promise.reject(new Error(`${label} timed out after ${SMTP_TIMEOUT_MS}ms.`));
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       onTimeout?.();
-      reject(new Error(`${label} timed out after ${DELIVERY_TIMEOUT_MS}ms.`));
-    }, DELIVERY_TIMEOUT_MS);
+      reject(new Error(`${label} timed out after ${SMTP_TIMEOUT_MS}ms.`));
+    }, remaining);
   });
 
   return Promise.race([promise, timeout]).finally(() => {
@@ -59,27 +65,37 @@ async function sendTelegramProbe(
   }
 
   const controller = new AbortController();
+  const deadline = Date.now() + SMTP_TIMEOUT_MS;
   const text =
     '✅ Testnachricht von ImmoScouter.\n' +
     `Alert: ${keys.length ? keys.join(', ') : '(alle Treffer)'}\n` +
     'Diese Chat-ID funktioniert — echte Treffer kommen hier an.';
 
   try {
-    const tg = await withTimeout(
+    const tg = await withDeadline(
       fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text }),
         signal: controller.signal,
       }),
+      deadline,
       'Telegram request',
       () => controller.abort(),
     );
     if (!tg.ok) {
       // Surface Telegram's own reason: "chat not found" and "bot was blocked"
       // need different fixes from the user, and a generic failure hides which.
-      const detail = await withTimeout(tg.text(), 'Telegram error detail')
-        .catch(() => '');
+      let detail: string;
+      try {
+        detail = await withDeadline(tg.text(), deadline, 'Telegram error detail');
+      } catch (err) {
+        return {
+          channel: 'telegram',
+          ok: false,
+          error: `Telegram error detail unavailable: ${String(err)}`,
+        };
+      }
       return {
         channel: 'telegram',
         ok: false,
@@ -98,12 +114,13 @@ async function sendTelegramProbe(
 
 async function sendEmailProbe(email: string, keys: string[]): Promise<ChannelAttempt> {
   try {
-    const mail = await withTimeout(
+    const mail = await withDeadline(
       sendMail({
         to: email,
         subject: 'ImmoScouter Alert-Test',
         html: alertTestEmail(keys),
       }),
+      Date.now() + SMTP_TIMEOUT_MS,
       'Email delivery',
     );
     return mail.ok

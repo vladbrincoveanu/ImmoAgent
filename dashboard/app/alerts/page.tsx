@@ -227,7 +227,7 @@ export default function AlertsPage() {
     <main className="mx-auto max-w-2xl px-4 py-8" data-testid="alerts-page">
       <h1 className="text-2xl font-bold text-[#3D405B]">Alerts</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
-        Keyword alerts on newly posted ads. The poller runs every 2&nbsp;min;
+        Keyword alerts on newly posted ads. cron-job.org triggers the poll every minute;
         expect 2–3&nbsp;min from the ad going live to a Telegram or email notification.
       </p>
 

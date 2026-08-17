@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 
+export const SMTP_TIMEOUT_MS = 5_000;
+
 let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
 function getTransporter() {
@@ -9,7 +11,15 @@ function getTransporter() {
   const user = process.env.SMTP_USER ?? '';
   const pass = process.env.SMTP_PASSWORD ?? '';
   if (!user || !pass) return null;
-  _transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
+  _transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
+  });
   return _transporter;
 }
 
