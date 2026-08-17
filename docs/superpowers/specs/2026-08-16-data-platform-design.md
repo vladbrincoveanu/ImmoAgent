@@ -65,14 +65,16 @@ listings collection
 ### Module: content_fingerprint_xsrc (extended)
 
 - **Responsibility:** stable id for "same physical unit" across sources and across title edits.
-- **Interface:** input listing dict → output md5 string. Inputs: `round(lat,3), round(lon,3)` if coords available, else `bezirk+street`; `area_m2` rounded to nearest 1m²; `rooms`; district.
+- **Interface:** input listing dict → output md5 string. Inputs: `round(lat,4), round(lon,4)` (~11m) if coords available, else `bezirk+street`; `area_m2` rounded to nearest 1m²; `rooms`; district. (Corrected from an earlier `round(lat,3)`/"~30m" claim in the design doc — 3 decimal places is actually ~111m, too coarse to safely distinguish adjacent units in the same building; 4 decimal places (~11m) is the right precision.)
+- **Cross-source merge guard:** only assign a shared `unit_fingerprint` across two docs from different sources if at least one of the two has `coordinate_source="exact"`. Two docs that are both `landmark`-precision must not be auto-merged on coordinates alone (false-positive risk for adjacent units) — they fall back to the `bezirk+street` key, which is coarser and requires an exact street-string match.
 - **Dependencies:** `Application/helpers/listing_validator.py` (extends existing coop fingerprint fn to all verticals).
 - **Size target:** ~30 lines, pure function, unit-testable.
 
 ### Module: record_relist_event
 
 - **Responsibility:** when an incoming listing's fingerprint matches an existing doc with `listing_status="taken"`, log the delist→republish cycle instead of silently flipping status back to active.
-- **Interface:** called from `upsert_listing_with_history` before the existing-doc branch. Appends to `relist_events: [{delisted_at, republished_at, days_off_market, price_at_relist}]`, increments `times_relisted`, resets `listing_status="active"`.
+- **Interface:** called from `upsert_listing_with_history` before the existing-doc branch. Fires **only when the matching doc's `source` field equals the incoming listing's `source`** — a same-source, previously-taken doc reappearing is a relist. Appends to `relist_events: [{delisted_at, republished_at, days_off_market, price_at_relist}]`, increments `times_relisted`, resets `listing_status="active"`.
+- **Disambiguation from cross-source dupes:** if the fingerprint matches a doc from a *different* source (regardless of that doc's status), this is NOT a relist event — it's a plain new-doc insert (per the "new doc" branch in the data flow) that gets the same `unit_fingerprint` for canonical-doc merge display. Cross-source matches never touch `relist_events`/`times_relisted` on the other source's doc.
 - **Dependencies:** `mongodb_handler.py` only.
 - **Size target:** ~20 lines, added inline to existing upsert method.
 
@@ -83,9 +85,10 @@ listings collection
 ### Module: seller_type classification (moved earlier in pipeline)
 
 - **Responsibility:** classify each listing private / agency / bautraeger at scrape time, not just at outreach time.
-- **Interface:** reuse existing `contact_extractor.py` regex logic (agency/makler class detection), called from each scraper's parse step, written to new `Listing.seller_type` field.
-- **Dependencies:** `Application/outreach/contact_extractor.py` (logic extracted/shared, not duplicated).
-- **Size target:** extend contact_extractor with a lightweight classify_seller() helper (~15 lines), call from each scraper.
+- **Correction from initial design:** `contact_extractor.py`'s agency/makler regex runs against the *fetched contact-page HTML*, a separate network request only ever made during outreach (too expensive to add to every scrape). Reuse is not viable here. Instead, follow the existing `field_extractors.py` pattern — text-marker regex over the already-scraped title+description text, same style as `extract_is_genossenschaft`/`extract_is_private_coop_transfer`.
+- **Interface:** new `extract_seller_type(text: str, is_genossenschaft: Optional[bool] = None) -> str` in `Application/scraping/field_extractors.py`. Markers: private → `provisionsfrei`, `privatverkauf`, `von privat`; agency → `makler`, `immobilienbüro`, `maklerprovision` (also true whenever `doppelmakler`/`maklerprovision_pct` already extracted non-null); bautraeger → `is_genossenschaft` truthy and no agency markers. Default `'unknown'` when no marker matches. Called from each scraper's parse step (same call site as the other `field_extractors` calls), written to new `Listing.seller_type` field.
+- **Dependencies:** `Application/scraping/field_extractors.py`, `Domain/listing.py` (new field).
+- **Size target:** ~20 lines, pure function, unit-testable like the existing extractors.
 
 ### Module: coordinate_precision_m + distance recompute trigger
 
@@ -100,7 +103,7 @@ listings collection
 
 Audit finding: several fields (`doppelmakler`, `maklerprovision_pct`, `sonderumlage_risk`) are extracted via source-agnostic regex in `field_extractors.py` but only *called* from Willhaben/DerStandard/ImmoKurier scrapers inconsistently.
 
-Fix: audit call sites, wire missing extractor calls into whichever scraper omits them. No new fields needed — this is a coverage-consistency fix, not new schema. ("Gather more data" scoped to closing this coverage gap plus the seller_type/precision fields above, not inventing speculative new fields like floor plan images or virtual tour links — that would be a separate future sub-project.)
+Fix: audit call sites, wire missing extractor calls into whichever scraper omits them. This sub-project itself adds no new schema fields — `doppelmakler`, `maklerprovision_pct`, `sonderumlage_risk` already exist on `Listing`, this is purely a call-site coverage fix. (`seller_type` and `coordinate_precision_m` from sub-project 2 above ARE new fields — that's a separate sub-project and is already captured in the schema diff. "Gather more data" as a whole is scoped to closing this coverage gap plus those two new fields, not inventing speculative new data points like floor plan images or virtual tour links — that would be a separate future sub-project.)
 
 ## 4. Historical / district drift analytics
 
