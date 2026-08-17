@@ -21,7 +21,8 @@ from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_xsrc_fingerprint, validate_url
-from Application.helpers.geocoding import geocode_listing
+from Application.helpers.geocoding import geocode_listing, ViennaGeocoder
+from Domain.location import Coordinates
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
@@ -63,6 +64,10 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+def compute_coordinate_precision_m(coordinate_source):
+    """Confidence radius in meters for a given coordinate_source tier."""
+    return {"exact": 10, "landmark": 200}.get(coordinate_source)
 
 def json_serializable(obj):
     """Convert MongoDB ObjectId to string for JSON serialization"""
@@ -505,9 +510,21 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 if existing_by_fingerprint:
                     logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing.title} (URL: {listing.url})")
                     duplicate_count += 1
+                    prior_precision = compute_coordinate_precision_m(listing_dict.get('coordinate_source'))
                     geocoded = geocode_listing(listing_dict)
                     if geocoded.get('coordinate_source') != 'none' and not existing_by_fingerprint.get('coordinates'):
+                        new_precision = compute_coordinate_precision_m(geocoded.get('coordinate_source'))
+                        listing_dict['coordinate_precision_m'] = new_precision
                         mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
+                        if new_precision is not None and (prior_precision is None or new_precision < prior_precision):
+                            # Precision improved (e.g. landmark -> exact): recompute
+                            # walk-distance calcs that were based on the coarser fix.
+                            coords_dict = geocoded.get('coordinates')
+                            if coords_dict:
+                                coords = Coordinates(coords_dict['lat'], coords_dict['lon'])
+                                geocoding_handler = ViennaGeocoder()
+                                listing_dict['school_walk_minutes'] = geocoding_handler.get_school_walk_minutes(coords)
+                                listing_dict['ubahn_walk_minutes'] = geocoding_handler.get_walking_distance_to_nearest_ubahn(coords)
                     continue
                 result = collection.insert_one(listing_dict)
                 listing_dict['_id'] = result.inserted_id
@@ -515,10 +532,22 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 logging.debug(f"💾 Saved new listing: {listing.title}")
                 _persist_profile_scores(mongodb_handler, listing_dict)
 
+                prior_precision = compute_coordinate_precision_m(listing_dict.get('coordinate_source'))
                 geocoded = geocode_listing(listing_dict)
                 if geocoded.get('coordinate_source') != 'none':
+                    new_precision = compute_coordinate_precision_m(geocoded.get('coordinate_source'))
+                    listing_dict['coordinate_precision_m'] = new_precision
                     mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
-        
+                    if new_precision is not None and (prior_precision is None or new_precision < prior_precision):
+                        # Precision improved (e.g. landmark -> exact): recompute
+                        # walk-distance calcs that were based on the coarser fix.
+                        coords_dict = geocoded.get('coordinates')
+                        if coords_dict:
+                            coords = Coordinates(coords_dict['lat'], coords_dict['lon'])
+                            geocoding_handler = ViennaGeocoder()
+                            listing_dict['school_walk_minutes'] = geocoding_handler.get_school_walk_minutes(coords)
+                            listing_dict['ubahn_walk_minutes'] = geocoding_handler.get_walking_distance_to_nearest_ubahn(coords)
+
         mongodb_handler.close()
         client.close()
         
