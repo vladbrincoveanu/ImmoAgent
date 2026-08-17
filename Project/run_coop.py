@@ -80,7 +80,14 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     if not alerts:
         return 0
 
-    handler.ensure_delivery_index()
+    try:
+        index_ready = handler.ensure_delivery_index()
+    except Exception as e:
+        logger.error(f"❌ user alert delivery index check failed: {e}")
+        return 0
+    if not index_ready:
+        logger.error("❌ user alert delivery index unavailable; skipping delivery")
+        return 0
     token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
 
     # Repair before delivering. A previous poll that died mid-send left rows
