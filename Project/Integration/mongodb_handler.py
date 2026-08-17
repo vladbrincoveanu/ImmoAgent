@@ -647,6 +647,30 @@ class MongoDBHandler:
         except Exception as e:
             print(f"MongoDB query error: {e}")
             return None
+
+    def get_listings_by_urls(self, urls: List[str]) -> Optional[Dict[str, Dict]]:
+        """Return matching listing documents keyed by URL.
+
+        An empty map means the query succeeded with no matches; ``None`` means
+        the lookup failed and must not be treated as evidence of new listings.
+        """
+        unique_urls = []
+        seen = set()
+        for url in urls or []:
+            if url and url not in seen:
+                seen.add(url)
+                unique_urls.append(url)
+        if not unique_urls:
+            return {}
+        try:
+            return {
+                doc["url"]: doc
+                for doc in self.collection.find({"url": {"$in": unique_urls}})
+                if doc.get("url")
+            }
+        except Exception as e:
+            logger.error(f"MongoDB batch listing query error: {e}")
+            return None
     
     def get_active_alerts(self, kind) -> List[Dict]:
         """Confirmed alert subscriptions for one feed, or several.
