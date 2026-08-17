@@ -44,6 +44,7 @@ class Listing:
     local_image_path: Optional[str] = None
     coordinates: Optional[Coordinates] = None
     coordinate_source: Optional[str] = None  # 'exact' | 'landmark' | 'none'
+    coordinate_precision_m: Optional[int] = None  # 10=exact, 200=landmark-guess, None=no coords
     landmark_hint: Optional[str] = None
     source_enum: Optional[Source] = None
     score: Optional[float] = None
@@ -83,6 +84,7 @@ class Listing:
     allocation_model:       Optional[str]   = None   # 'first_come' | 'wohn_ticket'
     coop_source:            Optional[str]   = None   # 'bautraeger_direct' | 'willhaben'
     coop_kind:              Optional[str]   = None   # 'mygewo' | 'private_transfer' — routes the Telegram feed; see Application/coop_alert_router.py
+    seller_type:            Optional[str]   = None   # 'private' | 'agency' | 'unknown' — classify_seller()
     description:            Optional[str]   = None   # ad free text, bounded; searched by /coop/private (title alone misses "Nachmieter gesucht" buried in the body)
     builder_url:            Optional[str]   = None   # builder's own reservation URL (mygewo → "Original-Anzeige")
     image_probe_v:          Optional[int]   = None   # photo-resolution strategy that last probed this unit; see run_coop.IMAGE_PROBE_V

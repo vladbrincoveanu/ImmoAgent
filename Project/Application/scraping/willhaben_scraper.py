@@ -544,6 +544,8 @@ class WillhabenScraper:
             listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
             listing.doppelmakler = extract_doppelmakler(_combined)
             listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+            from Application.outreach.contact_extractor import classify_seller
+            listing.seller_type = classify_seller(_combined, doppelmakler=listing.doppelmakler)
 
             _doc_urls = extract_document_urls(soup)
             listing.document_urls = _doc_urls if _doc_urls else None

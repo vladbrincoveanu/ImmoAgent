@@ -20,7 +20,7 @@ from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
-from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_xsrc_fingerprint, validate_url
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_content_fingerprint_v2, compute_xsrc_fingerprint, validate_url
 from Application.helpers.geocoding import geocode_listing
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
@@ -441,7 +441,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
         return 0
 
     try:
-        from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data
+        from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data, handle_fingerprint_match
         from types import SimpleNamespace
         mongodb_handler = MongoDBHandler(uri=mongo_uri)
 
@@ -486,7 +486,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                         duplicate_count += 1
                         continue
 
-            fingerprint = compute_content_fingerprint(listing_dict)
+            fingerprint = compute_content_fingerprint_v2(listing_dict)
             listing_dict['content_fingerprint'] = fingerprint
             source_enum = listing_dict.get('source_enum', listing_dict.get('source', ''))
 
@@ -494,6 +494,17 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
 
             if existing_by_url:
                 listing_dict['_id'] = existing_by_url['_id']
+                listing_dict['listing_status'] = existing_by_url.get('listing_status', 'active')
+                listing_dict['taken_at'] = existing_by_url.get('taken_at')
+
+                old_price = existing_by_url.get('price_total')
+                new_price = listing_dict.get('price_total')
+                price_history = list(existing_by_url.get('price_history', []))
+                if new_price is not None and old_price is not None and new_price != old_price:
+                    from datetime import datetime
+                    price_history.append({'price_total': old_price, 'recorded_at': datetime.utcnow()})
+                listing_dict['price_history'] = price_history
+
                 collection.replace_one({"_id": existing_by_url['_id']}, listing_dict)
                 duplicate_count += 1
                 logging.debug(f"🔄 Updated existing listing: {listing.title}")
@@ -508,6 +519,10 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                     geocoded = geocode_listing(listing_dict)
                     if geocoded.get('coordinate_source') != 'none' and not existing_by_fingerprint.get('coordinates'):
                         mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
+
+                    update_payload = handle_fingerprint_match(existing_by_fingerprint, listing_dict)
+                    if update_payload:
+                        collection.update_one({"_id": existing_by_fingerprint["_id"]}, {"$set": update_payload})
                     continue
                 result = collection.insert_one(listing_dict)
                 listing_dict['_id'] = result.inserted_id

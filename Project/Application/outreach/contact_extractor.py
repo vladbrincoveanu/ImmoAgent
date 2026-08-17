@@ -53,6 +53,27 @@ class ContactInfo:
         }
 
 
+def classify_seller(text: str, doppelmakler: "bool | None" = None) -> str:
+    """Classify a listing's seller as 'private' / 'agency' / 'unknown' from ad text
+    plus the doppelmakler flag. doppelmakler=True always implies agency (dual-agent
+    representation requires one). Reuses the same makler/agentur/anbieter/ansprechpartner
+    marker vocabulary used elsewhere in this module for HTML-class-based agency
+    detection (see extract_willhaben_contact / extract_derstandard_contact /
+    extract_immo_kurier_contact above), applied here to plain text instead of a
+    BeautifulSoup element's class attribute.
+    """
+    if doppelmakler:
+        return 'agency'
+    if not text:
+        return 'unknown'
+    lowered = text.lower()
+    if re.search(r'makler|agentur|agency|anbieter|provider|ansprechpartner|immobilien\s*gmbh', lowered):
+        return 'agency'
+    if re.search(r'privat|provisionsfrei|vom\s+eigent(ü|u)mer|direkt\s+vom\s+besitzer', lowered):
+        return 'private'
+    return 'unknown'
+
+
 class ContactExtractor:
     """Extract contact information from real estate listing pages."""
     
