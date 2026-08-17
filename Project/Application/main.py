@@ -20,7 +20,7 @@ from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
-from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_content_fingerprint_v2, compute_xsrc_fingerprint, validate_url
+from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_content_fingerprint_v2, compute_unit_fingerprint, compute_xsrc_fingerprint, validate_url
 from Application.helpers.geocoding import geocode_listing
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
@@ -488,6 +488,9 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
 
             fingerprint = compute_content_fingerprint_v2(listing_dict)
             listing_dict['content_fingerprint'] = fingerprint
+            unit_fp = compute_unit_fingerprint(listing)
+            if unit_fp:
+                listing_dict['unit_fingerprint'] = unit_fp
             source_enum = listing_dict.get('source_enum', listing_dict.get('source', ''))
 
             existing_by_url = collection.find_one({"url": listing.url})
@@ -524,6 +527,8 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                     if update_payload:
                         collection.update_one({"_id": existing_by_fingerprint["_id"]}, {"$set": update_payload})
                     continue
+                if 'first_scraped_at' not in listing_dict:
+                    listing_dict['first_scraped_at'] = listing_dict.get('processed_at') or time.time()
                 result = collection.insert_one(listing_dict)
                 listing_dict['_id'] = result.inserted_id
                 saved_count += 1
@@ -533,7 +538,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                 geocoded = geocode_listing(listing_dict)
                 if geocoded.get('coordinate_source') != 'none':
                     mongodb_handler.update_listing_coordinates(listing_dict['url'], geocoded)
-        
+
         mongodb_handler.close()
         client.close()
         

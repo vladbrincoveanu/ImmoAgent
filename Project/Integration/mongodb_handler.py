@@ -91,6 +91,24 @@ def handle_fingerprint_match(existing: Dict, incoming: Dict) -> Dict:
     return update
 
 
+def _completeness_score(doc: Dict) -> int:
+    """Count of non-null fields, excluding Mongo/bookkeeping keys that are
+    always present and don't reflect scrape data quality."""
+    _EXCLUDE = {"_id", "content_fingerprint", "unit_fingerprint", "source_enum",
+                "url", "processed_at", "sent_to_telegram", "sent_to_telegram_at"}
+    return sum(1 for k, v in doc.items() if k not in _EXCLUDE and v not in (None, "", []))
+
+
+def pick_canonical_doc(docs: List[Dict]) -> Dict:
+    """Given multiple docs sharing a unit_fingerprint, pick the display
+    canonical one: most non-null fields wins; tie-break on earliest
+    first_scraped_at. Per spec 'Resolved decisions' table."""
+    return sorted(
+        docs,
+        key=lambda d: (-_completeness_score(d), d.get("first_scraped_at") or float("inf")),
+    )[0]
+
+
 class MongoDBHandler:
     def __init__(self, uri: str = None, db_name: str = "immo", collection_name: str = "listings"):
         config = load_config()
@@ -381,6 +399,18 @@ class MongoDBHandler:
         fingerprint = compute_content_fingerprint(listing)
         listing['content_fingerprint'] = fingerprint
 
+        from Application.helpers.listing_validator import compute_unit_fingerprint as _compute_unit_fp
+        from Domain.listing import Listing as _Listing
+        try:
+            _tmp = _Listing(url=listing.get('url', ''), source=listing.get('source_enum', listing.get('source')))
+            for _f in ("area_m2", "rooms", "bezirk", "address", "coordinates", "coordinate_source"):
+                if _f in listing:
+                    setattr(_tmp, _f, listing[_f])
+            listing['unit_fingerprint'] = _compute_unit_fp(_tmp)
+        except Exception as e:
+            logging.warning(f"unit_fingerprint computation failed: {e}")
+            listing['unit_fingerprint'] = None
+
         try:
             from datetime import datetime
             now = datetime.utcnow()
@@ -404,9 +434,36 @@ class MongoDBHandler:
                     'price_total': price_val,
                     'price_history': price_history,
                     'processed_at': listing.get('processed_at', now.timestamp()),
+                    'unit_fingerprint': listing.get('unit_fingerprint'),
                 }
                 if existing.get('price_at_scrape') is None:
                     update_set['price_at_scrape'] = old_price or price_val
+
+                # Relist detection: only fires for a same-source match on a
+                # previously-taken doc. A cross-source fingerprint match on an
+                # *active* doc from a different source is a plain new insert
+                # elsewhere in this function, never a relist event here -
+                # matching only happens by (content_fingerprint, source_enum),
+                # so `existing` is always same-source by construction.
+                if existing.get('listing_status') == 'taken':
+                    taken_at = existing.get('taken_at')
+                    days_off_market = None
+                    if taken_at:
+                        try:
+                            delta = now - taken_at
+                            days_off_market = delta.days
+                        except TypeError:
+                            days_off_market = None
+                    relist_events = existing.get('relist_events', [])
+                    relist_events.append({
+                        'delisted_at': taken_at,
+                        'republished_at': now,
+                        'days_off_market': days_off_market,
+                        'price_at_relist': price_val,
+                    })
+                    update_set['relist_events'] = relist_events
+                    update_set['times_relisted'] = existing.get('times_relisted', 0) + 1
+                    update_set['listing_status'] = 'active'
 
                 self.collection.update_one(
                     {"_id": existing["_id"]},
@@ -469,6 +526,7 @@ class MongoDBHandler:
                 {"$set": {
                     "coordinates": geocoded_listing.get('coordinates'),
                     "coordinate_source": geocoded_listing.get('coordinate_source'),
+                    "coordinate_precision_m": geocoded_listing.get('coordinate_precision_m'),
                     "landmark_hint": geocoded_listing.get('landmark_hint'),
                 }}
             )
