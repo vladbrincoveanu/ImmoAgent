@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { normalizeAlertKeywords } from '@/lib/alert-test';
 
 /** Alert dashboard: create a keyword watch on the private-Weitergabe feed and
  * choose where hits land.
@@ -59,8 +60,26 @@ function num(raw: string): number | undefined {
 
 /** The keys an alert watches, tolerating records that only have the old scalar. */
 function keysOf(a: Alert): string[] {
-  if (a.keywords?.length) return a.keywords;
-  return a.keyword ? [a.keyword] : [];
+  return normalizeAlertKeywords(a);
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => (
+    typeof item === 'string' && item.length > 0
+  ));
+}
+
+function errorMessages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object' && 'message' in item
+      && typeof item.message === 'string') {
+      return item.message;
+    }
+    return '';
+  }).filter(Boolean);
 }
 
 function describeFilters(f: Alert['filters']): string {
@@ -182,16 +201,23 @@ export default function AlertsPage() {
         body: JSON.stringify({ id }),
       });
       const json = await res.json().catch(() => ({}));
-      const channels = Array.isArray(json.channels)
-        ? json.channels.join(' and ')
-        : '';
+      const sentChannels = stringList(json.sentChannels);
+      const channels = sentChannels.length ? sentChannels : stringList(json.channels);
+      const failedChannels = stringList(json.failedChannels);
+      const structuredErrors = errorMessages(json.errors);
       const message = res.ok
-        ? (json.message ?? (channels
-          ? `Test notification sent via ${channels}.`
-          : 'Test notification sent.'))
-        : (json.error ?? 'Test failed.');
+        ? (typeof json.message === 'string' ? json.message : 'Test notification completed.')
+        : (typeof json.error === 'string' ? json.error : 'Test failed.');
       const warning = typeof json.warning === 'string' ? json.warning : '';
-      setStatus(warning ? `${message} ${warning}` : message);
+      const errorDetails = structuredErrors.join(' ');
+      const statusParts = [
+        message,
+        channels.length ? `Sent via ${channels.join(' and ')}.` : '',
+        failedChannels.length ? `Failed channels: ${failedChannels.join(' and ')}.` : '',
+        errorDetails && !message.includes(errorDetails) ? errorDetails : '',
+        warning,
+      ].filter(Boolean);
+      setStatus(statusParts.join(' '));
     } catch {
       setStatus('Network error during the test.');
     }

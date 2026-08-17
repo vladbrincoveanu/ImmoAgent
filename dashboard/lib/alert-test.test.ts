@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { testChannels, testErrorStatus } from './alert-test';
+import { normalizeAlertKeywords, testChannels, testErrorStatus } from './alert-test';
 
 describe('testChannels', () => {
   it('allows a confirmed email without Telegram', () => {
@@ -69,5 +69,26 @@ describe('testErrorStatus', () => {
   it('uses 502 for a Telegram provider failure', () => {
     expect(testErrorStatus({ telegramUnavailable: false, emailFailed: false }))
       .toBe(502);
+  });
+});
+
+describe('normalizeAlertKeywords', () => {
+  it('uses non-empty string keywords when present', () => {
+    expect(normalizeAlertKeywords({
+      keywords: ['  Ablöse  ', '', 42, null],
+      keyword: 'legacy',
+    })).toEqual(['Ablöse']);
+  });
+
+  it('falls back to a valid scalar keyword for malformed arrays', () => {
+    expect(normalizeAlertKeywords({
+      keywords: [{ bad: true }, null, 42],
+      keyword: 'Legacy term',
+    })).toEqual(['Legacy term']);
+  });
+
+  it('returns no keywords for malformed values without a scalar fallback', () => {
+    expect(normalizeAlertKeywords({ keywords: [{ bad: true }], keyword: 42 }))
+      .toEqual([]);
   });
 });
