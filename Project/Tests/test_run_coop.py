@@ -301,6 +301,54 @@ def test_batch_existing_docs_are_reused_during_mygewo_detail_processing():
     resolve_image.assert_not_called()
 
 
+def test_mygewo_lookup_failure_defers_mygewo_but_keeps_willhaben_processing():
+    handler = _mongo_mock(get_listing_ret=None)
+    handler.get_listings_by_urls.return_value = None
+    mygewo = _l(url="https://mygewo.at/angebot/deferred")
+    willhaben = Listing(
+        url="https://www.willhaben.at/iad/immobilien/d/transfer-1/",
+        source=Source.WILLHABEN,
+        bezirk="1100",
+        rooms=3,
+        area_m2=70.0,
+        is_genossenschaft=False,
+    )
+    willhaben.coop_kind = "private_transfer"
+    bot = MagicMock()
+    bot.send_message.return_value = True
+    events = []
+
+    with patch.object(
+        run_coop, "deliver_user_alerts",
+        side_effect=lambda h, candidates: events.append(("deliver", candidates)),
+    ), patch.object(run_coop.coop, "resolve_offer_details",
+                    side_effect=AssertionError("mygewo details must be deferred")), \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
+            patch("run_coop.poll_source", return_value=[mygewo]), \
+            patch("run_coop.crawl_newest", return_value=[willhaben]), \
+            patch("run_coop.WillhabenScraper"), \
+            patch("run_coop.load_coop_alerts", return_value={}), \
+            patch("run_coop.validate_url", return_value=True) as validate, \
+            patch("run_coop.route", return_value="-100"), \
+            patch("run_coop.TelegramBot", return_value=bot), \
+            patch.dict(run_coop.coop.SOURCES,
+                       {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                       clear=True), patch.dict(os.environ, {
+                           "WILLHABEN_PRIVATE_COOP": "1",
+                           "TELEGRAM_MAIN_BOT_TOKEN": "tok",
+                       }):
+        handler.upsert_coop_listing.side_effect = (
+            lambda doc: events.append(("upsert", doc["url"]))
+        )
+        assert run_coop.run(no_send=False) == 0
+
+    assert events[0] == ("deliver", [willhaben])
+    assert events[1:] == [("upsert", willhaben.url)]
+    bot.send_message.assert_called_once()
+    validate.assert_called_once_with(willhaben.url)
+    handler.upsert_coop_listing.assert_called_once()
+
+
 def test_no_send_skips_candidate_lookup_and_user_delivery():
     handler = _mongo_mock(get_listing_ret=None)
     listing = _l(url="https://mygewo.at/angebot/dry-run")
