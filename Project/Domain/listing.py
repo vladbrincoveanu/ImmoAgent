@@ -76,6 +76,7 @@ class Listing:
     bank_score_confidence:   Optional[str]      = None  # "low" | "medium" | "high"
     betriebskosten_breakdown: Optional[Dict[str, Any]] = field(default_factory=dict)
     is_provisionsfrei:      Optional[bool]       = None
+    seller_type:             Optional[str]  = None   # 'private' | 'agency' | 'bautraeger' | 'unknown'; see extract_seller_type
     bezirk_score:           Optional[float]      = None
     # --- Genossenschaft / co-op vertical (v1) ---
     is_genossenschaft:      Optional[bool]  = None
