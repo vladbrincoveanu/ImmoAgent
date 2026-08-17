@@ -417,6 +417,80 @@ def test_mongo_channel_lease_uses_atomic_expiry_filter():
     assert "email_lease_until" in collection.update["$set"]
 
 
+def test_mongo_channel_marker_finalizes_in_one_atomic_operation():
+    class _Collection:
+        def __init__(self, document):
+            self.document = document
+            self.find_calls = []
+            self.update_calls = []
+
+        def find_one_and_update(self, filter_doc, update_doc, **kwargs):
+            self.find_calls.append((filter_doc, update_doc, kwargs))
+            if isinstance(update_doc, list):
+                current_channel = None
+                for stage in update_doc:
+                    if "$set" in stage:
+                        for field, value in stage["$set"].items():
+                            if field in ("telegram_sent", "email_sent") and value is True:
+                                current_channel = field
+                            if field in ("status", "sent_at") and isinstance(value, dict):
+                                if current_channel == "telegram_sent":
+                                    other_complete = (
+                                        not self.document.get("email")
+                                        or self.document.get("email_sent")
+                                    )
+                                else:
+                                    other_complete = (
+                                        not self.document.get("chat_id")
+                                        or self.document.get("telegram_sent")
+                                    )
+                                if other_complete and field == "status":
+                                    self.document[field] = "sent"
+                                elif other_complete and field == "sent_at":
+                                    self.document[field] = "marked"
+                            else:
+                                self.document[field] = value
+                    unset_fields = stage.get("$unset", [])
+                    if isinstance(unset_fields, str):
+                        unset_fields = [unset_fields]
+                    for field in unset_fields:
+                        self.document.pop(field, None)
+            else:
+                self.document.update(update_doc.get("$set", {}))
+                for field in update_doc.get("$unset", {}):
+                    self.document.pop(field, None)
+            return dict(self.document)
+
+        def update_one(self, filter_doc, update_doc):
+            self.update_calls.append((filter_doc, update_doc))
+
+    email_only = _Collection({
+        "alert_id": "a1", "url_hash": "h1", "chat_id": None,
+        "email": "u@example.at", "telegram_sent": True,
+        "email_sent": False, "status": "pending",
+    })
+    handler = object.__new__(MongoDBHandler)
+    handler.db = {"alert_deliveries": email_only}
+
+    assert handler.mark_delivery_channel_sent("a1", "h1", "email") is True
+    assert email_only.document["status"] == "sent"
+    assert len(email_only.find_calls) == 1
+    assert email_only.update_calls == []
+
+    combined = _Collection({
+        "alert_id": "a2", "url_hash": "h2", "chat_id": "-100",
+        "email": "u@example.at", "telegram_sent": False,
+        "email_sent": False, "status": "pending",
+    })
+    handler.db = {"alert_deliveries": combined}
+    assert handler.mark_delivery_channel_sent("a2", "h2", "telegram") is True
+    assert combined.document["status"] == "pending"
+    assert handler.mark_delivery_channel_sent("a2", "h2", "email") is True
+    assert combined.document["status"] == "sent"
+    assert len(combined.find_calls) == 2
+    assert combined.update_calls == []
+
+
 def test_delivery_stops_when_index_is_unavailable():
     handler = MagicMock()
     handler.get_active_alerts.return_value = [_ALERT]

@@ -744,6 +744,27 @@ class MongoDBHandler:
             raise ValueError(f"unknown delivery channel: {channel}")
         return fields
 
+    @staticmethod
+    def _other_channel_complete_expression(channel: str) -> Dict:
+        if channel == "telegram":
+            destination_field, sent_field = "email", "email_sent"
+        elif channel == "email":
+            destination_field, sent_field = "chat_id", "telegram_sent"
+        else:
+            raise ValueError(f"unknown delivery channel: {channel}")
+        return {
+            "$or": [
+                {"$in": [
+                    {"$ifNull": [f"${destination_field}", ""]},
+                    ["", None],
+                ]},
+                {"$eq": [
+                    {"$ifNull": [f"${sent_field}", False]},
+                    True,
+                ]},
+            ]
+        }
+
     def claim_pending_delivery_channel(self, alert_id, url_hash: str,
                                        channel: str,
                                        lease_seconds: int = 60) -> bool:
@@ -812,22 +833,28 @@ class MongoDBHandler:
         field, lease_field, destination_field = (
             self._delivery_channel_fields(channel)
         )
+        other_complete = self._other_channel_complete_expression(channel)
+        marked_at = datetime.now(timezone.utc)
         try:
             row = self.db["alert_deliveries"].find_one_and_update(
                 {"alert_id": alert_id, "url_hash": url_hash,
                  destination_field: {"$exists": True, "$nin": [None, ""]}},
-                {"$set": {field: True}, "$unset": {lease_field: ""}},
+                [
+                    {"$set": {field: True}},
+                    {"$unset": lease_field},
+                    {"$set": {
+                        "status": {"$cond": [
+                            other_complete, "sent", "$status"
+                        ]},
+                        "sent_at": {"$cond": [
+                            other_complete, marked_at, "$sent_at"
+                        ]},
+                    }},
+                ],
                 return_document=pymongo.ReturnDocument.AFTER,
             )
             if not row:
                 return False
-            if ((not row.get("chat_id") or row.get("telegram_sent"))
-                    and (not row.get("email") or row.get("email_sent"))):
-                self.db["alert_deliveries"].update_one(
-                    {"alert_id": alert_id, "url_hash": url_hash},
-                    {"$set": {"status": "sent",
-                              "sent_at": datetime.now(timezone.utc)}},
-                )
             return True
         except pymongo.errors.PyMongoError as e:
             logger.error(f"MongoDB {channel} delivery marker failed: {e}")
