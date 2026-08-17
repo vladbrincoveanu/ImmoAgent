@@ -103,6 +103,30 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     return delivered
 
 
+def new_alert_candidates(handler, seen: List[Listing],
+                         new_from_willhaben: List[Listing]) -> List[Listing]:
+    """Return new mygewo units and crawl-new Willhaben listings once each."""
+    candidates = []
+    candidate_urls = set()
+
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if "mygewo.at" not in url or url in candidate_urls:
+            continue
+        candidate_urls.add(url)
+        if handler.get_listing(url) is None:
+            candidates.append(listing)
+
+    for listing in new_from_willhaben:
+        url = getattr(listing, "url", None) or ""
+        if url in candidate_urls:
+            continue
+        candidate_urls.add(url)
+        candidates.append(listing)
+
+    return candidates
+
+
 def maybe_reprobe_image(stored: dict, resolve) -> dict:
     """Re-probe one unit's photo if it predates the current probe version.
 
@@ -304,6 +328,10 @@ def run(no_send: bool = False) -> int:
             # A Willhaben block must not take the mygewo half of the poll with it.
             logger.error(f"❌ willhaben newest adapter failed: {e}")
 
+    user_alert_candidates = new_alert_candidates(handler, seen, new_from_willhaben)
+    if not no_send:
+        deliver_user_alerts(handler, user_alert_candidates)
+
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
     # mygewo change that blanks the stored values — can't turn a */5 cron into a
@@ -393,17 +421,6 @@ def run(no_send: bool = False) -> int:
             sent += 1
         elif bot:
             logger.error(f"❌ send failed (retry next run): {listing.url}")
-
-    # User-created alerts (/alerts). Distinct from the channel feeds above: those
-    # are the owner's co-op firehose, these are per-user keyword watches with
-    # their own destinations, over the whole newest-first feed.
-    #
-    # Only the ads this poll saw for the first time are matched. Delivery is no
-    # longer at the mercy of that, though — `deliver_user_alerts` claims each
-    # (alert, ad) pair in a ledger before sending and retries anything a previous
-    # poll claimed but never sent, so a poll dying mid-send no longer loses an ad.
-    if not no_send:
-        deliver_user_alerts(handler, new_from_willhaben)
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")
