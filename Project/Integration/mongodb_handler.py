@@ -53,6 +53,44 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     return True, ""
 
 
+def handle_fingerprint_match(existing: Dict, incoming: Dict) -> Dict:
+    """
+    Build the $set payload for an existing_by_fingerprint match (main.py's
+    save loop). Replaces a bare `continue` (silent skip) with an actual update:
+    always track price changes; additionally log a relist cycle when the
+    matched doc was 'taken'. Returns a dict of fields to $set — does not
+    write to Mongo itself (caller does the update_one).
+    """
+    from datetime import datetime
+    now = datetime.utcnow()
+    update: Dict[str, Any] = {}
+
+    old_price = existing.get('price_total')
+    new_price = incoming.get('price_total')
+    if new_price is not None and old_price is not None and new_price != old_price:
+        price_history = list(existing.get('price_history', []))
+        price_history.append({'price_total': old_price, 'recorded_at': now})
+        update['price_history'] = price_history
+        update['price_total'] = new_price
+
+    if existing.get('listing_status') == 'taken':
+        taken_at = existing.get('taken_at')
+        days_off_market = (now - taken_at).days if taken_at else 0
+        relist_events = list(existing.get('relist_events', []))
+        relist_events.append({
+            'delisted_at': taken_at,
+            'republished_at': now,
+            'days_off_market': days_off_market,
+            'price_at_relist': new_price if new_price is not None else old_price,
+        })
+        update['relist_events'] = relist_events
+        update['times_relisted'] = existing.get('times_relisted', 0) + 1
+        update['listing_status'] = 'active'
+        update['taken_at'] = None
+
+    return update
+
+
 class MongoDBHandler:
     def __init__(self, uri: str = None, db_name: str = "immo", collection_name: str = "listings"):
         config = load_config()
