@@ -29,6 +29,33 @@ export async function sendMail(opts: {
   }
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char] ?? char));
+}
+
+export function alertTestEmail(keywords: string[]): string {
+  const label = keywords.length
+    ? keywords.map(escapeHtml).join(', ')
+    : '(alle Treffer)';
+
+  return `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#16243a">
+      <h2 style="font-size:20px;margin-bottom:8px">ImmoScouter Alert-Test</h2>
+      <p style="color:#5b6b80;font-size:14px">
+        Diese Test-E-Mail bestätigt, dass neue passende Genossenschaftswohnungen
+        an diese Adresse gesendet werden.
+      </p>
+      <p style="font-size:13px;color:#5b6b80"><b>Suchbegriffe:</b> ${label}</p>
+    </div>
+  `;
+}
+
 export function confirmationEmail(email: string, params: Record<string, string>, confirmUrl: string): string {
   const filterLines = Object.entries(params)
     .filter(([, v]) => v)
