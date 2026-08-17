@@ -38,17 +38,30 @@ class _Handler:
     def __init__(self):
         self.rows = {}
 
-    def claim_delivery(self, alert_id, url_hash, chat_id=None, message=None):
+    def claim_delivery(self, alert_id, url_hash, chat_id=None, message=None,
+                       email=None, email_subject=None, email_body=None):
         key = (alert_id, url_hash)
         if key in self.rows:
             return False
         self.rows[key] = {"status": "pending", "alert_id": alert_id,
                           "url_hash": url_hash, "chat_id": chat_id,
-                          "message": message}
+                          "message": message, "email": email,
+                          "email_subject": email_subject,
+                          "email_body": email_body,
+                          "telegram_sent": not bool(chat_id),
+                          "email_sent": not bool(email)}
         return True
 
     def mark_delivery_sent(self, alert_id, url_hash):
         self.rows[(alert_id, url_hash)]["status"] = "sent"
+
+    def mark_delivery_channel_sent(self, alert_id, url_hash, channel):
+        row = self.rows[(alert_id, url_hash)]
+        field = {"telegram": "telegram_sent", "email": "email_sent"}[channel]
+        row[field] = True
+        if ((not row["chat_id"] or row["telegram_sent"])
+                and (not row["email"] or row["email_sent"])):
+            row["status"] = "sent"
 
     def stale_pending_deliveries(self, older_than_minutes=5):
         return [r for r in self.rows.values() if r["status"] == "pending"]
@@ -142,6 +155,96 @@ def test_a_pending_row_is_retried_and_then_marked_sent():
     assert count == 1
     assert len(sent) == 1
     assert _statuses(handler) == ["sent"]
+
+
+def test_email_only_dispatch_sends_and_marks_email_sent():
+    handler, sent = _Handler(), []
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+
+    ok = dispatch(
+        alert, _L(), False, handler, token=None,
+        send_email=lambda address, listing: sent.append(address) or True,
+    )
+
+    assert ok is True
+    assert sent == ["u@example.at"]
+    row = next(iter(handler.rows.values()))
+    assert row["email"] == "u@example.at"
+    assert row["email_subject"] == "Neue passende Wohnungsanzeige"
+    assert row["email_body"]
+    assert row["email_sent"] is True
+    assert row["status"] == "sent"
+
+
+def test_email_failure_leaves_only_email_pending():
+    handler = _Handler()
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+
+    assert dispatch(
+        alert, _L(), False, handler, token=None,
+        send_email=lambda address, listing: False,
+    ) is False
+
+    row = next(iter(handler.rows.values()))
+    assert row["status"] == "pending"
+    assert row["email_sent"] is False
+
+
+def test_pending_email_is_retried_from_stored_payload():
+    handler = _Handler()
+    alert = {**_ALERT, "telegram_chat_id": None, "email": "u@example.at"}
+    dispatch(alert, _L(), False, handler, token=None,
+             send_email=lambda address, listing: False)
+    row = next(iter(handler.rows.values()))
+
+    sent = []
+    assert retry_pending(
+        handler, token=None,
+        send_email=lambda address, subject, body: sent.append(
+            (address, subject, body)) or True,
+    ) == 1
+
+    assert sent == [("u@example.at", row["email_subject"], row["email_body"])]
+    assert row["email_sent"] is True
+    assert row["status"] == "sent"
+
+
+def test_telegram_success_does_not_hide_email_failure():
+    handler, telegram, email = _Handler(), [], []
+    alert = {**_ALERT, "email": "u@example.at"}
+
+    assert dispatch(
+        alert, _L(), False, handler, token="t",
+        send_telegram=lambda chat, message: telegram.append(chat) or True,
+        send_email=lambda address, listing: email.append(address) or False,
+    ) is True
+
+    row = next(iter(handler.rows.values()))
+    assert telegram == ["-100123456"]
+    assert email == ["u@example.at"]
+    assert row["status"] == "pending"
+    assert row["telegram_sent"] is True
+    assert row["email_sent"] is False
+
+
+def test_retry_after_telegram_success_sends_only_email():
+    handler = _Handler()
+    alert = {**_ALERT, "email": "u@example.at"}
+    dispatch(
+        alert, _L(), False, handler, token="t",
+        send_telegram=lambda chat, message: True,
+        send_email=lambda address, listing: False,
+    )
+
+    telegram, email = [], []
+    assert retry_pending(
+        handler, token="t",
+        send_telegram=lambda chat, message: telegram.append(chat) or True,
+        send_email=lambda address, subject, body: email.append(address) or True,
+    ) == 1
+
+    assert telegram == []
+    assert email == ["u@example.at"]
 
 
 def test_retry_sends_the_message_stored_at_claim_time():

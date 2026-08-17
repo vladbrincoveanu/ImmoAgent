@@ -706,7 +706,10 @@ class MongoDBHandler:
 
     def claim_delivery(self, alert_id, url_hash: str,
                        chat_id: Optional[str] = None,
-                       message: Optional[str] = None) -> bool:
+                       message: Optional[str] = None,
+                       email: Optional[str] = None,
+                       email_subject: Optional[str] = None,
+                       email_body: Optional[str] = None) -> bool:
         """Take ownership of one (alert, ad) delivery. True if we now own it.
 
         False means another poll already claimed it — including a poll that
@@ -716,13 +719,21 @@ class MongoDBHandler:
 
         `chat_id` and `message` are stored so a retry can send from the row
         alone. Without them, recovering a lost delivery would need a
-        url_hash -> listing reverse lookup that this schema does not support."""
+        url_hash -> listing reverse lookup that this schema does not support.
+        Email content is stored for the same reason. An unconfigured channel is
+        marked sent at claim time so a row becomes sent only after every
+        configured channel succeeds."""
         try:
             self.db["alert_deliveries"].insert_one({
                 "alert_id": alert_id,
                 "url_hash": url_hash,
                 "chat_id": chat_id,
                 "message": message,
+                "email": email,
+                "email_subject": email_subject,
+                "email_body": email_body,
+                "telegram_sent": not bool(chat_id),
+                "email_sent": not bool(email),
                 "status": "pending",
                 "created_at": datetime.now(timezone.utc),
             })
@@ -737,6 +748,28 @@ class MongoDBHandler:
                 {"alert_id": alert_id, "url_hash": url_hash},
                 {"$set": {"status": "sent",
                           "sent_at": datetime.now(timezone.utc)}})
+        except Exception as e:
+            print(f"MongoDB delivery update error: {e}")
+
+    def mark_delivery_channel_sent(self, alert_id, url_hash: str, channel: str) -> None:
+        field = {"telegram": "telegram_sent", "email": "email_sent"}.get(channel)
+        if not field:
+            raise ValueError(f"unknown delivery channel: {channel}")
+        try:
+            row = self.db["alert_deliveries"].find_one_and_update(
+                {"alert_id": alert_id, "url_hash": url_hash},
+                {"$set": {field: True}},
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
+            if row and (
+                (not row.get("chat_id") or row.get("telegram_sent"))
+                and (not row.get("email") or row.get("email_sent"))
+            ):
+                self.db["alert_deliveries"].update_one(
+                    {"alert_id": alert_id, "url_hash": url_hash},
+                    {"$set": {"status": "sent",
+                              "sent_at": datetime.now(timezone.utc)}},
+                )
         except Exception as e:
             print(f"MongoDB delivery update error: {e}")
 
