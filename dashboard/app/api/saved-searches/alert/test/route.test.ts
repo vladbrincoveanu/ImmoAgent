@@ -50,6 +50,7 @@ jest.mock('@/lib/user', () => ({
 
 jest.mock('@/lib/mailer', () => ({
   alertTestEmail: mockAlertTestEmail,
+  SMTP_TIMEOUT_MS: 5_000,
   sendMail: mockSendMail,
 }), { virtual: true });
 
@@ -100,6 +101,7 @@ beforeEach(() => {
 afterEach(() => {
   global.fetch = originalFetch;
   delete process.env.TELEGRAM_MAIN_BOT_TOKEN;
+  jest.useRealTimers();
 });
 
 describe('POST /api/saved-searches/alert/test', () => {
@@ -255,6 +257,63 @@ describe('POST /api/saved-searches/alert/test', () => {
     resolveTelegram(response());
     resolveEmail({ ok: true });
     expect((await result).status).toBe(200);
+  });
+
+  it('does not add a second full timeout while reading Telegram error details', async () => {
+    jest.useFakeTimers();
+    process.env.TELEGRAM_MAIN_BOT_TOKEN = 'telegram-token';
+    mockFindOne.mockResolvedValue(baseAlert({ telegram_chat_id: '-100123456' }));
+    let resolveTelegram!: (value: ReturnType<typeof response>) => void;
+    let resolveBody!: (value: string) => void;
+    const bodyPromise = new Promise<string>((resolve) => { resolveBody = resolve; });
+    mockFetch.mockReturnValue(new Promise((resolve) => { resolveTelegram = resolve; }));
+
+    const result = POST(request());
+    await flushMicrotasks();
+    await jest.advanceTimersByTimeAsync(4_000);
+
+    const pendingResponse = response(false);
+    pendingResponse.text.mockReturnValue(bodyPromise);
+    resolveTelegram(pendingResponse);
+    await flushMicrotasks();
+
+    let settled = false;
+    void result.then(() => { settled = true; });
+    await jest.advanceTimersByTimeAsync(999);
+    await flushMicrotasks();
+    expect(settled).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(1);
+    await flushMicrotasks();
+    expect(settled).toBe(true);
+    expect((await result).status).toBe(502);
+    resolveBody('late body');
+  });
+
+  it('bounds a hanging SMTP operation while preserving Telegram success', async () => {
+    jest.useFakeTimers();
+    process.env.TELEGRAM_MAIN_BOT_TOKEN = 'telegram-token';
+    mockFindOne.mockResolvedValue(baseAlert({
+      telegram_chat_id: '-100123456',
+      email: 'u@example.at',
+      confirmed: true,
+    }));
+    mockSendMail.mockReturnValue(new Promise(() => {}));
+
+    const result = POST(request());
+    await flushMicrotasks();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+
+    let settled = false;
+    void result.then(() => { settled = true; });
+    await jest.advanceTimersByTimeAsync(5_000);
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    const body = await bodyOf(await result);
+    expect(body.sentChannels).toEqual(['telegram']);
+    expect(body.failedChannels).toEqual(['email']);
   });
 
   it('uses the legacy scalar keyword when the keyword array is malformed', async () => {

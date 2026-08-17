@@ -55,7 +55,9 @@ test('alerts page renders the create form with every filter', async ({ page }) =
 test('the page states the real end-to-end latency, not an unverified number',
   async ({ page }) => {
     await page.goto('/alerts');
-    await expect(page.getByTestId('alerts-page')).toContainText('2–3');
+    await expect(page.getByTestId('alerts-page')).toContainText(
+      'cron-job.org triggers the poll every minute; expect 2–3 min from the ad going live to a Telegram or email notification.',
+    );
   });
 
 test('submitting with no channel surfaces an error instead of failing silently',
