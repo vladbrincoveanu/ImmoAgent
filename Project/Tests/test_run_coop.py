@@ -156,29 +156,56 @@ def _mongo_mock(get_listing_ret=None):
     h = MagicMock()
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
+    h.get_listings_by_urls.return_value = {}
     return h
+
+
+def test_get_listings_by_urls_returns_url_map():
+    handler = run_coop.MongoDBHandler.__new__(run_coop.MongoDBHandler)
+    handler.collection = MagicMock()
+    first = {"url": "https://mygewo.at/angebot/1", "_id": "one"}
+    second = {"url": "https://mygewo.at/angebot/2", "_id": "two"}
+    handler.collection.find.return_value = [first, second]
+
+    assert handler.get_listings_by_urls(
+        [first["url"], first["url"], "", second["url"]]
+    ) == {first["url"]: first, second["url"]: second}
+    handler.collection.find.assert_called_once_with(
+        {"url": {"$in": [first["url"], second["url"]]}}
+    )
+
+
+def test_get_listings_by_urls_returns_none_on_query_failure():
+    handler = run_coop.MongoDBHandler.__new__(run_coop.MongoDBHandler)
+    handler.collection = MagicMock()
+    handler.collection.find.side_effect = RuntimeError("mongo down")
+
+    assert handler.get_listings_by_urls(["https://mygewo.at/angebot/1"]) is None
 
 
 def test_new_mygewo_listing_is_a_user_alert_candidate():
     handler = MagicMock()
-    handler.get_listing.return_value = None
+    handler.get_listings_by_urls.return_value = {}
     listing = _l(url="https://mygewo.at/angebot/new")
 
     assert run_coop.new_alert_candidates(handler, [listing], []) == [listing]
-    handler.get_listing.assert_called_once_with(listing.url)
+    handler.get_listings_by_urls.assert_called_once_with([listing.url])
+    handler.get_listing.assert_not_called()
 
 
 def test_existing_mygewo_listing_is_not_a_new_user_alert_candidate():
     handler = MagicMock()
-    handler.get_listing.return_value = {"_id": "existing"}
     listing = _l(url="https://mygewo.at/angebot/existing")
+    handler.get_listings_by_urls.return_value = {
+        listing.url: {"_id": "existing"}
+    }
 
     assert run_coop.new_alert_candidates(handler, [listing], []) == []
 
 
 def test_willhaben_candidates_are_included_and_duplicate_urls_are_removed():
     handler = MagicMock()
-    handler.get_listing.return_value = None
+    handler.get_listings_by_urls.return_value = {}
     mygewo = _l(url="https://mygewo.at/angebot/new")
     willhaben = _l(url="https://www.willhaben.at/iad/immobilien/d/new/")
     duplicate_mygewo = _l(url=mygewo.url)
@@ -187,8 +214,19 @@ def test_willhaben_candidates_are_included_and_duplicate_urls_are_removed():
     candidates = run_coop.new_alert_candidates(
         handler, [mygewo, duplicate_mygewo], [willhaben, duplicate_willhaben])
 
-    assert candidates == [mygewo, willhaben]
-    assert handler.get_listing.call_args_list == [call(mygewo.url)]
+    assert candidates == [willhaben, mygewo]
+    assert handler.get_listings_by_urls.call_args_list == [call([mygewo.url])]
+
+
+def test_batch_lookup_failure_excludes_mygewo_but_keeps_willhaben_candidates():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = None
+    mygewo = _l(url="https://mygewo.at/angebot/unknown")
+    willhaben = _l(url="https://www.willhaben.at/iad/immobilien/d/new/")
+
+    assert run_coop.new_alert_candidates(handler, [mygewo], [willhaben]) == [willhaben]
+    handler.get_listings_by_urls.assert_called_once_with([mygewo.url])
+    handler.get_listing.assert_not_called()
 
 
 @patch("run_coop.load_coop_alerts", return_value={})
@@ -216,6 +254,73 @@ def test_user_alerts_run_before_mygewo_upsert(mongo, poll, validate, alerts):
 
     assert events[0] == ("deliver", [listing])
     assert events[1] == "upsert"
+
+
+def test_batch_existing_docs_are_reused_during_mygewo_detail_processing():
+    handler = _mongo_mock(get_listing_ret=None)
+    new_listing = _l(url="https://mygewo.at/angebot/new")
+    new_listing.builder_url = ""
+    new_listing.image_url = ""
+    existing_listing = _l(url="https://mygewo.at/angebot/existing")
+    existing_doc = {
+        "builder_url": "https://builder.at/offer/existing",
+        "image_url": "https://cdn.builder.at/existing.jpg",
+        "image_probe_v": run_coop.IMAGE_PROBE_V,
+    }
+    handler.get_listings_by_urls.return_value = {
+        existing_listing.url: existing_doc
+    }
+    events = []
+
+    with patch.object(
+        run_coop, "deliver_user_alerts",
+        side_effect=lambda h, candidates: events.append(("deliver", candidates)),
+    ), patch.object(run_coop.coop, "resolve_offer_details") as resolve_details, \
+            patch.object(run_coop.coop, "resolve_builder_image") as resolve_image, \
+            patch.dict(run_coop.coop.SOURCES,
+                       {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                       clear=True), patch.dict(os.environ,
+                                               {"WILLHABEN_PRIVATE_COOP": "0"}):
+        handler.upsert_coop_listing.side_effect = (
+            lambda doc: events.append(("upsert", doc["url"]))
+        )
+        with patch("run_coop.MongoDBHandler", return_value=handler), \
+                patch("run_coop.poll_source", return_value=[new_listing,
+                                                               existing_listing]), \
+                patch("run_coop.load_coop_alerts", return_value={}):
+            assert run_coop.run(no_send=False) == 0
+
+    assert events[0] == ("deliver", [new_listing])
+    assert events[1:] == [
+        ("upsert", new_listing.url), ("upsert", existing_listing.url)
+    ]
+    handler.get_listings_by_urls.assert_called_once_with(
+        [new_listing.url, existing_listing.url]
+    )
+    resolve_details.assert_not_called()
+    resolve_image.assert_not_called()
+
+
+def test_no_send_skips_candidate_lookup_and_user_delivery():
+    handler = _mongo_mock(get_listing_ret=None)
+    listing = _l(url="https://mygewo.at/angebot/dry-run")
+    listing.builder_url = ""
+    listing.image_url = ""
+
+    with patch.object(run_coop, "new_alert_candidates") as candidates, \
+            patch.object(run_coop, "deliver_user_alerts") as deliver, \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
+            patch("run_coop.poll_source", return_value=[listing]), \
+            patch("run_coop.load_coop_alerts", return_value={}), \
+            patch.dict(run_coop.coop.SOURCES,
+                       {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                       clear=True), patch.dict(os.environ,
+                                               {"WILLHABEN_PRIVATE_COOP": "0"}):
+        assert run_coop.run(no_send=True) == 0
+
+    candidates.assert_not_called()
+    deliver.assert_not_called()
+    handler.get_listings_by_urls.assert_not_called()
 
 
 class TestRun(unittest.TestCase):

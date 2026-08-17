@@ -13,7 +13,7 @@ import json
 import logging
 import os
 from dataclasses import asdict
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
 
@@ -52,6 +52,7 @@ IMAGE_PROBE_V = 2
 # Feeds that user-created alerts watch. 'coop_private' is the original
 # private-transfer rubric; 'keyword' is the general feed created on /alerts.
 ALERT_KINDS = ["coop_private", "keyword"]
+_LOOKUP_NOT_PROVIDED = object()
 
 
 def is_coop_listing(listing) -> bool:
@@ -103,23 +104,41 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     return delivered
 
 
-def new_alert_candidates(handler, seen: List[Listing],
-                         new_from_willhaben: List[Listing]) -> List[Listing]:
-    """Return new mygewo units and crawl-new Willhaben listings once each."""
-    candidates = []
-    candidate_urls = set()
-
+def _mygewo_urls(seen: List[Listing]) -> List[str]:
+    urls = []
+    known = set()
     for listing in seen:
         url = getattr(listing, "url", None) or ""
-        if "mygewo.at" not in url or url in candidate_urls:
-            continue
-        candidate_urls.add(url)
-        if handler.get_listing(url) is None:
-            candidates.append(listing)
+        if "mygewo.at" in url and url not in known:
+            known.add(url)
+            urls.append(url)
+    return urls
+
+
+def new_alert_candidates(handler, seen: List[Listing],
+                         new_from_willhaben: List[Listing],
+                         existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
+    """Return crawl-new Willhaben listings, then new mygewo units once each."""
+    if existing_by_url is _LOOKUP_NOT_PROVIDED:
+        existing_by_url = handler.get_listings_by_urls(_mygewo_urls(seen))
+
+    candidates = []
+    candidate_urls = set()
 
     for listing in new_from_willhaben:
         url = getattr(listing, "url", None) or ""
         if url in candidate_urls:
+            continue
+        candidate_urls.add(url)
+        candidates.append(listing)
+
+    if existing_by_url is None:
+        return candidates
+
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if ("mygewo.at" not in url or url in candidate_urls
+                or url in existing_by_url):
             continue
         candidate_urls.add(url)
         candidates.append(listing)
@@ -328,8 +347,15 @@ def run(no_send: bool = False) -> int:
             # A Willhaben block must not take the mygewo half of the poll with it.
             logger.error(f"❌ willhaben newest adapter failed: {e}")
 
-    user_alert_candidates = new_alert_candidates(handler, seen, new_from_willhaben)
+    mygewo_existing: Optional[Dict[str, Dict]] = {}
     if not no_send:
+        mygewo_urls = _mygewo_urls(seen)
+        if mygewo_urls:
+            # One batch lookup feeds both candidate classification and detail reuse.
+            # None means the query failed, not that every unit is new.
+            mygewo_existing = handler.get_listings_by_urls(mygewo_urls)
+        user_alert_candidates = new_alert_candidates(
+            handler, seen, new_from_willhaben, mygewo_existing)
         deliver_user_alerts(handler, user_alert_candidates)
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
@@ -353,7 +379,7 @@ def run(no_send: bool = False) -> int:
         # resolved on an earlier poll.
         if "mygewo.at" in (listing.url or "") and (
                 listing.builder_url is None or listing.image_url is None):
-            existing = handler.get_listing(listing.url) or {}
+            existing = (mygewo_existing or {}).get(listing.url, {})
             if listing.builder_url is None:
                 listing.builder_url = existing.get("builder_url")
             if listing.image_url is None:
