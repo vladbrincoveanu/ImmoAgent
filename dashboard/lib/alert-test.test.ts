@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { testChannels } from './alert-test';
+import { testChannels, testErrorStatus } from './alert-test';
 
 describe('testChannels', () => {
   it('allows a confirmed email without Telegram', () => {
@@ -27,7 +27,11 @@ describe('testChannels', () => {
       telegram_chat_id: '-100123456',
       email: 'u@example.at',
       confirmed: false,
-    })).toEqual({ telegram: true, email: false });
+    })).toEqual({
+      telegram: true,
+      email: false,
+      warning: 'Confirm your email before testing email delivery.',
+    });
   });
 
   it('allows both channels after email confirmation', () => {
@@ -48,5 +52,22 @@ describe('testChannels', () => {
       email: false,
       error: 'No usable alert channel.',
     });
+  });
+});
+
+describe('testErrorStatus', () => {
+  it('uses 502 when email fails despite Telegram being unavailable', () => {
+    expect(testErrorStatus({ telegramUnavailable: true, emailFailed: true }))
+      .toBe(502);
+  });
+
+  it('uses 503 for Telegram-only configuration failure', () => {
+    expect(testErrorStatus({ telegramUnavailable: true, emailFailed: false }))
+      .toBe(503);
+  });
+
+  it('uses 502 for a Telegram provider failure', () => {
+    expect(testErrorStatus({ telegramUnavailable: false, emailFailed: false }))
+      .toBe(502);
   });
 });

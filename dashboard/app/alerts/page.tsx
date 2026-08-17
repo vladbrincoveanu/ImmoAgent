@@ -185,11 +185,13 @@ export default function AlertsPage() {
       const channels = Array.isArray(json.channels)
         ? json.channels.join(' and ')
         : '';
-      setStatus(res.ok
+      const message = res.ok
         ? (json.message ?? (channels
           ? `Test notification sent via ${channels}.`
           : 'Test notification sent.'))
-        : (json.error ?? 'Test failed.'));
+        : (json.error ?? 'Test failed.');
+      const warning = typeof json.warning === 'string' ? json.warning : '';
+      setStatus(warning ? `${message} ${warning}` : message);
     } catch {
       setStatus('Network error during the test.');
     }

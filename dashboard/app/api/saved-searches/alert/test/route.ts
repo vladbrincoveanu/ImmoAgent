@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { getOrCreateUserId, setUserCookie } from '@/lib/user';
 import { alertTestEmail, sendMail } from '@/lib/mailer';
-import { testChannels } from '@/lib/alert-test';
+import { testChannels, testErrorStatus } from '@/lib/alert-test';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
   const sentChannels: string[] = [];
   const errors: string[] = [];
   let telegramUnavailable = false;
+  let emailFailed = false;
 
   if (channels.telegram) {
     const token = process.env.TELEGRAM_MAIN_BOT_TOKEN;
@@ -90,17 +91,26 @@ export async function POST(req: NextRequest) {
     if (mail.ok) {
       sentChannels.push('email');
     } else {
+      emailFailed = true;
       errors.push(`Email delivery failed: ${mail.error ?? 'SMTP provider rejected the message.'}`);
     }
   }
 
   if (errors.length) {
     return NextResponse.json(
-      { error: errors.join(' '), channels: sentChannels },
-      { status: telegramUnavailable ? 503 : 502 });
+      {
+        error: errors.join(' '),
+        channels: sentChannels,
+        ...(channels.warning ? { warning: channels.warning } : {}),
+      },
+      { status: testErrorStatus({ telegramUnavailable, emailFailed }) });
   }
 
-  const res = NextResponse.json({ ok: true, channels: sentChannels });
+  const res = NextResponse.json({
+    ok: true,
+    channels: sentChannels,
+    ...(channels.warning ? { warning: channels.warning } : {}),
+  });
   setUserCookie(res, userId);
   return res;
 }
