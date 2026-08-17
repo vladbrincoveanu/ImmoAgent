@@ -1,96 +1,162 @@
-# Alert setup — the four manual steps
+# Alert Setup
 
-Nothing is delivered until these are done. Each is owner-only; none can be
-automated from inside the repo.
+Alerts use the `coop-fast-poll` GitHub Actions workflow. cron-job.org is the
+primary trigger; the workflow's GitHub schedule is only a fallback. A
+`repository_dispatch` run performs one poll through
+`.github/scripts/coop-poll-window.sh`. Scheduled and manual runs retain their
+poll window.
 
-## Why an external trigger at all
+## 1. Configure the GitHub PAT
 
-GitHub's `schedule:` cannot deliver a 2-minute cadence. Measured on this repo
-over 2026-07-29 under a `*/5` cron, the gaps between consecutive delivered runs
-were 153, 106, 140, 79, 84, 57, 80, 46 and 53 minutes — a median of ~80, with
-40/40 runs green and zero cancellations. GitHub silently drops most ticks of a
-high-frequency schedule, and deprioritises the more aggressively you ask.
-
-`repository_dispatch` is not throttled that way. So an external scheduler fires
-the dispatch, and the workflow's own cron stays only as a fallback for when the
-external one dies.
-
-## 1. GitHub PAT
-
-Settings → Developer settings → Personal access tokens → Fine-grained tokens.
+Create a fine-grained personal access token under GitHub Settings → Developer
+settings → Personal access tokens.
 
 - Repository access: **only** `vladbrincoveanu/ImmoAgent`
-- Permission: **Contents: Read and write**. This is what `POST /dispatches`
-  requires; there is no narrower permission for it.
-- Expiry: the shortest you are willing to rotate
+- Repository permission: **Contents: Read and write**
+- Store the token only in cron-job.org's `Authorization` header. Do not put it
+  in the URL, request body, repository, or documentation.
 
-Copy the token once — GitHub never shows it again.
+GitHub shows the token once. Set an expiry that can be rotated safely.
 
-## 2. cron-job.org job
+## 2. Configure cron-job.org
 
-Create a job at **every 2 minutes**, active in whatever local hours you want to
-be alerted.
+Create an active job that runs **every minute** in the `Europe/Vienna` time
+zone. Configure local active hours in cron-job.org if alerts should be limited
+to a daytime window; it handles Vienna DST. The GitHub schedule must not be used
+as the primary cadence because GitHub can drop frequent scheduled ticks.
 
-Set the active hours *here*, not in the workflow. cron-job.org schedules in local
-time and handles DST; GitHub cron has no timezone, so a narrow window there
-drifts an hour every winter — which is exactly what the old `*/15 4-15` cron did.
+Use this exact request:
 
-- URL: `https://api.github.com/repos/vladbrincoveanu/ImmoAgent/dispatches`
 - Method: `POST`
+- URL: `https://api.github.com/repos/vladbrincoveanu/ImmoAgent/dispatches`
 - Headers:
   - `Accept: application/vnd.github+json`
-  - `Authorization: Bearer <the PAT from step 1>`
+  - `Authorization: Bearer <fine-grained PAT>`
   - `Content-Type: application/json`
-- Body: `{"event_type":"coop-poll"}`
+  - `X-GitHub-Api-Version: 2022-11-28`
+- Raw JSON body: `{"event_type":"coop-poll"}`
 
-A correct call returns **204 No Content**. A 404 almost always means the token
-lacks Contents: write, not that the URL is wrong — GitHub returns 404 rather
-than 403 for unauthorised repository access, to avoid confirming a repo exists.
+A healthy request returns **204 No Content**. The corresponding run appears in
+GitHub Actions as `coop-fast-poll`.
 
-## 3. Telegram chat id
+## 3. Configure alert channels
 
-1. Open Telegram, find the bot behind `TELEGRAM_MAIN_BOT_TOKEN`, and send
-   `/start`. The bot cannot message you first, so this step is mandatory.
-2. Get your numeric id from `https://api.telegram.org/bot<TOKEN>/getUpdates` —
-   it is `result[0].message.chat.id`.
-3. Paste it into the Telegram field on `/alerts`, then press **Test** on the
-   created alert. A test message must arrive before you rely on the alert.
+Create an alert at `/alerts`. At least one destination is required:
 
-## 4. Mark yourself Pro
+- **Email-only:** enter a valid email address and leave Telegram empty. Click
+  the confirmation link sent to that address. An unconfirmed email is not an
+  active delivery channel.
+- **Telegram:** optionally enter a numeric Telegram chat ID. Telegram does not
+  require email confirmation.
+- **Both:** configure both destinations; each channel is tested and delivered
+  independently.
 
-Alert creation is Pro-gated (`isPro` in `dashboard/lib/user.ts`; the route
-returns 402 `upgrade_required`). In MongoDB, set your `user_id` — the `uid`
-cookie value from the dashboard — to Pro in the `users` collection.
+Use the row's **Test notification** button after creating the alert. An
+email-only test works after confirmation and does not need a Telegram token or
+chat ID. The dashboard reports the channel that succeeded and any provider
+error.
 
-Clearing browser cookies issues a new `user_id`, and this step has to be redone.
+For the GitHub Actions poll job, configure repository secrets without putting
+their values in this repository:
 
-## What you actually get
+- `MONGODB_URI` — database connection used by the poll.
+- `SMTP_USER` and `SMTP_PASSWORD` — required for email-only alert delivery.
+- Telegram secrets remain optional for Telegram delivery and the co-op channel
+  feeds: `TELEGRAM_MAIN_BOT_TOKEN`, `TELEGRAM_COOP_CHANNEL_ID`, and
+  `TELEGRAM_PRIVATE_COOP_CHANNEL_ID`.
 
-Roughly **2–3 minutes** from an ad appearing to the Telegram message. Runner
-pickup, checkout and a cached pip install cost ~60–90s before the fetch even
-starts. That is ~40× better than the ~80-minute median it replaces, and it is
-the practical floor for a GitHub-hosted poller. Sub-minute would need a
-long-lived process off GitHub.
+The Python email sender defaults to `smtp.gmail.com:587`. A missing or failing
+SMTP configuration leaves the email channel pending so a later poll can retry
+it. The dashboard confirmation email also needs SMTP configured for the
+dashboard deployment.
 
-## Verifying the whole chain
+## 4. What each poll delivers
 
-1. cron-job.org job history shows 204s.
-2. `gh run list --workflow=coop-fast-poll.yml` shows runs roughly every 2 min,
-   each completing in ~1–2 min. A run lasting ~55 min means it took the fallback
-   window path instead of the single-poll path.
-3. A run's log contains `🔍 willhaben newest: N url(s) on the feed`.
-4. `🔔 user alerts: N delivery(ies)` appears once an alert exists and matches.
+Each poll collects new mygewo units and newly crawled Willhaben listings. New
+mygewo URLs are checked in one batch; Willhaben candidates come from the newest
+feed. The poll matches both active `coop_private` and `keyword` alerts before
+the listing detail/upsert loop, then records each `(alert, listing)` delivery
+in the Mongo ledger.
 
-If step 3 shows a steady `0 url(s)`, Willhaben is blocking the runner. That
-failure mode is silent by nature — it returns an empty page, not an error — so
-check this line before changing anything else.
+Telegram and email are tracked separately. If one channel succeeds and the
+other fails, only the failed channel remains pending. The next poll retries
+from the stored destination and rendered content; it does not need a fresh
+listing lookup. This also recovers a poll that crashed during delivery.
 
-## Known gaps
+## Latency and fallback behavior
 
-- **No HTTP status histogram yet.** A Willhaben block shows up as `0 url(s)`
-  rather than an explicit 429 count. Instrumenting it means changing
-  `willhaben_scraper._fetch_with_retry`, which the daily `scrapeJob` also
-  depends on, so it is deliberately deferred rather than bundled in here.
-- **Email delivery is not retried.** The delivery ledger stores one Telegram
-  destination per row; re-deriving an address on retry risks mailing the wrong
-  person. A failed email is logged and stays failed. Telegram is retried.
+The honest GitHub-hosted SLA is about **2–3 minutes** from a listing appearing
+to a Telegram or email notification. One minute belongs to the external
+trigger; runner pickup, checkout, dependency installation, scraping, and
+delivery add roughly another 60–90 seconds. GitHub Actions is the latency
+floor, not a sub-minute alerting system.
+
+The workflow keeps these non-primary paths:
+
+- `repository_dispatch`: one poll, then exit.
+- `workflow_dispatch`: manual run; `window_minutes` defaults to 55 and `0`
+  means one poll.
+- `schedule`: `*/30 6-20 * * 1-6` UTC, fallback only. It retains up to a
+  55-minute polling window with a 60-second interval when the external trigger
+  is down.
+
+## Operational checks
+
+1. cron-job.org history shows `204 No Content` responses every minute while the
+   job is active.
+2. `gh run list --workflow=coop-fast-poll.yml` shows dispatched runs. A normal
+   dispatched run logs `window complete: 1 polls, 0 failed`; a fallback run has
+   more than one poll.
+3. Source logs include `🔍 willhaben newest: N url(s) on the feed` and
+   `🏠 willhaben newest: N kept from N detail fetch(es)`. The mygewo adapter logs
+   `🔍 MYGEWO: N listing(s) parsed`.
+4. Once confirmed alerts match new listings, the run logs
+   `🔔 user alerts: N delivery(ies) for M new listing(s) across K alert(s)`.
+5. Pending recovery logs begin with
+   `↻ retrying N pending alert delivery(ies)`. Successful channels log
+   `✅ alert ... delivery channel succeeded`.
+
+## Troubleshooting
+
+### cron-job.org returns 404
+
+Check the URL exactly and inspect the request headers. GitHub commonly returns
+404 when the `Authorization: Bearer <PAT>` header is missing, malformed, or
+uses a token without access to `vladbrincoveanu/ImmoAgent`. Confirm the
+fine-grained token is repository-only for this repository and grants
+`Contents: Read and write`. Never move the PAT into the URL or body.
+
+### cron-job.org returns 401
+
+The token is invalid, expired, revoked, or the Bearer value is malformed.
+Create or rotate the fine-grained PAT and update the header, keeping the exact
+`Authorization: Bearer <PAT>` format.
+
+### A 204 response exists but no workflow run appears
+
+Confirm `.github/workflows/coop-fast-poll.yml` is present on the repository's
+default branch, its `repository_dispatch` event includes `coop-poll`, and
+GitHub Actions is enabled. Check the Actions workflow list and the event type
+before changing the cron schedule. A successful API response alone does not
+prove that a workflow file on another branch was eligible to run.
+
+### The run reports zero listings
+
+For Willhaben, inspect `🔍 willhaben newest: 0 url(s) on the feed`. A steady zero
+usually means the runner received an empty or blocked page; check this before
+changing alert filters. For mygewo, inspect its parsed-count line and any
+adapter error. If sources work but no user delivery appears, verify that the
+alert is confirmed, has matching keywords/filters, and has a newly seen listing.
+
+### Email or SMTP failures
+
+Use the dashboard **Test notification** button first. In Actions, verify
+`SMTP_USER` and `SMTP_PASSWORD` are set and valid; for Gmail, use an app
+password. The poll logs either `SMTP_USER/SMTP_PASSWORD unset — alert email NOT
+sent to ...` or `alert email to ... failed: ...`. A failed email remains pending
+and is retried on a later poll. If confirmation mail never arrives, fix the
+dashboard deployment's SMTP configuration and resend/create the alert; the
+poller only delivers confirmed subscriptions.
+
+Never include PATs, SMTP passwords, bot tokens, MongoDB URIs, or other secrets
+in this guide, issue reports, or chat.
