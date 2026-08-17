@@ -121,6 +121,28 @@ def compute_content_fingerprint(listing: Dict[str, Any]) -> str:
     )
     return hashlib.md5(key_fields.encode('utf-8')).hexdigest()
 
+
+def compute_content_fingerprint_v2(listing: Dict[str, Any]) -> str:
+    """
+    Cross-source-stable content fingerprint. Prefers address (survives ad-text
+    edits, matches the same unit across sources); falls back to the title-based
+    key only when address is missing (degraded case — different sources' title
+    text for the same unit rarely matches, so this fallback stays per-source-ish).
+    """
+    address = listing.get('address')
+    bezirk = listing.get('bezirk', '')
+    area = listing.get('area_m2')
+    area_key = str(int(round(area))) if area else ''
+    rooms_key = str(listing.get('rooms', '')) if listing.get('rooms') is not None else ''
+    source_key = str(listing.get('source_enum', listing.get('source', '')))
+
+    if address:
+        raw = f"{_norm(address)}|{bezirk}|{area_key}|{rooms_key}"
+    else:
+        raw = f"{listing.get('title', '')}{area_key}{rooms_key}{bezirk}{source_key}"
+
+    return hashlib.md5(raw.encode('utf-8')).hexdigest()
+
 def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) -> bool:
     """
     Validate if a listing has realistic prices and data
