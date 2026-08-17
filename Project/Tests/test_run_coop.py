@@ -52,7 +52,7 @@ class TestLoadCoopAlerts(unittest.TestCase):
             del os.environ["COOP_ALERTS"]
 
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 
 def _resp(status=200, text="<html>body</html>", etag=None, last_modified=None):
@@ -157,6 +157,65 @@ def _mongo_mock(get_listing_ret=None):
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
     return h
+
+
+def test_new_mygewo_listing_is_a_user_alert_candidate():
+    handler = MagicMock()
+    handler.get_listing.return_value = None
+    listing = _l(url="https://mygewo.at/angebot/new")
+
+    assert run_coop.new_alert_candidates(handler, [listing], []) == [listing]
+    handler.get_listing.assert_called_once_with(listing.url)
+
+
+def test_existing_mygewo_listing_is_not_a_new_user_alert_candidate():
+    handler = MagicMock()
+    handler.get_listing.return_value = {"_id": "existing"}
+    listing = _l(url="https://mygewo.at/angebot/existing")
+
+    assert run_coop.new_alert_candidates(handler, [listing], []) == []
+
+
+def test_willhaben_candidates_are_included_and_duplicate_urls_are_removed():
+    handler = MagicMock()
+    handler.get_listing.return_value = None
+    mygewo = _l(url="https://mygewo.at/angebot/new")
+    willhaben = _l(url="https://www.willhaben.at/iad/immobilien/d/new/")
+    duplicate_mygewo = _l(url=mygewo.url)
+    duplicate_willhaben = _l(url=willhaben.url)
+
+    candidates = run_coop.new_alert_candidates(
+        handler, [mygewo, duplicate_mygewo], [willhaben, duplicate_willhaben])
+
+    assert candidates == [mygewo, willhaben]
+    assert handler.get_listing.call_args_list == [call(mygewo.url)]
+
+
+@patch("run_coop.load_coop_alerts", return_value={})
+@patch("run_coop.validate_url", return_value=True)
+@patch("run_coop.poll_source")
+@patch("run_coop.MongoDBHandler")
+def test_user_alerts_run_before_mygewo_upsert(mongo, poll, validate, alerts):
+    handler = _mongo_mock(get_listing_ret=None)
+    events = []
+    listing = _l(url="https://mygewo.at/angebot/new")
+    listing.builder_url = ""
+    listing.image_url = ""
+    handler.upsert_coop_listing.side_effect = lambda doc: events.append("upsert")
+    mongo.return_value = handler
+    poll.return_value = [listing]
+
+    with patch.object(
+        run_coop, "deliver_user_alerts",
+        side_effect=lambda h, candidates: events.append(("deliver", candidates)),
+    ), patch.dict(run_coop.coop.SOURCES,
+                  {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                  clear=True), patch.dict(os.environ,
+                                          {"WILLHABEN_PRIVATE_COOP": "0"}):
+        assert run_coop.run(no_send=False) == 0
+
+    assert events[0] == ("deliver", [listing])
+    assert events[1] == "upsert"
 
 
 class TestRun(unittest.TestCase):
