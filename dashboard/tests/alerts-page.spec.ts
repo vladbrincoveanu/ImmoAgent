@@ -25,6 +25,13 @@ const STORED = {
   created_at: null,
 };
 
+const EMAIL_ONLY_STORED = {
+  ...STORED,
+  email: 'u@example.at',
+  telegram_chat_id: null,
+  confirmed: true,
+};
+
 test('alerts page renders the create form with every filter', async ({ page }) => {
   await page.goto('/alerts');
   await expect(page.getByTestId('alerts-page')).toBeVisible();
@@ -119,6 +126,23 @@ test('a stored alert lists all of its keys and its filters', async ({ page }) =>
   await expect(item).toContainText('900');
   await expect(page.getByTestId('alert-test').first()).toBeVisible();
   await expect(page.getByTestId('alert-delete').first()).toBeVisible();
+});
+
+test('an email-only stored alert can test its email notification', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, channels: ['email'] }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [EMAIL_ONLY_STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status')).toContainText('email');
 });
 
 test('delete calls the API with the alert id', async ({ page }) => {

@@ -171,8 +171,8 @@ export default function AlertsPage() {
     }
   }
 
-  /** Prove the chat id works now, rather than discovering at 02:00 that every
-   * hit was sent into a chat the bot cannot reach. */
+  /** Prove each configured notification channel now, rather than discovering at
+   * 02:00 that every hit was sent somewhere the provider cannot reach. */
   async function sendTest(id: string) {
     setStatus(null);
     try {
@@ -182,8 +182,13 @@ export default function AlertsPage() {
         body: JSON.stringify({ id }),
       });
       const json = await res.json().catch(() => ({}));
+      const channels = Array.isArray(json.channels)
+        ? json.channels.join(' and ')
+        : '';
       setStatus(res.ok
-        ? 'Test message sent.'
+        ? (json.message ?? (channels
+          ? `Test notification sent via ${channels}.`
+          : 'Test notification sent.'))
         : (json.error ?? 'Test failed.'));
     } catch {
       setStatus('Network error during the test.');
@@ -195,7 +200,7 @@ export default function AlertsPage() {
       <h1 className="text-2xl font-bold text-[#3D405B]">Alerts</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
         Keyword alerts on newly posted ads. The poller runs every 2&nbsp;min;
-        expect 2–3&nbsp;min from the ad going live to the Telegram message.
+        expect 2–3&nbsp;min from the ad going live to a Telegram or email notification.
       </p>
 
       <form
@@ -286,9 +291,10 @@ export default function AlertsPage() {
         {/* Spelled out because a bot token pasted here is a real mistake: it
             leaks the token and the id never validates. */}
         <p className="text-xs text-[#6B6B6B]">
-          At least one channel is required. Email needs confirmation, Telegram
-          does not — supplying a chat ID is itself the consent. The chat ID is a
-          plain number (message @userinfobot to get yours), <strong>not</strong>{' '}
+          At least one channel is required. Email can be used alone, but it must
+          be confirmed before delivery. Telegram does not need confirmation —
+          supplying a chat ID is itself the consent. The chat ID is a plain
+          number (message @userinfobot to get yours), <strong>not</strong>{' '}
           a bot token — this app uses its own bot.
         </p>
         <button
@@ -342,7 +348,7 @@ export default function AlertsPage() {
                   onClick={() => void sendTest(a._id)}
                   className="rounded border border-[#E8E4E0] px-2 py-1 text-xs text-[#3D405B]"
                 >
-                  Test
+                  Test notification
                 </button>
                 <button
                   type="button"
