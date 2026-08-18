@@ -1,8 +1,8 @@
 ---
 task: Harden co-op poll runtime
 branch: relentless/harden-coop-poll
-current_step: verifying optional dependency fix and live run
-status: in_progress
+current_step: complete
+status: completed
 ---
 
 ## End State
@@ -20,10 +20,14 @@ status: in_progress
 - [x] Trace runtime errors and poll scope
 - [x] Add failing tests
 - [x] Implement fixes
-- [ ] Verify and deploy
+- [x] Verify and deploy
 
 ## Known Evidence
 - `TELEGRAM_COOP_CHANNEL_ID` and `TELEGRAM_PRIVATE_COOP_CHANNEL_ID` are optional channel secrets.
 - GitHub runner logs first showed `No module named 'selenium'`, then exposed the eager `EmailSender` import through `Application.outreach.__init__` as `No module named 'bleach'`.
 - Latest dispatch runtime is about 2m25s.
 - The focused co-op suite passes: `244 passed` and workflow-window tests `11 passed`.
+- PR #41 merged as `8d7a455e6a6bbd2947d19a724a499d1e0962dcc5`.
+- Live run `32131488795` succeeded in 1m59s on that merge SHA.
+- Live logs show no Selenium or bleach import errors; Willhaben considered 10 of 16 newest URLs.
+- Telegram channel IDs remain intentionally unconfigured and produce warnings only.
