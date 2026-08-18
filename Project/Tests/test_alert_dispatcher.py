@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pymongo
@@ -97,7 +98,7 @@ class _Handler:
         self.leases.pop(((alert_id, url_hash), channel), None)
         return True
 
-    def stale_pending_deliveries(self, older_than_minutes=5):
+    def stale_pending_deliveries(self, older_than_minutes=1):
         return [r for r in self.rows.values() if r["status"] == "pending"]
 
 
@@ -415,6 +416,54 @@ def test_mongo_channel_lease_uses_atomic_expiry_filter():
     assert collection.filter["email"] == {"$exists": True, "$nin": [None, ""]}
     assert len(collection.filter["$or"]) == 3
     assert "email_lease_until" in collection.update["$set"]
+
+
+def test_active_alert_query_keeps_telegram_before_email_confirmation():
+    class _Collection:
+        def __init__(self):
+            self.query = None
+
+        def find(self, query):
+            self.query = query
+            return [{"_id": "mixed", "confirmed": False,
+                     "telegram_chat_id": "-100", "email": "pending@example.at"}]
+
+    collection = _Collection()
+    handler = object.__new__(MongoDBHandler)
+    handler.db = {"alert_subscriptions": collection}
+
+    assert handler.get_active_alerts(["keyword"]) == [
+        {"_id": "mixed", "confirmed": False,
+         "telegram_chat_id": "-100", "email": "pending@example.at"}
+    ]
+    assert collection.query == {
+        "kind": {"$in": ["keyword"]},
+        "$or": [
+            {"telegram_chat_id": {"$exists": True, "$nin": [None, ""]}},
+            {"email": {"$exists": True, "$nin": [None, ""]},
+             "confirmed": True},
+        ],
+    }
+
+
+def test_mongo_pending_delivery_cutoff_defaults_to_one_minute():
+    class _Collection:
+        def __init__(self):
+            self.query = None
+
+        def find(self, query):
+            self.query = query
+            return []
+
+    collection = _Collection()
+    handler = object.__new__(MongoDBHandler)
+    handler.db = {"alert_deliveries": collection}
+
+    before = datetime.now(timezone.utc)
+    assert handler.stale_pending_deliveries() == []
+    cutoff = collection.query["created_at"]["$lt"]
+    age_seconds = (before - cutoff).total_seconds()
+    assert 59 <= age_seconds <= 61
 
 
 def test_mongo_channel_marker_finalizes_in_one_atomic_operation():
