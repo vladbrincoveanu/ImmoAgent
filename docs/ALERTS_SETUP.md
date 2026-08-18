@@ -3,15 +3,15 @@
 Alerts use the `coop-fast-poll` GitHub Actions workflow. cron-job.org is the
 primary trigger; the workflow's GitHub schedule is only a fallback. A
 `repository_dispatch` run performs one poll through
-`.github/scripts/coop-poll-window.sh`. Scheduled and manual runs retain their
-poll window.
+`.github/scripts/coop-poll-window.sh`. Scheduled runs also perform one poll;
+only `workflow_dispatch` retains its operator-selected polling window.
 
-Dispatch runs use a separate non-cancelling concurrency group. GitHub keeps one
-dispatch running and one dispatch pending, so the next minute waits instead of
-cancelling an active poll. If another dispatch arrives while that pending slot
-is occupied, GitHub keeps the newest pending event; the queue is bounded rather
-than accumulating one runner per minute. Schedule and manual runs use their own
-cancelling groups.
+All triggers use the shared `coop-fast-poll` non-cancelling concurrency group.
+GitHub keeps one run active and one run pending, so the next minute waits
+instead of cancelling an active poll. If another event arrives while the
+pending slot is occupied, GitHub keeps the newest pending event; the queue is
+bounded rather than accumulating one runner per minute. Automated runs are
+one poll, while a manual run may intentionally hold its configured window.
 
 ## 1. Configure the GitHub PAT
 
@@ -94,8 +94,7 @@ delivery without waiting five minutes.
 
 ## Latency and fallback behavior
 
-The honest GitHub-hosted SLA is typically about **one to three minutes** from a
-listing appearing
+The honest GitHub-hosted SLA is about **2–3 minutes** from a listing appearing
 to a Telegram or email notification. One minute belongs to the external
 trigger; runner pickup, checkout, dependency installation, scraping, and
 delivery add roughly another 60–90 seconds. GitHub Actions is the latency
@@ -106,17 +105,17 @@ The workflow keeps these non-primary paths:
 - `repository_dispatch`: one poll, then exit.
 - `workflow_dispatch`: manual run; `window_minutes` defaults to 55 and `0`
   means one poll.
-- `schedule`: `*/30 6-20 * * 1-6` UTC, fallback only. It retains up to a
-  55-minute polling window with a 60-second interval when the external trigger
-  is down.
+- `schedule`: `*/30 6-20 * * 1-6` UTC, fallback only. Each delivered fallback
+  run performs one poll; primary local active hours and DST remain controlled by
+  cron-job.org.
 
 ## Operational checks
 
 1. cron-job.org history shows `204 No Content` responses every minute while the
    job is active.
 2. `gh run list --workflow=coop-fast-poll.yml` shows dispatched runs. A normal
-   dispatched run logs `window complete: 1 polls, 0 failed`; a fallback run has
-   more than one poll.
+   dispatched or fallback run logs `window complete: 1 polls, 0 failed`; a manual
+   run has more than one poll only when its configured window is nonzero.
 3. Source logs include `🔍 willhaben newest: N url(s) on the feed` and
    `🏠 willhaben newest: N kept from N detail fetch(es)`. The mygewo adapter logs
    `🔍 MYGEWO: N listing(s) parsed`.

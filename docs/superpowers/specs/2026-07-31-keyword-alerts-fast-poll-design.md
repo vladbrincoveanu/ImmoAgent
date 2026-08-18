@@ -1,14 +1,22 @@
 ---
-title: Keyword alerts — dashboard-created, 2-minute cadence, Telegram DM
+title: "[Superseded] Keyword alerts — dashboard-created fast poll"
 date: 2026-07-31
-status: approved
+status: superseded
+superseded_by: 2026-08-17-fast-email-only-alerts-design.md
 ui_scope: true
 graph_scope: false
 test_scope: true
 supersedes_partially: 2026-07-30-coop-private-alerts-design.md (P4 section)
 ---
 
-# Keyword alerts — dashboard-created, 2-minute cadence, Telegram DM
+# [Superseded] Keyword alerts — dashboard-created fast poll
+
+> This historical design is superseded by
+> `2026-08-17-fast-email-only-alerts-design.md`. Do not implement its old
+> 2-minute cadence, `cancel-in-progress: true` concurrency, 5-minute retry
+> cutoff, or Telegram-only assumptions. The newer spec is the current contract.
+> The remaining sections are retained for historical rationale and are not
+> operational guidance.
 
 Create an alert on `/alerts` with a handful of string keys and a few numeric
 filters. A poller running every ~2 minutes crawls newly posted ads across

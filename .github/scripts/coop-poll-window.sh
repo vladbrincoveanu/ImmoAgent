@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 #
-# Polls the co-op sources repeatedly for one "window", instead of relying on a
-# GitHub cron tick per poll.
+# Polls the co-op sources once for automated triggers or repeatedly for a manual
+# "window", instead of relying on a GitHub cron tick per poll.
 #
 # Why this exists: the former "*/5" schedule did NOT get delivered every five
 # minutes.
 # Measured on 2026-07-29, consecutive delivered runs of coop-fast-poll were 46 to
 # 153 minutes apart (median ~80) with zero failures and zero cancellations —
 # GitHub simply drops most ticks of a high-frequency schedule. So one delivered
-# run now polls many times instead of once.
+# run used to poll many times instead of once; automated runs now stay one-shot.
 #
 # Knobs (all optional):
 #   POLL_INTERVAL_SECONDS  gap between polls                        (default 300)
-#   POLL_WINDOW_MINUTES    how long to keep polling      (default 0 on dispatch,
-#                                                         otherwise 55)
-#   POLL_WINDOW_SECONDS    same, in seconds; overrides the minutes   (derived)
+#   POLL_WINDOW_MINUTES    how long to keep polling      (default 0 on schedule/
+#                                                         dispatch, otherwise 55)
+#   POLL_WINDOW_SECONDS    manual-window seconds; overrides minutes (derived)
 #   POLL_HARD_STOP_UTC     "HH:MM" after which the window ends       (default 21:00)
 #   POLL_CMD               the poll command to run       (default python run_coop.py)
 #
@@ -26,31 +26,35 @@ set -uo pipefail
 
 : "${POLL_INTERVAL_SECONDS:=300}"
 
-# A repository_dispatch run is ONE poll and exits: an external trigger fires
-# every minute and owns the cadence. The dispatch concurrency group allows one
-# active run and one pending run, so looping here would make that bounded queue
-# fall behind. Everything else (the fallback cron, a manual run) keeps the window.
+# repository_dispatch and schedule runs are ONE poll and exit. The external
+# trigger owns minutely cadence, while the fallback shares the same concurrency
+# group; a fallback window would occupy the only running slot and block dispatch.
+# Only workflow_dispatch keeps its operator-selected window.
 #
 # This lives in bash rather than in a workflow `${{ }}` expression on purpose.
 # The obvious expression — `event_name == 'repository_dispatch' && '0' || '55'`
 # — is a trap: GitHub casts the string '0' to falsy, so the `||` swallows it and
 # every dispatched run would quietly loop for 55 minutes instead of exiting.
 : "${GITHUB_EVENT_NAME:=}"
-if [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
-  : "${POLL_WINDOW_MINUTES:=0}"
+if [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ] ||
+   [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+  # Automated runs are always one poll. This also prevents test/debug overrides
+  # from accidentally turning the real fallback or dispatch path into a window.
+  POLL_WINDOW_MINUTES=0
+  POLL_WINDOW_SECONDS=0
 else
   : "${POLL_WINDOW_MINUTES:=55}"
+  : "${POLL_WINDOW_SECONDS:=$(( POLL_WINDOW_MINUTES * 60 ))}"
 fi
-: "${POLL_WINDOW_SECONDS:=$(( POLL_WINDOW_MINUTES * 60 ))}"
 : "${POLL_HARD_STOP_UTC:=21:00}"
 : "${POLL_CMD:=python run_coop.py}"
 
 start=$(date -u +%s)
 end=$(( start + POLL_WINDOW_SECONDS ))
 
-# Keep a long window from pushing Telegram alerts deep into the night. The cron
-# window ends at 20:00 UTC, so a run picked up at 20:5x plus a 55-minute loop
-# would otherwise still be alerting at ~23:00 Vienna.
+# Keep a long manual window from pushing Telegram alerts deep into the night.
+# Automated schedule and dispatch runs are one poll, so only manual operation can
+# reach this long-window clamp.
 #
 # Deliberately arithmetic on H/M/S rather than `date -d`: `-d` is GNU-only, and
 # this script has to be runnable (and testable) on macOS too. `10#` forces
