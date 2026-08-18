@@ -4,6 +4,7 @@ import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import { resolveCoordinates } from '@/lib/district-centroids';
+import { purchasePricePerSqmConditions } from '@/lib/purchase-listing-query';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -48,8 +49,7 @@ export async function GET(request: NextRequest) {
       { listing_status: { $ne: "taken" } },
       { price_total: { $gt: 0 } },
       { area_m2: { $gt: 0 } },
-      { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
-      { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
+      ...purchasePricePerSqmConditions(),
       { title: { $nin: [null, ""] } },
     ];
 
