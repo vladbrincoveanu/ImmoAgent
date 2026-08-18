@@ -282,9 +282,9 @@ def run(no_send: bool = False) -> int:
     # warning that looked identical to a quiet market, and the poll ran green for
     # weeks while delivering nothing.
     for name in missing_channels():
-        logger.error(f"🔴 {name} is unset — source-channel notifications for that "
-                     "feed are disabled. Scraping, upserts, and user-created "
-                     "email alerts continue.")
+        logger.warning(f"⚠️ {name} is unset — source-channel notifications for that "
+                       "feed are disabled. Scraping, upserts, and user-created "
+                       "email alerts continue.")
     handler = MongoDBHandler()
     if handler.collection is None:
         logger.error("❌ No MongoDB connection; aborting")
@@ -301,9 +301,9 @@ def run(no_send: bool = False) -> int:
                 if chat_id:
                     bots[kind] = TelegramBot(token, chat_id)
         if not bots:
-            logger.error("❌ no Telegram bot token or co-op channel configured; "
-                         "Telegram source-channel notifications are disabled, "
-                         "but polling/upserts and user-created email alerts continue")
+            logger.warning("⚠️ no Telegram bot token or co-op channel configured; "
+                           "Telegram source-channel notifications are disabled, "
+                           "but polling/upserts and user-created email alerts continue")
 
     seen: List[Listing] = []
     ok_adapters = 0

@@ -41,6 +41,12 @@ WILLHABEN_PRIVATE_COOP_URL = os.environ.get(
 # because only genuinely new URLs are fetched at all.
 MAX_DETAIL_FETCHES_PER_POLL = 25
 
+try:
+    MAX_FEED_URLS_PER_POLL = max(
+        1, int(os.environ.get("WILLHABEN_PRIVATE_COOP_MAX_FEED_URLS", "10")))
+except ValueError:
+    MAX_FEED_URLS_PER_POLL = 10
+
 
 def is_private_transfer(listing) -> bool:
     """The original filter, now one `keep` predicate among others."""
@@ -53,6 +59,7 @@ def crawl_newest(
     keep: Callable[[Listing], bool],
     search_url: Optional[str] = None,
     max_details: int = MAX_DETAIL_FETCHES_PER_POLL,
+    max_feed_urls: Optional[int] = MAX_FEED_URLS_PER_POLL,
 ) -> List[Listing]:
     """One poll of the newest-first Willhaben feed → the new ads `keep` wants.
 
@@ -78,8 +85,12 @@ def crawl_newest(
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-    urls = scraper.extract_listing_urls(soup)
-    logger.info(f"🔍 willhaben newest: {len(urls)} url(s) on the feed")
+    discovered_urls = scraper.extract_listing_urls(soup)
+    urls = (discovered_urls[:max_feed_urls]
+            if max_feed_urls is not None else discovered_urls)
+    logger.info(
+        f"🔍 willhaben newest: {len(discovered_urls)} url(s) on the feed; "
+        f"considering {len(urls)} newest")
 
     out: List[Listing] = []
     fetched = 0

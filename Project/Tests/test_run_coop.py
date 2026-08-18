@@ -1,6 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import logging
 import unittest
 from Domain.listing import Listing
 from Domain.sources import Source
@@ -372,6 +373,27 @@ def test_no_send_skips_candidate_lookup_and_user_delivery():
 
 
 class TestRun(unittest.TestCase):
+    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.poll_source", return_value=[])
+    @patch("run_coop.MongoDBHandler")
+    def test_missing_optional_telegram_channels_are_warnings(self, MH, poll, alerts):
+        MH.return_value = _mongo_mock()
+        with patch.dict(os.environ, {
+            "TELEGRAM_COOP_CHANNEL_ID": "",
+            "TELEGRAM_PRIVATE_COOP_CHANNEL_ID": "",
+            "WILLHABEN_PRIVATE_COOP": "0",
+        }, clear=False), self.assertLogs("run_coop", level=logging.WARNING) as captured:
+            with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                            clear=True):
+                self.assertEqual(run_coop.run(no_send=True), 0)
+
+        channel_records = [
+            record for record in captured.records
+            if "TELEGRAM_" in record.getMessage()
+        ]
+        self.assertEqual(len(channel_records), 2)
+        self.assertTrue(all(record.levelno == logging.WARNING for record in channel_records))
+
     @patch("run_coop.MongoDBHandler")
     def test_aborts_when_no_mongo(self, MH):
         MH.return_value.collection = None

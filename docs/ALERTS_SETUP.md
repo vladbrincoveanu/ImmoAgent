@@ -63,6 +63,13 @@ email-only test works after confirmation and does not need a Telegram token or
 chat ID. The dashboard reports the channel that succeeded and any provider
 error.
 
+The Telegram bot token identifies the sender; it does not identify a destination.
+For source-channel notifications, `TELEGRAM_COOP_CHANNEL_ID` and
+`TELEGRAM_PRIVATE_COOP_CHANNEL_ID` must contain the signed numeric chat IDs of
+the co-op channels/groups. Add the bot as an administrator in each destination
+before setting those secrets. The same ID may be used for both feeds if they
+intentionally share one destination.
+
 For the GitHub Actions poll job, configure repository secrets without putting
 their values in this repository:
 
@@ -70,12 +77,15 @@ their values in this repository:
 - `SMTP_USER` and `SMTP_PASSWORD` — required for email-only alert delivery.
 - Telegram secrets remain optional for Telegram delivery and the co-op channel
   feeds: `TELEGRAM_MAIN_BOT_TOKEN`, `TELEGRAM_COOP_CHANNEL_ID`, and
-  `TELEGRAM_PRIVATE_COOP_CHANNEL_ID`.
+  `TELEGRAM_PRIVATE_COOP_CHANNEL_ID`. The bot token alone cannot send to a
+  channel without its chat ID.
 
 The Python email sender defaults to `smtp.gmail.com:587`. A missing or failing
 SMTP configuration leaves the email channel pending so a later poll can retry
-it. The dashboard confirmation email also needs SMTP configured for the
-dashboard deployment.
+it. The dashboard confirmation email also needs `SMTP_USER` and
+`SMTP_PASSWORD` in the Vercel project's Production environment. GitHub Actions
+secrets and Vercel environment variables are separate stores; setting SMTP in
+one does not configure the other.
 
 ## 4. What each poll delivers
 
@@ -108,6 +118,12 @@ The workflow keeps these non-primary paths:
 - `schedule`: `*/30 6-20 * * 1-6` UTC, fallback only. Each delivered fallback
   run performs one poll; primary local active hours and DST remain controlled by
   cron-job.org.
+
+The Willhaben fast path considers the ten newest feed URLs by default. Override
+this with the `WILLHABEN_PRIVATE_COOP_MAX_FEED_URLS` repository variable when a
+different newest-feed window is needed. Mygewo continues to page through the
+full Vienna rental inventory because older units can still be new to the
+database.
 
 ## Operational checks
 
