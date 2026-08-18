@@ -25,6 +25,19 @@ const STORED = {
   created_at: null,
 };
 
+const EMAIL_ONLY_STORED = {
+  ...STORED,
+  email: 'u@example.at',
+  telegram_chat_id: null,
+  confirmed: true,
+};
+
+const TELEGRAM_WITH_UNCONFIRMED_EMAIL_STORED = {
+  ...STORED,
+  email: 'u@example.at',
+  confirmed: false,
+};
+
 test('alerts page renders the create form with every filter', async ({ page }) => {
   await page.goto('/alerts');
   await expect(page.getByTestId('alerts-page')).toBeVisible();
@@ -42,7 +55,9 @@ test('alerts page renders the create form with every filter', async ({ page }) =
 test('the page states the real end-to-end latency, not an unverified number',
   async ({ page }) => {
     await page.goto('/alerts');
-    await expect(page.getByTestId('alerts-page')).toContainText('2–3');
+    await expect(page.getByTestId('alerts-page')).toContainText(
+      'cron-job.org triggers the poll every minute; expect 2–3 min from the ad going live to a Telegram or email notification.',
+    );
   });
 
 test('submitting with no channel surfaces an error instead of failing silently',
@@ -119,6 +134,69 @@ test('a stored alert lists all of its keys and its filters', async ({ page }) =>
   await expect(item).toContainText('900');
   await expect(page.getByTestId('alert-test').first()).toBeVisible();
   await expect(page.getByTestId('alert-delete').first()).toBeVisible();
+});
+
+test('an email-only stored alert can test its email notification', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, channels: ['email'] }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [EMAIL_ONLY_STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status')).toContainText('email');
+});
+
+test('a Telegram alert warns when email confirmation is pending', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        channels: ['telegram'],
+        warning: 'Confirm your email before testing email delivery.',
+      }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [TELEGRAM_WITH_UNCONFIRMED_EMAIL_STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status'))
+    .toContainText('Confirm your email before testing email delivery.');
+});
+
+test('the test status renders sent and failed channels from a partial response', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 502, contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'Telegram rejected the message: chat not found',
+        sentChannels: ['email'],
+        failedChannels: ['telegram'],
+        errors: [{ channel: 'telegram', message: 'Telegram rejected the message: chat not found' }],
+      }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status')).toContainText('email');
+  await expect(page.getByTestId('alert-status')).toContainText('telegram');
+  await expect(page.getByTestId('alert-status')).toContainText('chat not found');
 });
 
 test('delete calls the API with the alert id', async ({ page }) => {

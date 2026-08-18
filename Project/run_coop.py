@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Fast co-op poll → instant Telegram alerts.
+"""Fast co-op poll -> Telegram/email alerts.
 
 Lightweight (requests + bs4, no Selenium, no scoring/geocoding): polls the
-Genossenschaft Bauträger adapters, upserts new units, and DMs matches that
-pass the coop_alerts filter. Built for GitHub Actions cron */5.
+Genossenschaft Bauträger adapters, upserts new units, and delivers matches that
+pass the coop_alerts filter. Driven by minutely repository_dispatch runs with a
+scheduled fallback.
 
 Run from Project/:  python run_coop.py [--no-send]
 """
@@ -13,7 +14,7 @@ import json
 import logging
 import os
 from dataclasses import asdict
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
 
@@ -37,7 +38,7 @@ logger = logging.getLogger("run_coop")
 
 # Ceiling on per-unit mygewo offer-page fetches in a single poll (see the loop in
 # `run`). Wien's whole co-op inventory is <150 units, so a cold start settles
-# within a few */5 cycles while no single run hammers mygewo.
+# within a few polls while no single run hammers mygewo.
 MAX_DETAIL_FETCHES_PER_RUN = 40
 
 # Bumped whenever the photo-resolution strategy changes. v1 read og:image off the
@@ -52,6 +53,7 @@ IMAGE_PROBE_V = 2
 # Feeds that user-created alerts watch. 'coop_private' is the original
 # private-transfer rubric; 'keyword' is the general feed created on /alerts.
 ALERT_KINDS = ["coop_private", "keyword"]
+_LOOKUP_NOT_PROVIDED = object()
 
 
 def is_coop_listing(listing) -> bool:
@@ -80,7 +82,14 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     if not alerts:
         return 0
 
-    handler.ensure_delivery_index()
+    try:
+        index_ready = handler.ensure_delivery_index()
+    except Exception as e:
+        logger.error(f"❌ user alert delivery index check failed: {e}")
+        return 0
+    if not index_ready:
+        logger.error("❌ user alert delivery index unavailable; skipping delivery")
+        return 0
     token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
 
     # Repair before delivering. A previous poll that died mid-send left rows
@@ -94,6 +103,48 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     logger.info(f"🔔 user alerts: {delivered} delivery(ies) "
                 f"for {len(listings)} new listing(s) across {len(alerts)} alert(s)")
     return delivered
+
+
+def _mygewo_urls(seen: List[Listing]) -> List[str]:
+    urls = []
+    known = set()
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if "mygewo.at" in url and url not in known:
+            known.add(url)
+            urls.append(url)
+    return urls
+
+
+def new_alert_candidates(handler, seen: List[Listing],
+                         new_from_willhaben: List[Listing],
+                         existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
+    """Return crawl-new Willhaben listings, then new mygewo units once each."""
+    if existing_by_url is _LOOKUP_NOT_PROVIDED:
+        existing_by_url = handler.get_listings_by_urls(_mygewo_urls(seen))
+
+    candidates = []
+    candidate_urls = set()
+
+    for listing in new_from_willhaben:
+        url = getattr(listing, "url", None) or ""
+        if url in candidate_urls:
+            continue
+        candidate_urls.add(url)
+        candidates.append(listing)
+
+    if existing_by_url is None:
+        return candidates
+
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if ("mygewo.at" not in url or url in candidate_urls
+                or url in existing_by_url):
+            continue
+        candidate_urls.add(url)
+        candidates.append(listing)
+
+    return candidates
 
 
 def maybe_reprobe_image(stored: dict, resolve) -> dict:
@@ -231,8 +282,9 @@ def run(no_send: bool = False) -> int:
     # warning that looked identical to a quiet market, and the poll ran green for
     # weeks while delivering nothing.
     for name in missing_channels():
-        logger.error(f"🔴 {name} is unset — alerts for that feed are DISABLED. "
-                     "Scraping and upserts continue.")
+        logger.error(f"🔴 {name} is unset — source-channel notifications for that "
+                     "feed are disabled. Scraping, upserts, and user-created "
+                     "email alerts continue.")
     handler = MongoDBHandler()
     if handler.collection is None:
         logger.error("❌ No MongoDB connection; aborting")
@@ -249,8 +301,9 @@ def run(no_send: bool = False) -> int:
                 if chat_id:
                     bots[kind] = TelegramBot(token, chat_id)
         if not bots:
-            logger.error("❌ no bot token or no channel configured; "
-                         "alerts DISABLED, polling/upserts continue")
+            logger.error("❌ no Telegram bot token or co-op channel configured; "
+                         "Telegram source-channel notifications are disabled, "
+                         "but polling/upserts and user-created email alerts continue")
 
     seen: List[Listing] = []
     ok_adapters = 0
@@ -269,7 +322,7 @@ def run(no_send: bool = False) -> int:
     # Willhaben is polled here rather than in the daily scrape because private
     # co-op transfers are first-come-first-served — a sitting tenant passing on
     # their flat, gone within hours. Only genuinely new URLs cost a detail fetch,
-    # so this rides the 2-minute cadence without crawling the whole feed.
+    # so this rides the minutely dispatch cadence without crawling the whole feed.
     #
     # Deliberately AFTER the all-adapters-failed gate and outside ok_adapters: it
     # is an extra feed, not one of coop.SOURCES, and it must never mask a total
@@ -297,28 +350,47 @@ def run(no_send: bool = False) -> int:
             # A Willhaben block must not take the mygewo half of the poll with it.
             logger.error(f"❌ willhaben newest adapter failed: {e}")
 
+    mygewo_existing: Optional[Dict[str, Dict]] = {}
+    mygewo_lookup_failed = False
+    if not no_send:
+        mygewo_urls = _mygewo_urls(seen)
+        if mygewo_urls:
+            # One batch lookup feeds both candidate classification and detail reuse.
+            # None means the query failed, not that every unit is new.
+            mygewo_existing = handler.get_listings_by_urls(mygewo_urls)
+            mygewo_lookup_failed = mygewo_existing is None
+            if mygewo_lookup_failed:
+                logger.error(
+                    "❌ mygewo lookup failed; deferring mygewo detail/upsert and "
+                    "owner alerts so user alerts can retry next poll")
+        user_alert_candidates = new_alert_candidates(
+            handler, seen, new_from_willhaben, mygewo_existing)
+        deliver_user_alerts(handler, user_alert_candidates)
+
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
-    # mygewo change that blanks the stored values — can't turn a */5 cron into a
+    # mygewo change that blanks the stored values — can't turn a minutely poll into a
     # crawl of the entire inventory.
     #
     # "At most once" requires distinguishing "not resolved yet" from "resolved,
     # and the page had no builder link / no photo". Both would otherwise read
     # back as a falsy value and re-fetch on the next poll — forever, for every
-    # unit whose offer page simply has no og:image. At */5 over 15h that is ~180
-    # runs/day × the cap = thousands of pointless requests, and it is silent,
+    # unit whose offer page simply has no og:image. With minutely polling over 15h
+    # that is ~900 runs/day × the cap = thousands of pointless requests, and it is silent,
     # because a missing photo is a placeholder tile rather than an error.
     # So: None means "never fetched", "" means "fetched, nothing there" and is
     # terminal. Downstream both are falsy — `builder_url || url` and CoopThumb's
     # `!src` placeholder already treat "" exactly like None.
     detail_fetches = 0
     for listing in seen:
+        if mygewo_lookup_failed and "mygewo.at" in (listing.url or ""):
+            continue
         # mygewo units store the aggregator URL; resolve the builder's own
         # reservation page and the unit photo once, reusing values already
         # resolved on an earlier poll.
         if "mygewo.at" in (listing.url or "") and (
                 listing.builder_url is None or listing.image_url is None):
-            existing = handler.get_listing(listing.url) or {}
+            existing = (mygewo_existing or {}).get(listing.url, {})
             if listing.builder_url is None:
                 listing.builder_url = existing.get("builder_url")
             if listing.image_url is None:
@@ -360,6 +432,8 @@ def run(no_send: bool = False) -> int:
 
     sent = 0
     for listing in seen:
+        if mygewo_lookup_failed and "mygewo.at" in (listing.url or ""):
+            continue
         # The channel feeds are co-op only. `seen` now also carries every new
         # Willhaben rental, because keyword alerts poll the whole newest-first
         # feed — without this guard the mygewo channel would receive the entire
@@ -386,17 +460,6 @@ def run(no_send: bool = False) -> int:
             sent += 1
         elif bot:
             logger.error(f"❌ send failed (retry next run): {listing.url}")
-
-    # User-created alerts (/alerts). Distinct from the channel feeds above: those
-    # are the owner's co-op firehose, these are per-user keyword watches with
-    # their own destinations, over the whole newest-first feed.
-    #
-    # Only the ads this poll saw for the first time are matched. Delivery is no
-    # longer at the mercy of that, though — `deliver_user_alerts` claims each
-    # (alert, ad) pair in a ledger before sending and retries anything a previous
-    # poll claimed but never sent, so a poll dying mid-send no longer loses an ad.
-    if not no_send:
-        deliver_user_alerts(handler, new_from_willhaben)
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")

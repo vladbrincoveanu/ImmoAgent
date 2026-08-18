@@ -264,7 +264,7 @@ class MongoDBHandler:
 
     def _replace_preserving_state(self, existing: Dict, listing: Dict) -> None:
         """Replace an existing co-op doc with fresh data, carrying over the state
-        the scrape can't know: send-state (NEVER reset on re-poll → no 5-minute
+        the scrape can't know: send-state (NEVER reset on re-poll → no repeated
         re-spam) and the detail-page-resolved builder_url / image_url (only
         run_coop resolves those; other write paths would else wipe them)."""
         listing['_id'] = existing['_id']
@@ -286,7 +286,7 @@ class MongoDBHandler:
         save_listings_to_mongodb (validation → xsrc dedup → url upsert →
         fingerprint dedup → insert) minus geocoding/scoring.
 
-        Preserves send-state on update so a */5 re-poll never resets
+        Preserves send-state on update so a minutely re-poll never resets
         sent_to_telegram and re-spams. Returns one of:
         "inserted" | "updated" | "duplicate" | "invalid" | "error"."""
         if self.collection is None:
@@ -647,21 +647,53 @@ class MongoDBHandler:
         except Exception as e:
             print(f"MongoDB query error: {e}")
             return None
+
+    def get_listings_by_urls(self, urls: List[str]) -> Optional[Dict[str, Dict]]:
+        """Return matching listing documents keyed by URL.
+
+        An empty map means the query succeeded with no matches; ``None`` means
+        the lookup failed and must not be treated as evidence of new listings.
+        """
+        unique_urls = []
+        seen = set()
+        for url in urls or []:
+            if url and url not in seen:
+                seen.add(url)
+                unique_urls.append(url)
+        if not unique_urls:
+            return {}
+        try:
+            return {
+                doc["url"]: doc
+                for doc in self.collection.find({"url": {"$in": unique_urls}})
+                if doc.get("url")
+            }
+        except Exception as e:
+            logger.error(f"MongoDB batch listing query error: {e}")
+            return None
     
     def get_active_alerts(self, kind) -> List[Dict]:
-        """Confirmed alert subscriptions for one feed, or several.
+        """Alert subscriptions with at least one usable delivery channel.
 
         `kind` is a string or a list of strings — the poller watches both the
         legacy 'coop_private' feed and the newer 'keyword' feed in one query.
 
-        Unconfirmed email subscriptions are excluded: anyone can type someone
-        else's address into the form, so an unconfirmed one must never be
-        delivered to. Telegram subscriptions are stored already-confirmed —
-        supplying a chat id the bot can post to is itself the consent."""
+        Unconfirmed email-only subscriptions are excluded: anyone can type
+        someone else's address into the form, so an unconfirmed one must never be
+        delivered to. A valid Telegram chat id is independently usable, including
+        while the email half of a mixed alert awaits confirmation."""
         kinds = [kind] if isinstance(kind, str) else list(kind)
         try:
             return list(self.db["alert_subscriptions"].find(
-                {"kind": {"$in": kinds}, "confirmed": True}))
+                {
+                    "kind": {"$in": kinds},
+                    "$or": [
+                        {"telegram_chat_id": {
+                            "$exists": True, "$nin": [None, ""]}},
+                        {"email": {"$exists": True, "$nin": [None, ""]},
+                         "confirmed": True},
+                    ],
+                }))
         except Exception as e:
             # An alert lookup failure must not abort a poll — the scrape and the
             # upserts that feed the website still have to run.
@@ -675,19 +707,27 @@ class MongoDBHandler:
     # the Telegram send lost that ad permanently — the next poll no longer
     # considered it new, so nobody was told and nothing recorded the loss.
 
-    def ensure_delivery_index(self) -> None:
+    def ensure_delivery_index(self) -> bool:
         """The unique index is what makes `claim_delivery` a real claim.
 
         Without it two concurrent polls both read "no row" and both send."""
         try:
             self.db["alert_deliveries"].create_index(
                 [("alert_id", 1), ("url_hash", 1)], unique=True)
+            return True
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB delivery index setup failed: {e}")
+            return False
         except Exception as e:
-            print(f"MongoDB delivery index error: {e}")
+            logger.error(f"Unexpected delivery index setup failure: {e}")
+            return False
 
     def claim_delivery(self, alert_id, url_hash: str,
                        chat_id: Optional[str] = None,
-                       message: Optional[str] = None) -> bool:
+                       message: Optional[str] = None,
+                       email: Optional[str] = None,
+                       email_subject: Optional[str] = None,
+                       email_body: Optional[str] = None) -> bool:
         """Take ownership of one (alert, ad) delivery. True if we now own it.
 
         False means another poll already claimed it — including a poll that
@@ -697,35 +737,170 @@ class MongoDBHandler:
 
         `chat_id` and `message` are stored so a retry can send from the row
         alone. Without them, recovering a lost delivery would need a
-        url_hash -> listing reverse lookup that this schema does not support."""
+        url_hash -> listing reverse lookup that this schema does not support.
+        Email content is stored for the same reason. An unconfigured channel is
+        marked sent at claim time so a row becomes sent only after every
+        configured channel succeeds."""
         try:
             self.db["alert_deliveries"].insert_one({
                 "alert_id": alert_id,
                 "url_hash": url_hash,
                 "chat_id": chat_id,
                 "message": message,
+                "email": email,
+                "email_subject": email_subject,
+                "email_body": email_body,
+                "telegram_sent": not bool(chat_id),
+                "email_sent": not bool(email),
                 "status": "pending",
                 "created_at": datetime.now(timezone.utc),
             })
             return True
-        except Exception:
+        except pymongo.errors.DuplicateKeyError:
             # DuplicateKeyError is the expected path here, not an error.
             return False
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB delivery claim failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected delivery claim failure: {e}")
+            return False
 
-    def mark_delivery_sent(self, alert_id, url_hash: str) -> None:
+    @staticmethod
+    def _delivery_channel_fields(channel: str) -> Tuple[str, str, str]:
+        fields = {
+            "telegram": ("telegram_sent", "telegram_lease_until", "chat_id"),
+            "email": ("email_sent", "email_lease_until", "email"),
+        }.get(channel)
+        if not fields:
+            raise ValueError(f"unknown delivery channel: {channel}")
+        return fields
+
+    @staticmethod
+    def _other_channel_complete_expression(channel: str) -> Dict:
+        if channel == "telegram":
+            destination_field, sent_field = "email", "email_sent"
+        elif channel == "email":
+            destination_field, sent_field = "chat_id", "telegram_sent"
+        else:
+            raise ValueError(f"unknown delivery channel: {channel}")
+        return {
+            "$or": [
+                {"$in": [
+                    {"$ifNull": [f"${destination_field}", ""]},
+                    ["", None],
+                ]},
+                {"$eq": [
+                    {"$ifNull": [f"${sent_field}", False]},
+                    True,
+                ]},
+            ]
+        }
+
+    def claim_pending_delivery_channel(self, alert_id, url_hash: str,
+                                       channel: str,
+                                       lease_seconds: int = 60) -> bool:
+        sent_field, lease_field, destination_field = (
+            self._delivery_channel_fields(channel)
+        )
+        now = datetime.now(timezone.utc)
+        try:
+            row = self.db["alert_deliveries"].find_one_and_update(
+                {
+                    "alert_id": alert_id,
+                    "url_hash": url_hash,
+                    "status": "pending",
+                    sent_field: {"$ne": True},
+                    destination_field: {"$exists": True, "$nin": [None, ""]},
+                    "$or": [
+                        {lease_field: {"$exists": False}},
+                        {lease_field: None},
+                        {lease_field: {"$lte": now}},
+                    ],
+                },
+                {"$set": {
+                    lease_field: now + timedelta(seconds=lease_seconds),
+                }},
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
+            return row is not None
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} delivery lease failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected {channel} delivery lease failure: {e}")
+            return False
+
+    def release_delivery_channel(self, alert_id, url_hash: str,
+                                 channel: str) -> bool:
+        _, lease_field, _ = self._delivery_channel_fields(channel)
+        try:
+            self.db["alert_deliveries"].update_one(
+                {"alert_id": alert_id, "url_hash": url_hash},
+                {"$unset": {lease_field: ""}},
+            )
+            return True
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} delivery lease release failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} delivery lease release failure: {e}"
+            )
+            return False
+
+    def mark_delivery_sent(self, alert_id, url_hash: str) -> bool:
         try:
             self.db["alert_deliveries"].update_one(
                 {"alert_id": alert_id, "url_hash": url_hash},
                 {"$set": {"status": "sent",
                           "sent_at": datetime.now(timezone.utc)}})
+            return True
         except Exception as e:
-            print(f"MongoDB delivery update error: {e}")
+            logger.error(f"MongoDB legacy delivery marker failed: {e}")
+            return False
 
-    def stale_pending_deliveries(self, older_than_minutes: int = 5) -> List[Dict]:
+    def mark_delivery_channel_sent(self, alert_id, url_hash: str,
+                                   channel: str) -> bool:
+        field, lease_field, destination_field = (
+            self._delivery_channel_fields(channel)
+        )
+        other_complete = self._other_channel_complete_expression(channel)
+        marked_at = datetime.now(timezone.utc)
+        try:
+            row = self.db["alert_deliveries"].find_one_and_update(
+                {"alert_id": alert_id, "url_hash": url_hash,
+                 destination_field: {"$exists": True, "$nin": [None, ""]}},
+                [
+                    {"$set": {field: True}},
+                    {"$unset": lease_field},
+                    {"$set": {
+                        "status": {"$cond": [
+                            other_complete, "sent", "$status"
+                        ]},
+                        "sent_at": {"$cond": [
+                            other_complete, marked_at, "$sent_at"
+                        ]},
+                    }},
+                ],
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
+            if not row:
+                return False
+            return True
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} delivery marker failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected {channel} delivery marker failure: {e}")
+            return False
+
+    def stale_pending_deliveries(self, older_than_minutes: int = 1) -> List[Dict]:
         """Claimed-but-never-sent deliveries, i.e. polls that died mid-send.
 
-        The age cutoff keeps a poll from retrying rows another poll is sending
-        right now."""
+        The one-minute age cutoff is just beyond the 60-second per-channel lease,
+        so a poll does not retry a row another poll is still sending while failed
+        deliveries become eligible on the next poll."""
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
         try:
             return list(self.db["alert_deliveries"].find(
