@@ -244,7 +244,7 @@ class MongoDBHandler:
 
     def _replace_preserving_state(self, existing: Dict, listing: Dict) -> None:
         """Replace an existing co-op doc with fresh data, carrying over the state
-        the scrape can't know: send-state (NEVER reset on re-poll → no 5-minute
+        the scrape can't know: send-state (NEVER reset on re-poll → no repeated
         re-spam) and the detail-page-resolved builder_url / image_url (only
         run_coop resolves those; other write paths would else wipe them)."""
         listing['_id'] = existing['_id']
@@ -266,7 +266,7 @@ class MongoDBHandler:
         save_listings_to_mongodb (validation → xsrc dedup → url upsert →
         fingerprint dedup → insert) minus geocoding/scoring.
 
-        Preserves send-state on update so a */5 re-poll never resets
+        Preserves send-state on update so a minutely re-poll never resets
         sent_to_telegram and re-spams. Returns one of:
         "inserted" | "updated" | "duplicate" | "invalid" | "error"."""
         if self.collection is None:
@@ -692,19 +692,27 @@ class MongoDBHandler:
             return None
     
     def get_active_alerts(self, kind) -> List[Dict]:
-        """Confirmed alert subscriptions for one feed, or several.
+        """Alert subscriptions with at least one usable delivery channel.
 
         `kind` is a string or a list of strings — the poller watches both the
         legacy 'coop_private' feed and the newer 'keyword' feed in one query.
 
-        Unconfirmed email subscriptions are excluded: anyone can type someone
-        else's address into the form, so an unconfirmed one must never be
-        delivered to. Telegram subscriptions are stored already-confirmed —
-        supplying a chat id the bot can post to is itself the consent."""
+        Unconfirmed email-only subscriptions are excluded: anyone can type
+        someone else's address into the form, so an unconfirmed one must never be
+        delivered to. A valid Telegram chat id is independently usable, including
+        while the email half of a mixed alert awaits confirmation."""
         kinds = [kind] if isinstance(kind, str) else list(kind)
         try:
             return list(self.db["alert_subscriptions"].find(
-                {"kind": {"$in": kinds}, "confirmed": True}))
+                {
+                    "kind": {"$in": kinds},
+                    "$or": [
+                        {"telegram_chat_id": {
+                            "$exists": True, "$nin": [None, ""]}},
+                        {"email": {"$exists": True, "$nin": [None, ""]},
+                         "confirmed": True},
+                    ],
+                }))
         except Exception as e:
             # An alert lookup failure must not abort a poll — the scrape and the
             # upserts that feed the website still have to run.
@@ -906,11 +914,12 @@ class MongoDBHandler:
             logger.error(f"Unexpected {channel} delivery marker failure: {e}")
             return False
 
-    def stale_pending_deliveries(self, older_than_minutes: int = 5) -> List[Dict]:
+    def stale_pending_deliveries(self, older_than_minutes: int = 1) -> List[Dict]:
         """Claimed-but-never-sent deliveries, i.e. polls that died mid-send.
 
-        The age cutoff keeps a poll from retrying rows another poll is sending
-        right now."""
+        The one-minute age cutoff is just beyond the 60-second per-channel lease,
+        so a poll does not retry a row another poll is still sending while failed
+        deliveries become eligible on the next poll."""
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
         try:
             return list(self.db["alert_deliveries"].find(

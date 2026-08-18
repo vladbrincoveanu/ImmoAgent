@@ -692,6 +692,22 @@ class TestDeliverUserAlerts(unittest.TestCase):
         TB.assert_called_once_with("tok", "-100")
 
     @patch("Integration.telegram_bot.TelegramBot")
+    @patch("Application.alert_email.send_alert_email")
+    def test_unconfirmed_email_does_not_block_telegram(self, mail, TB):
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{
+            "_id": "a", "keyword": "1100", "telegram_chat_id": "-100",
+            "email": "pending@x.at", "confirmed": False,
+        }])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Weitergabe 1100 Wien"
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        TB.assert_called_once_with("tok", "-100")
+        mail.assert_not_called()
+
+    @patch("Integration.telegram_bot.TelegramBot")
     def test_non_matching_keyword_delivers_nothing(self, TB):
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "garten",

@@ -6,6 +6,13 @@ primary trigger; the workflow's GitHub schedule is only a fallback. A
 `.github/scripts/coop-poll-window.sh`. Scheduled and manual runs retain their
 poll window.
 
+Dispatch runs use a separate non-cancelling concurrency group. GitHub keeps one
+dispatch running and one dispatch pending, so the next minute waits instead of
+cancelling an active poll. If another dispatch arrives while that pending slot
+is occupied, GitHub keeps the newest pending event; the queue is bounded rather
+than accumulating one runner per minute. Schedule and manual runs use their own
+cancelling groups.
+
 ## 1. Configure the GitHub PAT
 
 Create a fine-grained personal access token under GitHub Settings → Developer
@@ -81,11 +88,14 @@ in the Mongo ledger.
 Telegram and email are tracked separately. If one channel succeeds and the
 other fails, only the failed channel remains pending. The next poll retries
 from the stored destination and rendered content; it does not need a fresh
-listing lookup. This also recovers a poll that crashed during delivery.
+listing lookup. A dead row becomes eligible after one minute, just beyond the
+60-second per-channel lease, so this also recovers a poll that crashed during
+delivery without waiting five minutes.
 
 ## Latency and fallback behavior
 
-The honest GitHub-hosted SLA is about **2–3 minutes** from a listing appearing
+The honest GitHub-hosted SLA is typically about **one to three minutes** from a
+listing appearing
 to a Telegram or email notification. One minute belongs to the external
 trigger; runner pickup, checkout, dependency installation, scraping, and
 delivery add roughly another 60–90 seconds. GitHub Actions is the latency
@@ -146,7 +156,8 @@ For Willhaben, inspect `🔍 willhaben newest: 0 url(s) on the feed`. A steady z
 usually means the runner received an empty or blocked page; check this before
 changing alert filters. For mygewo, inspect its parsed-count line and any
 adapter error. If sources work but no user delivery appears, verify that the
-alert is confirmed, has matching keywords/filters, and has a newly seen listing.
+email is confirmed when email delivery is desired, the alert has a usable
+Telegram chat ID or email, matching keywords/filters, and a newly seen listing.
 
 ### Email or SMTP failures
 
@@ -156,7 +167,8 @@ password. The poll logs either `SMTP_USER/SMTP_PASSWORD unset — alert email NO
 sent to ...` or `alert email to ... failed: ...`. A failed email remains pending
 and is retried on a later poll. If confirmation mail never arrives, fix the
 dashboard deployment's SMTP configuration and resend/create the alert; the
-poller only delivers confirmed subscriptions.
+poller delivers confirmed email-only subscriptions and Telegram-enabled
+subscriptions; it never sends an email until that email is confirmed.
 
 Never include PATs, SMTP passwords, bot tokens, MongoDB URIs, or other secrets
 in this guide, issue reports, or chat.

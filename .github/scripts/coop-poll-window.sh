@@ -3,7 +3,8 @@
 # Polls the co-op sources repeatedly for one "window", instead of relying on a
 # GitHub cron tick per poll.
 #
-# Why this exists: a "*/5" schedule does NOT get delivered every 5 minutes.
+# Why this exists: the former "*/5" schedule did NOT get delivered every five
+# minutes.
 # Measured on 2026-07-29, consecutive delivered runs of coop-fast-poll were 46 to
 # 153 minutes apart (median ~80) with zero failures and zero cancellations —
 # GitHub simply drops most ticks of a high-frequency schedule. So one delivered
@@ -26,9 +27,9 @@ set -uo pipefail
 : "${POLL_INTERVAL_SECONDS:=300}"
 
 # A repository_dispatch run is ONE poll and exits: an external trigger fires
-# every ~2 minutes and owns the cadence, so looping here would only collide with
-# the next dispatch and be cancelled by it. Everything else (the fallback cron,
-# a manual run) keeps the window.
+# every minute and owns the cadence. The dispatch concurrency group allows one
+# active run and one pending run, so looping here would make that bounded queue
+# fall behind. Everything else (the fallback cron, a manual run) keeps the window.
 #
 # This lives in bash rather than in a workflow `${{ }}` expression on purpose.
 # The obvious expression — `event_name == 'repository_dispatch' && '0' || '55'`

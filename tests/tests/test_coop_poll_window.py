@@ -46,7 +46,7 @@ class CoopPollWindowTest(unittest.TestCase):
 
     def _run(self, env_extra, timeout=60):
         env = dict(os.environ)
-        # Keep the real scraper and the real 5-minute cadence out of the tests.
+        # Keep the real scraper and the default cadence out of the tests.
         env.update({"POLL_INTERVAL_SECONDS": "1", "POLL_WINDOW_SECONDS": "0"})
         env.update(env_extra)
         return subprocess.run(
@@ -139,10 +139,9 @@ class CoopPollWindowTest(unittest.TestCase):
 
     # --- dispatch vs fallback default ----------------------------------------
     #
-    # Cadence comes from an external trigger firing repository_dispatch every ~2
-    # minutes, so a dispatched run must do ONE poll and exit. If it looped, each
-    # run would still be polling when the next dispatch arrived and would be
-    # cancelled mid-poll by `cancel-in-progress`.
+    # Cadence comes from an external trigger firing repository_dispatch every
+    # minute, so a dispatched run must do ONE poll and exit. The workflow keeps
+    # one dispatch running plus one pending instead of cancelling the active run.
 
     def _run_bare(self, env_extra, timeout=60):
         """Like `_run`, but WITHOUT the POLL_WINDOW_SECONDS override, so the

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Fast co-op poll → instant Telegram alerts.
+"""Fast co-op poll -> Telegram/email alerts.
 
 Lightweight (requests + bs4, no Selenium, no scoring/geocoding): polls the
-Genossenschaft Bauträger adapters, upserts new units, and DMs matches that
-pass the coop_alerts filter. Built for GitHub Actions cron */5.
+Genossenschaft Bauträger adapters, upserts new units, and delivers matches that
+pass the coop_alerts filter. Driven by minutely repository_dispatch runs with a
+scheduled fallback.
 
 Run from Project/:  python run_coop.py [--no-send]
 """
@@ -37,7 +38,7 @@ logger = logging.getLogger("run_coop")
 
 # Ceiling on per-unit mygewo offer-page fetches in a single poll (see the loop in
 # `run`). Wien's whole co-op inventory is <150 units, so a cold start settles
-# within a few */5 cycles while no single run hammers mygewo.
+# within a few polls while no single run hammers mygewo.
 MAX_DETAIL_FETCHES_PER_RUN = 40
 
 # Bumped whenever the photo-resolution strategy changes. v1 read og:image off the
@@ -281,8 +282,9 @@ def run(no_send: bool = False) -> int:
     # warning that looked identical to a quiet market, and the poll ran green for
     # weeks while delivering nothing.
     for name in missing_channels():
-        logger.error(f"🔴 {name} is unset — alerts for that feed are DISABLED. "
-                     "Scraping and upserts continue.")
+        logger.error(f"🔴 {name} is unset — source-channel notifications for that "
+                     "feed are disabled. Scraping, upserts, and user-created "
+                     "email alerts continue.")
     handler = MongoDBHandler()
     if handler.collection is None:
         logger.error("❌ No MongoDB connection; aborting")
@@ -299,8 +301,9 @@ def run(no_send: bool = False) -> int:
                 if chat_id:
                     bots[kind] = TelegramBot(token, chat_id)
         if not bots:
-            logger.error("❌ no bot token or no channel configured; "
-                         "alerts DISABLED, polling/upserts continue")
+            logger.error("❌ no Telegram bot token or co-op channel configured; "
+                         "Telegram source-channel notifications are disabled, "
+                         "but polling/upserts and user-created email alerts continue")
 
     seen: List[Listing] = []
     ok_adapters = 0
@@ -319,7 +322,7 @@ def run(no_send: bool = False) -> int:
     # Willhaben is polled here rather than in the daily scrape because private
     # co-op transfers are first-come-first-served — a sitting tenant passing on
     # their flat, gone within hours. Only genuinely new URLs cost a detail fetch,
-    # so this rides the 2-minute cadence without crawling the whole feed.
+    # so this rides the minutely dispatch cadence without crawling the whole feed.
     #
     # Deliberately AFTER the all-adapters-failed gate and outside ok_adapters: it
     # is an extra feed, not one of coop.SOURCES, and it must never mask a total
@@ -366,14 +369,14 @@ def run(no_send: bool = False) -> int:
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
-    # mygewo change that blanks the stored values — can't turn a */5 cron into a
+    # mygewo change that blanks the stored values — can't turn a minutely poll into a
     # crawl of the entire inventory.
     #
     # "At most once" requires distinguishing "not resolved yet" from "resolved,
     # and the page had no builder link / no photo". Both would otherwise read
     # back as a falsy value and re-fetch on the next poll — forever, for every
-    # unit whose offer page simply has no og:image. At */5 over 15h that is ~180
-    # runs/day × the cap = thousands of pointless requests, and it is silent,
+    # unit whose offer page simply has no og:image. With minutely polling over 15h
+    # that is ~900 runs/day × the cap = thousands of pointless requests, and it is silent,
     # because a missing photo is a placeholder tile rather than an error.
     # So: None means "never fetched", "" means "fetched, nothing there" and is
     # terminal. Downstream both are falsy — `builder_url || url` and CoopThumb's

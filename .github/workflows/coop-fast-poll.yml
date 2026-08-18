@@ -1,7 +1,8 @@
 name: coop-fast-poll
 on:
   schedule:
-    # This USED to be "*/5", but GitHub never actually delivered that cadence.
+    # Historical note: this USED to be "*/5", but GitHub never actually delivered
+    # that cadence.
     # Measured over 2026-07-29 the gaps between consecutive delivered runs were
     # 153, 106, 140, 79, 84, 57, 80, 46, 53 min — a median of ~80 min, not 5.
     # Nothing was failing (40/40 runs green, 0 cancelled); GitHub simply drops
@@ -41,10 +42,13 @@ on:
   repository_dispatch:
     types: [coop-poll]
 concurrency:
-  group: coop-fast-poll
-  # A newly delivered run replaces the in-flight loop rather than stacking on
-  # it. Coverage continues seamlessly: the new run starts its own poll window.
-  cancel-in-progress: true
+  # Keep each trigger type in its own bounded concurrency group. Dispatch runs
+  # get one running slot plus one pending slot; a later dispatch waits for the
+  # active poll instead of cancelling it. If the pending slot is occupied,
+  # GitHub coalesces it to the newest dispatch. Schedule/manual groups retain
+  # cancellation for their own fallback or operator-triggered runs.
+  group: coop-fast-poll-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 jobs:
   poll:
     runs-on: ubuntu-latest
@@ -69,11 +73,11 @@ jobs:
         run: |
           if [ -z "$COOP_ID" ]; then
             # Non-fatal: the scrape + Mongo upserts that feed the /coop website must
-            # run regardless. run_coop.py already logs loudly and continues without a
-            # channel (alerts DISABLED, polling/upserts continue). A hard `exit 1` here
-            # killed the whole poll job — so no units were scraped and the strict
-            # buyable:false /coop page (which hides legacy rows) stayed empty.
-            echo "::warning::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — Telegram co-op alerts are disabled, but scraping/upserts (website data) still run. Add it under Settings → Secrets to enable alerts."
+            # run regardless. A hard `exit 1` here would kill the whole poll job —
+            # so no units would be scraped and the strict buyable:false /coop page
+            # (which hides legacy rows) would stay empty. User-created email alerts
+            # are independent of this co-op channel secret.
+            echo "::warning::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — scraping/upserts and user-created email alerts still run; only co-op channel notifications are unavailable. Add it under Settings → Secrets to enable the co-op channel."
           fi
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
