@@ -11,23 +11,27 @@ supersedes_partially: 2026-07-30-coop-private-alerts-design.md (P4 section)
 
 # [Superseded] Keyword alerts — dashboard-created fast poll
 
-> This historical design is superseded by
-> `2026-08-17-fast-email-only-alerts-design.md`. Do not implement its old
-> 2-minute cadence, `cancel-in-progress: true` concurrency, 5-minute retry
-> cutoff, or Telegram-only assumptions. The newer spec is the current contract.
-> The remaining sections are retained for historical rationale and are not
-> operational guidance.
+> This historical design is superseded by the [current approved design](2026-08-17-fast-email-only-alerts-design.md).
+> Do not implement its old cadence, cancellation policy, retry timing, or
+> Telegram-only assumptions. The [alert setup guide](../../ALERTS_SETUP.md) and
+> newer spec are the current contract. The remaining sections are retained for
+> historical rationale and are not operational guidance.
 
-Create an alert on `/alerts` with a handful of string keys and a few numeric
-filters. A poller running every ~2 minutes crawls newly posted ads across
-Willhaben and the Genossenschaft sources, tests each against every stored alert,
-and pushes hits straight to a Telegram DM. Speed is the product: an Ablöse ad
-draws replies within minutes.
+> **Current workflow contract:** cron-job.org sends one `repository_dispatch` per
+> minute; automated dispatch and schedule runs perform one poll; only
+> `workflow_dispatch` may hold an operator-selected window; and all triggers use
+> the shared `coop-fast-poll` group with `cancel-in-progress: false`.
 
-## Scope
+The superseded design proposed creating an alert on `/alerts` with a handful of
+string keys and numeric filters. It described a fast poller crawling newly posted
+ads across Willhaben and the Genossenschaft sources, then sending hits to a
+Telegram DM. That proposal is retained only to explain the historical scope;
+the current email-capable behavior is defined by the approved design above.
+
+## Historical scope (not current)
 
 **In:** the alert record, the matcher, crash-safe delivery, the `/alerts` UI, and
-the trigger mechanism that makes 2-minute cadence real.
+the historical trigger mechanism that was intended to make a faster cadence real.
 
 **Out, and why:**
 
@@ -58,11 +62,11 @@ Checked against code, not assumed:
 | A dispatch escape hatch is already wired | `coop-fast-poll.yml` `repository_dispatch: types: [coop-poll]` |
 | The matcher is title+body already | `alert_matcher.searchable_text` joins title, address, bezirk, description |
 
-## Decisions taken
+## Historical decisions (not current)
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Cadence engine | External trigger → `repository_dispatch` | The only mechanism that actually delivers 2-minute cadence; `schedule:` is measured-dead |
+| Cadence engine | External trigger → `repository_dispatch` | Historical rationale for bypassing `schedule:`; current cadence is defined by the approved design |
 | Feed scope | Willhaben newest-first rentals **+** mygewo/Genossenschaft adapters, one loop | Widest coverage in a single poll |
 | Multiple keys | **OR** — any key hits, anywhere in title or body | Matches how synonyms are listed; AND fails silently when one word is absent |
 | Filters | `min/max_area`, `min/max_rooms`, `max_price` | Explicitly requested; district is covered by a plain keyword |
@@ -70,7 +74,7 @@ Checked against code, not assumed:
 | Telegram target | Owner's personal DM via the existing `TELEGRAM_MAIN_BOT_TOKEN` | No new channel, no new secret, works today — `TELEGRAM_COOP_CHANNEL_ID` still does not exist |
 | Pro gate | Untouched; owner's `user_id` flipped to Pro in Mongo | Keeps the paywall honest; no auth-bypass code path in production |
 
-## Architecture
+## Historical architecture (not current)
 
 ```
 cron-job.org  ──POST /dispatches every 2 min──►  GitHub Actions (coop-fast-poll)
@@ -90,9 +94,10 @@ cron-job.org  ──POST /dispatches every 2 min──►  GitHub Actions (coop-
                                             Telegram DM
 ```
 
-### §1 Trigger tier
+### §1 Historical trigger tier (not operational)
 
-cron-job.org (free, 1-minute resolution) issues every 2 minutes:
+The superseded design proposed that cron-job.org (free, 1-minute resolution)
+issue a request every 2 minutes:
 
 ```
 POST https://api.github.com/repos/vladbrincoveanu/ImmoAgent/dispatches
@@ -101,27 +106,11 @@ Accept: application/vnd.github+json
 {"event_type":"coop-poll"}
 ```
 
-Dispatch-triggered runs are not subject to the scheduler throttle that ate
-`*/5`.
-
-Workflow changes in `coop-fast-poll.yml`:
-
-- `POLL_WINDOW_MINUTES` becomes `0` when `github.event_name == 'repository_dispatch'`
-  — one poll, exit. Otherwise `55`, unchanged.
-- `POLL_INTERVAL_SECONDS` is `120`; it is only consulted in window mode, so it
-  affects the fallback path only.
-- The schedule **stays as a fallback**, set to `*/30 6-20 * * 1-6`. If
-  cron-job.org dies you degrade to today's behaviour, not to silence.
-
-**This overrides the branch's `*/15 4-15 * * 1-6`.** Two reasons. Asking the
-scheduler *less* often improves delivery odds, and cadence no longer comes from
-it. And `4-15` UTC was chosen to mean 06:00–17:00 Vienna in summer, which the
-prior spec itself flags as drifting to 05:00–16:00 in winter. Under this design
-the active window is configured at cron-job.org, in local time, where DST is
-handled for us; the workflow's own schedule is deliberately broad because it is
-only a safety net.
-- `concurrency: cancel-in-progress: true` is retained: a hung poll is killed by
-  the next tick rather than stacking.
+The old dispatch mechanism was not subject to the scheduler throttle that ate
+`*/5`. Its workflow details are archived here for rationale only. Use the
+[current approved design](2026-08-17-fast-email-only-alerts-design.md) and
+[setup guide](../../ALERTS_SETUP.md) for the active cadence, fallback schedule,
+poll-window behavior, and concurrency policy.
 
 **Latency, stated honestly.** Runner pickup (5–30s) + checkout + cached pip
 install (~30s) + fetch (~20s) means roughly **2–3 minutes** from ad posting to
@@ -146,8 +135,9 @@ So: generalise the existing function instead of adding a module.
 - **Dependencies:** unchanged
 - **Size target:** ~120 lines (from ~100)
 
-Page 1 only, as today. At a 2-minute cadence anything past page 1 was already
-seen on an earlier poll; paging deeper multiplies block risk for no new ads.
+Page 1 only, as today. At the rapid cadence proposed by this historical design,
+anything past page 1 was expected to be seen on an earlier poll; paging deeper
+multiplies block risk for no new ads.
 
 One consequence to accept: the alert feed's `keep` is "everything new", so the
 per-poll detail-fetch cap (`MAX_DETAIL_FETCHES_PER_POLL = 25`) now binds on a
@@ -205,9 +195,10 @@ Protocol per pair:
 2. Send to Telegram (and email if configured).
 3. Update the row to `status: "sent", sent_at`.
 
-Recovery: at the start of every poll, rows still `pending` and older than
-5 minutes are retried. The unique index makes retry safe. Net semantics are
-at-least-once with no visible duplicates.
+Recovery: the stale-row timing described by this superseded design is obsolete.
+The approved design defines the current channel-specific pending retry contract.
+The unique index makes retry safe. Net semantics are at-least-once with no
+visible duplicates.
 
 **This replaces the in-memory `new_transfers` delivery path**, which loses an ad
 permanently if the process dies between the Mongo upsert and the Telegram send.
@@ -327,11 +318,13 @@ visible:
    `user_id` must be flipped to Pro in Mongo once. Clearing browser cookies
    issues a new `user_id` and requires redoing it.
 
-## Owner-blocked manual steps
+## Historical owner-blocked steps (not current)
 
 1. Create a GitHub **fine-grained PAT**, scoped to this repository only, with the
    permission required to POST `/dispatches`.
-2. Create a cron-job.org job at 2-minute interval issuing the POST from §1.
+2. Configure the current one-minute cron-job.org request from the [approved
+   design](2026-08-17-fast-email-only-alerts-design.md), using the [setup
+   guide](../../ALERTS_SETUP.md) rather than this historical section.
 3. `/start` the main Telegram bot, get the numeric chat id, paste it into the
    alert form.
 4. Flip the owner's `user_id` to Pro in the `users` collection.
