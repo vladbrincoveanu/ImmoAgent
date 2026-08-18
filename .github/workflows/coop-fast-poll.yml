@@ -9,16 +9,16 @@ on:
     # most ticks of a high-frequency schedule under runner load, and it
     # deprioritises the more aggressively you ask.
     #
-    # So cadence no longer comes from the scheduler at all. An external trigger
+    # So primary cadence no longer comes from the scheduler. An external trigger
     # fires repository_dispatch every minute and each dispatched run does a
-    # SINGLE poll — see docs/ALERTS_SETUP.md. Dispatch runs are not throttled
-    # the way schedules are.
+    # SINGLE poll — see docs/ALERTS_SETUP.md. All automated runs share one
+    # bounded concurrency group so a fallback cannot run beside a dispatch.
     #
     # This schedule is now only a FALLBACK: if the external trigger dies, a
-    # windowed run every 30 min keeps the feed alive instead of going silent.
+    # single poll every 30 min keeps the feed alive instead of going silent.
     # Asking less often also improves the odds these ticks are delivered.
     #
-    # The window is deliberately broad. The hours you actually want alerts are
+    # The fallback schedule is deliberately broad. The hours you actually want alerts are
     # configured on the external trigger, in LOCAL time, where DST is handled
     # for us. GitHub cron has no timezone, so a narrow window here would drift
     # an hour every winter — which is exactly what "*/15 4-15" did.
@@ -42,13 +42,12 @@ on:
   repository_dispatch:
     types: [coop-poll]
 concurrency:
-  # Keep each trigger type in its own bounded concurrency group. Dispatch runs
-  # get one running slot plus one pending slot; a later dispatch waits for the
-  # active poll instead of cancelling it. If the pending slot is occupied,
-  # GitHub coalesces it to the newest dispatch. Schedule/manual groups retain
-  # cancellation for their own fallback or operator-triggered runs.
-  group: coop-fast-poll-${{ github.event_name }}
-  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
+  # One shared group serializes fallback, dispatch, and manual runs. GitHub keeps
+  # at most one running plus one pending run; a newer event replaces the pending
+  # event but never cancels the active poll. Automated runs are one poll; only a
+  # workflow_dispatch may hold the operator-selected polling window.
+  group: coop-fast-poll
+  cancel-in-progress: false
 jobs:
   poll:
     runs-on: ubuntu-latest
@@ -56,15 +55,10 @@ jobs:
     # killed mid-poll and the final iteration is lost.
     timeout-minutes: 70
     env:
-      # 1 min fallback gap: private Ablöse ads are first-come-first-served and draw
-      # replies within minutes, so the poll gap is the whole margin.
+      # One-minute interval for manual windows; automated runs are one-shot.
       POLL_INTERVAL_SECONDS: 60
-      # Only the manual override is passed here; empty for every other trigger.
-      # The dispatch-vs-fallback default is decided in coop-poll-window.sh from
-      # $GITHUB_EVENT_NAME, because the natural expression for it
-      # (`event_name == 'repository_dispatch' && '0' || '55'`) is a known GitHub
-      # trap: '0' casts to falsy, the `||` swallows it, and every dispatched run
-      # would silently loop for 55 minutes instead of doing a single poll.
+      # Only workflow_dispatch supplies a window; schedule and repository_dispatch
+      # are forced to one poll by coop-poll-window.sh.
       POLL_WINDOW_MINUTES: ${{ github.event.inputs.window_minutes }}
     steps:
       - name: Warn if TELEGRAM_COOP_CHANNEL_ID secret is missing
@@ -86,7 +80,7 @@ jobs:
           cache: pip
           cache-dependency-path: Project/requirements-coop.txt
       - run: pip install -r Project/requirements-coop.txt
-      - name: Fast co-op poll (repeating for the poll window)
+      - name: Fast co-op poll (one poll or manual window)
         working-directory: Project
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}

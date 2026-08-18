@@ -4,8 +4,10 @@ import { privateCoopQuery } from '@/lib/coop-query';
 import { CoopThumb } from '@/components/CoopThumb';
 import { CoopTabs } from '@/components/CoopTabs';
 
-// Always fresh: these are first-come-first-served ads polled every 2 minutes, and
-// a cached page here is worse than no page.
+// Always fresh: these are first-come-first-served ads polled by an external
+// minutely trigger, and a cached page here is worse than no page. End-to-end
+// notification latency is typically 2–3 minutes because GitHub runner startup
+// and delivery are on the critical path.
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
@@ -119,7 +121,8 @@ export default async function PrivateCoopPage({
         <p className="mt-1 text-sm text-[#6B6B6B]">
           Flats passed on directly by their tenants — no waiting list,{' '}
           <strong>first come first served</strong>. Source: Willhaben · Vienna ·
-          polled every 2&nbsp;min between 06:00 and 17:00.
+          polled every minute by an external trigger; notifications typically
+          arrive in 2–3 minutes.
         </p>
         <p className="mt-1 text-xs text-[#6B6B6B]">
           A hit needs both a transfer signal (Ablöse, Nachmieter, Weitergabe) and
