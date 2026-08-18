@@ -1,7 +1,7 @@
 ---
 task: Harden co-op poll runtime
 branch: relentless/harden-coop-poll
-current_step: investigating runtime errors
+current_step: verifying optional dependency fix and live run
 status: in_progress
 ---
 
@@ -17,12 +17,13 @@ status: in_progress
 
 ## Progress
 - [x] Create isolated branch
-- [ ] Trace runtime errors and poll scope
-- [ ] Add failing tests
-- [ ] Implement fixes
+- [x] Trace runtime errors and poll scope
+- [x] Add failing tests
+- [x] Implement fixes
 - [ ] Verify and deploy
 
 ## Known Evidence
 - `TELEGRAM_COOP_CHANNEL_ID` and `TELEGRAM_PRIVATE_COOP_CHANNEL_ID` are optional channel secrets.
-- GitHub runner logs show `No module named 'selenium'` during Willhaben detail scraping.
+- GitHub runner logs first showed `No module named 'selenium'`, then exposed the eager `EmailSender` import through `Application.outreach.__init__` as `No module named 'bleach'`.
 - Latest dispatch runtime is about 2m25s.
+- The focused co-op suite passes: `244 passed` and workflow-window tests `11 passed`.
