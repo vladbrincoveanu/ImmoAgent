@@ -30,4 +30,4 @@ status: completed
 - PR #41 merged as `8d7a455e6a6bbd2947d19a724a499d1e0962dcc5`.
 - Live run `32131488795` succeeded in 1m59s on that merge SHA.
 - Live logs show no Selenium or bleach import errors; Willhaben considered 10 of 16 newest URLs.
-- Telegram channel IDs remain intentionally unconfigured and produce warnings only.
+- Both Telegram channel secrets are configured; live run `32136309722` sent Telegram messages successfully with no missing-channel warning.
