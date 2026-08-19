@@ -6,7 +6,10 @@ import sys
 import os
 import logging
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.join(REPO_ROOT, 'Project')
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
 from Application.main import load_config
 from Integration.telegram_bot import TelegramBot, TelegramLogHandler
 

@@ -90,8 +90,10 @@ def main():
         print("❌ No config file found!")
         return
         
-    bot_token = config.get('telegram_bot_token')
-    chat_id = config.get('telegram_chat_id')
+    telegram_config = config.get('telegram') or {}
+    main_config = telegram_config.get('telegram_main') or {}
+    bot_token = main_config.get('bot_token')
+    chat_id = main_config.get('chat_id')
     
     print(f"Bot token: {'configured' if bot_token else 'not configured'}")
     print(f"Chat ID: {'configured' if chat_id else 'not configured'}")
