@@ -579,8 +579,8 @@ class MongoDBHandler:
 
     def claim_listing_delivery(self, url: str, fingerprint: str,
                                channel: str = "vienna",
-                               lease_seconds: int = 300,
-                               claim_token: Optional[str] = None) -> bool:
+                               *, claim_token: str,
+                               lease_seconds: int = 300) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
         if (
             getattr(self, "collection", None) is None
@@ -610,7 +610,7 @@ class MongoDBHandler:
 
     def release_listing_delivery(self, url: str, fingerprint: str,
                                  channel: str = "vienna",
-                                 claim_token: Optional[str] = None) -> bool:
+                                 *, claim_token: str) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
         if (
             getattr(self, "collection", None) is None
@@ -642,7 +642,7 @@ class MongoDBHandler:
 
     def mark_listing_delivery_sent(self, url: str, fingerprint: str,
                                    channel: str = "vienna",
-                                   claim_token: Optional[str] = None) -> bool:
+                                   *, claim_token: str) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
         if (
             getattr(self, "collection", None) is None
@@ -678,7 +678,7 @@ class MongoDBHandler:
 
     def quarantine_listing_delivery(self, url: str, fingerprint: str,
                                     channel: str = "vienna",
-                                    claim_token: Optional[str] = None) -> bool:
+                                    *, claim_token: str) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
         if (
             getattr(self, "collection", None) is None

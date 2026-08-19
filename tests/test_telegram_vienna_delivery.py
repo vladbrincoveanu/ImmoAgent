@@ -270,6 +270,22 @@ def test_delivery_methods_require_nonblank_claim_token(method_name, claim_token)
     "mark_listing_delivery_sent",
     "quarantine_listing_delivery",
 ])
+def test_delivery_methods_require_claim_token_argument(method_name):
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = Mock()
+
+    with pytest.raises(TypeError):
+        getattr(mongo, method_name)(
+            "https://example.test/listing-1", "fingerprint-1"
+        )
+
+
+@pytest.mark.parametrize("method_name", [
+    "claim_listing_delivery",
+    "release_listing_delivery",
+    "mark_listing_delivery_sent",
+    "quarantine_listing_delivery",
+])
 @pytest.mark.parametrize(
     "url, fingerprint",
     [
@@ -290,7 +306,9 @@ def test_delivery_methods_reject_malformed_identity_before_mongo(
     mongo = MongoDBHandler.__new__(MongoDBHandler)
     mongo.collection = collection
 
-    assert getattr(mongo, method_name)(url, fingerprint) is False
+    assert getattr(mongo, method_name)(
+        url, fingerprint, claim_token="valid-token"
+    ) is False
     collection.find_one_and_update.assert_not_called()
     collection.update_one.assert_not_called()
 
