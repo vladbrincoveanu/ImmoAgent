@@ -5,9 +5,15 @@ const LIMIT = 30;
 const WINDOW_MS = 60_000;
 
 function clientKey(request: NextRequest): string {
-  return request.headers.get('x-real-ip')
-    ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? 'unknown';
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+
+  for (const forwardedIp of request.headers.get('x-forwarded-for')?.split(',') ?? []) {
+    const trimmed = forwardedIp.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return 'unknown';
 }
 
 /** Per-process defense in depth; distributed deployments need shared state. */
