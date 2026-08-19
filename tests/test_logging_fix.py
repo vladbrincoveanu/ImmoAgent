@@ -7,6 +7,7 @@ import sys
 import os
 import tempfile
 import shutil
+import importlib.util
 
 def test_logging_directory_creation():
     """Test that log directories are created automatically"""
@@ -32,9 +33,13 @@ def test_logging_directory_creation():
         # Test 2: Import and run a module that should create the log directory
         sys.path.insert(0, os.path.join(original_cwd, 'Project'))
         
-        # Import the main module (this should trigger logging setup)
+        # Load the main module directly so another test's cached module cannot
+        # bypass the logging setup in this temporary working directory.
         try:
-            from Application.main import main
+            module_path = os.path.join(original_cwd, 'Project', 'Application', 'main.py')
+            spec = importlib.util.spec_from_file_location('logging_fix_project_main', module_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
             print("✅ Successfully imported main module")
         except Exception as e:
             print(f"❌ Failed to import main module: {e}")
@@ -147,12 +152,15 @@ if __name__ == "__main__":
         
         # Test the simulation
         try:
-            # Add to path and import
-            sys.path.insert(0, project_dir)
-            from Application.main import main
-            
+            # Load the fixture directly so Application.main from another test
+            # cannot be reused from sys.modules.
+            module_path = os.path.join(app_dir, 'main.py')
+            spec = importlib.util.spec_from_file_location('logging_fix_fixture_main', module_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
             # Run the test
-            main()
+            module.main()
             
             # Check if log directory and file were created
             if os.path.exists('log') and os.path.exists('log/test.log'):

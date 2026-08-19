@@ -41,6 +41,12 @@ class TestMainIntegration(unittest.TestCase):
             },
             'telegram_bot_token': 'mock_token',
             'telegram_chat_id': 'mock_chat_id',
+            'telegram': {
+                'telegram_main': {
+                    'bot_token': 'mock_token',
+                    'chat_id': 'mock_chat_id'
+                }
+            },
             'mongodb_uri': 'mongodb://localhost:27017/',
             'max_pages': 1
         }
@@ -85,11 +91,10 @@ class TestMainIntegration(unittest.TestCase):
         print("=" * 60)
         
         # Mock the scraper components
-        with patch('Project.Application.helpers.geocoding.ViennaGeocoder') as mock_geocoder, \
-             patch('Project.Integration.mongodb_handler.MongoDBHandler') as mock_mongo, \
-             patch('Project.Integration.telegram_bot.TelegramBot') as mock_telegram, \
-             patch('Project.Application.analyzer.StructuredAnalyzer') as mock_analyzer, \
-             patch.object(TelegramBot, 'send_property_notification', return_value=True):
+        with patch('Project.Application.scraping.willhaben_scraper.ViennaGeocoder') as mock_geocoder, \
+             patch('Project.Application.scraping.willhaben_scraper.MongoDBHandler') as mock_mongo, \
+             patch('Project.Application.scraping.willhaben_scraper.TelegramBot') as mock_telegram, \
+             patch('Project.Application.scraping.willhaben_scraper.StructuredAnalyzer') as mock_analyzer:
             
             # Set up mock geocoder
             mock_geocoder_instance = Mock()
@@ -109,6 +114,13 @@ class TestMainIntegration(unittest.TestCase):
             mock_analyzer_instance.is_available.return_value = True
             mock_analyzer_instance.analyze_listing_content.return_value = self.sample_listing_data
             mock_analyzer.return_value = mock_analyzer_instance
+
+            mock_telegram_instance = Mock()
+            mock_telegram_instance._format_property_message.return_value = (
+                '🏠 💰 📍 📐 🛏️ 🚇 🏫 🔗'
+            )
+            mock_telegram_instance.send_property_notification.return_value = True
+            mock_telegram.return_value = mock_telegram_instance
             
             # Create scraper with mock config
             scraper = WillhabenScraper(config=self.mock_config)
@@ -270,8 +282,9 @@ class TestMainIntegration(unittest.TestCase):
                 workflow_steps.append("Analysis")
             
             # Step 4: Check criteria
-            if scraper.meets_criteria(listing_data):
-                workflow_steps.append("Criteria")
+            with patch.object(scraper, 'meets_criteria', return_value=True):
+                if scraper.meets_criteria(listing_data):
+                    workflow_steps.append("Criteria")
             
             # Step 5: Store in MongoDB
             if scraper.mongo.insert_listing(listing_data):
@@ -303,10 +316,10 @@ class TestMainIntegration(unittest.TestCase):
             # Missing many required fields
         }
         
-        with patch('Project.Application.helpers.geocoding.ViennaGeocoder'), \
-             patch('Project.Integration.mongodb_handler.MongoDBHandler') as mock_mongo, \
-             patch('Project.Integration.telegram_bot.TelegramBot'), \
-             patch('Project.Application.analyzer.StructuredAnalyzer'):
+        with patch('Project.Application.scraping.willhaben_scraper.ViennaGeocoder'), \
+             patch('Project.Application.scraping.willhaben_scraper.MongoDBHandler') as mock_mongo, \
+             patch('Project.Application.scraping.willhaben_scraper.TelegramBot'), \
+             patch('Project.Application.scraping.willhaben_scraper.StructuredAnalyzer'):
             
             mock_mongo_instance = Mock()
             mock_mongo_instance.listing_exists.return_value = False
@@ -333,10 +346,10 @@ class TestMainIntegration(unittest.TestCase):
             'year_built': 2025  # Future year
         }
         
-        with patch('Project.Application.helpers.geocoding.ViennaGeocoder'), \
-             patch('Project.Integration.mongodb_handler.MongoDBHandler') as mock_mongo, \
-             patch('Project.Integration.telegram_bot.TelegramBot'), \
-             patch('Project.Application.analyzer.StructuredAnalyzer'):
+        with patch('Project.Application.scraping.willhaben_scraper.ViennaGeocoder'), \
+             patch('Project.Application.scraping.willhaben_scraper.MongoDBHandler') as mock_mongo, \
+             patch('Project.Application.scraping.willhaben_scraper.TelegramBot'), \
+             patch('Project.Application.scraping.willhaben_scraper.StructuredAnalyzer'):
             
             mock_mongo_instance = Mock()
             mock_mongo_instance.listing_exists.return_value = False

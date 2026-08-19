@@ -41,6 +41,8 @@ class TestDerStandardIntegration(unittest.TestCase):
             'heating': 'Fernwärme',
             'energy_class': 'A',
             'image_url': 'https://example.com/image.jpg',
+            'ubahn_walk_minutes': 8,
+            'school_walk_minutes': 12,
             'source': 'derstandard',
             'source_enum': 'DERSTANDARD'
         }
@@ -225,7 +227,7 @@ class TestDerStandardIntegration(unittest.TestCase):
         # Check infrastructure_distances is a dict
         assert isinstance(normalized['infrastructure_distances'], dict)
     
-    @patch('Project.Integration.mongodb_handler.MongoDBHandler')
+    @patch.object(sys.modules[__name__], 'MongoDBHandler')
     def test_mongodb_integration(self, mock_handler_class):
         """Test MongoDB integration"""
         # Create a mock handler instance

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from Application.scoring import score_apartment_simple, score_apartment
 from Application.helpers.utils import load_config
 
-@pytest.mark.smoke
 def test_score_calculation():
     """Test score calculation and negative score handling"""
     print("🧪 Testing Score Calculation")
@@ -98,54 +97,6 @@ def test_score_calculation():
         print(f"   🚇 U-Bahn: {listing['ubahn_walk_minutes']} min")
         print(f"   🛏️ Rooms: {listing['rooms']}")
     
-    # Test with real data from MongoDB
-    print("\n📊 Testing with real MongoDB data:")
-    print("-" * 60)
-    
-    try:
-        from Integration.mongodb_handler import MongoDBHandler
-        
-        config = load_config()
-        mongo_uri = config.get('mongodb_uri', 'mongodb://localhost:27017/')
-        mongo = MongoDBHandler(uri=mongo_uri)
-        
-        if mongo.client:
-            # Get a few real listings
-            real_listings = mongo.get_top_listings(
-                limit=3,
-                min_score=0.0,
-                days_old=30,
-                excluded_districts=[],
-                min_rooms=1
-            )
-            
-            for i, listing in enumerate(real_listings, 1):
-                print(f"\n🏠 Real Property {i}:")
-                
-                # Calculate score using the simple function
-                score_simple = score_apartment_simple(listing)
-                
-                # Get the stored score
-                stored_score = listing.get('score', 0)
-                
-                print(f"   📊 Stored Score: {stored_score:.2f}")
-                print(f"   📱 Calculated Score: {score_simple:.2f}")
-                print(f"   💰 Price: €{listing.get('price_total', 0):,}")
-                print(f"   📐 Area: {listing.get('area_m2', 0)}m²")
-                print(f"   🛏️ Rooms: {listing.get('rooms', 0)}")
-                print(f"   📍 District: {listing.get('bezirk', 'N/A')}")
-                
-                # Check if scores match
-                if abs(score_simple - stored_score) < 0.01:
-                    print(f"   ✅ Scores match")
-                else:
-                    print(f"   ⚠️ Scores don't match (might need recalculation)")
-        else:
-            print("❌ Could not connect to MongoDB")
-    
-    except Exception as e:
-        print(f"❌ Error testing with MongoDB data: {e}")
-    
     print("\n" + "=" * 50)
     print("🎉 Score Calculation Test Complete!")
     print("✅ Score calculation works")
@@ -153,6 +104,41 @@ def test_score_calculation():
     print("✅ Simple function applies fixes correctly")
     
     return True
+
+
+@pytest.mark.smoke
+def test_score_calculation_with_real_mongodb():
+    """Compare calculated scores with a small sample of stored listings."""
+    print("\n📊 Testing with real MongoDB data:")
+    print("-" * 60)
+
+    from Integration.mongodb_handler import MongoDBHandler
+
+    config = load_config()
+    mongo_uri = config.get('mongodb_uri', 'mongodb://localhost:27017/')
+    mongo = MongoDBHandler(uri=mongo_uri)
+
+    if not mongo.client:
+        pytest.skip("MongoDB client is unavailable")
+
+    real_listings = mongo.get_top_listings(
+        limit=3,
+        min_score=0.0,
+        days_old=30,
+        excluded_districts=[],
+        min_rooms=1
+    )
+
+    for i, listing in enumerate(real_listings, 1):
+        print(f"\n🏠 Real Property {i}:")
+        score_simple = score_apartment_simple(listing)
+        stored_score = listing.get('score', 0)
+        print(f"   📊 Stored Score: {stored_score:.2f}")
+        print(f"   📱 Calculated Score: {score_simple:.2f}")
+        print(f"   💰 Price: €{listing.get('price_total', 0):,}")
+        print(f"   📐 Area: {listing.get('area_m2', 0)}m²")
+        print(f"   🛏️ Rooms: {listing.get('rooms', 0)}")
+        print(f"   📍 District: {listing.get('bezirk', 'N/A')}")
 
 def main():
     """Run the test"""
