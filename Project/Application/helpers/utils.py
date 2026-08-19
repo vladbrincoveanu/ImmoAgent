@@ -172,24 +172,34 @@ def load_config() -> Dict:
 
     try:
         project_root = get_project_root()
-        config_path = os.path.join(project_root, 'config.json')
-        
-        print(f"🔍 Looking for config.json at: {config_path}")
+        config_paths = [
+            os.path.join(project_root, 'config.json'),
+            os.path.join(project_root, 'Project', 'config.json'),
+        ]
+
         print(f"🔍 Current working directory: {os.getcwd()}")
 
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                loaded_json = json.load(f)
-                if isinstance(loaded_json, dict):
-                    _config = loaded_json
-                    print(f"✅ Loaded config from {config_path}")
-                    
-                    # Supplement with environment variables if they exist
-                    _config = supplement_config_with_env_vars(_config)
-                    
-                    return _config
-        else:
-            print(f"❌ Could not find config.json at {config_path}")
+        for config_path in config_paths:
+            print(f"🔍 Looking for config.json at: {config_path}")
+            if not os.path.exists(config_path):
+                print(f"❌ Could not find config.json at {config_path}")
+                continue
+
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    loaded_json = json.load(f)
+            except Exception as e:
+                print(f"❌ Error loading config.json: {e}")
+                continue
+
+            if isinstance(loaded_json, dict):
+                _config = loaded_json
+                print(f"✅ Loaded config from {config_path}")
+
+                # Supplement with environment variables if they exist
+                _config = supplement_config_with_env_vars(_config)
+
+                return _config
 
     except Exception as e:
         print(f"❌ Error loading config.json: {e}")

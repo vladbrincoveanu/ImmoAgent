@@ -88,6 +88,26 @@ class TestTelegramViennaConfig(unittest.TestCase):
         self.assertNotIn("main-chat-from-env", output.getvalue())
         self.assertNotIn("mongodb://localhost:27017/immo", output.getvalue())
 
+    def test_load_config_reads_project_legacy_config_from_unrelated_cwd(self):
+        with tempfile.TemporaryDirectory() as temp_root, tempfile.TemporaryDirectory() as unrelated_cwd:
+            legacy_config_path = os.path.join(temp_root, "Project", "config.json")
+            os.makedirs(os.path.dirname(legacy_config_path))
+            with open(legacy_config_path, "w", encoding="utf-8") as config_file:
+                json.dump({"source": "legacy-project-config"}, config_file)
+
+            with patch.dict(os.environ, {}, clear=True):
+                utils._config = None
+                utils._project_root = temp_root
+                os.chdir(unrelated_cwd)
+                config = utils.load_config()
+                resolved_config_path = setup_vienna_channel._resolve_config_path(temp_root)
+
+        self.assertEqual(config["source"], "legacy-project-config")
+        self.assertEqual(
+            resolved_config_path,
+            legacy_config_path,
+        )
+
     def test_vienna_token_prefers_explicit_environment_value(self):
         config = {
             "telegram": {

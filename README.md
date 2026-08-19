@@ -122,20 +122,20 @@ The application supports different buyer profiles for customized property scorin
 ### Usage
 ```bash
 # Use default profile (owner_occupier)
-python run.py
+python Project/run.py
 
 # Use specific profile
-python run.py --buyer-profile=growing_family
+python Project/run.py --buyer-profile=growing_family
 
 # Use persona enum shorthand
-python run_top5.py --buyer-persona=owner_occupier
+python Project/run_top5.py --buyer-persona=owner_occupier
 
 # Top5 with specific profile
-python run_top5.py --buyer-profile=budget_buyer
+python Project/run_top5.py --buyer-profile=budget_buyer
 
 # Scan deeper or faster
-python run.py --deep-scan     # up to 20 pages/source (configurable)
-python run.py --quick-scan    # skim ~4 pages/source for a quick refresh
+python Project/run.py --deep-scan     # up to 20 pages/source (configurable)
+python Project/run.py --quick-scan    # skim ~4 pages/source for a quick refresh
 ```
 
 ## 📊 Usage
