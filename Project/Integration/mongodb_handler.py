@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 import os
 import json
 import time
-import uuid
 from types import SimpleNamespace
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint, compute_xsrc_fingerprint
@@ -48,9 +47,13 @@ def _valid_listing_delivery_identity(url: Any, fingerprint: Any) -> bool:
     return isinstance(url, str) and bool(url.strip()) and isinstance(fingerprint, str)
 
 
+def _valid_listing_delivery_claim_token(claim_token: Any) -> bool:
+    return isinstance(claim_token, str) and bool(claim_token.strip())
+
+
 def _claimed_listing_delivery_query(
     url: str, fingerprint: str, prefix: str,
-    claim_token: Optional[str] = None,
+    claim_token: str,
 ) -> Dict[str, Any]:
     identity = [{"url": url}]
     if fingerprint:
@@ -58,9 +61,8 @@ def _claimed_listing_delivery_query(
     conditions = [
         {"$or": identity},
         {f"{prefix}.state": "claimed"},
+        {f"{prefix}.claim_token": claim_token},
     ]
-    if claim_token is not None:
-        conditions.append({f"{prefix}.claim_token": claim_token})
     return {"$and": conditions}
 
 
@@ -583,11 +585,10 @@ class MongoDBHandler:
         if (
             getattr(self, "collection", None) is None
             or not _valid_listing_delivery_identity(url, fingerprint)
-            or (claim_token is not None and not isinstance(claim_token, str))
+            or not _valid_listing_delivery_claim_token(claim_token)
         ):
             return False
         try:
-            claim_token = claim_token if claim_token is not None else uuid.uuid4().hex
             now = time.time()
             row = self.collection.find_one_and_update(
                 _listing_delivery_query(url, fingerprint, prefix),
@@ -614,7 +615,7 @@ class MongoDBHandler:
         if (
             getattr(self, "collection", None) is None
             or not _valid_listing_delivery_identity(url, fingerprint)
-            or (claim_token is not None and not isinstance(claim_token, str))
+            or not _valid_listing_delivery_claim_token(claim_token)
         ):
             return False
         try:
@@ -646,7 +647,7 @@ class MongoDBHandler:
         if (
             getattr(self, "collection", None) is None
             or not _valid_listing_delivery_identity(url, fingerprint)
-            or (claim_token is not None and not isinstance(claim_token, str))
+            or not _valid_listing_delivery_claim_token(claim_token)
         ):
             return False
         try:
@@ -682,7 +683,7 @@ class MongoDBHandler:
         if (
             getattr(self, "collection", None) is None
             or not _valid_listing_delivery_identity(url, fingerprint)
-            or (claim_token is not None and not isinstance(claim_token, str))
+            or not _valid_listing_delivery_claim_token(claim_token)
         ):
             return False
         try:

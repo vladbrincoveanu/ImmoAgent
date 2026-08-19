@@ -160,26 +160,6 @@ def test_claim_listing_delivery_uses_atomic_route_query_and_lease():
     )
 
 
-def test_claim_listing_delivery_generates_uuid_token_when_omitted():
-    collection = Mock()
-    collection.find_one_and_update.return_value = {"_id": "claimed"}
-    mongo = MongoDBHandler.__new__(MongoDBHandler)
-    mongo.collection = collection
-
-    with patch(
-        "Integration.mongodb_handler.uuid.uuid4",
-        return_value=uuid.UUID("00000000-0000-0000-0000-000000000004"),
-    ):
-        assert mongo.claim_listing_delivery(
-            "https://example.test/listing-1", "fingerprint-1"
-        ) is True
-
-    update = collection.find_one_and_update.call_args.args[1]
-    assert update["$set"]["telegram_delivery.vienna.claim_token"] == (
-        "00000000000000000000000000000004"
-    )
-
-
 def test_listing_delivery_release_and_mark_update_route_and_legacy_state():
     collection = Mock()
     collection.update_one.return_value = Mock(modified_count=1)
@@ -262,6 +242,26 @@ def test_wrong_claim_token_cannot_transition_claimed_row():
     for call in collection.update_one.call_args_list:
         query = call.args[0]
         assert {"telegram_delivery.vienna.claim_token": "different-token"} in query["$and"]
+
+
+@pytest.mark.parametrize("method_name", [
+    "claim_listing_delivery",
+    "release_listing_delivery",
+    "mark_listing_delivery_sent",
+    "quarantine_listing_delivery",
+])
+@pytest.mark.parametrize("claim_token", [None, "", "  ", "\t", {}, [], 123])
+def test_delivery_methods_require_nonblank_claim_token(method_name, claim_token):
+    collection = Mock()
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+
+    assert getattr(mongo, method_name)(
+        "https://example.test/listing-1", "fingerprint-1",
+        claim_token=claim_token,
+    ) is False
+    collection.find_one_and_update.assert_not_called()
+    collection.update_one.assert_not_called()
 
 
 @pytest.mark.parametrize("method_name", [
