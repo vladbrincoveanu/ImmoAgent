@@ -9,6 +9,7 @@ from Application.telegram_delivery import (
     VIENNA_CHANNEL,
     VIENNA_MIN_AREA_M2,
     VIENNA_MIN_ROOMS,
+    preserve_delivery_state,
     send_vienna_listings,
     vienna_filter_reason,
 )
@@ -31,6 +32,59 @@ def test_vienna_policy_constants():
     assert VIENNA_CHANNEL == "vienna"
     assert VIENNA_MIN_AREA_M2 == 75.0
     assert VIENNA_MIN_ROOMS == 3.0
+
+
+def test_preserve_delivery_state_keeps_existing_state_and_fresh_listing_fields():
+    existing = {
+        "telegram_delivery": {"vienna": {"state": "sent"}},
+        "sent_to_telegram": True,
+        "sent_to_telegram_at": 1234.5,
+        "url_is_valid": True,
+    }
+    replacement = {
+        "title": "Fresh title",
+        "telegram_delivery": {},
+        "sent_to_telegram": False,
+        "sent_to_telegram_at": None,
+        "url_is_valid": False,
+    }
+
+    result = preserve_delivery_state(existing, replacement)
+
+    assert result["telegram_delivery"] == existing["telegram_delivery"]
+    assert result["sent_to_telegram"] is True
+    assert result["sent_to_telegram_at"] == 1234.5
+    assert result["url_is_valid"] is True
+    assert result["title"] == "Fresh title"
+
+
+def test_coop_replacement_preserves_telegram_delivery_state():
+    collection = Mock()
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+    existing = {
+        "_id": "listing-id",
+        "telegram_delivery": {"vienna": {"state": "sent"}},
+        "sent_to_telegram": True,
+        "sent_to_telegram_at": 1234.5,
+        "url_is_valid": True,
+    }
+    replacement = {
+        "title": "Fresh title",
+        "telegram_delivery": {},
+        "sent_to_telegram": False,
+        "sent_to_telegram_at": None,
+        "url_is_valid": False,
+    }
+
+    mongo._replace_preserving_state(existing, replacement)
+
+    replaced = collection.replace_one.call_args.args[1]
+    assert replaced["telegram_delivery"] == existing["telegram_delivery"]
+    assert replaced["sent_to_telegram"] is True
+    assert replaced["sent_to_telegram_at"] == 1234.5
+    assert replaced["url_is_valid"] is True
+    assert replaced["title"] == "Fresh title"
 
 
 def test_area_boundary_is_inclusive():

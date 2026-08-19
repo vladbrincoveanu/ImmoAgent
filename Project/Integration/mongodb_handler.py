@@ -295,7 +295,7 @@ class MongoDBHandler:
         re-spam) and the detail-page-resolved builder_url / image_url (only
         run_coop resolves those; other write paths would else wipe them)."""
         listing['_id'] = existing['_id']
-        for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
+        for k in ("telegram_delivery", "sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
             if k in existing:
                 listing[k] = existing[k]
         # `is not None`, NOT truthiness: "" is the terminal "offer page had no

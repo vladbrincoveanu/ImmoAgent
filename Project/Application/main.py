@@ -26,6 +26,7 @@ from Domain.location import Coordinates
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
+from Application.telegram_delivery import preserve_delivery_state
 from Domain.listing import Listing
 import logging
 import logging.handlers
@@ -499,6 +500,7 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
 
             if existing_by_url:
                 listing_dict['_id'] = existing_by_url['_id']
+                listing_dict = preserve_delivery_state(existing_by_url, listing_dict)
                 collection.replace_one({"_id": existing_by_url['_id']}, listing_dict)
                 duplicate_count += 1
                 logging.debug(f"🔄 Updated existing listing: {listing.title}")
