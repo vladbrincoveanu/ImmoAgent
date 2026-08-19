@@ -89,6 +89,7 @@ def test_score_calculation():
         else:
             print(f"   ❌ Score calculation incorrect")
             print(f"      Expected: {score_fixed:.2f}, Got: {score_simple:.2f}")
+        assert abs(score_simple - score_fixed) < 0.01
         
         # Show some key factors
         print(f"   💰 Price per m²: €{listing['price_per_m2']:,}")
@@ -102,8 +103,6 @@ def test_score_calculation():
     print("✅ Score calculation works")
     print("✅ Negative score multiplication works")
     print("✅ Simple function applies fixes correctly")
-    
-    return True
 
 
 @pytest.mark.smoke
@@ -142,7 +141,8 @@ def test_score_calculation_with_real_mongodb():
 
 def main():
     """Run the test"""
-    success = test_score_calculation()
+    test_score_calculation()
+    success = True
     
     print("\n" + "=" * 50)
     print(f"Result: {'✅ SUCCESS' if success else '❌ FAILED'}")

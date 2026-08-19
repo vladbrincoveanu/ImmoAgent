@@ -26,7 +26,7 @@ def test_logging_directory_creation():
         # Test 1: Check that log directory doesn't exist initially
         if os.path.exists('log'):
             print("❌ Log directory already exists (shouldn't)")
-            return False
+            raise AssertionError("Log directory already exists")
         else:
             print("✅ Log directory doesn't exist initially (correct)")
         
@@ -43,7 +43,7 @@ def test_logging_directory_creation():
             print("✅ Successfully imported main module")
         except Exception as e:
             print(f"❌ Failed to import main module: {e}")
-            return False
+            raise AssertionError("Failed to import main module") from e
         
         # Test 3: Check if log directory was created
         if os.path.exists('log'):
@@ -54,10 +54,10 @@ def test_logging_directory_creation():
                 print("✅ Log directory is a proper directory")
             else:
                 print("❌ Log directory is not a directory")
-                return False
+                raise AssertionError("Log path is not a directory")
         else:
             print("❌ Log directory was not created")
-            return False
+            raise AssertionError("Log directory was not created")
         
         # Test 4: Try to create a log file
         try:
@@ -82,14 +82,13 @@ def test_logging_directory_creation():
                 print("✅ Log file was created successfully")
             else:
                 print("❌ Log file was not created")
-                return False
+                raise AssertionError("Log file was not created")
                 
         except Exception as e:
             print(f"❌ Logging test failed: {e}")
-            return False
+            raise AssertionError("Logging test failed") from e
         
         print("\n✅ All logging directory tests passed!")
-        return True
         
     finally:
         # Clean up
@@ -165,14 +164,13 @@ if __name__ == "__main__":
             # Check if log directory and file were created
             if os.path.exists('log') and os.path.exists('log/test.log'):
                 print("✅ GitHub Actions simulation successful - log directory and file created")
-                return True
             else:
                 print("❌ GitHub Actions simulation failed - log files not created")
-                return False
+                raise AssertionError("GitHub Actions log files were not created")
                 
         except Exception as e:
             print(f"❌ GitHub Actions simulation failed: {e}")
-            return False
+            raise AssertionError("GitHub Actions simulation failed") from e
             
     finally:
         # Clean up
@@ -186,8 +184,10 @@ def main():
     print("=" * 60)
     
     # Run tests
-    test1_success = test_logging_directory_creation()
-    test2_success = test_github_actions_compatibility()
+    test_logging_directory_creation()
+    test1_success = True
+    test_github_actions_compatibility()
+    test2_success = True
     
     print("\n" + "=" * 60)
     print("📊 Test Results:")

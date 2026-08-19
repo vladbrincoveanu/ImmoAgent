@@ -18,6 +18,8 @@ from Project.Application.scraping.willhaben_scraper import WillhabenScraper
 from Project.Integration.mongodb_handler import MongoDBHandler
 from Project.Integration.telegram_bot import TelegramBot
 from Project.Application.analyzer import StructuredAnalyzer
+from Project.Domain.listing import Listing
+from Project.Domain.sources import Source
 import logging
 
 # Disable logging for cleaner test output
@@ -282,9 +284,18 @@ class TestMainIntegration(unittest.TestCase):
                 workflow_steps.append("Analysis")
             
             # Step 4: Check criteria
-            with patch.object(scraper, 'meets_criteria', return_value=True):
-                if scraper.meets_criteria(listing_data):
-                    workflow_steps.append("Criteria")
+            criteria_listing = Listing(
+                url=listing_data['url'],
+                source=Source.WILLHABEN,
+                bezirk=listing_data['bezirk'],
+                price_total=listing_data['price_total'],
+                area_m2=listing_data['area_m2'],
+                rooms=listing_data['rooms'],
+                year_built=listing_data['year_built'],
+                price_per_m2=listing_data['price_per_m2'],
+            )
+            if scraper.meets_criteria(criteria_listing):
+                workflow_steps.append("Criteria")
             
             # Step 5: Store in MongoDB
             if scraper.mongo.insert_listing(listing_data):
