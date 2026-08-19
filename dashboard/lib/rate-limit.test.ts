@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it } from '@jest/globals';
 import { SlidingWindowRateLimiter } from './rate-limit';
 
 describe('SlidingWindowRateLimiter', () => {
@@ -54,6 +54,12 @@ describe('SlidingWindowRateLimiter', () => {
     },
   );
 
+  it.each([Number.MAX_SAFE_INTEGER, Number.MAX_VALUE])('rejects overflowing now %p', (now) => {
+    const limiter = new SlidingWindowRateLimiter();
+
+    expect(() => limiter.check('ip', 1, 1_000, now)).toThrow(RangeError);
+  });
+
   it('clamps clock rollback to the key latest timestamp', () => {
     const limiter = new SlidingWindowRateLimiter();
 
@@ -67,7 +73,15 @@ describe('SlidingWindowRateLimiter', () => {
     expect(entries.get('rollback')?.timestamps).toEqual([1_000, 1_000, 1_001]);
   });
 
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+  it.each([
+    0,
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER,
+    Number.MAX_VALUE,
+  ])(
     'rejects invalid windowMs %p',
     (windowMs) => {
       const limiter = new SlidingWindowRateLimiter();
@@ -75,7 +89,7 @@ describe('SlidingWindowRateLimiter', () => {
     },
   );
 
-  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER])(
     'rejects invalid limit %p',
     (limit) => {
       const limiter = new SlidingWindowRateLimiter();
@@ -117,14 +131,15 @@ describe('SlidingWindowRateLimiter', () => {
     },
   );
 
-  it('evicts FIFO entries when total event capacity is reached', () => {
+  it('fails closed without evicting active buckets at total capacity', () => {
     const limiter = new SlidingWindowRateLimiter(10, 100, 1);
 
     limiter.check('first', 2, 100, 0);
-    limiter.check('second', 2, 100, 1);
+    const blocked = limiter.check('second', 2, 100, 1);
 
     expect(limiter.size()).toBe(1);
-    expect(limiter.check('first', 1, 100, 1).allowed).toBe(true);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(101);
   });
 
   it('prunes only the requested key during normal checks', () => {
@@ -151,17 +166,25 @@ describe('SlidingWindowRateLimiter', () => {
     expect(limiter.check('active', 1, 100, 101).allowed).toBe(false);
   });
 
-  it('evicts the oldest key when capacity remains full', () => {
+  it('reaps expired keys on a bounded capacity cleanup cadence', () => {
+    const limiter = new SlidingWindowRateLimiter(1);
+
+    limiter.check('active', 1, 100, 0);
+    expect(limiter.check('new', 1, 100, 50).allowed).toBe(false);
+    expect(limiter.check('new', 1, 100, 101).allowed).toBe(false);
+    expect(limiter.check('new', 1, 100, 1_050).allowed).toBe(true);
+  });
+
+  it('fails closed without evicting active buckets at key capacity', () => {
     const limiter = new SlidingWindowRateLimiter(2);
-    const clearExpired = jest.spyOn(limiter, 'clearExpired');
 
     limiter.check('first', 1, 100, 0);
     limiter.check('second', 1, 100, 1);
-    limiter.check('third', 1, 100, 2);
+    const blocked = limiter.check('third', 1, 100, 2);
 
     expect(limiter.size()).toBe(2);
-    expect(clearExpired).not.toHaveBeenCalled();
-    expect(limiter.check('first', 1, 100, 2).allowed).toBe(true);
-    expect(limiter.check('third', 1, 100, 2).allowed).toBe(false);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(102);
+    expect(limiter.check('first', 1, 100, 2).allowed).toBe(false);
   });
 });

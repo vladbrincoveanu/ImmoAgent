@@ -7,6 +7,9 @@ export type RateLimitResult = {
 const DEFAULT_MAX_KEYS = 10_000;
 const DEFAULT_MAX_EVENTS_PER_KEY = 100;
 const DEFAULT_MAX_TOTAL_EVENTS = 100_000;
+const MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
+const MAX_SAFE_TIMESTAMP = Number.MAX_SAFE_INTEGER;
+const CLEANUP_INTERVAL_MS = 1_000;
 
 type Entry = {
   timestamps: number[];
@@ -20,6 +23,7 @@ export class SlidingWindowRateLimiter {
   private readonly maxEventsPerKey: number;
   private readonly maxTotalEvents: number;
   private totalEvents = 0;
+  private lastCleanupAt: number | null = null;
 
   constructor(
     maxKeys = DEFAULT_MAX_KEYS,
@@ -53,8 +57,14 @@ export class SlidingWindowRateLimiter {
     if (!Number.isFinite(windowMs) || windowMs <= 0) {
       throw new RangeError('windowMs must be a positive finite number');
     }
+    if (windowMs > MAX_WINDOW_MS) {
+      throw new RangeError('windowMs exceeds the safe limit');
+    }
     if (!Number.isFinite(now) || now < 0) {
       throw new RangeError('now must be a finite non-negative number');
+    }
+    if (now > MAX_SAFE_TIMESTAMP - windowMs) {
+      throw new RangeError('now exceeds the safe timestamp limit');
     }
 
     const current = this.entries.get(key);
@@ -64,6 +74,9 @@ export class SlidingWindowRateLimiter {
       const latestTimestamp = current.timestamps[current.timestamps.length - 1];
       if (latestTimestamp !== undefined && effectiveNow < latestTimestamp) {
         effectiveNow = latestTimestamp;
+      }
+      if (effectiveNow > MAX_SAFE_TIMESTAMP - windowMs) {
+        throw new RangeError('now exceeds the safe timestamp limit');
       }
       current.windowMs = windowMs;
       this.pruneExpired(current, effectiveNow);
@@ -81,11 +94,13 @@ export class SlidingWindowRateLimiter {
     }
 
     if ((!current && this.entries.size >= this.maxKeys) || this.totalEvents >= this.maxTotalEvents) {
-      while (
-        this.entries.size > 0
-        && (this.entries.size >= this.maxKeys || this.totalEvents >= this.maxTotalEvents)
-      ) {
-        this.evictOldest();
+      this.maybeReapExpired(effectiveNow);
+      if ((!current && this.entries.size >= this.maxKeys) || this.totalEvents >= this.maxTotalEvents) {
+        return {
+          allowed: false,
+          remaining: 0,
+          resetAt: effectiveNow + windowMs,
+        };
       }
       activeTimestamps = this.entries.get(key)?.timestamps ?? [];
     }
@@ -102,9 +117,10 @@ export class SlidingWindowRateLimiter {
   }
 
   clearExpired(now = Date.now()): void {
-    if (!Number.isFinite(now) || now < 0) {
+    if (!Number.isFinite(now) || now < 0 || now > MAX_SAFE_TIMESTAMP) {
       throw new RangeError('now must be a finite non-negative number');
     }
+    this.lastCleanupAt = now;
     for (const [key, entry] of this.entries) {
       this.pruneExpired(entry, now);
       if (entry.timestamps.length === 0) this.entries.delete(key);
@@ -113,15 +129,6 @@ export class SlidingWindowRateLimiter {
 
   size(): number {
     return this.entries.size;
-  }
-
-  private evictOldest(): void {
-    const oldest = this.entries.keys().next();
-    if (!oldest.done) {
-      const entry = this.entries.get(oldest.value);
-      if (entry) this.totalEvents -= entry.timestamps.length;
-      this.entries.delete(oldest.value);
-    }
   }
 
   private pruneExpired(entry: Entry, now: number): void {
@@ -136,6 +143,11 @@ export class SlidingWindowRateLimiter {
 
     this.totalEvents -= expiredCount;
     entry.timestamps = entry.timestamps.slice(expiredCount);
+  }
+
+  private maybeReapExpired(now: number): void {
+    if (this.lastCleanupAt !== null && now - this.lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+    this.clearExpired(now);
   }
 }
 
