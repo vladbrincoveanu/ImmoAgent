@@ -7,6 +7,20 @@ const VALID_DISTRICTS = new Set([
 ]);
 
 const VALID_SORT_OPTIONS: SortOption[] = ['score_desc', 'price_asc', 'price_desc', 'date_desc', 'area_desc'];
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+const INTEGER = /^[+-]?\d+$/;
+
+function parseFiniteDecimal(input: string | null): number | null {
+  if (input == null || !DECIMAL.test(input.trim())) return null;
+  const value = Number(input.trim());
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseFiniteInteger(input: string | null): number | null {
+  if (input == null || !INTEGER.test(input.trim())) return null;
+  const value = Number(input.trim());
+  return Number.isSafeInteger(value) ? value : null;
+}
 
 export function validateDistrict(input: string | null): string | null {
   if (!input || input.trim() === '') return null;
@@ -31,15 +45,15 @@ export function validateSort(input: string | null): SortOption {
 
 export function validateMinScore(input: string | null): number {
   if (!input) return 0;
-  const parsed = parseFloat(input);
-  if (isNaN(parsed)) return 0;
+  const parsed = parseFiniteDecimal(input);
+  if (parsed == null) return 0;
   return Math.max(0, Math.min(100, parsed));
 }
 
 export function validateLimit(input: string | null, max: number): number {
   if (!input) return max;
-  const parsed = parseInt(input, 10);
-  if (isNaN(parsed)) return max;
+  const parsed = parseFiniteInteger(input);
+  if (parsed == null) return max;
   return Math.max(1, Math.min(max, parsed));
 }
 

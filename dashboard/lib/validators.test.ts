@@ -146,3 +146,17 @@ describe('validateObjectId', () => {
     expect(validateObjectId('507f1f77bcf86cd79943901z')).toBeNull();
   });
 });
+
+describe('strict numeric parsing', () => {
+  it('rejects partial numeric prefixes', () => {
+    expect(validateMinScore('10abc')).toBe(0);
+    expect(validateLimit('3items', 200)).toBe(200);
+  });
+
+  it('rejects non-finite values', () => {
+    expect(validateMinScore('NaN')).toBe(0);
+    expect(validateMinScore('Infinity')).toBe(0);
+    expect(validateLimit('NaN', 200)).toBe(200);
+    expect(validateLimit('Infinity', 200)).toBe(200);
+  });
+});
