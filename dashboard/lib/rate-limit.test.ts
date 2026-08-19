@@ -318,19 +318,22 @@ describe('SlidingWindowRateLimiter', () => {
     expect(limiter.check('second', 2, 100, blocked.resetAt).allowed).toBe(true);
   });
 
-  it('compacts stale expiry nodes during repeated single-key reinsertion', () => {
-    const limiter = new SlidingWindowRateLimiter();
+  it('preserves capacity metadata after compacting repeated single-key reinsertion', () => {
+    const limiter = new SlidingWindowRateLimiter(1, 1, 1);
 
     for (let request = 0; request < 100; request += 1) {
       expect(limiter.check('ip', 1, 100, request * 100).allowed).toBe(true);
     }
 
-    const blocked = limiter.check('ip', 1, 100, 9_901);
+    const actualReleaseAt = 10_000;
+    const blocked = limiter.check('other', 1, 100, 9_901);
     const heapSizes = limiter.heapSizesForTesting();
 
     expect(limiter.size()).toBe(1);
     expect(blocked.allowed).toBe(false);
-    expect(blocked.resetAt).toBe(10_000);
+    expect(blocked.resetAt).toBeGreaterThanOrEqual(actualReleaseAt);
+    expect(blocked.resetAt).toBe(actualReleaseAt);
+    expect(limiter.check('other', 1, 100, blocked.resetAt).allowed).toBe(true);
     expect(heapSizes.eventExpiry).toBeLessThan(20);
     expect(heapSizes.keyRelease).toBeLessThan(20);
   });
