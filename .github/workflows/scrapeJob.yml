@@ -94,8 +94,10 @@ jobs:
           cd Project/Tests
           pytest test_bank_scoring.py -v --tb=short
 
+      - name: Verify Top5 startup dependencies
+        run: pytest tests/test_workflow_dependencies.py -v --tb=short
+
       - name: Security audit
         run: |
           pip install pip-audit
           pip-audit --format columns 2>&1 || true
-
