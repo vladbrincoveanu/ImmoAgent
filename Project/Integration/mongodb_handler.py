@@ -17,6 +17,44 @@ logger = logging.getLogger(__name__)
 
 # Per-profile precalculation support
 PROFILE_NAMES: list[str] = list(BUYER_PROFILES.keys())
+LISTING_DELIVERY_CHANNELS = {"vienna"}
+
+
+def _validate_listing_delivery_channel(channel: str) -> str:
+    if not isinstance(channel, str) or channel not in LISTING_DELIVERY_CHANNELS:
+        raise ValueError(f"unknown listing delivery channel: {channel}")
+    return f"telegram_delivery.{channel}"
+
+
+def _listing_delivery_query(url: str, fingerprint: str, prefix: str) -> Dict[str, Any]:
+    identity = [{"url": url}]
+    if fingerprint:
+        identity.append({"content_fingerprint": fingerprint})
+    return {
+        "$and": [
+            {"$or": identity},
+            {f"{prefix}.state": {"$nin": ["sent", "uncertain"]}},
+            {"$or": [
+                {f"{prefix}.claim_until": {"$exists": False}},
+                {f"{prefix}.claim_until": None},
+                {f"{prefix}.claim_until": {"$lte": time.time()}},
+            ]},
+        ]
+    }
+
+
+def _claimed_listing_delivery_query(
+    url: str, fingerprint: str, prefix: str
+) -> Dict[str, Any]:
+    identity = [{"url": url}]
+    if fingerprint:
+        identity.append({"content_fingerprint": fingerprint})
+    return {
+        "$and": [
+            {"$or": identity},
+            {f"{prefix}.state": "claimed"},
+        ]
+    }
 
 
 def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
@@ -529,6 +567,105 @@ class MongoDBHandler:
                 logging.error(f"MongoDB update error: {e}")
         except Exception as e:
             logging.error(f"MongoDB update error: {e}")
+
+    def claim_listing_delivery(self, url: str, fingerprint: str,
+                               channel: str = "vienna",
+                               lease_seconds: int = 300) -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if getattr(self, "collection", None) is None or not url:
+            return False
+        try:
+            now = time.time()
+            row = self.collection.find_one_and_update(
+                _listing_delivery_query(url, fingerprint, prefix),
+                {"$set": {
+                    f"{prefix}.state": "claimed",
+                    f"{prefix}.claimed_at": now,
+                    f"{prefix}.claim_until": now + lease_seconds,
+                }},
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
+            return row is not None
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery claim failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected {channel} listing delivery claim failure: {e}")
+            return False
+
+    def release_listing_delivery(self, url: str, fingerprint: str,
+                                 channel: str = "vienna") -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if getattr(self, "collection", None) is None:
+            return False
+        try:
+            result = self.collection.update_one(
+                _claimed_listing_delivery_query(url, fingerprint, prefix),
+                {"$set": {f"{prefix}.state": "failed"},
+                 "$unset": {
+                     f"{prefix}.claim_until": "",
+                     f"{prefix}.claimed_at": "",
+                 }},
+            )
+            return result.modified_count > 0
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery release failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} listing delivery release failure: {e}"
+            )
+            return False
+
+    def mark_listing_delivery_sent(self, url: str, fingerprint: str,
+                                   channel: str = "vienna") -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if getattr(self, "collection", None) is None:
+            return False
+        try:
+            now = time.time()
+            result = self.collection.update_one(
+                _claimed_listing_delivery_query(url, fingerprint, prefix),
+                {"$set": {
+                    f"{prefix}.state": "sent",
+                    f"{prefix}.sent_at": now,
+                    "sent_to_telegram": True,
+                    "sent_to_telegram_at": now,
+                }, "$unset": {f"{prefix}.claim_until": ""}},
+            )
+            return result.modified_count > 0
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery marker failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} listing delivery marker failure: {e}"
+            )
+            return False
+
+    def quarantine_listing_delivery(self, url: str, fingerprint: str,
+                                    channel: str = "vienna") -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if getattr(self, "collection", None) is None:
+            return False
+        try:
+            now = time.time()
+            result = self.collection.update_one(
+                _claimed_listing_delivery_query(url, fingerprint, prefix),
+                {"$set": {
+                    f"{prefix}.state": "uncertain",
+                    f"{prefix}.uncertain_at": now,
+                }, "$unset": {f"{prefix}.claim_until": ""}},
+            )
+            return result.modified_count > 0
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery quarantine failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} listing delivery quarantine failure: {e}"
+            )
+            return False
 
     def mark_listings_sent(self, listings: List[Dict]):
         """Mark multiple listings as sent to Telegram"""

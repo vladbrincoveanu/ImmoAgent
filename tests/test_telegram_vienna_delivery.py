@@ -1,6 +1,7 @@
 import math
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
+import pymongo
 import pytest
 
 from Application.telegram_delivery import (
@@ -10,6 +11,7 @@ from Application.telegram_delivery import (
     send_vienna_listings,
     vienna_filter_reason,
 )
+from Integration.mongodb_handler import MongoDBHandler
 
 
 def listing(**overrides):
@@ -114,3 +116,105 @@ def test_invalid_candidate_does_not_poison_same_content_dedup():
     mongo.mark_url_invalid.assert_called_once_with(first["url"])
     mongo.claim_listing_delivery.assert_called_once()
     bot.send_property_notification.assert_called_once_with(second)
+
+
+def test_claim_listing_delivery_uses_atomic_route_query_and_lease():
+    collection = Mock()
+    collection.find_one_and_update.side_effect = [{"_id": "claimed"}, None]
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+
+    assert mongo.claim_listing_delivery(
+        "https://example.test/listing-1", "fingerprint-1"
+    ) is True
+    assert mongo.claim_listing_delivery(
+        "https://example.test/listing-1", "fingerprint-1"
+    ) is False
+
+    query, update = collection.find_one_and_update.call_args_list[0].args[:2]
+    identity = next(part for part in query["$and"] if "$or" in part)
+    assert {"url": "https://example.test/listing-1"} in identity["$or"]
+    assert {"content_fingerprint": "fingerprint-1"} in identity["$or"]
+
+    state = next(part for part in query["$and"] if "telegram_delivery.vienna.state" in part)
+    assert state == {
+        "telegram_delivery.vienna.state": {"$nin": ["sent", "uncertain"]}
+    }
+
+    expiry = next(part for part in query["$and"] if "$or" in part and part != identity)
+    expiry_conditions = expiry["$or"]
+    assert {"telegram_delivery.vienna.claim_until": {"$exists": False}} in expiry_conditions
+    assert {"telegram_delivery.vienna.claim_until": None} in expiry_conditions
+    assert any(
+        (condition.get("telegram_delivery.vienna.claim_until") or {}).get("$lte")
+        is not None
+        for condition in expiry_conditions
+    )
+    assert update["$set"]["telegram_delivery.vienna.state"] == "claimed"
+    assert collection.find_one_and_update.call_args_list[0].kwargs["return_document"] == (
+        pymongo.ReturnDocument.AFTER
+    )
+
+
+def test_listing_delivery_release_and_mark_update_route_and_legacy_state():
+    collection = Mock()
+    collection.update_one.return_value = Mock(modified_count=1)
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+
+    assert mongo.release_listing_delivery(
+        "https://example.test/listing-1", "fingerprint-1"
+    ) is True
+    with patch("Integration.mongodb_handler.time.time", return_value=1234.5):
+        assert mongo.mark_listing_delivery_sent(
+            "https://example.test/listing-1", "fingerprint-1"
+        ) is True
+
+    _, release_update = collection.update_one.call_args_list[0].args[:2]
+    assert release_update["$set"]["telegram_delivery.vienna.state"] == "failed"
+    assert release_update["$unset"] == {
+        "telegram_delivery.vienna.claim_until": "",
+        "telegram_delivery.vienna.claimed_at": "",
+    }
+
+    _, sent_update = collection.update_one.call_args_list[1].args[:2]
+    assert sent_update["$set"] == {
+        "telegram_delivery.vienna.state": "sent",
+        "telegram_delivery.vienna.sent_at": 1234.5,
+        "sent_to_telegram": True,
+        "sent_to_telegram_at": 1234.5,
+    }
+    assert sent_update["$unset"] == {"telegram_delivery.vienna.claim_until": ""}
+
+
+def test_quarantine_listing_delivery_sets_uncertain_route_state():
+    collection = Mock()
+    collection.update_one.return_value = Mock(modified_count=1)
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+
+    with patch("Integration.mongodb_handler.time.time", return_value=9876.5):
+        assert mongo.quarantine_listing_delivery(
+            "https://example.test/listing-1", "fingerprint-1"
+        ) is True
+
+    _, update = collection.update_one.call_args.args[:2]
+    assert update["$set"] == {
+        "telegram_delivery.vienna.state": "uncertain",
+        "telegram_delivery.vienna.uncertain_at": 9876.5,
+    }
+    assert update["$unset"] == {"telegram_delivery.vienna.claim_until": ""}
+
+
+def test_vienna_delivery_calls_real_handler_delivery_methods():
+    collection = Mock()
+    collection.find_one_and_update.return_value = {"_id": "claimed"}
+    collection.update_one.return_value = Mock(modified_count=1)
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+    bot = Mock(min_score_threshold=40)
+    bot.send_property_notification.return_value = True
+
+    assert send_vienna_listings(
+        [listing()], bot, mongo, url_validator=lambda url: True
+    ) == 1
