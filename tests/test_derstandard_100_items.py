@@ -4,7 +4,6 @@ Comprehensive derStandard scraper test
 Scrapes until we reach 100 items in the database
 """
 
-import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
@@ -18,8 +17,6 @@ from datetime import datetime
 from Application.scraping.derstandard_scraper import DerStandardScraper
 from Integration.mongodb_handler import MongoDBHandler
 from Application.helpers.utils import load_config
-
-pytestmark = pytest.mark.smoke
 
 def get_current_db_count():
     """Get current count of derStandard listings in database"""

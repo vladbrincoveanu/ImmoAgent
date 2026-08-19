@@ -15,8 +15,6 @@ from unittest.mock import Mock, patch, MagicMock
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Project.Application.scraping.willhaben_scraper import WillhabenScraper
-from Project.Domain.listing import Listing
-from Project.Domain.sources import Source
 from Project.Integration.mongodb_handler import MongoDBHandler
 from Project.Integration.telegram_bot import TelegramBot
 from Project.Application.analyzer import StructuredAnalyzer
@@ -43,12 +41,6 @@ class TestMainIntegration(unittest.TestCase):
             },
             'telegram_bot_token': 'mock_token',
             'telegram_chat_id': 'mock_chat_id',
-            'telegram': {
-                'telegram_main': {
-                    'bot_token': 'mock_token',
-                    'chat_id': 'mock_chat_id'
-                }
-            },
             'mongodb_uri': 'mongodb://localhost:27017/',
             'max_pages': 1
         }
@@ -223,7 +215,7 @@ class TestMainIntegration(unittest.TestCase):
             
             # Test message formatting
             try:
-                message = scraper.telegram_bot._format_property_message(listing_data, include_url=True)
+                message = scraper.telegram_bot._format_property_message(listing_data)
                 self.assertIsInstance(message, str)
                 self.assertIn('🏠', message)
                 self.assertIn('💰', message)
@@ -238,8 +230,7 @@ class TestMainIntegration(unittest.TestCase):
                 self.fail(f"Message formatting failed: {e}")
             
             # Test notification sending
-            with patch.object(scraper.telegram_bot, 'send_property_notification', return_value=True):
-                success = scraper.telegram_bot.send_property_notification(listing_data)
+            success = scraper.telegram_bot.send_property_notification(listing_data)
             self.assertTrue(success, "Telegram notification should succeed")
             print("✅ Telegram notification works")
             
@@ -279,17 +270,7 @@ class TestMainIntegration(unittest.TestCase):
                 workflow_steps.append("Analysis")
             
             # Step 4: Check criteria
-            criteria_listing = Listing(
-                source=Source.WILLHABEN,
-                url=listing_data['url'],
-                price_total=listing_data['price_total'],
-                area_m2=listing_data['area_m2'],
-                rooms=listing_data['rooms'],
-                year_built=listing_data['year_built'],
-                bezirk=listing_data['bezirk'],
-                price_per_m2=listing_data['price_per_m2'],
-            )
-            if scraper.meets_criteria(criteria_listing):
+            if scraper.meets_criteria(listing_data):
                 workflow_steps.append("Criteria")
             
             # Step 5: Store in MongoDB
@@ -297,9 +278,8 @@ class TestMainIntegration(unittest.TestCase):
                 workflow_steps.append("MongoDB")
             
             # Step 6: Send Telegram notification
-            with patch.object(scraper.telegram_bot, 'send_property_notification', return_value=True):
-                if scraper.telegram_bot.send_property_notification(listing_data):
-                    workflow_steps.append("Telegram")
+            if scraper.telegram_bot.send_property_notification(listing_data):
+                workflow_steps.append("Telegram")
             
             expected_steps = ["Scraping", "Validation", "Analysis", "Criteria", "MongoDB", "Telegram"]
             for step in expected_steps:
@@ -387,11 +367,11 @@ class TestMainIntegration(unittest.TestCase):
             mock_post.return_value = mock_response
             
             bot = TelegramBot('mock_token', 'mock_chat_id')
-            message = bot._format_property_message(complete_listing, include_url=True)
+            message = bot._format_property_message(complete_listing)
             
             # Check required elements
             required_elements = [
-                '🏠', '💰', '📍', '📐', '🛏️', '🚇', '🏫', '🏗️', '🔧', '⚡', '🔗'
+                '🏠', '💰', '📍', '📐', '🛏️', '🚇', '🏫', '🏗️', '🛠️', '⚡', '🔗'
             ]
             
             for element in required_elements:
@@ -402,8 +382,8 @@ class TestMainIntegration(unittest.TestCase):
             self.assertIn('€450,000', message)
             
             # Check for infrastructure distances
-            self.assertIn('🚇 Subway: 8 min', message)
-            self.assertIn('🏫 School: 12 min', message)
+            self.assertIn('🚇 U-Bahn: 8 min', message)
+            self.assertIn('🏫 Schule: 12 min', message)
             
             print("✅ Complete data message formatting works")
         
@@ -433,9 +413,9 @@ class TestMainIntegration(unittest.TestCase):
             message = bot._format_property_message(incomplete_listing)
             
             # Check that N/A values are handled properly
-            self.assertIn('On Request', message)
-            self.assertNotIn('🚇', message)
-            self.assertNotIn('🏫', message)
+            self.assertIn('N/A', message)
+            self.assertIn('🚇 U-Bahn: N/A', message)
+            self.assertIn('🏫 Schule: N/A', message)
             
             print("✅ Incomplete data message formatting works")
 

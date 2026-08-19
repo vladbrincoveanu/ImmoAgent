@@ -43,8 +43,8 @@ def test_mark_taken_listings_head_200_derstandard_soft404():
 
     assert result['newly_taken'] == 1
 
-def test_daily_revalidation_delegates_with_rate_limit():
-    """Daily revalidation delegates one throttled pass to the marker."""
+def test_daily_revalidation_batch_processing():
+    """Daily revalidation processes in batches with delay"""
     from Application.cleanup import daily_revalidation
     from unittest.mock import MagicMock, patch
 
@@ -57,21 +57,16 @@ def test_daily_revalidation_delegates_with_rate_limit():
     mock_mongo.mark_listing_taken = MagicMock(return_value=False)
 
     with patch('Application.cleanup.mark_taken_listings') as mock_mark:
-        mock_mark.return_value = {"checked": 60, "newly_taken": 2, "already_taken": 0}
-        result = daily_revalidation(mock_mongo)
+        mock_mark.return_value = {"checked": 20, "newly_taken": 2, "already_taken": 0}
+        result = daily_revalidation(mock_mongo, batch_size=20)
 
     assert result['checked'] == 60
-    mock_mark.assert_called_once_with(
-        mock_mongo,
-        source_filter=None,
-        timeout=8,
-        rate_limit_delay=0.5,
-    )
+    assert mock_mark.call_count == 3  # 3 batches of 20
 
 print("✅ Tests written")
 
 if __name__ == '__main__':
     test_mark_taken_listings_head_404()
     test_mark_taken_listings_head_200_derstandard_soft404()
-    test_daily_revalidation_delegates_with_rate_limit()
+    test_daily_revalidation_batch_processing()
     print("All tests passed")

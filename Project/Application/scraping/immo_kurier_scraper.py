@@ -20,7 +20,6 @@ from Application.scraping.field_extractors import (
     extract_kitchen_included, extract_window_type,
     extract_sonderumlage_risk, extract_doppelmakler,
 )
-from Application.scraping.price_parser import parse_price_text
 from Application.helpers.geocoding import ViennaGeocoder
 import logging
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, load_config, smart_sleep
@@ -299,9 +298,23 @@ class ImmoKurierScraper:
             elem = soup.select_one(selector)
             if elem:
                 text = elem.get_text(strip=True)
-                price = parse_price_text(text)
-                if price is not None:
-                    return price
+                # Filter out "Preis auf Anfrage" (Price on request)
+                if 'anfrage' in text.lower() or 'auf anfrage' in text.lower():
+                    continue
+                # Remove € symbol and parse
+                text = text.replace('€', '').replace('Kaufpreis', '').replace('EUR', '').strip()
+                try:
+                    # Handle German number format: "599.000,00" -> 599000.0
+                    if ',' in text and '.' in text:
+                        parts = text.split(',')
+                        if len(parts) == 2:
+                            integer_part = parts[0].replace('.', '')
+                            decimal_part = parts[1]
+                            return float(f"{integer_part}.{decimal_part}")
+                    else:
+                        return float(text.replace('.', '').replace(',', '.'))
+                except (ValueError, AttributeError):
+                    continue
         
         # Fallback: search in all text for price patterns
         all_text = soup.get_text()
@@ -316,9 +329,18 @@ class ImmoKurierScraper:
             price_match = re.search(pattern, all_text, re.IGNORECASE)
             if price_match:
                 try:
-                    price = parse_price_text(price_match.group(1))
-                    if price is not None:
-                        return price
+                    price_text = price_match.group(1)
+                    # Filter out "Preis auf Anfrage" (Price on request)
+                    if 'anfrage' in price_text.lower() or 'auf anfrage' in price_text.lower():
+                        continue
+                    if ',' in price_text and '.' in price_text:
+                        parts = price_text.split(',')
+                        if len(parts) == 2:
+                            integer_part = parts[0].replace('.', '')
+                            decimal_part = parts[1]
+                            return float(f"{integer_part}.{decimal_part}")
+                    else:
+                        return float(price_text.replace('.', '').replace(',', '.'))
                 except (ValueError, AttributeError):
                     continue
         

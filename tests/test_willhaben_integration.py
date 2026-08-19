@@ -19,9 +19,7 @@ def test_extract_price_formats():
         ("Preis auf Anfrage", None)
     ]
     for price_text, expected in test_cases:
-        result = scraper.extract_price(
-            BeautifulSoup(f'<div data-testid="contact-box-price-box">€ {price_text}</div>', 'html.parser')
-        )
+        result = scraper.extract_price(price_text)
         print(f"DEBUG: '{price_text}' -> {result} (expected: {expected})")
         assert result == expected, f"Expected {expected} for '{price_text}', got {result}"
 

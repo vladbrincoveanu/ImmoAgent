@@ -79,10 +79,6 @@ class Listing:
     is_provisionsfrei:      Optional[bool]       = None
     seller_type:             Optional[str]  = None   # 'private' | 'agency' | 'bautraeger' | 'unknown'; see extract_seller_type
     bezirk_score:           Optional[float]      = None
-    availability_status:    Optional[str]        = None
-    rental_end_date:        Optional[str]        = None
-    feasibility_passed:     Optional[bool]       = None
-    feasibility_report:     Optional[Dict[str, Any]] = None
     # --- Genossenschaft / co-op vertical (v1) ---
     is_genossenschaft:      Optional[bool]  = None
     bautraeger:             Optional[str]   = None   # "ÖVW" | "BWSG" | "Familienwohnbau" | ...
