@@ -1,6 +1,6 @@
 import math
 import uuid
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pymongo
 import pytest
@@ -13,6 +13,9 @@ from Application.telegram_delivery import (
     send_vienna_listings,
     vienna_filter_reason,
 )
+from Domain.listing import Listing
+from Domain.location import Coordinates
+from Domain.sources import Source
 from Integration.mongodb_handler import MongoDBHandler
 
 
@@ -40,6 +43,9 @@ def test_preserve_delivery_state_keeps_existing_state_and_fresh_listing_fields()
         "sent_to_telegram": True,
         "sent_to_telegram_at": 1234.5,
         "url_is_valid": True,
+        "builder_url": "",
+        "image_url": "https://example.test/old-image.jpg",
+        "image_probe_v": 2,
     }
     replacement = {
         "title": "Fresh title",
@@ -47,15 +53,45 @@ def test_preserve_delivery_state_keeps_existing_state_and_fresh_listing_fields()
         "sent_to_telegram": False,
         "sent_to_telegram_at": None,
         "url_is_valid": False,
+        "builder_url": None,
+        "image_url": None,
+        "image_probe_v": None,
     }
+    replacement_before = replacement.copy()
 
     result = preserve_delivery_state(existing, replacement)
 
+    assert result is not replacement
     assert result["telegram_delivery"] == existing["telegram_delivery"]
     assert result["sent_to_telegram"] is True
     assert result["sent_to_telegram_at"] == 1234.5
     assert result["url_is_valid"] is True
     assert result["title"] == "Fresh title"
+    assert result["builder_url"] == ""
+    assert result["image_url"] == "https://example.test/old-image.jpg"
+    assert result["image_probe_v"] == 2
+    assert replacement == replacement_before
+
+
+def test_preserve_delivery_state_prefers_fresh_coop_resolved_values():
+    existing = {
+        "builder_url": "https://example.test/old-builder",
+        "image_url": "https://example.test/old-image.jpg",
+        "image_probe_v": 2,
+    }
+    replacement = {
+        "title": "Fresh title",
+        "builder_url": "https://example.test/fresh-builder",
+        "image_url": "https://example.test/fresh-image.jpg",
+        "image_probe_v": 3,
+    }
+
+    result = preserve_delivery_state(existing, replacement)
+
+    assert result["title"] == "Fresh title"
+    assert result["builder_url"] == "https://example.test/fresh-builder"
+    assert result["image_url"] == "https://example.test/fresh-image.jpg"
+    assert result["image_probe_v"] == 3
 
 
 def test_coop_replacement_preserves_telegram_delivery_state():
@@ -68,6 +104,9 @@ def test_coop_replacement_preserves_telegram_delivery_state():
         "sent_to_telegram": True,
         "sent_to_telegram_at": 1234.5,
         "url_is_valid": True,
+        "builder_url": "",
+        "image_url": "https://example.test/old-image.jpg",
+        "image_probe_v": 2,
     }
     replacement = {
         "title": "Fresh title",
@@ -75,7 +114,11 @@ def test_coop_replacement_preserves_telegram_delivery_state():
         "sent_to_telegram": False,
         "sent_to_telegram_at": None,
         "url_is_valid": False,
+        "builder_url": None,
+        "image_url": None,
+        "image_probe_v": None,
     }
+    replacement_before = replacement.copy()
 
     mongo._replace_preserving_state(existing, replacement)
 
@@ -85,6 +128,74 @@ def test_coop_replacement_preserves_telegram_delivery_state():
     assert replaced["sent_to_telegram_at"] == 1234.5
     assert replaced["url_is_valid"] is True
     assert replaced["title"] == "Fresh title"
+    assert replaced["builder_url"] == ""
+    assert replaced["image_url"] == "https://example.test/old-image.jpg"
+    assert replaced["image_probe_v"] == 2
+    assert replacement == replacement_before
+
+
+def test_main_cross_source_migration_replaces_fresh_listing_and_preserves_state():
+    from Application import main as main_module
+
+    collection = Mock()
+    existing_xsrc = {
+        "_id": "willhaben-id",
+        "url": "https://willhaben.test/old",
+        "coop_source": "willhaben",
+        "telegram_delivery": {"vienna": {"state": "sent"}},
+        "sent_to_telegram": True,
+        "sent_to_telegram_at": 1234.5,
+        "url_is_valid": True,
+        "builder_url": "https://example.test/old-builder",
+        "image_url": "https://example.test/old-image.jpg",
+        "image_probe_v": 2,
+        "area_m2": 55.0,
+        "special_features": ["old feature"],
+    }
+    collection.find_one.return_value = existing_xsrc
+    database = MagicMock()
+    database.__getitem__.return_value = collection
+    client = MagicMock()
+    client.__getitem__.return_value = database
+    mongo_handler = Mock()
+    fresh = Listing(
+        url="https://builder.test/fresh",
+        source=Source.GENOSSENSCHAFT,
+        title="Fresh title",
+        address="Musterstraße 1, 1100 Wien",
+        price_total=1200.0,
+        area_m2=70.0,
+        rooms=3.0,
+        coordinates=Coordinates(48.2, 16.3),
+        source_enum=Source.GENOSSENSCHAFT,
+        is_genossenschaft=True,
+        bautraeger="ÖVW",
+        coop_source="bautraeger_direct",
+        special_features=["fresh feature"],
+    )
+
+    with patch("Integration.mongodb_handler.MongoDBHandler", return_value=mongo_handler), \
+            patch.object(main_module.pymongo, "MongoClient", return_value=client):
+        assert main_module.save_listings_to_mongodb([fresh]) == 0
+
+    mongo_handler.close.assert_called_once()
+    client.close.assert_called_once()
+    collection.update_one.assert_not_called()
+    collection.replace_one.assert_called_once()
+    replaced = collection.replace_one.call_args.args[1]
+    assert replaced["_id"] == "willhaben-id"
+    assert replaced["url"] == "https://builder.test/fresh"
+    assert replaced["title"] == "Fresh title"
+    assert replaced["area_m2"] == 70.0
+    assert replaced["special_features"] == ["fresh feature"]
+    assert replaced["coordinates"] == {"lat": 48.2, "lon": 16.3}
+    assert replaced["telegram_delivery"] == existing_xsrc["telegram_delivery"]
+    assert replaced["sent_to_telegram"] is True
+    assert replaced["sent_to_telegram_at"] == 1234.5
+    assert replaced["url_is_valid"] is True
+    assert replaced["builder_url"] == "https://example.test/old-builder"
+    assert replaced["image_url"] == "https://example.test/old-image.jpg"
+    assert replaced["image_probe_v"] == 2
 
 
 def test_area_boundary_is_inclusive():

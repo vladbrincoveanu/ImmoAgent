@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint, compute_xsrc_fingerprint
 from Application.helpers.mortgage import add_monthly_payment_calculation
+from Application.telegram_delivery import preserve_delivery_state
 from Application.buyer_profiles import GLOBAL_VALIDATION, BUYER_PROFILES
 from Domain.constants import RENTAL_KEYWORDS, PRICE_ON_REQUEST_KEYWORDS
 import logging
@@ -291,21 +292,12 @@ class MongoDBHandler:
 
     def _replace_preserving_state(self, existing: Dict, listing: Dict) -> None:
         """Replace an existing co-op doc with fresh data, carrying over the state
-        the scrape can't know: send-state (NEVER reset on re-poll → no repeated
-        re-spam) and the detail-page-resolved builder_url / image_url (only
-        run_coop resolves those; other write paths would else wipe them)."""
-        listing['_id'] = existing['_id']
-        for k in ("telegram_delivery", "sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
-            if k in existing:
-                listing[k] = existing[k]
-        # `is not None`, NOT truthiness: "" is the terminal "offer page had no
-        # builder link / no photo" sentinel run_coop writes so it stops
-        # re-fetching that page every poll. A falsy check would drop the "" and
-        # silently restart the re-fetch loop it exists to prevent.
-        for k in ("builder_url", "image_url"):
-            if listing.get(k) is None and existing.get(k) is not None:
-                listing[k] = existing[k]
-        self.collection.replace_one({"_id": existing['_id']}, listing)
+        the scrape can't know: delivery state and the detail-page-resolved
+        builder/image fields. Fresh resolved values win, while an existing empty
+        string remains the terminal sentinel for a resolved-but-empty result."""
+        replacement = preserve_delivery_state(existing, listing)
+        replacement['_id'] = existing['_id']
+        self.collection.replace_one({"_id": existing['_id']}, replacement)
 
     def upsert_coop_listing(self, listing: Dict) -> str:
         """Upsert a co-op listing WITHOUT the price>0 gate (co-op units often

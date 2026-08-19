@@ -19,6 +19,7 @@ DELIVERY_STATE_FIELDS = (
     "sent_to_telegram_at",
     "url_is_valid",
 )
+COOP_RESOLVED_FIELDS = ("builder_url", "image_url", "image_probe_v")
 
 
 def listing_dict(listing: Any) -> Dict[str, Any]:
@@ -95,10 +96,14 @@ def delivery_keys(listing: Any) -> Tuple[str, ...]:
 
 
 def preserve_delivery_state(existing: Any, replacement: Any) -> Dict[str, Any]:
+    """Return a fresh replacement mapping with durable state carried over."""
     result = listing_dict(replacement)
     prior = listing_dict(existing)
     for field in DELIVERY_STATE_FIELDS:
         if field in prior:
+            result[field] = prior[field]
+    for field in COOP_RESOLVED_FIELDS:
+        if result.get(field) is None and field in prior:
             result[field] = prior[field]
     return result
 

@@ -480,14 +480,10 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
                     if existing_xsrc:
                         if (listing_dict.get('coop_source') == 'bautraeger_direct'
                                 and existing_xsrc.get('coop_source') == 'willhaben'):
-                            collection.update_one(
-                                {"_id": existing_xsrc["_id"]},
-                                {"$set": {
-                                    "url": listing_dict.get('url'),
-                                    "coop_source": 'bautraeger_direct',
-                                    "bautraeger": listing_dict.get('bautraeger'),
-                                }}
-                            )
+                            listing_dict['content_fingerprint'] = compute_content_fingerprint(listing_dict)
+                            listing_dict['_id'] = existing_xsrc['_id']
+                            listing_dict = preserve_delivery_state(existing_xsrc, listing_dict)
+                            collection.replace_one({"_id": existing_xsrc['_id']}, listing_dict)
                         logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
                         duplicate_count += 1
                         continue
