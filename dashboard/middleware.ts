@@ -10,35 +10,60 @@ function normalizeIp(value: unknown): string | null {
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.length > MAX_IP_LENGTH) return null;
 
-  const ipv4Parts = trimmed.split('.');
-  if (
-    ipv4Parts.length === 4
-    && ipv4Parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255)
-  ) {
-    return trimmed;
-  }
-
-  if (isStrictIpv6(trimmed)) {
-    return trimmed;
-  }
-
-  return null;
+  return normalizeIpv4(trimmed) ?? normalizeIpv6(trimmed);
 }
 
-function isStrictIpv6(value: string): boolean {
-  if (!value.includes(':') || !/^[0-9a-fA-F:]+$/.test(value)) return false;
+function normalizeIpv4(value: string): string | null {
+  const parts = value.split('.');
+  if (parts.length !== 4 || !parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
+    return null;
+  }
+  return parts.map((part) => String(Number(part))).join('.');
+}
+
+function normalizeIpv6(value: string): string | null {
+  if (!value.includes(':') || !/^[0-9a-fA-F:]+$/.test(value)) return null;
 
   const halves = value.split('::');
-  if (halves.length > 2) return false;
+  if (halves.length > 2) return null;
+  const validGroup = (group: string) => /^[0-9a-fA-F]{1,4}$/.test(group);
+  let groups: number[];
   if (halves.length === 2) {
     const left = halves[0] === '' ? [] : halves[0].split(':');
     const right = halves[1] === '' ? [] : halves[1].split(':');
-    const validGroup = (group: string) => /^[0-9a-fA-F]{1,4}$/.test(group);
-    return left.every(validGroup) && right.every(validGroup) && left.length + right.length < 8;
+    if (!left.every(validGroup) || !right.every(validGroup) || left.length + right.length >= 8) {
+      return null;
+    }
+    groups = [...left, ...Array(8 - left.length - right.length).fill('0'), ...right]
+      .map((group) => Number.parseInt(group, 16));
+  } else {
+    const uncompressed = value.split(':');
+    if (uncompressed.length !== 8 || !uncompressed.every(validGroup)) return null;
+    groups = uncompressed.map((group) => Number.parseInt(group, 16));
   }
 
-  const groups = value.split(':');
-  return groups.length === 8 && groups.every((group) => /^[0-9a-fA-F]{1,4}$/.test(group));
+  let bestStart = -1;
+  let bestLength = 0;
+  for (let start = 0; start < groups.length;) {
+    if (groups[start] !== 0) {
+      start += 1;
+      continue;
+    }
+    let end = start;
+    while (end < groups.length && groups[end] === 0) end += 1;
+    if (end - start > bestLength && end - start >= 2) {
+      bestStart = start;
+      bestLength = end - start;
+    }
+    start = end;
+  }
+
+  if (bestStart === -1) return groups.map((group) => group.toString(16)).join(':');
+  const left = groups.slice(0, bestStart).map((group) => group.toString(16)).join(':');
+  const right = groups.slice(bestStart + bestLength).map((group) => group.toString(16)).join(':');
+  if (left === '') return `::${right}`;
+  if (right === '') return `${left}::`;
+  return `${left}::${right}`;
 }
 
 /** Trust proxy headers only when deployment overwrites them; invalid/missing identity shares unknown. */

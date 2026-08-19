@@ -41,6 +41,24 @@ describe('dashboard middleware', () => {
     expect(middleware(makeRequest(realIp, '192.0.2.31')).status).toBe(429);
   });
 
+  it('shares a limiter bucket across equivalent IPv4 forms', () => {
+    const nonCanonicalIp = '192.0.2.01';
+    for (let request = 0; request < 30; request += 1) {
+      middleware(makeRequest(nonCanonicalIp));
+    }
+
+    expect(middleware(makeRequest('192.0.2.1')).status).toBe(429);
+  });
+
+  it('shares a limiter bucket across equivalent IPv6 forms', () => {
+    const fullIp = '2001:0DB8:0000:0000:0000:0000:0000:0001';
+    for (let request = 0; request < 30; request += 1) {
+      middleware(makeRequest(fullIp));
+    }
+
+    expect(middleware(makeRequest('2001:db8::1')).status).toBe(429);
+  });
+
   it('uses forwarded address when x-real-ip is unavailable', () => {
     const realIp = '192.0.2.20';
     const forwardedIp = '192.0.2.21';

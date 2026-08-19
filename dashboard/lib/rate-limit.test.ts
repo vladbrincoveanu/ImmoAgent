@@ -234,4 +234,37 @@ describe('SlidingWindowRateLimiter', () => {
     expect(blocked.allowed).toBe(false);
     expect(blocked.resetAt).toBe(1_000);
   });
+
+  it('waits for the last event before releasing a key slot', () => {
+    const limiter = new SlidingWindowRateLimiter(1, 2);
+
+    limiter.check('first', 2, 100, 0);
+    limiter.check('first', 2, 100, 50);
+    const blocked = limiter.check('second', 2, 100, 51);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(150);
+  });
+
+  it('uses the earliest event release for total-event capacity', () => {
+    const limiter = new SlidingWindowRateLimiter(10, 2, 2);
+
+    limiter.check('first', 1, 100, 0);
+    limiter.check('second', 1, 100, 50);
+    const blocked = limiter.check('third', 1, 100, 51);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(100);
+  });
+
+  it('returns the later release when key and event capacity both block', () => {
+    const limiter = new SlidingWindowRateLimiter(1, 2, 2);
+
+    limiter.check('first', 2, 100, 0);
+    limiter.check('first', 2, 100, 50);
+    const blocked = limiter.check('second', 2, 100, 51);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(150);
+  });
 });

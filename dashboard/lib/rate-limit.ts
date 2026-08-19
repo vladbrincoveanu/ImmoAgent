@@ -112,11 +112,20 @@ export class SlidingWindowRateLimiter {
 
     if ((!current && this.entries.size >= this.maxKeys) || this.totalEvents >= this.maxTotalEvents) {
       this.maybeReapExpired(effectiveNow);
-      if ((!current && this.entries.size >= this.maxKeys) || this.totalEvents >= this.maxTotalEvents) {
+      const keyCapacityFull = !this.entries.has(key) && this.entries.size >= this.maxKeys;
+      const totalCapacityFull = this.totalEvents >= this.maxTotalEvents;
+      if (keyCapacityFull || totalCapacityFull) {
         return {
           allowed: false,
           remaining: 0,
-          resetAt: this.earliestReleaseAt(effectiveNow, windowMs),
+          resetAt: Math.max(
+            keyCapacityFull
+              ? this.keyCapacityReleaseAt(effectiveNow, windowMs)
+              : effectiveNow,
+            totalCapacityFull
+              ? this.earliestReleaseAt(effectiveNow, windowMs)
+              : effectiveNow,
+          ),
         };
       }
       activeTimestamps = this.entries.get(key)?.timestamps ?? [];
@@ -176,6 +185,17 @@ export class SlidingWindowRateLimiter {
         const releaseAt = timestamp + entry.windowMs;
         if (releaseAt >= fallbackNow && releaseAt < earliest) earliest = releaseAt;
       }
+    }
+    return earliest === Number.POSITIVE_INFINITY ? fallbackNow + fallbackWindowMs : earliest;
+  }
+
+  private keyCapacityReleaseAt(fallbackNow: number, fallbackWindowMs: number): number {
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const entry of this.entries.values()) {
+      const lastTimestamp = entry.timestamps[entry.timestamps.length - 1];
+      if (lastTimestamp === undefined) continue;
+      const releaseAt = lastTimestamp + entry.windowMs;
+      if (releaseAt >= fallbackNow && releaseAt < earliest) earliest = releaseAt;
     }
     return earliest === Number.POSITIVE_INFINITY ? fallbackNow + fallbackWindowMs : earliest;
   }
