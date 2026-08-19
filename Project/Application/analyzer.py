@@ -643,6 +643,7 @@ class StructuredAnalyzer:
     Main analyzer that uses the best available method for structured output
     """
     def __init__(self, model_name: str = "microsoft/DialoGPT-medium", outlines_wait_timeout: float = 0.5, **kwargs):
+        self.outlines_wait_timeout = outlines_wait_timeout
         # Use lightweight analyzer for all operations for speed and reliability
         self.lightweight_analyzer = LightweightAnalyzer()
     
