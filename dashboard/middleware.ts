@@ -21,8 +21,23 @@ function normalizeIpv4(value: string): string | null {
   return parts.map((part) => String(Number(part))).join('.');
 }
 
+function expandIpv4Tail(groups: string[]): string[] | null {
+  const dottedIndex = groups.findIndex((group) => group.includes('.'));
+  if (dottedIndex === -1) return groups;
+  if (dottedIndex !== groups.length - 1) return null;
+
+  const normalized = normalizeIpv4(groups[dottedIndex]);
+  if (!normalized) return null;
+  const octets = normalized.split('.').map(Number);
+  return [
+    ...groups.slice(0, dottedIndex),
+    (octets[0] * 256 + octets[1]).toString(16).padStart(4, '0'),
+    (octets[2] * 256 + octets[3]).toString(16).padStart(4, '0'),
+  ];
+}
+
 function normalizeIpv6(value: string): string | null {
-  if (!value.includes(':') || !/^[0-9a-fA-F:]+$/.test(value)) return null;
+  if (!value.includes(':') || !/^[0-9a-fA-F:.]+$/.test(value)) return null;
 
   const halves = value.split('::');
   if (halves.length > 2) return null;
@@ -30,17 +45,26 @@ function normalizeIpv6(value: string): string | null {
   let groups: number[];
   if (halves.length === 2) {
     const left = halves[0] === '' ? [] : halves[0].split(':');
-    const right = halves[1] === '' ? [] : halves[1].split(':');
+    const rawRight = halves[1] === '' ? [] : halves[1].split(':');
+    const right = expandIpv4Tail(rawRight);
+    if (!right) return null;
     if (!left.every(validGroup) || !right.every(validGroup) || left.length + right.length >= 8) {
       return null;
     }
     groups = [...left, ...Array(8 - left.length - right.length).fill('0'), ...right]
       .map((group) => Number.parseInt(group, 16));
   } else {
-    const uncompressed = value.split(':');
+    const uncompressed = expandIpv4Tail(value.split(':'));
+    if (!uncompressed) return null;
     if (uncompressed.length !== 8 || !uncompressed.every(validGroup)) return null;
     groups = uncompressed.map((group) => Number.parseInt(group, 16));
   }
+
+  const isIpv4Mapped = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  const formatGroup = (group: number, index: number) => {
+    const hex = group.toString(16);
+    return isIpv4Mapped && index >= 6 ? hex.padStart(4, '0') : hex;
+  };
 
   let bestStart = -1;
   let bestLength = 0;
@@ -58,9 +82,9 @@ function normalizeIpv6(value: string): string | null {
     start = end;
   }
 
-  if (bestStart === -1) return groups.map((group) => group.toString(16)).join(':');
-  const left = groups.slice(0, bestStart).map((group) => group.toString(16)).join(':');
-  const right = groups.slice(bestStart + bestLength).map((group) => group.toString(16)).join(':');
+  if (bestStart === -1) return groups.map(formatGroup).join(':');
+  const left = groups.slice(0, bestStart).map(formatGroup).join(':');
+  const right = groups.slice(bestStart + bestLength).map(formatGroup).join(':');
   if (left === '') return `::${right}`;
   if (right === '') return `${left}::`;
   return `${left}::${right}`;

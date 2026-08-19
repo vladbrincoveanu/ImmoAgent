@@ -85,6 +85,21 @@ describe('SlidingWindowRateLimiter', () => {
     expect(rollback.resetAt).toBe(1_100);
   });
 
+  it('saturates rollback resetAt at the safe timestamp limit', () => {
+    const limiter = new SlidingWindowRateLimiter();
+    const largeNow = Number.MAX_SAFE_INTEGER;
+
+    const allowed = limiter.check('rollback', 1, 100, largeNow - 100);
+    limiter.clearExpired(largeNow);
+    const rollback = limiter.check('rollback', 1, 100, 0);
+
+    expect(allowed.resetAt).toBe(largeNow);
+    expect(rollback.allowed).toBe(false);
+    expect(Number.isFinite(rollback.resetAt)).toBe(true);
+    expect(Number.isSafeInteger(rollback.resetAt)).toBe(true);
+    expect(rollback.resetAt).toBe(largeNow);
+  });
+
   it.each([
     0,
     -1,

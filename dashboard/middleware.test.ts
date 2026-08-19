@@ -59,6 +59,15 @@ describe('dashboard middleware', () => {
     expect(middleware(makeRequest('2001:db8::1')).status).toBe(429);
   });
 
+  it('shares a limiter bucket across embedded IPv4 and hexadecimal IPv6 forms', () => {
+    const embeddedIp = '::ffff:192.0.2.77';
+    for (let request = 0; request < 30; request += 1) {
+      expect(middleware(makeRequest(embeddedIp)).status).toBe(200);
+    }
+
+    expect(middleware(makeRequest('::ffff:c000:024d')).status).toBe(429);
+  });
+
   it('uses forwarded address when x-real-ip is unavailable', () => {
     const realIp = '192.0.2.20';
     const forwardedIp = '192.0.2.21';

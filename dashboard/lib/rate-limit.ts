@@ -11,6 +11,12 @@ const MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 const MAX_SAFE_TIMESTAMP = Number.MAX_SAFE_INTEGER;
 const CLEANUP_INTERVAL_MS = 1_000;
 
+function safeTimestampAdd(timestamp: number, duration: number): number {
+  return timestamp > MAX_SAFE_TIMESTAMP - duration
+    ? MAX_SAFE_TIMESTAMP
+    : timestamp + duration;
+}
+
 type Entry = {
   timestamps: number[];
   windowMs: number;
@@ -79,7 +85,7 @@ export class SlidingWindowRateLimiter {
       return {
         allowed: false,
         remaining: 0,
-        resetAt: this.highestObservedNow + windowMs,
+        resetAt: safeTimestampAdd(this.highestObservedNow, windowMs),
       };
     }
     this.highestObservedNow = now;
@@ -106,7 +112,7 @@ export class SlidingWindowRateLimiter {
       return {
         allowed: false,
         remaining: 0,
-        resetAt: activeTimestamps[0] + windowMs,
+        resetAt: safeTimestampAdd(activeTimestamps[0], windowMs),
       };
     }
 
@@ -138,7 +144,7 @@ export class SlidingWindowRateLimiter {
     return {
       allowed: true,
       remaining: limit - activeTimestamps.length,
-      resetAt: activeTimestamps[0] + windowMs,
+      resetAt: safeTimestampAdd(activeTimestamps[0], windowMs),
     };
   }
 
@@ -163,7 +169,7 @@ export class SlidingWindowRateLimiter {
     let expiredCount = 0;
     while (
       expiredCount < entry.timestamps.length
-      && entry.timestamps[expiredCount] + entry.windowMs < now
+      && safeTimestampAdd(entry.timestamps[expiredCount], entry.windowMs) < now
     ) {
       expiredCount += 1;
     }
@@ -182,11 +188,13 @@ export class SlidingWindowRateLimiter {
     let earliest = Number.POSITIVE_INFINITY;
     for (const entry of this.entries.values()) {
       for (const timestamp of entry.timestamps) {
-        const releaseAt = timestamp + entry.windowMs;
+        const releaseAt = safeTimestampAdd(timestamp, entry.windowMs);
         if (releaseAt >= fallbackNow && releaseAt < earliest) earliest = releaseAt;
       }
     }
-    return earliest === Number.POSITIVE_INFINITY ? fallbackNow + fallbackWindowMs : earliest;
+    return earliest === Number.POSITIVE_INFINITY
+      ? safeTimestampAdd(fallbackNow, fallbackWindowMs)
+      : earliest;
   }
 
   private keyCapacityReleaseAt(fallbackNow: number, fallbackWindowMs: number): number {
@@ -194,10 +202,12 @@ export class SlidingWindowRateLimiter {
     for (const entry of this.entries.values()) {
       const lastTimestamp = entry.timestamps[entry.timestamps.length - 1];
       if (lastTimestamp === undefined) continue;
-      const releaseAt = lastTimestamp + entry.windowMs;
+      const releaseAt = safeTimestampAdd(lastTimestamp, entry.windowMs);
       if (releaseAt >= fallbackNow && releaseAt < earliest) earliest = releaseAt;
     }
-    return earliest === Number.POSITIVE_INFINITY ? fallbackNow + fallbackWindowMs : earliest;
+    return earliest === Number.POSITIVE_INFINITY
+      ? safeTimestampAdd(fallbackNow, fallbackWindowMs)
+      : earliest;
   }
 }
 
