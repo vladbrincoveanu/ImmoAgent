@@ -5,10 +5,12 @@ Test script to verify run_top5.py new behavior
 
 import sys
 import os
+import pytest
 
 # Add the Project directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
+@pytest.mark.smoke
 def test_run_top5_behavior():
     """Test that run_top5.py uses all-time listings with duplicate prevention"""
     print("🧪 Testing run_top5.py New Behavior")

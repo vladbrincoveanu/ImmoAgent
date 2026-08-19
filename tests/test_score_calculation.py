@@ -5,11 +5,13 @@ Test script to verify score calculation and negative score handling
 
 import sys
 import os
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Application.scoring import score_apartment_simple, score_apartment
 from Application.helpers.utils import load_config
 
+@pytest.mark.smoke
 def test_score_calculation():
     """Test score calculation and negative score handling"""
     print("🧪 Testing Score Calculation")

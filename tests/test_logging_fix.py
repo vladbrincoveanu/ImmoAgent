@@ -161,7 +161,7 @@ if __name__ == "__main__":
             else:
                 print("❌ GitHub Actions simulation failed - log files not created")
                 return False
-
+                
         except Exception as e:
             print(f"❌ GitHub Actions simulation failed: {e}")
             return False

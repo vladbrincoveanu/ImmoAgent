@@ -5,11 +5,13 @@ Test script to verify top5 filtering functionality
 
 import sys
 import os
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Integration.mongodb_handler import MongoDBHandler
 from Application.helpers.utils import load_config
 
+@pytest.mark.smoke
 def test_top5_filters():
     """Test the new top5 filtering functionality"""
     print("🧪 Testing Top5 Filtering Functionality")
