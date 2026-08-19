@@ -15,13 +15,13 @@ def test_bot_info(bot_token):
         print(f"Bot info response: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
-            print(f"Bot info: {json.dumps(data, indent=2)}")
+            print(f"Bot info result: {'ok' if data.get('ok') else 'invalid'}")
             return True
         else:
-            print(f"Error: {response.text}")
+            print("Bot info request failed")
             return False
-    except Exception as e:
-        print(f"Error getting bot info: {e}")
+    except Exception:
+        print("Error getting bot info")
         return False
 
 def test_get_updates(bot_token):
@@ -32,22 +32,20 @@ def test_get_updates(bot_token):
         print(f"Updates response: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
-            print(f"Updates: {json.dumps(data, indent=2)}")
-            
-            # Extract chat IDs
-            if data.get('ok') and data.get('result'):
-                chat_ids = set()
-                for update in data['result']:
-                    if 'message' in update:
-                        chat = update['message']['chat']
-                        chat_ids.add(chat['id'])
-                        print(f"Found chat: ID={chat['id']}, Type={chat['type']}, Title={chat.get('title', 'N/A')}")
-                return list(chat_ids)
+            updates = data.get('result') if data.get('ok') else []
+            updates = updates if isinstance(updates, list) else []
+            chat_ids = set()
+            for update in updates:
+                if 'message' in update:
+                    chat = update['message']['chat']
+                    chat_ids.add(chat['id'])
+            print(f"Updates parsed: {len(updates)} update(s), {len(chat_ids)} chat(s)")
+            return list(chat_ids)
         else:
-            print(f"Error: {response.text}")
+            print("Updates request failed")
             return []
-    except Exception as e:
-        print(f"Error getting updates: {e}")
+    except Exception:
+        print("Error getting updates")
         return []
 
 def test_send_message(bot_token, chat_id, message="Test message"):
@@ -62,13 +60,13 @@ def test_send_message(bot_token, chat_id, message="Test message"):
         print(f"Send message response: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
-            print(f"Send result: {json.dumps(data, indent=2)}")
+            print(f"Send result: {'accepted' if data.get('ok') else 'failed'}")
             return True
         else:
-            print(f"Error: {response.text}")
+            print("Send message request failed")
             return False
-    except Exception as e:
-        print(f"Error sending message: {e}")
+    except Exception:
+        print("Error sending message")
         return False
 
 def main():
@@ -115,8 +113,7 @@ def main():
     if chat_ids:
         print(f"✅ Found {len(chat_ids)} chat(s)")
         if chat_id not in chat_ids:
-            print(f"⚠️  Your chat ID ({chat_id}) not found in recent updates")
-            print(f"Available chat IDs: {chat_ids}")
+            print(f"⚠️  Configured chat was not present in recent updates (checked {len(chat_ids)} chat(s))")
             print("Try sending a message to your bot first!")
     else:
         print("⚠️  No recent updates found")
