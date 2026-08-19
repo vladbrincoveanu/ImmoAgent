@@ -247,6 +247,7 @@ def load_config() -> Dict:
     telegram_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID')
     telegram_vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN')
     telegram_vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID')
+    telegram_main_configured = bool(telegram_main_token and telegram_main_chat_id)
     
     # Only set default values if environment variables are not provided
     if not telegram_main_token:
@@ -261,6 +262,12 @@ def load_config() -> Dict:
     minio_access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
     minio_secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
     minio_bucket = os.getenv('MINIO_BUCKET_NAME', 'immo-images')
+    minio_configured = any(os.getenv(name) for name in (
+        'MINIO_ENDPOINT',
+        'MINIO_ACCESS_KEY',
+        'MINIO_SECRET_KEY',
+        'MINIO_BUCKET_NAME',
+    ))
     
     minimal_config = {
         "mongodb_uri": mongodb_uri,
@@ -345,9 +352,9 @@ def load_config() -> Dict:
     
     _config = minimal_config
     print("✅ Created config from environment variables and defaults")
-    print(f"🔧 Using MongoDB: {mongodb_uri}")
-    print(f"🔧 Using Telegram Main: {telegram_main_token[:10]}... (token), {telegram_main_chat_id} (chat_id)")
-    print(f"🔧 Using MinIO: {minio_endpoint}")
+    print(f"🔧 MongoDB: {'configured' if os.getenv('MONGODB_URI') else 'not configured; using default'}")
+    print(f"🔧 Telegram Main: {'configured' if telegram_main_configured else 'not configured; using defaults'}")
+    print(f"🔧 MinIO: {'configured' if minio_configured else 'not configured; using defaults'}")
     return _config
 
 
