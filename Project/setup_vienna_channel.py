@@ -208,7 +208,7 @@ def setup_vienna_channel():
     print()
     print("🚀 Your ViennaApartmentsLive channel is ready!")
     print("💡 Run 'python tests/test_vienna_channel.py' to test")
-    print("💡 Run 'python Project/Application/main.py' to start scraping and posting")
+    print("💡 Run 'python Project/run.py --send-to-telegram' to start scraping and posting")
     
     return True
 

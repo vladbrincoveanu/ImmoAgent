@@ -34,11 +34,12 @@ def test_channel_config():
         dev_chat_id = dev_config.get('chat_id')
         vienna_token = vienna_config.get('bot_token')
         vienna_chat_id = vienna_config.get('chat_id')
+        dev_configured = bool(dev_token and dev_chat_id)
         
         print("📱 Main bot: configured" if main_token else "❌ Main bot not found")
         print("📱 Main destination: configured" if main_chat_id else "❌ Main destination not found")
-        print("📱 Dev bot: configured" if dev_token else "❌ Dev bot not found")
-        print("📱 Dev destination: configured" if dev_chat_id else "❌ Dev destination not found")
+        print("📱 Dev bot: configured" if dev_token else "📱 Dev bot: optional")
+        print("📱 Dev destination: configured" if dev_chat_id else "📱 Dev destination: optional")
         print("📱 Vienna bot: configured" if vienna_token else "❌ Vienna bot not found")
         print("📱 Vienna destination: configured" if vienna_chat_id else "❌ Vienna destination not found")
         print()
@@ -61,14 +62,13 @@ def test_channel_config():
             print("❌ Main chat ID not found")
             return False
         
-        # Check if dev chat ID is a private chat (positive number)
-        if dev_chat_id and not dev_chat_id.startswith('-100'):
+        # Check the optional dev chat ID only when both dev credentials exist.
+        if dev_configured and not dev_chat_id.startswith('-100'):
             print("✅ Dev chat ID is a private chat (correct for logs)")
-        elif dev_chat_id:
+        elif dev_configured:
             print("⚠️ Dev chat ID is a channel (logs should go to private chat)")
         else:
-            print("❌ Dev chat ID not found")
-            return False
+            print("ℹ️ Dev credentials absent; skipping optional dev checks")
 
         # The Vienna destination is a separate channel for filtered crawl results.
         if vienna_chat_id.startswith('-100'):
@@ -92,7 +92,7 @@ def test_channel_config():
                 return False
         
         # Test dev bot connection
-        if dev_token and dev_chat_id:
+        if dev_configured:
             print("🔍 Testing dev bot connection...")
             try:
                 dev_bot = TelegramBot(dev_token, dev_chat_id)

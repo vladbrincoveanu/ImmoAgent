@@ -93,8 +93,8 @@ def main():
     bot_token = config.get('telegram_bot_token')
     chat_id = config.get('telegram_chat_id')
     
-    print(f"Bot token: {bot_token}")
-    print(f"Chat ID: {chat_id}")
+    print(f"Bot token: {'configured' if bot_token else 'not configured'}")
+    print(f"Chat ID: {'configured' if chat_id else 'not configured'}")
     print()
     
     # Test bot token

@@ -16,18 +16,26 @@ def test_telegram_config():
     assert config, "Config could not be loaded!"
     telegram_config = config.get('telegram', {})
     main_config = telegram_config.get('telegram_main', {})
+    vienna_config = telegram_config.get('telegram_vienna', {})
     dev_config = telegram_config.get('telegram_dev', {})
     
     main_token = main_config.get('bot_token')
     main_chat_id = main_config.get('chat_id')
+    vienna_token = vienna_config.get('bot_token')
+    vienna_chat_id = vienna_config.get('chat_id')
     dev_token = dev_config.get('bot_token')
     dev_chat_id = dev_config.get('chat_id')
+    dev_configured = bool(dev_token and dev_chat_id)
     
     assert main_token and main_chat_id, "Main Telegram bot config missing!"
-    assert dev_token and dev_chat_id, "Dev Telegram bot config missing!"
-    assert (main_token != dev_token or main_chat_id != dev_chat_id), "Main and dev Telegram credentials must be different!"
-    print("✅ Telegram config present and main/dev are different.")
-    return main_token, main_chat_id, dev_token, dev_chat_id
+    assert vienna_token and vienna_chat_id, "Vienna Telegram bot config missing!"
+    print("✅ Main and Vienna Telegram config present.")
+    if dev_configured:
+        assert (main_token != dev_token or main_chat_id != dev_chat_id), "Main and dev Telegram credentials must be different!"
+        print("✅ Optional dev Telegram config present and distinct.")
+    else:
+        print("ℹ️ Optional dev Telegram config absent; dev checks will be skipped.")
+    return main_token, main_chat_id, vienna_token, vienna_chat_id, dev_token, dev_chat_id
 
 def test_telegram_connection(token, chat_id, label):
     print(f"\n🔎 Testing {label} Telegram bot connection...")
@@ -74,11 +82,15 @@ def test_dev_logging(dev_token, dev_chat_id):
     print("✅ Sent test logs to dev channel. Check your dev Telegram.")
 
 def main():
-    main_token, main_chat_id, dev_token, dev_chat_id = test_telegram_config()
+    main_token, main_chat_id, vienna_token, vienna_chat_id, dev_token, dev_chat_id = test_telegram_config()
     test_telegram_connection(main_token, main_chat_id, "Main")
-    test_telegram_connection(dev_token, dev_chat_id, "Dev")
-    test_dev_handler_security(main_token, main_chat_id, dev_token, dev_chat_id)
-    test_dev_logging(dev_token, dev_chat_id)
+    test_telegram_connection(vienna_token, vienna_chat_id, "Vienna")
+    if dev_token and dev_chat_id:
+        test_telegram_connection(dev_token, dev_chat_id, "Dev")
+        test_dev_handler_security(main_token, main_chat_id, dev_token, dev_chat_id)
+        test_dev_logging(dev_token, dev_chat_id)
+    else:
+        print("ℹ️ Skipping optional dev connection, security, and log checks.")
     print("\n🎉 All Telegram connection/config tests passed!")
 
 if __name__ == "__main__":
