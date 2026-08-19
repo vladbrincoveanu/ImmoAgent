@@ -231,6 +231,9 @@ class MongoDBHandler:
             self.increment_validation_failure(source)
             return False
 
+        fingerprint = compute_content_fingerprint(listing_data)
+        listing_data['content_fingerprint'] = fingerprint
+
         # Co-op cross-source dedup (v1): collapse same unit across Willhaben + Bauträger.
         # compute_xsrc_fingerprint() expects attribute-style access (it was written against
         # the Listing dataclass), but insert_listing() always receives a plain dict — wrap
@@ -259,9 +262,6 @@ class MongoDBHandler:
                 except Exception as e:
                     print(f"MongoDB co-op dedup error: {e}")
                     return False
-
-        fingerprint = compute_content_fingerprint(listing_data)
-        listing_data['content_fingerprint'] = fingerprint
 
         try:
             existing_fingerprint = self.collection.find_one(
@@ -302,48 +302,49 @@ class MongoDBHandler:
         Preserves send-state on update so a minutely re-poll never resets
         sent_to_telegram and re-spams. Returns one of:
         "inserted" | "updated" | "duplicate" | "invalid" | "error"."""
+        listing_data = dict(listing)
         if self.collection is None:
             return "error"
-        valid, reason = is_valid_listing_data(listing)
+        valid, reason = is_valid_listing_data(listing_data)
         if not valid:
             logging.info(f"🚫 coop upsert skipped — {reason}")
             return "invalid"
         try:
             # Cross-source dedup (Willhaben ↔ Bauträger-direct for one unit).
-            if listing.get('is_genossenschaft'):
-                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+            if listing_data.get('is_genossenschaft'):
+                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing_data))
                 if xfp:
-                    listing['content_fingerprint_xsrc'] = xfp
+                    listing_data['content_fingerprint_xsrc'] = xfp
                     existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
-                    if existing and existing.get('url') != listing.get('url'):
-                        if (listing.get('coop_source') == 'bautraeger_direct'
+                    if existing and existing.get('url') != listing_data.get('url'):
+                        if (listing_data.get('coop_source') == 'bautraeger_direct'
                                 and existing.get('coop_source') == 'willhaben'):
                             # Migrate the Willhaben row to the Bauträger-direct
                             # one: replace wholesale (not a 4-field $set) so rent,
                             # area, features, coordinates etc. don't go stale.
-                            listing['content_fingerprint'] = compute_content_fingerprint(listing)
-                            self._replace_preserving_state(existing, listing)
+                            listing_data['content_fingerprint'] = compute_content_fingerprint(listing_data)
+                            self._replace_preserving_state(existing, listing_data)
                             logging.info(f"🔁 coop xsrc migrated to bautraeger_direct: {xfp}")
                             return "updated"
                         logging.info(f"🚫 coop xsrc duplicate: {xfp}")
                         return "duplicate"
 
-            listing['content_fingerprint'] = compute_content_fingerprint(listing)
+            listing_data['content_fingerprint'] = compute_content_fingerprint(listing_data)
 
-            existing_by_url = self.collection.find_one({"url": listing.get('url')})
+            existing_by_url = self.collection.find_one({"url": listing_data.get('url')})
             if existing_by_url:
-                self._replace_preserving_state(existing_by_url, listing)
+                self._replace_preserving_state(existing_by_url, listing_data)
                 return "updated"
 
-            source_enum = listing.get('source_enum', listing.get('source', ''))
+            source_enum = listing_data.get('source_enum', listing_data.get('source', ''))
             existing_by_fp = self.collection.find_one(
-                {"content_fingerprint": listing['content_fingerprint'],
+                {"content_fingerprint": listing_data['content_fingerprint'],
                  "source_enum": source_enum})
             if existing_by_fp:
-                logging.info(f"🚫 coop fingerprint duplicate: {listing.get('url')}")
+                logging.info(f"🚫 coop fingerprint duplicate: {listing_data.get('url')}")
                 return "duplicate"
 
-            self.collection.insert_one(listing)
+            self.collection.insert_one(listing_data)
             return "inserted"
         except Exception as e:
             logging.error(f"upsert_coop_listing error: {e}")

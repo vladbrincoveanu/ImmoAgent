@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pymongo
 import pytest
 
+from Application.helpers.listing_validator import compute_content_fingerprint
 from Application.telegram_delivery import (
     VIENNA_CHANNEL,
     VIENNA_MIN_AREA_M2,
@@ -246,6 +247,7 @@ def test_insert_listing_cross_source_migration_replaces_without_mutating_input()
     assert replaced["_id"] == "willhaben-id"
     assert replaced["url"] == "https://builder.test/fresh"
     assert replaced["title"] == "Fresh title"
+    assert replaced["content_fingerprint"] == compute_content_fingerprint(incoming)
     assert replaced["area_m2"] == 70.0
     assert replaced["price_total"] == 1200.0
     assert replaced["special_features"] == ["fresh feature"]
@@ -258,6 +260,37 @@ def test_insert_listing_cross_source_migration_replaces_without_mutating_input()
     assert "content_fingerprint_xsrc" not in incoming
     assert "content_fingerprint" not in incoming
     assert "_id" not in incoming
+
+
+def test_upsert_coop_listing_does_not_mutate_input_fingerprints():
+    collection = Mock()
+    collection.find_one.return_value = None
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+    incoming = {
+        "url": "https://builder.test/fresh",
+        "title": "Fresh title",
+        "source": "genossenschaft",
+        "source_enum": "genossenschaft",
+        "is_genossenschaft": True,
+        "coop_source": "bautraeger_direct",
+        "bautraeger": "ÖVW",
+        "address": "Musterstraße 1, 1100 Wien",
+        "rooms": 3.0,
+        "area_m2": 70.0,
+        "price_total": 1200.0,
+        "buyable": False,
+    }
+    incoming_before = incoming.copy()
+
+    assert mongo.upsert_coop_listing(incoming) == "inserted"
+
+    inserted = collection.insert_one.call_args.args[0]
+    assert "content_fingerprint_xsrc" in inserted
+    assert "content_fingerprint" in inserted
+    assert incoming == incoming_before
+    assert "content_fingerprint_xsrc" not in incoming
+    assert "content_fingerprint" not in incoming
 
 
 def test_area_boundary_is_inclusive():
