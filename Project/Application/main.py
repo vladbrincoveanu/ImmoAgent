@@ -26,7 +26,7 @@ from Domain.location import Coordinates
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
-from Application.telegram_delivery import preserve_delivery_state
+from Application.telegram_delivery import preserve_delivery_state, send_vienna_listings
 from Domain.listing import Listing
 import logging
 import logging.handlers
@@ -65,6 +65,18 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+
+def resolve_vienna_telegram_bot(config):
+    telegram_config = config.get('telegram', {})
+    vienna_config = telegram_config.get('telegram_vienna', {})
+    vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN') or vienna_config.get('bot_token')
+    vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID') or vienna_config.get('chat_id')
+
+    if vienna_token and vienna_chat_id:
+        return TelegramBot(vienna_token, vienna_chat_id)
+    return None
+
 
 def compute_coordinate_precision_m(coordinate_source):
     """Confidence radius in meters for a given coordinate_source tier."""
@@ -742,15 +754,14 @@ def main():
     if send_to_telegram:
         telegram_config = config.get('telegram', {})
         bot_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN') or telegram_config.get('telegram_main', {}).get('bot_token')
-        bot_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID') or telegram_config.get('telegram_main', {}).get('chat_id')
-        if bot_main_token and bot_main_chat_id:
-            try:
-                telegram_bot = TelegramBot(bot_main_token, bot_main_chat_id)
-                logging.info("✅ Telegram main bot initialized for property notifications")
-            except Exception as e:
-                logging.error(f"❌ Failed to initialize Telegram main bot: {e}")
-        else:
-            logging.warning("⚠️ Telegram sending requested but bot not configured")
+        try:
+            telegram_bot = resolve_vienna_telegram_bot(config)
+            if telegram_bot:
+                logging.info("✅ Telegram Vienna bot initialized for property notifications")
+            else:
+                logging.warning("⚠️ Telegram Vienna sending requested but bot not configured")
+        except Exception as e:
+            logging.error(f"❌ Failed to initialize Telegram Vienna bot: {e}")
 
         coop_channel_id = os.getenv('TELEGRAM_COOP_CHANNEL_ID')
         if bot_main_token and coop_channel_id:
@@ -779,28 +790,15 @@ def main():
             
             logging.info(f"📊 Calculated ratings for {listing.title}: Growth={ratings['potential_growth_rating']}, Renovation={ratings['renovation_needed_rating']}, Balcony={ratings['balcony_terrace']}, Floor={ratings['floor_level']}")
         
-        # Process each listing: save to MongoDB and send to Telegram if score > 40
+        # Process each listing: save to MongoDB and collect listings scoring above the threshold.
         saved_count = 0
         telegram_sent_count = 0
         high_score_listings = []
         coop_broadcast_candidates = []
 
         for listing in all_listings:
-            # 7-day Telegram dedup cooldown — check BEFORE scoring to skip CPU for recently-sent listings
-            SEVEN_DAYS = 7 * 86400
-            if mongo.collection is not None:
-                doc = mongo.collection.find_one({"url": listing.url}, {"sent_to_telegram_at": 1})
-                last_sent = doc.get("sent_to_telegram_at") if doc else None
-                if last_sent and (time.time() - last_sent) < SEVEN_DAYS:
-                    logging.info(f"⏭️  Skipping '{listing.title}' — sent {int((time.time()-last_sent)/86400)}d ago")
-                    # Still calculate score for MongoDB storage
-                    if telegram_bot:
-                        score = telegram_bot.calculate_listing_score(listing.__dict__)
-                        listing.score = score
-                    continue
-
-            # Co-op listings that passed the cooldown check are eligible for the
-            # co-op channel broadcast below, independent of the main channel's
+            # Co-op listings are eligible for the co-op channel broadcast below,
+            # independent of the main channel's
             # score threshold. Willhaben-sourced co-ops are excluded: the co-op
             # surfaces are builder-direct only (they'd link to Willhaben, not the
             # builder's reservation page, and can leak mis-tagged for-sale units).
@@ -888,79 +886,21 @@ def main():
             print_listing_summary(asdict(listing))
         
         # Overall statistics
-        total_price = sum(l.price_total for l in all_listings if l.price_total)
-        total_area = sum(l.area_m2 for l in all_listings if l.area_m2)
-        avg_price = total_price / len(all_listings) if all_listings else 0
-        avg_area = total_area / len(all_listings) if all_listings else 0
-        
         if not skip_images:
-            downloaded_count = download_images_for_listings()
-            if downloaded_count > 0:
+            if download_images_for_listings() > 0:
                 optimize_images()
-        else:
-            downloaded_count = 0
         
-        # Send Telegram notifications for high-score listings only (if enabled)
+        # Send filtered Vienna notifications for high-score listings only (if enabled).
         if send_to_telegram and telegram_bot and high_score_listings:
             logging.info(f"📱 Sending {len(high_score_listings)} high-score notifications to Telegram...")
-            
-            for listing in high_score_listings:
-                try:
-                    success = telegram_bot.send_property_notification(listing.__dict__)
-                    if success:
-                        telegram_sent_count += 1
-                        logging.info(f"✅ Telegram notification sent for {listing.title} (score: {listing.score})")
-                        # Mark listing as sent to prevent duplicates
-                        mongo.mark_sent(listing.url)
-                    else:
-                        logging.error(f"❌ Failed to send Telegram notification for {listing.title}")
-                except Exception as e:
-                    logging.error(f"❌ Telegram error for {listing.title}: {e}")
-            
+            telegram_sent_count = send_vienna_listings(high_score_listings, telegram_bot, mongo)
             logging.info(f"📱 Sent {telegram_sent_count}/{len(high_score_listings)} Telegram notifications")
         elif not send_to_telegram:
             logging.info("📱 Telegram notifications skipped (use --send-to-telegram to enable)")
-        
-        # Send summary to Telegram (main channel) - only if enabled
-        if send_to_telegram and telegram_bot:
-            try:
-                summary_message = f"""🎉 <b>Integrated Immo-Scouter Summary</b>
-                    📋 Found <b>{len(all_listings)}</b> total properties
-                    💰 Average price: {format_currency(avg_price)}
-                    📐 Average area: {avg_area:.1f}m²
-                    🔥 High-score properties: {len(high_score_listings)} (score > {score_threshold})
-                    📊 By Source:"""
-                for source, result in scraping_results.items():
-                    count = result['count']
-                    if count > 0:
-                        summary_message += f"\n   • {source.title()}: {count} listings"
-                
-                summary_message += f"\n\n📸 Downloaded {downloaded_count} images\n💾 Saved to MongoDB\n📱 Sent {telegram_sent_count} notifications"
-                
-                telegram_bot.send_message(summary_message)
-                logging.info("📱 Summary sent to Telegram main channel")
-            except Exception as e:
-                logging.error(f"❌ Failed to send Telegram summary: {e}")
-        elif not send_to_telegram:
-            logging.info("📱 Telegram summary skipped (use --send-to-telegram to enable)")
     
     else:
         logging.info("❌ No listings found matching your criteria.")
         logging.info("💡 Consider adjusting your criteria in config.json")
-            
-        # Send "no results" notification (main channel) - only if enabled
-        if send_to_telegram and telegram_bot:
-            try:
-                no_results_message = """🤷‍♂️ <b>Integrated Immo-Scouter Update</b>
-
-No new properties found matching your criteria.
-
-💡 Consider adjusting your search criteria if this continues."""
-                telegram_bot.send_message(no_results_message)
-            except Exception as e:
-                logging.error(f"❌ Failed to send Telegram notification: {e}")
-        elif not send_to_telegram:
-            logging.info("📱 Telegram 'no results' notification skipped (use --send-to-telegram to enable)")
     
     logging.info("\n✅ Integrated Immo-Scouter Main Job Completed")
     logging.info("=" * 60)

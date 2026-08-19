@@ -1,3 +1,4 @@
+import inspect
 import math
 import uuid
 from unittest.mock import MagicMock, Mock, patch
@@ -291,6 +292,75 @@ def test_upsert_coop_listing_does_not_mutate_input_fingerprints():
     assert incoming == incoming_before
     assert "content_fingerprint_xsrc" not in incoming
     assert "content_fingerprint" not in incoming
+
+
+def test_resolve_vienna_telegram_bot_uses_vienna_config_without_main_fallback():
+    from Application import main as main_module
+
+    config = {
+        "telegram": {
+            "telegram_main": {
+                "bot_token": "main-token",
+                "chat_id": "main-chat",
+            },
+            "telegram_vienna": {
+                "bot_token": "vienna-token",
+                "chat_id": "vienna-chat",
+            },
+        }
+    }
+
+    with patch("Application.main.os.getenv", return_value=None) as getenv, \
+            patch("Application.main.TelegramBot") as telegram_bot:
+        result = main_module.resolve_vienna_telegram_bot(config)
+
+    assert result is telegram_bot.return_value
+    telegram_bot.assert_called_once_with("vienna-token", "vienna-chat")
+    assert {
+        call.args[0] for call in getenv.call_args_list
+    } == {
+        "TELEGRAM_BOT_VIENNA_TOKEN",
+        "TELEGRAM_BOT_VIENNA_CHAT_ID",
+    }
+
+
+def test_resolve_vienna_telegram_bot_returns_none_without_vienna_credentials():
+    from Application import main as main_module
+
+    config = {
+        "telegram": {
+            "telegram_main": {
+                "bot_token": "main-token",
+                "chat_id": "main-chat",
+            }
+        }
+    }
+
+    with patch("Application.main.os.getenv", return_value=None) as getenv, \
+            patch("Application.main.TelegramBot") as telegram_bot:
+        result = main_module.resolve_vienna_telegram_bot(config)
+
+    assert result is None
+    telegram_bot.assert_not_called()
+    assert {
+        call.args[0] for call in getenv.call_args_list
+    } == {
+        "TELEGRAM_BOT_VIENNA_TOKEN",
+        "TELEGRAM_BOT_VIENNA_CHAT_ID",
+    }
+
+
+def test_main_uses_vienna_delivery_without_property_summary_or_cooldown():
+    from Application import main as main_module
+
+    source = inspect.getsource(main_module.main)
+
+    assert "send_vienna_listings(high_score_listings, telegram_bot, mongo)" in source
+    assert "telegram_bot.send_property_notification" not in source
+    assert "telegram_bot.send_message" not in source
+    assert "summary_message" not in source
+    assert "no_results_message" not in source
+    assert "sent_to_telegram_at" not in source
 
 
 def test_area_boundary_is_inclusive():
