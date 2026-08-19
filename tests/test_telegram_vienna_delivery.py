@@ -428,6 +428,66 @@ def test_calculate_listing_score_falls_back_without_vienna_bot():
     score_listing.assert_called_once_with(candidate)
 
 
+def test_main_completes_coop_route_without_dev_or_vienna_bot():
+    from Application import main as main_module
+
+    coop_listing = Listing(
+        url="https://example.test/coop-main",
+        source=Source.GENOSSENSCHAFT,
+        title="Co-op listing",
+        area_m2=70.0,
+        rooms=3.0,
+        is_genossenschaft=True,
+        coop_source="bautraeger_direct",
+    )
+    config = {
+        "telegram": {"telegram_main": {}},
+        "cleanup": {"enabled": False},
+        "criteria": {},
+        "max_pages": 1,
+    }
+    mongo = Mock()
+    mongo.get_listing.return_value = None
+    coop_bot = Mock()
+    coop_bot.send_message.return_value = True
+    ratings = {
+        "potential_growth_rating": 1,
+        "renovation_needed_rating": 2,
+        "balcony_terrace": False,
+        "floor_level": 1,
+    }
+
+    with patch.dict(
+        "os.environ",
+        {
+            "TELEGRAM_MAIN_BOT_TOKEN": "main-token",
+            "TELEGRAM_COOP_CHANNEL_ID": "coop-chat",
+        },
+        clear=True,
+    ), patch("sys.argv", ["main.py", "--skip-images", "--willhaben-only", "--send-to-telegram"]), \
+            patch("Application.main.load_config", return_value=config), \
+            patch("Application.main.test_system_components", return_value={"mongodb": True}), \
+            patch("Application.main.MongoDBHandler", return_value=mongo), \
+            patch("Application.main.scrape_willhaben", return_value=([coop_listing], "genossenschaft")), \
+            patch("Application.main.mark_taken_listings", return_value={"newly_taken": 0, "already_taken": 0}), \
+            patch("Application.main.TelegramBot", return_value=coop_bot) as telegram_bot, \
+            patch("Application.main.save_listings_to_mongodb", return_value=1) as save_listings, \
+            patch("Application.main.validate_url", return_value=True), \
+            patch("Application.main.compute_xsrc_fingerprint", return_value="xsrc"), \
+            patch("Application.main.format_coop_message", return_value="co-op message"), \
+            patch("Application.main.print_listing_summary"), \
+            patch("Application.rating_calculator.calculate_all_ratings", return_value=ratings), \
+            patch("Application.scoring.set_buyer_profile"), \
+            patch("Application.scoring.score_apartment_simple", return_value=12.5) as score_listing:
+        main_module.main()
+
+    telegram_bot.assert_called_once_with("main-token", "coop-chat")
+    score_listing.assert_called_once_with(coop_listing.__dict__)
+    save_listings.assert_called_once_with([coop_listing])
+    coop_bot.send_message.assert_called_once_with("co-op message")
+    mongo.mark_sent.assert_called_once_with(coop_listing.url)
+
+
 def test_main_uses_vienna_delivery_without_property_summary_or_cooldown():
     from Application import main as main_module
 

@@ -639,7 +639,6 @@ def main():
     
     # Setup Telegram error logging if configured
     if bot_token and bot_chat_id:
-        from Integration.telegram_bot import TelegramBot
         bot = TelegramBot(bot_token, bot_chat_id)
         handler = bot.setup_error_logging(is_dev_channel=True)
         try:
