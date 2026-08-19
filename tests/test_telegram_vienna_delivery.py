@@ -198,6 +198,68 @@ def test_main_cross_source_migration_replaces_fresh_listing_and_preserves_state(
     assert replaced["image_probe_v"] == 2
 
 
+def test_insert_listing_cross_source_migration_replaces_without_mutating_input():
+    collection = Mock()
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+    existing_xsrc = {
+        "_id": "willhaben-id",
+        "url": "https://willhaben.test/old",
+        "coop_source": "willhaben",
+        "telegram_delivery": {"vienna": {"state": "sent"}},
+        "area_m2": 55.0,
+        "price_total": 999.0,
+        "special_features": ["old feature"],
+        "coordinates": {"lat": 48.1, "lon": 16.2},
+        "builder_url": "https://example.test/old-builder",
+        "image_url": "https://example.test/old-image.jpg",
+        "image_probe_v": 2,
+    }
+    collection.find_one.return_value = existing_xsrc
+    incoming = {
+        "url": "https://builder.test/fresh",
+        "title": "Fresh title",
+        "source": "genossenschaft",
+        "source_enum": "genossenschaft",
+        "is_genossenschaft": True,
+        "coop_source": "bautraeger_direct",
+        "bautraeger": "ÖVW",
+        "address": "Musterstraße 1, 1100 Wien",
+        "rooms": 3.0,
+        "area_m2": 70.0,
+        "price_total": 1200.0,
+        "buyable": False,
+        "special_features": ["fresh feature"],
+        "coordinates": {"lat": 48.2, "lon": 16.3},
+        "builder_url": "https://example.test/fresh-builder",
+        "image_url": "https://example.test/fresh-image.jpg",
+        "image_probe_v": None,
+        "telegram_delivery": {},
+    }
+    incoming_before = incoming.copy()
+
+    assert mongo.insert_listing(incoming) is True
+
+    collection.update_one.assert_not_called()
+    collection.replace_one.assert_called_once()
+    replaced = collection.replace_one.call_args.args[1]
+    assert replaced["_id"] == "willhaben-id"
+    assert replaced["url"] == "https://builder.test/fresh"
+    assert replaced["title"] == "Fresh title"
+    assert replaced["area_m2"] == 70.0
+    assert replaced["price_total"] == 1200.0
+    assert replaced["special_features"] == ["fresh feature"]
+    assert replaced["coordinates"] == {"lat": 48.2, "lon": 16.3}
+    assert replaced["builder_url"] == "https://example.test/fresh-builder"
+    assert replaced["image_url"] == "https://example.test/fresh-image.jpg"
+    assert replaced["image_probe_v"] == 2
+    assert replaced["telegram_delivery"] == existing_xsrc["telegram_delivery"]
+    assert incoming == incoming_before
+    assert "content_fingerprint_xsrc" not in incoming
+    assert "content_fingerprint" not in incoming
+    assert "_id" not in incoming
+
+
 def test_area_boundary_is_inclusive():
     assert vienna_filter_reason(listing(area_m2=74.99), 40.0) is not None
     assert vienna_filter_reason(listing(area_m2=75.0), 40.0) is None

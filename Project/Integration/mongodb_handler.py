@@ -218,15 +218,16 @@ class MongoDBHandler:
         self.close()
 
     def insert_listing(self, listing: Dict) -> bool:
-        price_val = listing.get('price_total')
+        listing_data = dict(listing)
+        price_val = listing_data.get('price_total')
         if not isinstance(price_val, (int, float)) or price_val <= 0:
-            logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing.get('url')}")
+            logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing_data.get('url')}")
             return False
 
-        valid, reason = is_valid_listing_data(listing)
+        valid, reason = is_valid_listing_data(listing_data)
         if not valid:
             logging.info(f"🚫 Skipping save: validation failed — {reason}")
-            source = listing.get('source_enum', listing.get('source', 'unknown'))
+            source = listing_data.get('source_enum', listing_data.get('source', 'unknown'))
             self.increment_validation_failure(source)
             return False
 
@@ -234,24 +235,17 @@ class MongoDBHandler:
         # compute_xsrc_fingerprint() expects attribute-style access (it was written against
         # the Listing dataclass), but insert_listing() always receives a plain dict — wrap
         # it in SimpleNamespace so the same fields resolve without touching that function.
-        if listing.get('is_genossenschaft'):
-            xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+        if listing_data.get('is_genossenschaft'):
+            xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing_data))
             if xfp:
-                listing['content_fingerprint_xsrc'] = xfp
+                listing_data['content_fingerprint_xsrc'] = xfp
                 try:
                     existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
                     if existing:
                         # Prefer Bauträger-direct (canonical apply URL) over Willhaben.
-                        if (listing.get('coop_source') == 'bautraeger_direct'
+                        if (listing_data.get('coop_source') == 'bautraeger_direct'
                                 and existing.get('coop_source') == 'willhaben'):
-                            self.collection.update_one(
-                                {"_id": existing["_id"]},
-                                {"$set": {
-                                    "url": listing.get('url'),
-                                    "coop_source": 'bautraeger_direct',
-                                    "bautraeger": listing.get('bautraeger'),
-                                }}
-                            )
+                            self._replace_preserving_state(existing, listing_data)
                         logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
                         return True
                 except pymongo.errors.DuplicateKeyError:
@@ -266,17 +260,17 @@ class MongoDBHandler:
                     print(f"MongoDB co-op dedup error: {e}")
                     return False
 
-        fingerprint = compute_content_fingerprint(listing)
-        listing['content_fingerprint'] = fingerprint
+        fingerprint = compute_content_fingerprint(listing_data)
+        listing_data['content_fingerprint'] = fingerprint
 
         try:
             existing_fingerprint = self.collection.find_one(
-                {"content_fingerprint": fingerprint, "source_enum": listing.get('source_enum', listing.get('source'))}
+                {"content_fingerprint": fingerprint, "source_enum": listing_data.get('source_enum', listing_data.get('source'))}
             )
             if existing_fingerprint:
-                logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing.get('title')} (URL: {listing.get('url')})")
+                logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing_data.get('title')} (URL: {listing_data.get('url')})")
                 return True
-            self.collection.insert_one(listing)
+            self.collection.insert_one(listing_data)
             return True
         except pymongo.errors.DuplicateKeyError:
             return False
