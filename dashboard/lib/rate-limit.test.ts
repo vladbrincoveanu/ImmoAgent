@@ -326,15 +326,17 @@ describe('SlidingWindowRateLimiter', () => {
     }
 
     const actualReleaseAt = 10_000;
-    const blocked = limiter.check('other', 1, 100, 9_901);
     const heapSizes = limiter.heapSizesForTesting();
 
     expect(limiter.size()).toBe(1);
+    expect(heapSizes.eventExpiry).toBeLessThan(20);
+    expect(heapSizes.keyRelease).toBeLessThan(20);
+
+    const blocked = limiter.check('other', 1, 100, 9_901);
+
     expect(blocked.allowed).toBe(false);
     expect(blocked.resetAt).toBeGreaterThanOrEqual(actualReleaseAt);
     expect(blocked.resetAt).toBe(actualReleaseAt);
     expect(limiter.check('other', 1, 100, blocked.resetAt).allowed).toBe(true);
-    expect(heapSizes.eventExpiry).toBeLessThan(20);
-    expect(heapSizes.keyRelease).toBeLessThan(20);
   });
 });
