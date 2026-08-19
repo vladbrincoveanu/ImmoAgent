@@ -11,6 +11,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 from datetime import datetime
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,6 +41,8 @@ class TestDerStandardIntegration(unittest.TestCase):
             'heating': 'Fernwärme',
             'energy_class': 'A',
             'image_url': 'https://example.com/image.jpg',
+            'ubahn_walk_minutes': 3,
+            'school_walk_minutes': 5,
             'source': 'derstandard',
             'source_enum': 'DERSTANDARD'
         }
@@ -224,7 +227,7 @@ class TestDerStandardIntegration(unittest.TestCase):
         # Check infrastructure_distances is a dict
         assert isinstance(normalized['infrastructure_distances'], dict)
     
-    @patch('Project.Integration.mongodb_handler.MongoDBHandler')
+    @patch(__name__ + '.MongoDBHandler')
     def test_mongodb_integration(self, mock_handler_class):
         """Test MongoDB integration"""
         # Create a mock handler instance
@@ -265,6 +268,7 @@ class TestDerStandardIntegration(unittest.TestCase):
         assert 'DERSTANDARD' in str(data['text'])  # Should mention the source
         assert self.sample_listing_data['url'] in str(data['text'])
     
+    @pytest.mark.smoke
     def test_real_crawling_limited(self):
         """Test real crawling with limited scope (1 page, 1 listing)"""
         # This test should be skipped in CI/CD environments
@@ -312,6 +316,7 @@ class TestDerStandardIntegration(unittest.TestCase):
             print(f"Real crawling test encountered an error: {e}")
             self.skipTest(f"Real crawling test failed: {e}")
     
+    @pytest.mark.smoke
     def test_error_handling(self):
         """Test error handling in scraper"""
         # Test with invalid URL

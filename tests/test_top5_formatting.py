@@ -3,12 +3,15 @@
 Test script to verify top5 formatting matches main.py format
 """
 
+import pytest
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import load_config
+
+pytestmark = pytest.mark.smoke
 
 def test_top5_formatting():
     """Test that top5 formatting matches main.py format"""

@@ -19,7 +19,9 @@ def test_extract_price_formats():
         ("Preis auf Anfrage", None)
     ]
     for price_text, expected in test_cases:
-        result = scraper.extract_price(price_text)
+        result = scraper.extract_price(
+            BeautifulSoup(f'<div data-testid="contact-box-price-box">€ {price_text}</div>', 'html.parser')
+        )
         print(f"DEBUG: '{price_text}' -> {result} (expected: {expected})")
         assert result == expected, f"Expected {expected} for '{price_text}', got {result}"
 
@@ -155,6 +157,7 @@ def test_street_houseno_guard_distinguishes_district_from_real_address():
     assert scraper._STREET_HOUSENO_RE.search("Mariahilfer Straße 120, 1070 Wien") is not None
 
 
+@pytest.mark.smoke
 def test_real_willhaben_listing_extraction():
     scraper = WillhabenScraper()
     test_url = "https://www.willhaben.at/iad/immobilien/d/eigentumswohnung/wien/wien-1190-doebling/perfekt-aufgeteilte-altbauwohnung-naehe-hohe-warte-1076664583/"

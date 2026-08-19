@@ -3,12 +3,15 @@
 Test script to analyze a single listing with structured output
 """
 
+import pytest
 import sys
 import json
 import requests
 from bs4 import BeautifulSoup
 from Project.Application.analyzer import StructuredAnalyzer
 import unittest
+
+pytestmark = pytest.mark.smoke
 
 class TestSingleListing(unittest.TestCase):
     def test_fetch_listing_data(self):

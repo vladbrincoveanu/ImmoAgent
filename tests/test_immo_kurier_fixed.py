@@ -4,6 +4,7 @@ Test script to verify the fixed Immo Kurier scraper
 Tests data extraction improvements and null value handling
 """
 
+import pytest
 import sys
 import os
 import json
@@ -19,6 +20,8 @@ sys.path.insert(0, project_path)
 
 from Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 from Application.main import load_config
+
+pytestmark = pytest.mark.smoke
 
 # Set up logging
 logging.basicConfig(

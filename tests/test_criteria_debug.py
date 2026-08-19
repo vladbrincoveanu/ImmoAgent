@@ -3,11 +3,14 @@
 Debug criteria matching
 """
 
+import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Application.scraping.derstandard_scraper import DerStandardScraper
 from Application.helpers.utils import load_config
+
+pytestmark = pytest.mark.smoke
 
 def main():
     """Debug criteria matching"""

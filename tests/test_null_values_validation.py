@@ -9,6 +9,7 @@ import os
 import json
 import time
 import requests
+import pytest
 from datetime import datetime
 from typing import List, Dict, Any
 import unittest
@@ -35,6 +36,7 @@ class TestNullValuesValidation(unittest.TestCase):
         if hasattr(self, 'mongo'):
             self.mongo.close()
 
+    @pytest.mark.smoke
     def test_null_values_validation(self):
         print("🧪 TESTING NULL VALUE HANDLING WITH MOCK LISTINGS")
         print("=" * 70)

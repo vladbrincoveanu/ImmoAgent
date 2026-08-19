@@ -6,6 +6,7 @@ Test script to verify dual Telegram setup:
 """
 
 import logging
+import pytest
 import sys
 import os
 
@@ -14,6 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from Application.main import load_config
 from Integration.telegram_bot import TelegramBot
+
+pytestmark = pytest.mark.smoke
 
 def test_dual_telegram_setup():
     """Test the dual Telegram setup"""

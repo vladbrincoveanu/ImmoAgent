@@ -3,12 +3,15 @@
 Test MongoDB connection and authentication
 """
 
+import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Integration.mongodb_handler import MongoDBHandler
 from Application.helpers.utils import load_config
 import pymongo
+
+pytestmark = pytest.mark.smoke
 
 def test_mongodb():
     """Test MongoDB connection"""

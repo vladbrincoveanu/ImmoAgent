@@ -8,6 +8,7 @@ import sys
 import time
 import signal
 import unittest
+import pytest
 from Project.Application.scraping.willhaben_scraper import WillhabenScraper
 from Project.Application.analyzer import StructuredAnalyzer
 
@@ -17,6 +18,7 @@ def timeout_handler(signum, frame):
     sys.exit(1)
 
 class TestQuickMain(unittest.TestCase):
+    @pytest.mark.smoke
     def test_system_startup(self):
         """Test that the system can start without hanging"""
         print("🧪 TESTING SYSTEM STARTUP")

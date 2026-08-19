@@ -4,6 +4,7 @@ Simple derStandard scraper test
 Tests basic functionality without complex logic
 """
 
+import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
@@ -15,6 +16,8 @@ import time
 from Project.Application.scraping.derstandard_scraper import DerStandardScraper
 from Project.Integration.mongodb_handler import MongoDBHandler
 from Project.Application.helpers.utils import load_config
+
+pytestmark = pytest.mark.smoke
 
 def main():
     """Simple test function"""

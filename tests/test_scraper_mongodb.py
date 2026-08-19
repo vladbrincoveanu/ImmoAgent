@@ -3,10 +3,13 @@
 Test derStandard scraper MongoDB connection
 """
 
+import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Application.scraping.derstandard_scraper import DerStandardScraper
+
+pytestmark = pytest.mark.smoke
 
 def test_scraper_mongodb():
     """Test scraper MongoDB connection"""

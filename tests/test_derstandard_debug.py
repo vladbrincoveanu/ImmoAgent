@@ -4,6 +4,7 @@ Debug test for derStandard scraper
 Tests multi-level navigation and data extraction
 """
 
+import pytest
 import sys
 import os
 import logging
@@ -14,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'Project'))
 from Application.scraping.derstandard_scraper import DerStandardScraper
 from bs4 import BeautifulSoup
 import requests
+
+pytestmark = pytest.mark.smoke
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

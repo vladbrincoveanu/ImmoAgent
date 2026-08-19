@@ -6,9 +6,12 @@ Test script for duplicate prevention system
 import sys
 import os
 import time
+import pytest
 
 # Add the Project directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
+
+pytestmark = pytest.mark.smoke
 
 def test_duplicate_prevention():
     """Test that listings sent to Telegram are tracked and not sent again"""

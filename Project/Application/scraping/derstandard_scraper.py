@@ -26,6 +26,7 @@ from Application.scraping.field_extractors import (
     extract_kitchen_included, extract_window_type,
     extract_sonderumlage_risk, extract_doppelmakler,
 )
+from Application.scraping.price_parser import parse_price_text
 
 from Domain.listing import Listing
 from Domain.sources import Source
@@ -1204,47 +1205,7 @@ class DerStandardScraper:
 
     def extract_price(self, price_text: str) -> Optional[float]:
         """Extract price from text, handling various formats"""
-        if not price_text or not isinstance(price_text, str):
-            return None
-        
-        # Clean the text
-        price_text = price_text.strip()
-        
-        # Handle "Preis auf Anfrage" or similar
-        if any(phrase in price_text.lower() for phrase in ['anfrage', 'auf anfrage', 'preis auf anfrage']):
-            return None
-        
-        # Handle 'k' format (e.g., "450k" = 450000)
-        if price_text.lower().endswith('k'):
-            try:
-                base_value = float(price_text.lower().replace('k', '').strip())
-                return base_value * 1000
-            except ValueError:
-                return None
-        
-        # Handle 'M' format (e.g., "1.2M" = 1200000)
-        if price_text.lower().endswith('m'):
-            try:
-                base_value = float(price_text.lower().replace('m', '').strip())
-                return base_value * 1000000
-            except ValueError:
-                return None
-        
-        # Remove currency symbols and spaces
-        price_text = re.sub(r'[€$£¥\s]', '', price_text)
-        
-        # Handle different decimal separators
-        if ',' in price_text and '.' in price_text:
-            # Format like "450.000,00" - remove dots, replace comma with dot
-            price_text = price_text.replace('.', '').replace(',', '.')
-        elif ',' in price_text:
-            # Format like "450,000" - replace comma with dot
-            price_text = price_text.replace(',', '.')
-        
-        try:
-            return float(price_text)
-        except ValueError:
-            return None
+        return parse_price_text(price_text)
 
     def extract_area(self, area_text: str) -> Optional[float]:
         """Extract area from text, handling various formats"""

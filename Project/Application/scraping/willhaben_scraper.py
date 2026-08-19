@@ -29,6 +29,7 @@ from Application.scraping.field_extractors import (
     extract_document_urls, extract_is_genossenschaft, extract_bautraeger,
     extract_is_private_coop_transfer, extract_seller_type,
 )
+from Application.scraping.price_parser import parse_price_text
 
 
 def _is_blocked_page(content: str) -> Tuple[bool, str]:
@@ -837,29 +838,16 @@ class WillhabenScraper:
                 if elements:
                     for element in elements:
                         text = element.get_text(strip=True)
-                        # Look for price patterns in the text
-                        price_match = re.search(r'€\s*([\d.,]+)', text)
-                        if price_match:
-                            price_str = price_match.group(1).replace('.', '').replace(',', '.')
-                            try:
-                                price = float(price_str)
-                                if price > 1000:  # Reasonable minimum price
-                                    return price  # Convert to float
-                            except ValueError:
-                                continue
+                        price = parse_price_text(text)
+                        if price is not None and price > 1000:
+                            return price
             
             # Fallback: search for any text containing price pattern
             price_texts = soup.find_all(string=re.compile(r'€\s*[\d.,]+'))
             for text in price_texts:
-                price_match = re.search(r'€\s*([\d.,]+)', text)
-                if price_match:
-                    price_str = price_match.group(1).replace('.', '').replace(',', '.')
-                    try:
-                        price = float(price_str)
-                        if price > 1000:  # Reasonable minimum price
-                            return price  # Convert to float
-                    except ValueError:
-                        continue
+                price = parse_price_text(text)
+                if price is not None and price > 1000:
+                    return price
                         
             return None
         except Exception as e:

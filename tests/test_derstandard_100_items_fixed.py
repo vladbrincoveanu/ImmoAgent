@@ -4,6 +4,7 @@ Fixed derStandard scraper - Target 100 items
 Addresses authentication issues and uses proper error handling
 """
 
+import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
@@ -17,6 +18,8 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Projec
 from Application.scraping.derstandard_scraper import DerStandardScraper
 from Integration.mongodb_handler import MongoDBHandler
 from Application.helpers.utils import load_config
+
+pytestmark = pytest.mark.smoke
 
 def get_current_db_count():
     """Get current count of derStandard listings in database"""

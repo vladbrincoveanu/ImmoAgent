@@ -7,10 +7,12 @@ import sys
 import os
 import tempfile
 import json
+import pytest
 
 # Add the Project directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
+@pytest.mark.smoke
 def test_github_actions_main():
     """Test main function in GitHub Actions-like environment"""
     print("🧪 Testing Main Function in GitHub Actions Environment")
@@ -70,6 +72,7 @@ def test_github_actions_main():
     
     return True
 
+@pytest.mark.smoke
 def test_current_environment():
     """Test main function in current environment"""
     print("\n🧪 Testing Main Function in Current Environment")

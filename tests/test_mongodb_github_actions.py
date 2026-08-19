@@ -3,8 +3,11 @@
 Test MongoDB connection in GitHub Actions environment
 """
 
+import pytest
 import sys
 import os
+
+pytestmark = pytest.mark.smoke
 
 # Add the Project directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))

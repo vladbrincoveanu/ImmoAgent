@@ -5,11 +5,14 @@ Debug script to investigate Top5 report issues
 
 import sys
 import os
+import pytest
 from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Application.helpers.utils import load_config
 from Integration.mongodb_handler import MongoDBHandler
+
+pytestmark = pytest.mark.smoke
 
 def debug_top5_issues():
     """Debug why Top5 report is finding 0 listings"""

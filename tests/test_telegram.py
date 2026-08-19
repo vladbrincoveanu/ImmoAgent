@@ -3,9 +3,12 @@
 Test script for Telegram bot debugging
 """
 
+import pytest
 import requests
 import json
 import os
+
+pytestmark = pytest.mark.smoke
 
 def test_bot_info(bot_token):
     """Test if bot token is valid"""

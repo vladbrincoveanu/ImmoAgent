@@ -7,6 +7,7 @@ import sys
 import os
 import tempfile
 import shutil
+import importlib.util
 
 def test_logging_directory_creation():
     """Test that log directories are created automatically"""
@@ -145,15 +146,17 @@ if __name__ == "__main__":
         with open(os.path.join(app_dir, 'main.py'), 'w') as f:
             f.write(test_main_content)
         
-        # Test the simulation
+        # Test the simulation without reusing an already-imported production module.
         try:
-            # Add to path and import
-            sys.path.insert(0, project_dir)
-            from Application.main import main
-            
-            # Run the test
-            main()
-            
+            module_name = '_logging_fix_github_actions_main'
+            spec = importlib.util.spec_from_file_location(
+                module_name,
+                os.path.join(app_dir, 'main.py'),
+            )
+            test_main = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(test_main)
+            test_main.main()
+
             # Check if log directory and file were created
             if os.path.exists('log') and os.path.exists('log/test.log'):
                 print("✅ GitHub Actions simulation successful - log directory and file created")
@@ -161,7 +164,7 @@ if __name__ == "__main__":
             else:
                 print("❌ GitHub Actions simulation failed - log files not created")
                 return False
-                
+
         except Exception as e:
             print(f"❌ GitHub Actions simulation failed: {e}")
             return False

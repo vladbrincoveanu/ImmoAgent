@@ -9,6 +9,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Project.Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 from dataclasses import asdict
+from bs4 import BeautifulSoup
 
 def test_immo_kurier():
     """Test the Immo Kurier scraper"""
@@ -30,7 +31,7 @@ def test_immo_kurier():
     </html>
     """
     
-    urls = scraper.extract_listing_urls(test_html)
+    urls = scraper.extract_listing_urls(BeautifulSoup(test_html, 'html.parser'))
     print(f"✅ Found {len(urls)} URLs: {urls}")
     
     # Test single listing scraping (with mock data)
@@ -51,20 +52,20 @@ def test_immo_kurier():
             <div class="area">
                 60,5 m²
             </div>
-            <div class="rooms">
+            <div class="rooms-value">
                 2 Zi.
             </div>
             <div class="year-built">
                 Baujahr: 1995
             </div>
-            <div class="condition">
-                Zustand: Renoviert
+            <div class="condition-value">
+                Renoviert
             </div>
-            <div class="heating">
-                Heizung: Fernwärme
+            <div class="heating-value">
+                Fernwärme
             </div>
-            <div class="energy-class">
-                Energieklasse: B
+            <div class="energy-class-value">
+                B
             </div>
         </body>
     </html>

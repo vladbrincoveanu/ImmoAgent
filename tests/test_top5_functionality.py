@@ -3,6 +3,7 @@
 Test script to verify top5 functionality
 """
 
+import pytest
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
@@ -10,6 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 from Application.helpers.utils import load_config
+
+pytestmark = pytest.mark.smoke
 
 def test_mongodb_top_listings():
     """Test fetching top listings from MongoDB"""

@@ -6,6 +6,7 @@ Tests that the scraper extracts correct data from real listings
 
 import sys
 import os
+import pytest
 import json
 import time
 from typing import Dict, Any, List
@@ -18,6 +19,7 @@ import unittest
 from Project.Application.helpers.utils import load_config
 
 class TestIntegrationAccuracy(unittest.TestCase):
+    @pytest.mark.smoke
     def test_single_listing_accuracy(self):
         """Test accuracy of single listing extraction"""
         print("🧪 TESTING SINGLE LISTING ACCURACY")

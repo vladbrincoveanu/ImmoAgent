@@ -4,6 +4,7 @@ Test script to verify derStandard scraper fixes
 Tests that collections are properly skipped and no cycles occur
 """
 
+import pytest
 import sys
 import os
 import logging
@@ -12,6 +13,8 @@ import logging
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Project'))
 
 from Application.scraping.derstandard_scraper import DerStandardScraper
+
+pytestmark = pytest.mark.smoke
 
 def test_derstandard_scraper():
     """Test that derStandard scraper works without cycles"""

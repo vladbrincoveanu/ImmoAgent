@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 from dataclasses import asdict
 import pytest
+from bs4 import BeautifulSoup
 from Project.Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 
 # Add parent directory to path for imports
@@ -49,7 +50,7 @@ class TestImmoKurierIntegration(unittest.TestCase):
                 </div>
                 <div class="d-flex fs-3">
                     <div class="pe-2 fw-bold">€ 450.000,00</div>
-                    <div class="px-2 border-start">3 Zi.</div>
+                    <div class="rooms-value">3 Zi.</div>
                     <div class="px-2 border-start">85,5 m²</div>
                 </div>
             </body>
@@ -58,7 +59,9 @@ class TestImmoKurierIntegration(unittest.TestCase):
 
     def test_extract_listing_urls(self):
         """Test URL extraction from search results"""
-        urls = self.scraper.extract_listing_urls(self.sample_search_html)
+        urls = self.scraper.extract_listing_urls(
+            BeautifulSoup(self.sample_search_html, 'html.parser')
+        )
         
         expected_urls = [
             "https://immo.kurier.at/immobilien/test-listing-1",
@@ -98,6 +101,7 @@ class TestImmoKurierIntegration(unittest.TestCase):
         mock_search_response = Mock()
         mock_search_response.status_code = 200
         mock_search_response.text = self.sample_search_html
+        mock_search_response.content = self.sample_search_html.encode('utf-8')
         
         mock_listing_response = Mock()
         mock_listing_response.content = self.sample_listing_html.encode('utf-8')
@@ -122,11 +126,13 @@ class TestImmoKurierIntegration(unittest.TestCase):
     def test_error_handling(self):
         """Test error handling in scraper"""
         # Test with invalid HTML
-        urls = self.scraper.extract_listing_urls("invalid html")
+        urls = self.scraper.extract_listing_urls(
+            BeautifulSoup("invalid html", 'html.parser')
+        )
         self.assertEqual(urls, [])
         
         # Test with None HTML
-        urls = self.scraper.extract_listing_urls(None)
+        urls = self.scraper.extract_listing_urls(BeautifulSoup('', 'html.parser'))
         self.assertEqual(urls, [])
 
     def test_data_validation(self):
@@ -202,10 +208,13 @@ def test_extract_price_formats():
         ("Preis auf Anfrage", None)
     ]
     for price_text, expected in test_cases:
-        result = scraper.extract_price(price_text)
+        result = scraper.extract_price(
+            BeautifulSoup(f'<div class="price">{price_text}</div>', 'html.parser')
+        )
         print(f"DEBUG: '{price_text}' -> {result} (expected: {expected})")
         assert result == expected, f"Expected {expected} for '{price_text}', got {result}"
 
+@pytest.mark.smoke
 def test_real_immo_kurier_listing_extraction():
     scraper = ImmoKurierScraper()
     test_url = "https://immo.kurier.at/suche?l=Wien&r=0km&_multiselect_r=0km&a=at.wien&t=all%3Asale%3Aliving&pf=&pt=&rf=&rt=&sf=&st="

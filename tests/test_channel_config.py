@@ -3,12 +3,15 @@
 Test script to verify Telegram channel configuration
 """
 
+import pytest
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
 from Application.helpers.utils import load_config
 from Integration.telegram_bot import TelegramBot
+
+pytestmark = pytest.mark.smoke
 
 def test_channel_config():
     """Test that the Telegram channel configuration is correct"""

@@ -5,6 +5,7 @@ to identify and fix UTF-8 encoding issues
 """
 
 import logging
+import pytest
 import sys
 import os
 
@@ -14,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from Project.Application.scraping.derstandard_scraper import DerStandardScraper
 from Project.Application.scraping.immo_kurier_scraper import ImmoKurierScraper
 from Project.Integration.mongodb_handler import MongoDBHandler
+
+pytestmark = pytest.mark.smoke
 
 # Configure logging
 # Ensure log directory exists

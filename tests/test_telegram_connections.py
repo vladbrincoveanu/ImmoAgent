@@ -2,6 +2,7 @@
 """
 Test script to verify Telegram bot connections, config, and handler security.
 """
+import pytest
 import sys
 import os
 import logging
@@ -9,6 +10,8 @@ import logging
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from Application.main import load_config
 from Integration.telegram_bot import TelegramBot, TelegramLogHandler
+
+pytestmark = pytest.mark.smoke
 
 def test_telegram_config():
     print("\n🔎 Checking Telegram config...")

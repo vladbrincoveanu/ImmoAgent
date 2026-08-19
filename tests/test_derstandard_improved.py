@@ -4,6 +4,7 @@ Test script for improved derStandard scraper
 Tests image extraction and complete field population
 """
 
+import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Project'))
 
@@ -12,6 +13,8 @@ import time
 
 from Application.scraping.derstandard_scraper import DerStandardScraper
 from Application.helpers.utils import load_config
+
+pytestmark = pytest.mark.smoke
 
 def test_derstandard_scraper():
     """Test the improved derStandard scraper"""

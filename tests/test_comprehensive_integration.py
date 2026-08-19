@@ -14,6 +14,7 @@ import unittest
 import tempfile
 from typing import Dict, Any, List, Tuple
 from unittest.mock import Mock, patch, MagicMock
+import pytest
 import pymongo
 from bson import ObjectId
 
@@ -32,6 +33,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class TestComprehensiveIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
+        self._used_mongo = False
         self.config = load_config()
         if not self.config:
             self.skipTest("No configuration found")
@@ -60,14 +62,21 @@ class TestComprehensiveIntegration(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test data"""
+        if not self._used_mongo:
+            return
+
         try:
             # Clean up test database
-            client = pymongo.MongoClient(self.config.get('mongodb_uri', 'mongodb://localhost:27017/'))
+            client = pymongo.MongoClient(
+                self.config.get('mongodb_uri', 'mongodb://localhost:27017/'),
+                serverSelectionTimeoutMS=1000,
+            )
             client.drop_database(self.test_db_name)
             client.close()
         except Exception as e:
             print(f"Warning: Could not clean up test database: {e}")
 
+    @pytest.mark.smoke
     def test_real_willhaben_extraction(self):
         """Test real Willhaben listing extraction with data validation"""
         print("\n🧪 TESTING REAL WILLHABEN EXTRACTION")
@@ -115,6 +124,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         except Exception as e:
             self.fail(f"Willhaben extraction failed: {e}")
 
+    @pytest.mark.smoke
     def test_real_immo_kurier_extraction(self):
         """Test real Immo Kurier listing extraction with data validation"""
         print("\n🧪 TESTING REAL IMMO KURIER EXTRACTION")
@@ -172,6 +182,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         except Exception as e:
             self.fail(f"Immo Kurier extraction failed: {e}")
 
+    @pytest.mark.smoke
     def test_real_derstandard_extraction(self):
         """Test real derStandard listing extraction with data validation"""
         print("\n🧪 TESTING REAL DERSTANDARD EXTRACTION")
@@ -229,6 +240,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         except Exception as e:
             self.fail(f"derStandard extraction failed: {e}")
 
+    @pytest.mark.smoke
     def test_mongodb_integration(self):
         """Test MongoDB storage and retrieval with real data"""
         print("\n🧪 TESTING MONGODB INTEGRATION")
@@ -236,6 +248,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         
         # Create test listing data
         test_listing = self.create_test_listing_data("willhaben")
+        self._used_mongo = True
         
         try:
             # Test insertion
@@ -297,7 +310,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         try:
             # Format message
             print("📝 Testing message formatting...")
-            message = self.telegram_bot._format_property_message(test_listing)
+            message = self.telegram_bot._format_property_message(test_listing, include_url=True)
             
             # Validate message structure
             self.assertIsInstance(message, str)
@@ -314,7 +327,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
             # Check for data presence
             self.assertIn('€450,000', message, "Price should be in message")
             self.assertIn('85.0m²', message, "Area should be in message")
-            self.assertIn('3 Zimmer', message, "Rooms should be in message")
+            self.assertIn('3 Rooms', message, "Rooms should be in message")
             self.assertIn('1070 Wien', message, "Address should be in message")
             
             print("✅ Message formatting validation passed!")
@@ -338,7 +351,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
             incomplete_message = self.telegram_bot._format_property_message(incomplete_listing)
             
             # Should handle missing data gracefully
-            self.assertIn('N/A', incomplete_message, "Should show N/A for missing data")
+            self.assertIn('On Request', incomplete_message, "Should show On Request for missing data")
             self.assertIn('€300,000', incomplete_message, "Should show price")
             
             print("✅ Incomplete data message formatting passed!")
@@ -441,6 +454,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
             
             print(f"✅ {test_case['name']}: {'PASSED' if test_case['should_pass'] else 'FAILED (as expected)'}")
 
+    @pytest.mark.smoke
     def test_complete_pipeline_integration(self):
         """Test complete pipeline: extraction -> validation -> storage -> messaging"""
         print("\n🧪 TESTING COMPLETE PIPELINE INTEGRATION")
@@ -467,6 +481,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
             
             # Step 3: Store in MongoDB
             print("3️⃣ Testing MongoDB storage...")
+            self._used_mongo = True
             insert_result = self.mongo_handler.collection.insert_one(extracted_data)
             self.assertIsNotNone(insert_result.inserted_id)
             print("✅ MongoDB storage passed")
@@ -503,7 +518,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
             
             # Mock scraper instances
             mock_willhaben = Mock()
-            mock_willhaben.scrape_search_agent_page.return_value = test_listings
+            mock_willhaben.scrape_search_results.return_value = test_listings
             mock_willhaben_class.return_value = mock_willhaben
             
             mock_immo_kurier = Mock()
@@ -512,14 +527,12 @@ class TestComprehensiveIntegration(unittest.TestCase):
             
             # Test Willhaben workflow - fix function signature
             print("🔍 Testing Willhaben workflow...")
-            willhaben_listings, source = scrape_willhaben(self.config, max_pages=1)
-            self.assertEqual(source, "willhaben")
+            willhaben_listings = scrape_willhaben(max_listings=1)
             self.assertIsInstance(willhaben_listings, list)
             
             # Test Immo Kurier workflow - fix function signature
             print("🔍 Testing Immo Kurier workflow...")
-            immo_kurier_listings, source = scrape_immo_kurier(self.config, max_pages=1)
-            self.assertEqual(source, "immo_kurier")
+            immo_kurier_listings = scrape_immo_kurier(max_listings=1)
             self.assertIsInstance(immo_kurier_listings, list)
             
             print("✅ Main.py workflow validation passed!")
@@ -586,6 +599,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         
         print("\n✅ Telegram message data integrity validation completed")
 
+    @pytest.mark.smoke
     def test_mongodb_data_integrity(self):
         """Test that MongoDB data is properly structured and complete"""
         print("\n🧪 TESTING MONGODB DATA INTEGRITY")
@@ -595,6 +609,7 @@ class TestComprehensiveIntegration(unittest.TestCase):
         test_listing = self.create_test_listing_data("willhaben")
         
         # Insert into MongoDB
+        self._used_mongo = True
         insert_result = self.mongo_handler.collection.insert_one(test_listing)
         
         # Retrieve and validate

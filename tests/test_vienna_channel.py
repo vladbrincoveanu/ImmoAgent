@@ -4,6 +4,7 @@ Test script for ViennaApartmentsLive channel
 """
 
 import json
+import pytest
 import sys
 import os
 
@@ -14,6 +15,8 @@ sys.path.insert(0, project_dir)
 
 from Application.main import load_config
 from Integration.telegram_bot import TelegramBot
+
+pytestmark = pytest.mark.smoke
 
 def test_vienna_channel():
     """Test the ViennaApartmentsLive channel setup"""
