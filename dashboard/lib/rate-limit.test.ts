@@ -317,4 +317,21 @@ describe('SlidingWindowRateLimiter', () => {
     expect(blocked.resetAt).toBe(150);
     expect(limiter.check('second', 2, 100, blocked.resetAt).allowed).toBe(true);
   });
+
+  it('compacts stale expiry nodes during repeated single-key reinsertion', () => {
+    const limiter = new SlidingWindowRateLimiter();
+
+    for (let request = 0; request < 100; request += 1) {
+      expect(limiter.check('ip', 1, 100, request * 100).allowed).toBe(true);
+    }
+
+    const blocked = limiter.check('ip', 1, 100, 9_901);
+    const heapSizes = limiter.heapSizesForTesting();
+
+    expect(limiter.size()).toBe(1);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(10_000);
+    expect(heapSizes.eventExpiry).toBeLessThan(20);
+    expect(heapSizes.keyRelease).toBeLessThan(20);
+  });
 });

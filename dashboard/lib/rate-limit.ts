@@ -10,6 +10,7 @@ const DEFAULT_MAX_TOTAL_EVENTS = 100_000;
 const MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 const MAX_SAFE_TIMESTAMP = Number.MAX_SAFE_INTEGER;
 const CLEANUP_INTERVAL_MS = 1_000;
+const HEAP_COMPACTION_FACTOR = 4;
 
 function safeTimestampAdd(timestamp: number, duration: number): number {
   return timestamp > MAX_SAFE_TIMESTAMP - duration
@@ -44,6 +45,10 @@ class MinHeap<T> {
 
   peek(): T | undefined {
     return this.values[0];
+  }
+
+  size(): number {
+    return this.values.length;
   }
 
   push(value: T): void {
@@ -168,6 +173,7 @@ export class SlidingWindowRateLimiter {
         throw new RangeError('now exceeds the safe timestamp limit');
       }
       this.pruneExpired(entry, effectiveNow);
+      this.compactHeapsIfNeeded();
     }
 
     if (entry && entry.events.length >= limit) {
@@ -244,6 +250,7 @@ export class SlidingWindowRateLimiter {
       this.pruneExpired(entry, now);
       if (entry.events.length === 0) this.entries.delete(key);
     }
+    this.compactHeapsIfNeeded();
   }
 
   clear(): void {
@@ -257,6 +264,14 @@ export class SlidingWindowRateLimiter {
 
   size(): number {
     return this.entries.size;
+  }
+
+  /** Test-only observability for bounded heap growth. */
+  heapSizesForTesting(): { eventExpiry: number; keyRelease: number } {
+    return {
+      eventExpiry: this.eventExpiryHeap.size(),
+      keyRelease: this.keyReleaseHeap.size(),
+    };
   }
 
   private pruneExpired(entry: Entry, now: number): void {
@@ -278,8 +293,38 @@ export class SlidingWindowRateLimiter {
     }
   }
 
+  private compactHeapsIfNeeded(): void {
+    const eventLimit = (this.totalEvents + 1) * HEAP_COMPACTION_FACTOR;
+    const keyLimit = (this.entries.size + 1) * HEAP_COMPACTION_FACTOR;
+    if (this.eventExpiryHeap.size() <= eventLimit && this.keyReleaseHeap.size() <= keyLimit) return;
+
+    this.eventExpiryHeap.clear();
+    this.keyReleaseHeap.clear();
+    for (const entry of this.entries.values()) {
+      if (entry.events.length === 0) {
+        entry.keyReleaseAt = 0;
+        entry.keyReleaseVersion += 1;
+        continue;
+      }
+
+      entry.keyReleaseAt = 0;
+      for (const event of entry.events) {
+        event.active = true;
+        entry.keyReleaseAt = Math.max(entry.keyReleaseAt, event.expiresAt);
+        this.eventExpiryHeap.push(event);
+      }
+      entry.keyReleaseVersion += 1;
+      this.keyReleaseHeap.push({
+        entry,
+        releaseAt: entry.keyReleaseAt,
+        version: entry.keyReleaseVersion,
+      });
+    }
+  }
+
   private maybeReapExpired(now: number): void {
     this.reapExpiredFromHeaps(now);
+    this.compactHeapsIfNeeded();
     if (this.lastCleanupAt !== null && now - this.lastCleanupAt < CLEANUP_INTERVAL_MS) return;
     this.clearExpired(now);
   }
