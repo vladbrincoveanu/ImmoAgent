@@ -111,6 +111,32 @@ class TestTelegramViennaConfig(unittest.TestCase):
                 "file-vienna-token",
             )
 
+    def test_resolve_config_path_prefers_root_then_project_legacy_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_config_path = os.path.join(temp_dir, "Project", "config.json")
+            root_config_path = os.path.join(temp_dir, "config.json")
+            os.makedirs(os.path.dirname(project_config_path))
+
+            with patch.object(setup_vienna_channel, "get_project_root", return_value=temp_dir):
+                self.assertEqual(
+                    setup_vienna_channel._resolve_config_path(),
+                    root_config_path,
+                )
+
+                with open(project_config_path, "w", encoding="utf-8") as config_file:
+                    config_file.write("{}")
+                self.assertEqual(
+                    setup_vienna_channel._resolve_config_path(),
+                    project_config_path,
+                )
+
+                with open(root_config_path, "w", encoding="utf-8") as config_file:
+                    config_file.write("{}")
+                self.assertEqual(
+                    setup_vienna_channel._resolve_config_path(),
+                    root_config_path,
+                )
+
     def test_retry_session_constructs_with_retry_adapter(self):
         session = setup_vienna_channel._create_session_with_retry()
         try:

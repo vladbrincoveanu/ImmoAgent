@@ -5,10 +5,18 @@ Direct test script for ViennaApartmentsLive channel
 
 import json
 import os
+import sys
+
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
+REPO_ROOT = os.path.dirname(PROJECT_DIR)
+
+from setup_vienna_channel import _resolve_config_path
 
 def load_config():
     """Load config from config.json"""
-    config_path = "config.json"
+    config_path = _resolve_config_path(REPO_ROOT)
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             return json.load(f)

@@ -209,15 +209,19 @@ Project/
 ## 🧪 Testing
 
 ```bash
-cd Tests
-
 # Run all tests
-python run_tests.py
+python tests/run_tests.py
 
 # Test specific functionality
-python test_github_actions_simple.py
-python test_env_var_fallback.py
-python test_buyer_profiles.py
+python tests/test_github_actions_simple.py
+python tests/test_env_var_fallback.py
+python tests/test_buyer_profiles.py
+
+# Test the Vienna channel configuration
+python tests/test_vienna_channel.py
+
+# Configure the Vienna channel
+python Project/setup_vienna_channel.py
 ```
 
 ## 📝 Configuration Priority

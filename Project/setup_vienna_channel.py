@@ -27,6 +27,20 @@ def _get_vienna_bot_token(config):
     return vienna_config.get('bot_token')
 
 
+def _resolve_config_path(project_root=None):
+    """Resolve the config path using the loader's root and legacy locations."""
+    project_root = project_root or get_project_root()
+    root_config_path = os.path.join(project_root, 'config.json')
+    if os.path.exists(root_config_path):
+        return root_config_path
+
+    project_config_path = os.path.join(project_root, 'Project', 'config.json')
+    if os.path.exists(project_config_path):
+        return project_config_path
+
+    return root_config_path
+
+
 def _write_vienna_channel_config(config_path, channel_id):
     """Persist only the Vienna chat ID without storing runtime credentials."""
     if os.path.exists(config_path):
@@ -169,7 +183,7 @@ def setup_vienna_channel():
     # Update config to use ViennaApartmentsLive as the Vienna channel
     print("\n📝 Updating config...")
     try:
-        config_path = os.path.join(get_project_root(), 'config.json')
+        config_path = _resolve_config_path()
         _write_vienna_channel_config(config_path, channel_id)
         
         print(f"✅ Config updated: {config_path}")
@@ -187,8 +201,8 @@ def setup_vienna_channel():
     print("✅ Config updated")
     print()
     print("🚀 Your ViennaApartmentsLive channel is ready!")
-    print("💡 Run 'python ../Tests/test_vienna_channel.py' to test")
-    print("💡 Run 'python Application/main.py' to start scraping and posting")
+    print("💡 Run 'python tests/test_vienna_channel.py' to test")
+    print("💡 Run 'python Project/Application/main.py' to start scraping and posting")
     
     return True
 

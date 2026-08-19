@@ -9,7 +9,8 @@ import os
 
 # Add the project root to the path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_dir = os.path.join(current_dir, 'Project')
+repo_root = os.path.dirname(current_dir)
+project_dir = os.path.join(repo_root, 'Project')
 sys.path.insert(0, project_dir)
 
 from Application.main import load_config
