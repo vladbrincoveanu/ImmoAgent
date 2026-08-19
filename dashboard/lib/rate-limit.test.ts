@@ -40,16 +40,27 @@ describe('SlidingWindowRateLimiter', () => {
     expect(clearExpired).not.toHaveBeenCalled();
   });
 
-  it('keeps the oldest request at the window boundary', () => {
+  it('allows a request at the reported window reset', () => {
     const limiter = new SlidingWindowRateLimiter();
 
     expect(limiter.check('ip', 2, 1_000, 0).allowed).toBe(true);
     expect(limiter.check('ip', 2, 1_000, 900).allowed).toBe(true);
 
-    const blocked = limiter.check('ip', 2, 1_000, 1_000);
+    const allowed = limiter.check('ip', 2, 1_000, 1_000);
+    expect(allowed.allowed).toBe(true);
+    expect(allowed.remaining).toBe(0);
+    expect(allowed.resetAt).toBe(1_900);
+  });
+
+  it('keeps each event expiry from later window policy changes', () => {
+    const limiter = new SlidingWindowRateLimiter();
+
+    limiter.check('ip', 2, 100, 0);
+    limiter.check('ip', 2, 1_000, 1);
+    const blocked = limiter.check('ip', 2, 1_000, 2);
+
     expect(blocked.allowed).toBe(false);
-    expect(blocked.remaining).toBe(0);
-    expect(blocked.resetAt).toBe(1_000);
+    expect(blocked.resetAt).toBe(100);
   });
 
   it.each([null, undefined, 42, '', '   '])('rejects invalid key %p', (key) => {
@@ -210,19 +221,42 @@ describe('SlidingWindowRateLimiter', () => {
 
     limiter.check('active', 1, 100, 0);
     expect(limiter.check('new', 1, 100, 50).allowed).toBe(false);
-    expect(limiter.check('new', 1, 100, 101).allowed).toBe(false);
+    expect(limiter.check('new', 1, 100, 101).allowed).toBe(true);
     expect(limiter.check('new', 1, 100, 1_050).allowed).toBe(true);
   });
 
-  it('uses a safe future reset when deferred cleanup leaves no active release', () => {
+  it('allows a capacity retry at its reported reset', () => {
     const limiter = new SlidingWindowRateLimiter(1);
 
     limiter.check('active', 1, 100, 0);
-    limiter.check('new', 1, 100, 50);
-    const blocked = limiter.check('new', 1, 100, 101);
+    const blocked = limiter.check('new', 1, 100, 50);
 
     expect(blocked.allowed).toBe(false);
-    expect(blocked.resetAt).toBe(201);
+    expect(blocked.resetAt).toBe(100);
+    expect(limiter.check('new', 1, 100, blocked.resetAt).allowed).toBe(true);
+  });
+
+  it('allows a key-capacity retry at the last event expiry', () => {
+    const limiter = new SlidingWindowRateLimiter(1, 2);
+
+    limiter.check('active', 2, 100, 0);
+    limiter.check('active', 2, 100, 50);
+    const blocked = limiter.check('new', 2, 100, 51);
+
+    expect(blocked.resetAt).toBe(150);
+    expect(limiter.check('new', 2, 100, blocked.resetAt).allowed).toBe(true);
+  });
+
+  it('allows a total-event capacity retry at the earliest event expiry', () => {
+    const limiter = new SlidingWindowRateLimiter(10, 2, 2);
+
+    limiter.check('first', 1, 100, 0);
+    limiter.check('second', 1, 100, 50);
+    const blocked = limiter.check('third', 1, 100, 51);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(100);
+    expect(limiter.check('third', 1, 100, blocked.resetAt).allowed).toBe(true);
   });
 
   it('fails closed without evicting active buckets at key capacity', () => {
@@ -281,5 +315,6 @@ describe('SlidingWindowRateLimiter', () => {
 
     expect(blocked.allowed).toBe(false);
     expect(blocked.resetAt).toBe(150);
+    expect(limiter.check('second', 2, 100, blocked.resetAt).allowed).toBe(true);
   });
 });

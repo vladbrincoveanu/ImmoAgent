@@ -1,17 +1,20 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { NextRequest } from 'next/server';
+import { apiRateLimiter } from './lib/rate-limit';
 import { config, middleware } from './middleware';
 
-function makeRequest(ip?: string, forwardedFor?: string): NextRequest {
+function makeRequest(ip?: string, forwardedFor?: string, vercelForwardedFor?: string): NextRequest {
   const headers = new Headers();
   if (ip !== undefined) headers.set('x-real-ip', ip);
   if (forwardedFor !== undefined) headers.set('x-forwarded-for', forwardedFor);
+  if (vercelForwardedFor !== undefined) headers.set('x-vercel-forwarded-for', vercelForwardedFor);
   return new NextRequest('http://localhost/api/insights', { headers });
 }
 
 describe('dashboard middleware', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    apiRateLimiter.clear();
   });
 
   it('matches only approved public read routes', () => {
@@ -22,7 +25,7 @@ describe('dashboard middleware', () => {
     ]);
   });
 
-  it('adds rate headers to allowed responses and prefers x-real-ip', () => {
+  it('adds rate headers and uses x-real-ip before forwarded values', () => {
     const response = middleware(makeRequest('192.0.2.10', '192.0.2.11'));
 
     expect(response.status).toBe(200);
@@ -59,13 +62,34 @@ describe('dashboard middleware', () => {
     expect(middleware(makeRequest('2001:db8::1')).status).toBe(429);
   });
 
-  it('shares a limiter bucket across embedded IPv4 and hexadecimal IPv6 forms', () => {
-    const embeddedIp = '::ffff:192.0.2.77';
-    for (let request = 0; request < 30; request += 1) {
-      expect(middleware(makeRequest(embeddedIp)).status).toBe(200);
+  it('collapses mapped IPv6 forms into the plain IPv4 bucket', () => {
+    const forms = ['::ffff:192.0.2.77', '::ffff:c000:024d', '192.0.2.77'];
+    for (const form of forms) {
+      for (let request = 0; request < 10; request += 1) {
+        expect(middleware(makeRequest(form)).status).toBe(200);
+      }
     }
 
+    expect(middleware(makeRequest('::ffff:192.0.2.77')).status).toBe(429);
     expect(middleware(makeRequest('::ffff:c000:024d')).status).toBe(429);
+    expect(middleware(makeRequest('192.0.2.77')).status).toBe(429);
+  });
+
+  it('uses the platform-selected IP before other forwarding values', () => {
+    const platformIp = '203.0.113.40';
+    for (let request = 0; request < 30; request += 1) {
+      middleware(makeRequest(`192.0.2.${40 + request}`, `198.51.100.${40 + request}`, platformIp));
+    }
+
+    expect(middleware(makeRequest('192.0.2.40', '198.51.100.40', platformIp)).status).toBe(429);
+  });
+
+  it('shares unknown bucket for an invalid platform identity', () => {
+    for (let request = 0; request < 30; request += 1) {
+      expect(middleware(makeRequest(undefined, undefined, 'not-an-ip')).status).toBe(200);
+    }
+
+    expect(middleware(makeRequest()).status).toBe(429);
   });
 
   it('uses forwarded address when x-real-ip is unavailable', () => {

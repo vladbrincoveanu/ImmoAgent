@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiRateLimiter } from './lib/rate-limit';
 
+/**
+ * IP identity is a deployment-boundary contract: Vercel or ingress must overwrite
+ * x-vercel-forwarded-for, x-real-ip, and x-forwarded-for before this app sees them.
+ * The app cannot authenticate client-supplied IP headers itself; invalid or missing
+ * values deliberately share the unknown bucket.
+ */
 const LIMIT = 30;
 const WINDOW_MS = 60_000;
 const MAX_IP_LENGTH = 64;
@@ -61,10 +67,16 @@ function normalizeIpv6(value: string): string | null {
   }
 
   const isIpv4Mapped = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
-  const formatGroup = (group: number, index: number) => {
-    const hex = group.toString(16);
-    return isIpv4Mapped && index >= 6 ? hex.padStart(4, '0') : hex;
-  };
+  if (isIpv4Mapped) {
+    const high = groups[6];
+    const low = groups[7];
+    return [
+      Math.floor(high / 256),
+      high % 256,
+      Math.floor(low / 256),
+      low % 256,
+    ].join('.');
+  }
 
   let bestStart = -1;
   let bestLength = 0;
@@ -82,16 +94,19 @@ function normalizeIpv6(value: string): string | null {
     start = end;
   }
 
-  if (bestStart === -1) return groups.map(formatGroup).join(':');
-  const left = groups.slice(0, bestStart).map(formatGroup).join(':');
-  const right = groups.slice(bestStart + bestLength).map(formatGroup).join(':');
+  if (bestStart === -1) return groups.map((group) => group.toString(16)).join(':');
+  const left = groups.slice(0, bestStart).map((group) => group.toString(16)).join(':');
+  const right = groups.slice(bestStart + bestLength).map((group) => group.toString(16)).join(':');
   if (left === '') return `::${right}`;
   if (right === '') return `${left}::`;
   return `${left}::${right}`;
 }
 
-/** Trust proxy headers only when deployment overwrites them; invalid/missing identity shares unknown. */
+/** Select normalized identities in the deployment-defined header order. */
 function clientKey(request: NextRequest): string {
+  const vercelIp = normalizeIp(request.headers.get('x-vercel-forwarded-for'));
+  if (vercelIp) return vercelIp;
+
   const realIp = normalizeIp(request.headers.get('x-real-ip'));
   if (realIp) return realIp;
 
