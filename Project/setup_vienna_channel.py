@@ -31,12 +31,18 @@ def _resolve_config_path(project_root=None):
     """Resolve the config path using the loader's root and legacy locations."""
     project_root = project_root or get_project_root()
     root_config_path = os.path.join(project_root, 'config.json')
-    if os.path.exists(root_config_path):
-        return root_config_path
-
     project_config_path = os.path.join(project_root, 'Project', 'config.json')
-    if os.path.exists(project_config_path):
-        return project_config_path
+
+    for config_path in (root_config_path, project_config_path):
+        if not os.path.exists(config_path):
+            continue
+        try:
+            with open(config_path, 'r', encoding='utf-8') as config_file:
+                config = json.load(config_file)
+        except (OSError, ValueError, TypeError):
+            continue
+        if isinstance(config, dict):
+            return config_path
 
     return root_config_path
 

@@ -151,6 +151,13 @@ class TestTelegramViennaConfig(unittest.TestCase):
                 )
 
                 with open(root_config_path, "w", encoding="utf-8") as config_file:
+                    config_file.write("{")
+                self.assertEqual(
+                    setup_vienna_channel._resolve_config_path(),
+                    project_config_path,
+                )
+
+                with open(root_config_path, "w", encoding="utf-8") as config_file:
                     config_file.write("{}")
                 self.assertEqual(
                     setup_vienna_channel._resolve_config_path(),
