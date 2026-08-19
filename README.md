@@ -45,8 +45,8 @@ The application supports loading configuration from environment variables, perfe
 ### Optional Environment Variables
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TELEGRAM_BOT_VIENNA_TOKEN` | Telegram bot token for Vienna channel | Uses main token |
-| `TELEGRAM_BOT_VIENNA_CHAT_ID` | Telegram chat ID for Vienna channel | Uses main chat ID |
+| `TELEGRAM_BOT_VIENNA_TOKEN` | Explicit Telegram bot token for the Vienna feed; no main-channel fallback | Set explicitly |
+| `TELEGRAM_BOT_VIENNA_CHAT_ID` | Explicit Telegram chat ID for the Vienna feed; no main-channel fallback | Set explicitly |
 | `TELEGRAM_COOP_CHANNEL_ID` | Telegram chat ID for the Genossenschaft (co-op) alert channel | Uses main token; unset disables co-op broadcasts |
 | `OLLAMA_BASE_URL` | Ollama API base URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model name | `llama3.1:8b` |

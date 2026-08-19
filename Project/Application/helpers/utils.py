@@ -245,8 +245,8 @@ def load_config() -> Dict:
     # Telegram configuration from environment variables
     telegram_main_token = os.getenv('TELEGRAM_MAIN_BOT_TOKEN')
     telegram_main_chat_id = os.getenv('TELEGRAM_MAIN_CHAT_ID')
-    telegram_vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN', telegram_main_token)
-    telegram_vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID', telegram_main_chat_id)
+    telegram_vienna_token = os.getenv('TELEGRAM_BOT_VIENNA_TOKEN')
+    telegram_vienna_chat_id = os.getenv('TELEGRAM_BOT_VIENNA_CHAT_ID')
     
     # Only set default values if environment variables are not provided
     if not telegram_main_token:

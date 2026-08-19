@@ -55,7 +55,7 @@ def setup_vienna_channel():
             print("   Please add a bot token to config.json first")
             return False
     
-    print(f"🤖 Using bot token: {bot_token[:10]}...")
+    print("🤖 Using configured bot token")
     print()
     
     # Test bot token
@@ -127,11 +127,10 @@ def setup_vienna_channel():
         print(f"❌ Error sending test message: {e}")
         return False
     
-    # Update config to use ViennaApartmentsLive as main channel
+    # Update config to use ViennaApartmentsLive as the Vienna channel
     print("\n📝 Updating config...")
     try:
-        # Update the main channel to use ViennaApartmentsLive
-        config['telegram']['telegram_main'] = {
+        config['telegram']['telegram_vienna'] = {
             'bot_token': bot_token,
             'chat_id': channel_id
         }
@@ -142,7 +141,7 @@ def setup_vienna_channel():
             json.dump(config, f, indent=2)
         
         print(f"✅ Config updated: {config_path}")
-        print(f"   Main channel now points to ViennaApartmentsLive")
+        print("   Vienna channel now points to ViennaApartmentsLive")
         
     except Exception as e:
         print(f"❌ Error updating config: {e}")
