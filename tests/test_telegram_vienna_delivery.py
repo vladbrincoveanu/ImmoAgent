@@ -47,6 +47,20 @@ def test_invalid_measurements_reject(field, invalid_value):
     assert vienna_filter_reason(listing(**{field: invalid_value}), 40.0) is not None
 
 
+def test_missing_area_key_rejects():
+    value = listing()
+    value.pop("area_m2")
+
+    assert vienna_filter_reason(value, 40.0) is not None
+
+
+def test_missing_rooms_key_rejects():
+    value = listing()
+    value.pop("rooms")
+
+    assert vienna_filter_reason(value, 40.0) is not None
+
+
 def test_score_threshold_is_strictly_greater():
     assert vienna_filter_reason(listing(score=40.0), 40.0) is not None
     assert vienna_filter_reason(listing(score=40.01), 40.0) is None
