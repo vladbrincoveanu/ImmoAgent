@@ -9,7 +9,6 @@ import os
 import logging
 import time
 from datetime import datetime
-import numpy as np
 import random
 from typing import Dict, Any, Optional, List
 
