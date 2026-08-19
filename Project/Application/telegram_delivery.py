@@ -2,7 +2,7 @@ import logging
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 from Application.helpers.listing_validator import compute_content_fingerprint, validate_url
 
@@ -104,24 +104,28 @@ def preserve_delivery_state(existing: Any, replacement: Any) -> Dict[str, Any]:
 
 def send_vienna_listings(listings, bot, mongo, url_validator=validate_url) -> int:
     sent_count = 0
-    seen_keys = set()
+    seen_keys: Set[str] = set()
     score_threshold = getattr(bot, "min_score_threshold", 40)
 
     for listing in listings:
-        data = listing_dict(listing)
-        reason = vienna_filter_reason(data, data.get("score"), score_threshold)
-        if reason is not None:
-            logger.info("Skipping Vienna listing %r: %s", data.get("url"), reason)
+        try:
+            data = listing_dict(listing)
+            reason = vienna_filter_reason(data, data.get("score"), score_threshold)
+            if reason is not None:
+                logger.info("Skipping Vienna listing %r: %s", data.get("url"), reason)
+                continue
+
+            keys = delivery_keys(data)
+            if seen_keys.intersection(keys):
+                logger.info("Skipping same-run Vienna duplicate: %s", data["url"])
+                continue
+
+            url = data["url"]
+            fingerprint = keys[-1]
+        except Exception as exc:
+            logger.error("Skipping Vienna candidate during preparation: %s", exc)
             continue
 
-        keys = delivery_keys(data)
-        if seen_keys.intersection(keys):
-            logger.info("Skipping same-run Vienna duplicate: %s", data["url"])
-            continue
-        seen_keys.update(keys)
-
-        url = data["url"]
-        fingerprint = keys[-1]
         try:
             url_is_valid = url_validator(url)
         except Exception as exc:
@@ -140,6 +144,7 @@ def send_vienna_listings(listings, bot, mongo, url_validator=validate_url) -> in
         except Exception as exc:
             logger.error("Could not claim Vienna listing %s: %s", url, exc)
             continue
+        seen_keys.update(keys)
         if not claimed:
             logger.info("Skipping Vienna listing already claimed: %s", url)
             continue

@@ -1,4 +1,5 @@
 import math
+from unittest.mock import Mock
 
 import pytest
 
@@ -6,6 +7,7 @@ from Application.telegram_delivery import (
     VIENNA_CHANNEL,
     VIENNA_MIN_AREA_M2,
     VIENNA_MIN_ROOMS,
+    send_vienna_listings,
     vienna_filter_reason,
 )
 
@@ -71,3 +73,44 @@ def test_missing_url_rejects():
     del candidate["url"]
 
     assert vienna_filter_reason(candidate, 40.0) is not None
+
+
+def test_malformed_candidate_does_not_abort_delivery_batch():
+    bot = Mock(min_score_threshold=40)
+    bot.send_property_notification.return_value = True
+    mongo = Mock()
+    mongo.claim_listing_delivery.return_value = True
+    mongo.mark_listing_delivery_sent.return_value = True
+
+    assert send_vienna_listings(
+        [object(), listing()],
+        bot,
+        mongo,
+        url_validator=lambda url: True,
+    ) == 1
+
+    bot.send_property_notification.assert_called_once_with(listing())
+    mongo.claim_listing_delivery.assert_called_once()
+    mongo.mark_listing_delivery_sent.assert_called_once()
+
+
+def test_invalid_candidate_does_not_poison_same_content_dedup():
+    first = listing(url="https://example.test/invalid")
+    second = listing(url="https://example.test/valid")
+    bot = Mock(min_score_threshold=40)
+    bot.send_property_notification.return_value = True
+    mongo = Mock()
+    mongo.claim_listing_delivery.return_value = True
+    mongo.mark_listing_delivery_sent.return_value = True
+    url_validator = Mock(side_effect=[False, True])
+
+    assert send_vienna_listings(
+        [first, second],
+        bot,
+        mongo,
+        url_validator=url_validator,
+    ) == 1
+
+    mongo.mark_url_invalid.assert_called_once_with(first["url"])
+    mongo.claim_listing_delivery.assert_called_once()
+    bot.send_property_notification.assert_called_once_with(second)
