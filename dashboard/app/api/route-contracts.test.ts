@@ -15,27 +15,6 @@ jest.mock('@/lib/mongodb', () => ({
   },
 }), { virtual: true });
 
-jest.mock('@/lib/validators', () => ({
-  validateDistrict: jest.fn(() => null),
-  validateSort: jest.fn(() => 'score_desc'),
-  validateMinScore: jest.fn(() => 0),
-  validateLimit: jest.fn((_value: string | null, fallback: number) => fallback),
-  validateObjectId: jest.fn((value: string) => value === 'bad' ? null : value),
-}), { virtual: true });
-
-jest.mock('@/lib/profile', () => ({
-  DEFAULT_PROFILE: 'default',
-  isValidProfile: jest.fn(() => false),
-}), { virtual: true });
-
-jest.mock('@/lib/district-centroids', () => ({
-  resolveCoordinates: jest.fn(() => null),
-}), { virtual: true });
-
-jest.mock('@/lib/coop-query', () => ({
-  coopBaseQuery: jest.fn(() => ({})),
-}), { virtual: true });
-
 const mockedGetDb = jest.mocked(getDb);
 
 describe('public API status contracts', () => {
@@ -49,6 +28,7 @@ describe('public API status contracts', () => {
     const response = await getMap(new NextRequest('http://localhost/api/listings/map'));
 
     expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'Database unavailable' });
   });
 
   it('returns 400 before database access for an invalid detail id', async () => {
@@ -58,6 +38,7 @@ describe('public API status contracts', () => {
     );
 
     expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'Invalid listing ID', field: 'id' });
     expect(mockedGetDb).not.toHaveBeenCalled();
   });
 
@@ -71,5 +52,6 @@ describe('public API status contracts', () => {
     const response = await getMap(new NextRequest('http://localhost/api/listings/map'));
 
     expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'Database error' });
   });
 });

@@ -4,6 +4,12 @@ import { test, expect, type ConsoleMessage } from '@playwright/test';
  * load its images, and produce no console errors or failed requests. This is
  * the check that catches "the page is technically 200 but visibly broken". */
 const ROUTES = ['/', '/dashboard', '/dashboard/map', '/coop'] as const;
+const EXPECTED_SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'x-frame-options': 'DENY',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+};
 
 for (const route of ROUTES) {
   test(`page health: ${route}`, async ({ page }) => {
@@ -23,6 +29,7 @@ for (const route of ROUTES) {
 
     const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
     expect(response?.status(), `${route} HTTP status`).toBeLessThan(400);
+    expect(response?.headers(), `${route} security headers`).toMatchObject(EXPECTED_SECURITY_HEADERS);
 
     // Something meaningful must be on screen — not a blank shell.
     await expect(page.locator('body')).toBeVisible();
