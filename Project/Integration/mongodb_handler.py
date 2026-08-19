@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import os
 import json
 import time
+import uuid
 from types import SimpleNamespace
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint, compute_xsrc_fingerprint
@@ -43,18 +44,24 @@ def _listing_delivery_query(url: str, fingerprint: str, prefix: str) -> Dict[str
     }
 
 
+def _valid_listing_delivery_identity(url: Any, fingerprint: Any) -> bool:
+    return isinstance(url, str) and bool(url.strip()) and isinstance(fingerprint, str)
+
+
 def _claimed_listing_delivery_query(
-    url: str, fingerprint: str, prefix: str
+    url: str, fingerprint: str, prefix: str,
+    claim_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     identity = [{"url": url}]
     if fingerprint:
         identity.append({"content_fingerprint": fingerprint})
-    return {
-        "$and": [
-            {"$or": identity},
-            {f"{prefix}.state": "claimed"},
-        ]
-    }
+    conditions = [
+        {"$or": identity},
+        {f"{prefix}.state": "claimed"},
+    ]
+    if claim_token is not None:
+        conditions.append({f"{prefix}.claim_token": claim_token})
+    return {"$and": conditions}
 
 
 def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
@@ -570,11 +577,17 @@ class MongoDBHandler:
 
     def claim_listing_delivery(self, url: str, fingerprint: str,
                                channel: str = "vienna",
-                               lease_seconds: int = 300) -> bool:
+                               lease_seconds: int = 300,
+                               claim_token: Optional[str] = None) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
-        if getattr(self, "collection", None) is None or not url:
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or (claim_token is not None and not isinstance(claim_token, str))
+        ):
             return False
         try:
+            claim_token = claim_token if claim_token is not None else uuid.uuid4().hex
             now = time.time()
             row = self.collection.find_one_and_update(
                 _listing_delivery_query(url, fingerprint, prefix),
@@ -582,6 +595,7 @@ class MongoDBHandler:
                     f"{prefix}.state": "claimed",
                     f"{prefix}.claimed_at": now,
                     f"{prefix}.claim_until": now + lease_seconds,
+                    f"{prefix}.claim_token": claim_token,
                 }},
                 return_document=pymongo.ReturnDocument.AFTER,
             )
@@ -594,17 +608,25 @@ class MongoDBHandler:
             return False
 
     def release_listing_delivery(self, url: str, fingerprint: str,
-                                 channel: str = "vienna") -> bool:
+                                 channel: str = "vienna",
+                                 claim_token: Optional[str] = None) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
-        if getattr(self, "collection", None) is None:
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or (claim_token is not None and not isinstance(claim_token, str))
+        ):
             return False
         try:
             result = self.collection.update_one(
-                _claimed_listing_delivery_query(url, fingerprint, prefix),
+                _claimed_listing_delivery_query(
+                    url, fingerprint, prefix, claim_token
+                ),
                 {"$set": {f"{prefix}.state": "failed"},
                  "$unset": {
                      f"{prefix}.claim_until": "",
                      f"{prefix}.claimed_at": "",
+                     f"{prefix}.claim_token": "",
                  }},
             )
             return result.modified_count > 0
@@ -618,20 +640,30 @@ class MongoDBHandler:
             return False
 
     def mark_listing_delivery_sent(self, url: str, fingerprint: str,
-                                   channel: str = "vienna") -> bool:
+                                   channel: str = "vienna",
+                                   claim_token: Optional[str] = None) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
-        if getattr(self, "collection", None) is None:
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or (claim_token is not None and not isinstance(claim_token, str))
+        ):
             return False
         try:
             now = time.time()
             result = self.collection.update_one(
-                _claimed_listing_delivery_query(url, fingerprint, prefix),
+                _claimed_listing_delivery_query(
+                    url, fingerprint, prefix, claim_token
+                ),
                 {"$set": {
                     f"{prefix}.state": "sent",
                     f"{prefix}.sent_at": now,
                     "sent_to_telegram": True,
                     "sent_to_telegram_at": now,
-                }, "$unset": {f"{prefix}.claim_until": ""}},
+                }, "$unset": {
+                    f"{prefix}.claim_until": "",
+                    f"{prefix}.claim_token": "",
+                }},
             )
             return result.modified_count > 0
         except pymongo.errors.PyMongoError as e:
@@ -644,18 +676,28 @@ class MongoDBHandler:
             return False
 
     def quarantine_listing_delivery(self, url: str, fingerprint: str,
-                                    channel: str = "vienna") -> bool:
+                                    channel: str = "vienna",
+                                    claim_token: Optional[str] = None) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
-        if getattr(self, "collection", None) is None:
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or (claim_token is not None and not isinstance(claim_token, str))
+        ):
             return False
         try:
             now = time.time()
             result = self.collection.update_one(
-                _claimed_listing_delivery_query(url, fingerprint, prefix),
+                _claimed_listing_delivery_query(
+                    url, fingerprint, prefix, claim_token
+                ),
                 {"$set": {
                     f"{prefix}.state": "uncertain",
                     f"{prefix}.uncertain_at": now,
-                }, "$unset": {f"{prefix}.claim_until": ""}},
+                }, "$unset": {
+                    f"{prefix}.claim_until": "",
+                    f"{prefix}.claim_token": "",
+                }},
             )
             return result.modified_count > 0
         except pymongo.errors.PyMongoError as e:

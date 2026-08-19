@@ -1,5 +1,6 @@
 import logging
 import math
+import uuid
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Optional, Set, Tuple
@@ -139,8 +140,11 @@ def send_vienna_listings(listings, bot, mongo, url_validator=validate_url) -> in
                 logger.error("Could not mark Vienna URL invalid (%s): %s", url, exc)
             continue
 
+        claim_token = uuid.uuid4().hex
         try:
-            claimed = mongo.claim_listing_delivery(url, fingerprint, VIENNA_CHANNEL)
+            claimed = mongo.claim_listing_delivery(
+                url, fingerprint, VIENNA_CHANNEL, claim_token=claim_token
+            )
         except Exception as exc:
             logger.error("Could not claim Vienna listing %s: %s", url, exc)
             continue
@@ -157,13 +161,17 @@ def send_vienna_listings(listings, bot, mongo, url_validator=validate_url) -> in
 
         if not delivered:
             try:
-                mongo.release_listing_delivery(url, fingerprint, VIENNA_CHANNEL)
+                mongo.release_listing_delivery(
+                    url, fingerprint, VIENNA_CHANNEL, claim_token=claim_token
+                )
             except Exception as exc:
                 logger.error("Could not release Vienna listing %s: %s", url, exc)
             continue
 
         try:
-            marked = mongo.mark_listing_delivery_sent(url, fingerprint, VIENNA_CHANNEL)
+            marked = mongo.mark_listing_delivery_sent(
+                url, fingerprint, VIENNA_CHANNEL, claim_token=claim_token
+            )
         except Exception as exc:
             logger.error("Could not mark sent Vienna listing %s: %s", url, exc)
             marked = False
@@ -173,7 +181,7 @@ def send_vienna_listings(listings, bot, mongo, url_validator=validate_url) -> in
 
         try:
             quarantined = mongo.quarantine_listing_delivery(
-                url, fingerprint, VIENNA_CHANNEL
+                url, fingerprint, VIENNA_CHANNEL, claim_token=claim_token
             )
         except Exception as exc:
             logger.error("Could not quarantine Vienna listing %s: %s", url, exc)
