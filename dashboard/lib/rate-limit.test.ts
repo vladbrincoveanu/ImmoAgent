@@ -60,6 +60,39 @@ describe('SlidingWindowRateLimiter', () => {
     },
   );
 
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid maxEventsPerKey %p',
+    (maxEventsPerKey) => {
+      expect(() => new SlidingWindowRateLimiter(10, maxEventsPerKey)).toThrow(RangeError);
+    },
+  );
+
+  it('rejects a limit above the default maxEventsPerKey cap', () => {
+    const limiter = new SlidingWindowRateLimiter();
+
+    expect(() => limiter.check('ip', 10_001, 1_000, 0)).toThrow(RangeError);
+    expect(limiter.size()).toBe(0);
+  });
+
+  it('enforces a configured maxEventsPerKey cap', () => {
+    const limiter = new SlidingWindowRateLimiter(10, 2);
+
+    expect(() => limiter.check('ip', 3, 1_000, 0)).toThrow(RangeError);
+  });
+
+  it('prunes only the requested key during normal checks', () => {
+    const limiter = new SlidingWindowRateLimiter(3);
+
+    limiter.check('stale', 1, 100, 0);
+    limiter.check('active', 1, 100, 50);
+    limiter.check('other', 1, 100, 50);
+
+    limiter.check('active', 1, 100, 201);
+
+    expect(limiter.size()).toBe(3);
+    expect(limiter.check('stale', 1, 100, 201).allowed).toBe(true);
+  });
+
   it('evicts expired keys before enforcing capacity', () => {
     const limiter = new SlidingWindowRateLimiter(2);
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { NextRequest } from 'next/server';
 import { config, middleware } from './middleware';
 
@@ -10,6 +10,10 @@ function makeRequest(ip?: string, forwardedFor?: string): NextRequest {
 }
 
 describe('dashboard middleware', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('matches only approved public read routes', () => {
     expect(config.matcher).toEqual([
       '/api/listings/:path*',
@@ -56,5 +60,23 @@ describe('dashboard middleware', () => {
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('0');
     expect(response.headers.get('X-RateLimit-Reset')).toMatch(/^\d+$/);
     expect(response.headers.get('Retry-After')).toBe('60');
+  });
+
+  it('derives retry metadata from the sliding-window reset time', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    const ip = 'middleware-derived-retry';
+    for (let request = 0; request < 30; request += 1) {
+      expect(middleware(makeRequest(ip)).status).toBe(200);
+    }
+
+    now.mockReturnValue(59_500);
+    const response = middleware(makeRequest(ip));
+    expect(response.headers.get('Retry-After')).toBe('2');
+    expect((await response.json()).retryAfter).toBe(2);
+
+    now.mockReturnValue(60_999);
+    const minimum = middleware(makeRequest(ip));
+    expect(minimum.headers.get('Retry-After')).toBe('1');
+    expect((await minimum.json()).retryAfter).toBe(1);
   });
 });
