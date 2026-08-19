@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { SlidingWindowRateLimiter } from './rate-limit';
 
 describe('SlidingWindowRateLimiter', () => {
@@ -23,6 +23,21 @@ describe('SlidingWindowRateLimiter', () => {
 
     limiter.clearExpired(3_002);
     expect(limiter.size()).toBe(0);
+  });
+
+  it('fails closed on rollback after forward cleanup', () => {
+    const limiter = new SlidingWindowRateLimiter();
+    const clearExpired = jest.spyOn(limiter, 'clearExpired');
+
+    limiter.check('ip', 1, 100, 1_000);
+    limiter.clearExpired(1_101);
+    clearExpired.mockClear();
+
+    const rollback = limiter.check('ip', 1, 100, 900);
+
+    expect(rollback.allowed).toBe(false);
+    expect(rollback.resetAt).toBe(1_201);
+    expect(clearExpired).not.toHaveBeenCalled();
   });
 
   it('keeps the oldest request at the window boundary', () => {
@@ -60,17 +75,14 @@ describe('SlidingWindowRateLimiter', () => {
     expect(() => limiter.check('ip', 1, 1_000, now)).toThrow(RangeError);
   });
 
-  it('clamps clock rollback to the key latest timestamp', () => {
+  it('blocks clock rollback against the global high-water time', () => {
     const limiter = new SlidingWindowRateLimiter();
 
     expect(limiter.check('rollback', 3, 100, 1_000).allowed).toBe(true);
-    expect(limiter.check('rollback', 3, 100, 900).allowed).toBe(true);
-    expect(limiter.check('rollback', 3, 100, 1_001).allowed).toBe(true);
+    const rollback = limiter.check('rollback', 3, 100, 900);
 
-    const entries = (limiter as unknown as {
-      entries: Map<string, { timestamps: number[] }>;
-    }).entries;
-    expect(entries.get('rollback')?.timestamps).toEqual([1_000, 1_000, 1_001]);
+    expect(rollback.allowed).toBe(false);
+    expect(rollback.resetAt).toBe(1_100);
   });
 
   it.each([
@@ -104,12 +116,20 @@ describe('SlidingWindowRateLimiter', () => {
     },
   );
 
+  it('rejects maxKeys above the hard cap', () => {
+    expect(() => new SlidingWindowRateLimiter(10_001)).toThrow(RangeError);
+  });
+
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects invalid maxEventsPerKey %p',
     (maxEventsPerKey) => {
       expect(() => new SlidingWindowRateLimiter(10, maxEventsPerKey)).toThrow(RangeError);
     },
   );
+
+  it('rejects maxEventsPerKey above the hard cap', () => {
+    expect(() => new SlidingWindowRateLimiter(10, 101)).toThrow(RangeError);
+  });
 
   it('rejects a limit above the default maxEventsPerKey cap', () => {
     const limiter = new SlidingWindowRateLimiter();
@@ -131,6 +151,10 @@ describe('SlidingWindowRateLimiter', () => {
     },
   );
 
+  it('rejects maxTotalEvents above the hard cap', () => {
+    expect(() => new SlidingWindowRateLimiter(10, 100, 100_001)).toThrow(RangeError);
+  });
+
   it('fails closed without evicting active buckets at total capacity', () => {
     const limiter = new SlidingWindowRateLimiter(10, 100, 1);
 
@@ -139,7 +163,7 @@ describe('SlidingWindowRateLimiter', () => {
 
     expect(limiter.size()).toBe(1);
     expect(blocked.allowed).toBe(false);
-    expect(blocked.resetAt).toBe(101);
+    expect(blocked.resetAt).toBe(100);
   });
 
   it('prunes only the requested key during normal checks', () => {
@@ -175,6 +199,17 @@ describe('SlidingWindowRateLimiter', () => {
     expect(limiter.check('new', 1, 100, 1_050).allowed).toBe(true);
   });
 
+  it('uses a safe future reset when deferred cleanup leaves no active release', () => {
+    const limiter = new SlidingWindowRateLimiter(1);
+
+    limiter.check('active', 1, 100, 0);
+    limiter.check('new', 1, 100, 50);
+    const blocked = limiter.check('new', 1, 100, 101);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(201);
+  });
+
   it('fails closed without evicting active buckets at key capacity', () => {
     const limiter = new SlidingWindowRateLimiter(2);
 
@@ -184,7 +219,19 @@ describe('SlidingWindowRateLimiter', () => {
 
     expect(limiter.size()).toBe(2);
     expect(blocked.allowed).toBe(false);
-    expect(blocked.resetAt).toBe(102);
+    expect(blocked.resetAt).toBe(100);
     expect(limiter.check('first', 1, 100, 2).allowed).toBe(false);
+  });
+
+  it('reports earliest active release when capacity rejects', () => {
+    const limiter = new SlidingWindowRateLimiter(2);
+
+    limiter.check('first', 1, 1_000, 0);
+    limiter.check('second', 1, 1_000, 500);
+
+    const blocked = limiter.check('third', 1, 1_000, 501);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.resetAt).toBe(1_000);
   });
 });

@@ -24,20 +24,29 @@ export class SlidingWindowRateLimiter {
   private readonly maxTotalEvents: number;
   private totalEvents = 0;
   private lastCleanupAt: number | null = null;
+  private highestObservedNow: number | null = null;
 
   constructor(
     maxKeys = DEFAULT_MAX_KEYS,
     maxEventsPerKey = DEFAULT_MAX_EVENTS_PER_KEY,
     maxTotalEvents = DEFAULT_MAX_TOTAL_EVENTS,
   ) {
-    if (!Number.isSafeInteger(maxKeys) || maxKeys <= 0) {
-      throw new RangeError('maxKeys must be a positive integer');
+    if (!Number.isSafeInteger(maxKeys) || maxKeys <= 0 || maxKeys > DEFAULT_MAX_KEYS) {
+      throw new RangeError(`maxKeys must be an integer from 1 to ${DEFAULT_MAX_KEYS}`);
     }
-    if (!Number.isSafeInteger(maxEventsPerKey) || maxEventsPerKey <= 0) {
-      throw new RangeError('maxEventsPerKey must be a positive finite integer');
+    if (
+      !Number.isSafeInteger(maxEventsPerKey)
+      || maxEventsPerKey <= 0
+      || maxEventsPerKey > DEFAULT_MAX_EVENTS_PER_KEY
+    ) {
+      throw new RangeError(`maxEventsPerKey must be an integer from 1 to ${DEFAULT_MAX_EVENTS_PER_KEY}`);
     }
-    if (!Number.isSafeInteger(maxTotalEvents) || maxTotalEvents <= 0) {
-      throw new RangeError('maxTotalEvents must be a positive finite integer');
+    if (
+      !Number.isSafeInteger(maxTotalEvents)
+      || maxTotalEvents <= 0
+      || maxTotalEvents > DEFAULT_MAX_TOTAL_EVENTS
+    ) {
+      throw new RangeError(`maxTotalEvents must be an integer from 1 to ${DEFAULT_MAX_TOTAL_EVENTS}`);
     }
     this.maxKeys = maxKeys;
     this.maxEventsPerKey = maxEventsPerKey;
@@ -66,6 +75,14 @@ export class SlidingWindowRateLimiter {
     if (now > MAX_SAFE_TIMESTAMP - windowMs) {
       throw new RangeError('now exceeds the safe timestamp limit');
     }
+    if (this.highestObservedNow !== null && now < this.highestObservedNow) {
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: this.highestObservedNow + windowMs,
+      };
+    }
+    this.highestObservedNow = now;
 
     const current = this.entries.get(key);
     let effectiveNow = now;
@@ -99,7 +116,7 @@ export class SlidingWindowRateLimiter {
         return {
           allowed: false,
           remaining: 0,
-          resetAt: effectiveNow + windowMs,
+          resetAt: this.earliestReleaseAt(effectiveNow, windowMs),
         };
       }
       activeTimestamps = this.entries.get(key)?.timestamps ?? [];
@@ -120,6 +137,8 @@ export class SlidingWindowRateLimiter {
     if (!Number.isFinite(now) || now < 0 || now > MAX_SAFE_TIMESTAMP) {
       throw new RangeError('now must be a finite non-negative number');
     }
+    if (this.highestObservedNow !== null && now < this.highestObservedNow) return;
+    this.highestObservedNow = now;
     this.lastCleanupAt = now;
     for (const [key, entry] of this.entries) {
       this.pruneExpired(entry, now);
@@ -148,6 +167,17 @@ export class SlidingWindowRateLimiter {
   private maybeReapExpired(now: number): void {
     if (this.lastCleanupAt !== null && now - this.lastCleanupAt < CLEANUP_INTERVAL_MS) return;
     this.clearExpired(now);
+  }
+
+  private earliestReleaseAt(fallbackNow: number, fallbackWindowMs: number): number {
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const entry of this.entries.values()) {
+      for (const timestamp of entry.timestamps) {
+        const releaseAt = timestamp + entry.windowMs;
+        if (releaseAt >= fallbackNow && releaseAt < earliest) earliest = releaseAt;
+      }
+    }
+    return earliest === Number.POSITIVE_INFINITY ? fallbackNow + fallbackWindowMs : earliest;
   }
 }
 

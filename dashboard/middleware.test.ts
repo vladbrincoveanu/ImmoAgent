@@ -2,15 +2,11 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { NextRequest } from 'next/server';
 import { config, middleware } from './middleware';
 
-function makeRequest(ip?: string, forwardedFor?: string, trustedIp?: string): NextRequest {
+function makeRequest(ip?: string, forwardedFor?: string): NextRequest {
   const headers = new Headers();
   if (ip !== undefined) headers.set('x-real-ip', ip);
   if (forwardedFor !== undefined) headers.set('x-forwarded-for', forwardedFor);
-  const request = new NextRequest('http://localhost/api/insights', { headers });
-  if (trustedIp !== undefined) {
-    Object.defineProperty(request, 'ip', { configurable: true, value: trustedIp });
-  }
-  return request;
+  return new NextRequest('http://localhost/api/insights', { headers });
 }
 
 describe('dashboard middleware', () => {
@@ -36,6 +32,15 @@ describe('dashboard middleware', () => {
     expect(response.headers.get('Retry-After')).toBeNull();
   });
 
+  it('prefers valid x-real-ip over changing forwarded values', () => {
+    const realIp = '192.0.2.30';
+    for (let request = 1; request <= 30; request += 1) {
+      middleware(makeRequest(realIp, `192.0.2.${request}`));
+    }
+
+    expect(middleware(makeRequest(realIp, '192.0.2.31')).status).toBe(429);
+  });
+
   it('uses forwarded address when x-real-ip is unavailable', () => {
     const realIp = '192.0.2.20';
     const forwardedIp = '192.0.2.21';
@@ -56,21 +61,20 @@ describe('dashboard middleware', () => {
     expect(middleware(makeRequest(undefined, forwardedIp)).status).toBe(429);
   });
 
-  it('prefers a valid trusted request.ip over changing headers', () => {
-    const trustedIp = '2001:db8::1';
-    for (let request = 1; request <= 30; request += 1) {
-      middleware(makeRequest(`192.0.2.${request}`, undefined, trustedIp));
-    }
-
-    expect(middleware(makeRequest('192.0.2.31', undefined, trustedIp)).status).toBe(429);
-  });
-
   it('falls back to unknown for empty, spoofed, and overlong IP headers', () => {
-    const invalidIps = ['', 'spoofed.example', '1'.repeat(65)];
+    const invalidIps = ['', 'spoofed.example', '999.1.1.1', '2001:db8:::1', '1'.repeat(65)];
     for (const invalidIp of invalidIps) {
       for (let request = 0; request < 10; request += 1) {
         middleware(makeRequest(invalidIp));
       }
+    }
+
+    expect(middleware(makeRequest()).status).toBe(429);
+  });
+
+  it('falls back to unknown for malformed IPv6 headers', () => {
+    for (let request = 0; request < 30; request += 1) {
+      middleware(makeRequest('2001:db8:::1'));
     }
 
     expect(middleware(makeRequest()).status).toBe(429);
@@ -96,18 +100,19 @@ describe('dashboard middleware', () => {
   });
 
   it('derives retry metadata from the sliding-window reset time', async () => {
-    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    const baseNow = Date.now() + 1_000_000;
+    const now = jest.spyOn(Date, 'now').mockReturnValue(baseNow);
     const ip = '203.0.113.5';
     for (let request = 0; request < 30; request += 1) {
       expect(middleware(makeRequest(ip)).status).toBe(200);
     }
 
-    now.mockReturnValue(59_500);
+    now.mockReturnValue(baseNow + 58_500);
     const response = middleware(makeRequest(ip));
     expect(response.headers.get('Retry-After')).toBe('2');
     expect((await response.json()).retryAfter).toBe(2);
 
-    now.mockReturnValue(60_999);
+    now.mockReturnValue(baseNow + 59_999);
     const minimum = middleware(makeRequest(ip));
     expect(minimum.headers.get('Retry-After')).toBe('1');
     expect((await minimum.json()).retryAfter).toBe(1);

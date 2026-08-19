@@ -5,8 +5,6 @@ const LIMIT = 30;
 const WINDOW_MS = 60_000;
 const MAX_IP_LENGTH = 64;
 
-type RequestWithIp = NextRequest & { ip?: unknown };
-
 function normalizeIp(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -20,17 +18,31 @@ function normalizeIp(value: unknown): string | null {
     return trimmed;
   }
 
-  if (trimmed.split(':').length >= 3 && /^[0-9a-fA-F:]+$/.test(trimmed)) {
+  if (isStrictIpv6(trimmed)) {
     return trimmed;
   }
 
   return null;
 }
 
-function clientKey(request: NextRequest): string {
-  const trustedIp = normalizeIp((request as RequestWithIp).ip);
-  if (trustedIp) return trustedIp;
+function isStrictIpv6(value: string): boolean {
+  if (!value.includes(':') || !/^[0-9a-fA-F:]+$/.test(value)) return false;
 
+  const halves = value.split('::');
+  if (halves.length > 2) return false;
+  if (halves.length === 2) {
+    const left = halves[0] === '' ? [] : halves[0].split(':');
+    const right = halves[1] === '' ? [] : halves[1].split(':');
+    const validGroup = (group: string) => /^[0-9a-fA-F]{1,4}$/.test(group);
+    return left.every(validGroup) && right.every(validGroup) && left.length + right.length < 8;
+  }
+
+  const groups = value.split(':');
+  return groups.length === 8 && groups.every((group) => /^[0-9a-fA-F]{1,4}$/.test(group));
+}
+
+/** Trust proxy headers only when deployment overwrites them; invalid/missing identity shares unknown. */
+function clientKey(request: NextRequest): string {
   const realIp = normalizeIp(request.headers.get('x-real-ip'));
   if (realIp) return realIp;
 
