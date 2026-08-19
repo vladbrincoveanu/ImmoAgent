@@ -350,6 +350,84 @@ def test_resolve_vienna_telegram_bot_returns_none_without_vienna_credentials():
     }
 
 
+def test_was_listing_sent_recently_detects_recent_coop_timestamp():
+    from Application import main as main_module
+
+    now = 1_000_000.0
+    mongo = Mock()
+    mongo.get_listing.return_value = {
+        "sent_to_telegram_at": now - (6 * 86400),
+    }
+
+    with patch("Application.main.time.time", return_value=now):
+        assert main_module.was_listing_sent_recently(mongo, "https://example.test/coop") is True
+
+    mongo.get_listing.assert_called_once_with("https://example.test/coop")
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"sent_to_telegram_at": 1_000_000.0 - (8 * 86400)},
+        None,
+        {},
+        {"sent_to_telegram_at": "not-a-timestamp"},
+        {"sent_to_telegram_at": math.nan},
+        {"sent_to_telegram_at": True},
+    ],
+)
+def test_was_listing_sent_recently_allows_old_or_missing_coop_timestamp(document, caplog):
+    from Application import main as main_module
+
+    mongo = Mock()
+    mongo.get_listing.return_value = document
+
+    with caplog.at_level("WARNING"), patch("Application.main.time.time", return_value=1_000_000.0):
+        assert main_module.was_listing_sent_recently(mongo, "https://example.test/coop") is False
+
+    timestamp = document.get("sent_to_telegram_at") if isinstance(document, dict) else None
+    if (
+        not isinstance(timestamp, (int, float))
+        or isinstance(timestamp, bool)
+        or not math.isfinite(timestamp)
+    ):
+        assert caplog.records
+
+
+def test_was_listing_sent_recently_allows_coop_when_lookup_errors(caplog):
+    from Application import main as main_module
+
+    mongo = Mock()
+    mongo.get_listing.side_effect = RuntimeError("database unavailable")
+
+    with caplog.at_level("WARNING"):
+        assert main_module.was_listing_sent_recently(mongo, "https://example.test/coop") is False
+
+    assert "could not check" in caplog.text.lower()
+
+
+def test_calculate_listing_score_uses_telegram_bot_when_available():
+    from Application import main as main_module
+
+    candidate = listing()
+    telegram_bot = Mock()
+    telegram_bot.calculate_listing_score.return_value = 61.5
+
+    assert main_module.calculate_listing_score(candidate, telegram_bot) == 61.5
+    telegram_bot.calculate_listing_score.assert_called_once_with(candidate)
+
+
+def test_calculate_listing_score_falls_back_without_vienna_bot():
+    from Application import main as main_module
+
+    candidate = listing()
+
+    with patch("Application.scoring.score_apartment_simple", return_value=27.5) as score_listing:
+        assert main_module.calculate_listing_score(candidate, None) == 27.5
+
+    score_listing.assert_called_once_with(candidate)
+
+
 def test_main_uses_vienna_delivery_without_property_summary_or_cooldown():
     from Application import main as main_module
 

@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import time
 import html
@@ -76,6 +77,52 @@ def resolve_vienna_telegram_bot(config):
     if vienna_token and vienna_chat_id:
         return TelegramBot(vienna_token, vienna_chat_id)
     return None
+
+
+def was_listing_sent_recently(mongo, url, days=7) -> bool:
+    try:
+        document = mongo.get_listing(url)
+    except Exception as exc:
+        logging.warning(f"Could not check recent Telegram delivery for {url}: {exc}")
+        return False
+
+    if not document:
+        logging.warning(f"No stored listing found while checking recent Telegram delivery: {url}")
+        return False
+    if not isinstance(document, dict):
+        logging.warning(f"Invalid stored listing while checking recent Telegram delivery: {url}")
+        return False
+
+    sent_at = document.get('sent_to_telegram_at')
+    try:
+        finite_timestamp = math.isfinite(sent_at)
+    except (TypeError, ValueError, OverflowError):
+        finite_timestamp = False
+    if (
+        isinstance(sent_at, bool)
+        or not isinstance(sent_at, (int, float))
+        or not finite_timestamp
+    ):
+        logging.warning(f"Invalid Telegram delivery timestamp for {url}: {sent_at!r}")
+        return False
+
+    try:
+        now = time.time()
+        cutoff = now - (days * 86400)
+    except (TypeError, ValueError, OverflowError) as exc:
+        logging.warning(f"Invalid recent-delivery window for {url}: {exc}")
+        return False
+
+    return cutoff <= sent_at <= now
+
+
+def calculate_listing_score(listing, telegram_bot):
+    listing_data = listing.__dict__ if hasattr(listing, '__dict__') else listing
+    if telegram_bot is not None:
+        return telegram_bot.calculate_listing_score(listing_data)
+
+    from Application.scoring import score_apartment_simple
+    return score_apartment_simple(listing_data)
 
 
 def compute_coordinate_precision_m(coordinate_source):
@@ -803,13 +850,15 @@ def main():
             # surfaces are builder-direct only (they'd link to Willhaben, not the
             # builder's reservation page, and can leak mis-tagged for-sale units).
             if listing.is_genossenschaft and listing.coop_source != 'willhaben':
-                coop_broadcast_candidates.append(listing)
+                if was_listing_sent_recently(mongo, listing.url):
+                    logging.info(f"⏭️ Skipping recent co-op broadcast: {listing.title}")
+                else:
+                    coop_broadcast_candidates.append(listing)
 
             # Calculate score for the listing (always needed for MongoDB storage)
+            score = calculate_listing_score(listing, telegram_bot)
+            listing.score = score
             if telegram_bot:
-                score = telegram_bot.calculate_listing_score(listing.__dict__)
-                listing.score = score
-
                 # Co-op listings have their own dedicated channel (broadcast
                 # below) and are excluded from the main buy-side channel here
                 # regardless of score, so a listing never gets sent to both.
@@ -822,9 +871,6 @@ def main():
                     logging.info(f"⏭️  Low score listing ({score:.1f}): {listing.title} - skipping Telegram (threshold: {telegram_bot.min_score_threshold})")
             else:
                 # If no Telegram bot, still calculate score for UI display and MongoDB storage
-                from Application.scoring import score_apartment_simple
-                score = score_apartment_simple(listing.__dict__)
-                listing.score = score
                 logging.info(f"📊 Listing score ({score:.1f}): {listing.title}")
         
         # Save all listings to MongoDB (regardless of score)
