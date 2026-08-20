@@ -284,8 +284,11 @@ function MapPage() {
 
   return (
     <>
+      {viewportMode === null && <MapLoadingState />}
+
       {/* DESKTOP — top bar + rail + map */}
-      <div className="hidden md:flex flex-col h-screen map-desktop bg-bg">
+      {viewportMode === 'desktop' && (
+      <div className="flex flex-col h-screen map-desktop bg-bg">
         <MapTopBar
           activeFilterCount={activeFilterCount}
           filtersOpen={filtersOpen}
@@ -377,9 +380,11 @@ function MapPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* MOBILE — existing BottomSheet flow */}
-      <div data-testid="mobile-map-fallback" className="md:hidden">
+      {viewportMode === 'mobile' && (
+      <div data-testid="mobile-map-fallback">
         <div className="h-[calc(100dvh-48px)] max-h-[calc(100dvh-48px)] flex flex-col overflow-hidden bg-warm-bg">
           <header className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-4 shrink-0">
             <a href={`/dashboard${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
@@ -462,6 +467,7 @@ function MapPage() {
           />
         </div>
       </div>
+      )}
 
       {detailId && (
         <ListingDetail
