@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import type { ViewportBounds, LayerState, StationFeature, SchoolFeature } from '@/components/MapView';
@@ -63,6 +63,7 @@ function MapPage() {
   const [schoolData, setSchoolData] = useState<SchoolFeature[]>([]);
   const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
   const [viewportMode, setViewportMode] = useState<'desktop' | 'mobile' | null>(null);
+  const requestVersion = useRef(0);
 
   const { newListings } = useListingsSSE();
 
@@ -116,6 +117,7 @@ function MapPage() {
   }, [newListings]);
 
   const fetchListings = useCallback(async (signal?: AbortSignal) => {
+    const currentRequest = ++requestVersion.current;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -135,13 +137,14 @@ function MapPage() {
       const res = await fetch(url, { signal });
       if (!res.ok) throw new Error(`Listings request failed: ${res.status}`);
       const data = await res.json();
+      if (currentRequest !== requestVersion.current) return;
       const items = (data.listings ?? []) as Array<MapListing & { scores?: Record<string, number | null> | null }>;
       setListings(items);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error(err);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && currentRequest === requestVersion.current) setLoading(false);
     }
   }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct, genossenschaft]);
 

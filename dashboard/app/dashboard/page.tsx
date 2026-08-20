@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { ListingCard } from '@/components/ListingCard';
 import { FilterBar, SortOption } from '@/components/FilterBar';
@@ -37,8 +37,10 @@ function DashboardContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const requestVersion = useRef(0);
 
   const fetchListings = useCallback(async (signal?: AbortSignal) => {
+    const currentRequest = ++requestVersion.current;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -54,13 +56,14 @@ function DashboardContent() {
       const res = await fetch(url, { signal });
       if (!res.ok) throw new Error(`Listings request failed: ${res.status}`);
       const data = await res.json();
+      if (currentRequest !== requestVersion.current) return;
       const items = (data.listings ?? []) as ListingBase[];
       setListings(items);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       console.error(err);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && currentRequest === requestVersion.current) setLoading(false);
     }
   }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct]);
 
