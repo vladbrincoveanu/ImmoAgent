@@ -122,12 +122,23 @@ def _coop_source_urls(seen: List[Listing]) -> List[str]:
     return urls
 
 
+def _mygewo_urls(seen: List[Listing]) -> List[str]:
+    urls = []
+    known = set()
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if "mygewo.at" in url and url not in known:
+            known.add(url)
+            urls.append(url)
+    return urls
+
+
 def new_alert_candidates(handler, seen: List[Listing],
                          new_from_willhaben: List[Listing],
                          existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
-    """Return crawl-new Willhaben listings and co-op source units once each."""
+    """Return crawl-new Willhaben listings and mygewo units once each."""
     if existing_by_url is _LOOKUP_NOT_PROVIDED:
-        existing_by_url = handler.get_listings_by_urls(_coop_source_urls(seen))
+        existing_by_url = handler.get_listings_by_urls(_mygewo_urls(seen))
 
     candidates = []
     candidate_urls = set()
@@ -144,12 +155,39 @@ def new_alert_candidates(handler, seen: List[Listing],
 
     for listing in seen:
         url = getattr(listing, "url", None) or ""
-        if (not is_coop_listing(listing) or url in candidate_urls
+        if ("mygewo.at" not in url or url in candidate_urls
                 or url in existing_by_url):
             continue
         candidate_urls.add(url)
         candidates.append(listing)
 
+    return candidates
+
+
+def new_source_candidates(handler, seen: List[Listing],
+                          new_from_willhaben: List[Listing],
+                          existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
+    """Return new source-channel co-op units without widening user alerts."""
+    if existing_by_url is _LOOKUP_NOT_PROVIDED:
+        existing_by_url = handler.get_listings_by_urls(_coop_source_urls(seen))
+
+    candidates = new_alert_candidates(
+        handler, seen, new_from_willhaben, existing_by_url
+    )
+    if existing_by_url is None:
+        return candidates
+
+    candidate_urls = {getattr(listing, "url", None) for listing in candidates}
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if (
+            is_coop_listing(listing)
+            and url
+            and url not in candidate_urls
+            and url not in existing_by_url
+        ):
+            candidate_urls.add(url)
+            candidates.append(listing)
     return candidates
 
 
@@ -370,9 +408,10 @@ def run(no_send: bool = False) -> int:
                 logger.error(
                     "❌ co-op source lookup failed; deferring mygewo detail/upsert and "
                     "owner alerts so user alerts can retry next poll")
+        source_channel_candidates = new_source_candidates(
+            handler, seen, new_from_willhaben, source_existing)
         user_alert_candidates = new_alert_candidates(
             handler, seen, new_from_willhaben, source_existing)
-        source_channel_candidates = user_alert_candidates
         deliver_user_alerts(handler, user_alert_candidates)
     else:
         # Dry-run keeps its existing preview behavior without treating the

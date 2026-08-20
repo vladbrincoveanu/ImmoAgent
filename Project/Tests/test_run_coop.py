@@ -229,13 +229,15 @@ def test_batch_lookup_failure_excludes_mygewo_but_keeps_willhaben_candidates():
     handler.get_listing.assert_not_called()
 
 
-def test_new_direct_coop_listing_is_a_source_candidate():
+def test_new_direct_coop_listing_is_source_candidate_not_generic_alert_candidate():
     handler = MagicMock()
     handler.get_listings_by_urls.return_value = {}
     listing = _l(url="https://siedlungsunion.at/angebot/new")
+    existing = {}
 
-    assert run_coop.new_alert_candidates(handler, [listing], []) == [listing]
-    handler.get_listings_by_urls.assert_called_once_with([listing.url])
+    assert run_coop.new_alert_candidates(handler, [listing], [], existing) == []
+    assert run_coop.new_source_candidates(handler, [listing], [], existing) == [listing]
+    handler.get_listings_by_urls.assert_not_called()
 
 
 def test_source_feed_uses_new_candidates_not_full_seen_inventory():

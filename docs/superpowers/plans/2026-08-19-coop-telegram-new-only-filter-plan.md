@@ -387,9 +387,10 @@ strict policy, so at least one new assertion fails.
 
 In `run()`:
 
-1. Keep `mygewo_existing` and `new_alert_candidates()` before detail resolution.
-2. Assign its result to `source_channel_candidates` while preserving the same
-   candidate list passed to `deliver_user_alerts()`.
+1. Keep one `source_existing` batch lookup before detail resolution.
+2. Assign `new_source_candidates(...)` to `source_channel_candidates`; keep
+   `new_alert_candidates(...)` as the separate input to `deliver_user_alerts()`
+   so direct builder inventory does not widen user-created alerts.
 3. Replace the final `for listing in seen` source-send loop with
    `for listing in source_channel_candidates`.
 4. Keep `is_coop_listing()` and configured `matches_coop_alerts()` before the
