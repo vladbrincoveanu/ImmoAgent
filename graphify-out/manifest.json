@@ -2015,8 +2015,8 @@
     "semantic_hash": ""
   },
   "Project/Tests/test_run_coop.py": {
-    "mtime": 1787209536.321157,
-    "ast_hash": "82a8b080e440b8d9ed702b73958c8dd9",
+    "mtime": 1787212895.1342776,
+    "ast_hash": "3ccf5350ae518d44f8974df135f64b65",
     "semantic_hash": ""
   },
   "Project/Tests/test_source_meta.py": {
@@ -2045,8 +2045,8 @@
     "semantic_hash": ""
   },
   "Project/run_coop.py": {
-    "mtime": 1787212601.8137164,
-    "ast_hash": "7c42558f43e2aad5216bab3f524e00eb",
+    "mtime": 1787212884.088184,
+    "ast_hash": "4f3251fafdf73eb9c23affa3dc7ad116",
     "semantic_hash": ""
   },
   "Project/scripts/measure_coop_coverage.py": {
@@ -2830,8 +2830,8 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-19-coop-telegram-new-only-filter-plan.md": {
-    "mtime": 1787204996.582011,
-    "ast_hash": "ad64ea898743961ca2b9fe4e2e136df8",
+    "mtime": 1787212965.45834,
+    "ast_hash": "193a7cf61ab7377e90cf04572786a793",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-08-19-coop-telegram-new-only-filter-design.md": {
