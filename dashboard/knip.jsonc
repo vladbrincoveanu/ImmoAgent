@@ -17,23 +17,8 @@
     // path alias in it). There is no import statement anywhere, so knip cannot
     // see the usage. Removing either breaks `npm test` immediately.
     "ts-node",
-    "tsconfig-paths",
-
-    // Only consumed by the parked dark-mode components ignored below. Kept so
-    // the feature can be wired up without a reinstall; drop it together with
-    // ThemeProvider/ThemeToggle if dark mode is abandoned.
-    "next-themes"
+    "tsconfig-paths"
   ],
 
-  "ignore": [
-    // PARKED FEATURES — deliberately unreferenced, kept for planned work.
-    // Review these on the next cleanup pass; delete if still unwired.
-    //   Dark mode (parked): ThemeProvider + ThemeToggle, backed by the
-    //   next-themes dependency below. Not mounted in app/layout.tsx.
-    "components/ThemeProvider.tsx",
-    "components/ThemeToggle.tsx",
-    //   Map detail panel (parked): superseded by the inline popup on
-    //   /dashboard/map, retained for the planned side-panel layout.
-    "components/ListingSidebar.tsx"
-  ]
+  "ignore": []
 }

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { ListingCard } from '@/components/ListingCard';
-import { FilterBar, SortOption } from '@/components/FilterBar';
+import { FilterBar } from '@/components/FilterBar';
 import { FilterDrawer } from '@/components/FilterDrawer';
 import { ListingDetail } from '@/components/ListingDetail';
 import { ProfileSelector } from '@/components/ProfileSelector';
@@ -12,7 +12,7 @@ import { SaveSearchButton } from '@/components/SaveSearchButton';
 import { EmailAlertsModal } from '@/components/EmailAlertsModal';
 import { ListingBase } from '@/lib/types';
 import { useFilters } from '@/lib/useFilters';
-import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { DEFAULT_PROFILE } from '@/lib/profile';
 import { estimateWalkMinutes, haversineKm } from '@/lib/geo';
 
 function calcMonatsrate(loanAmount: number, rate: number): number {
@@ -83,7 +83,6 @@ function DashboardContent() {
       const bankLtv = 1 - downPct / 100;
       const loanAmount = l.price_total * bankLtv;
       const monatsrate = Math.round(calcMonatsrate(loanAmount, rateNum));
-      const taxAmount = Math.round(l.price_total * 0.11);
       const cashNeeded = Math.round(l.price_total * (downPct / 100 + 0.11));
       return {
         ...l,
