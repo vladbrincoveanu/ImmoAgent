@@ -99,19 +99,25 @@ def test_coop_delivery_skips_before_bot_when_claim_is_lost():
 @pytest.mark.parametrize("send_result", [False, RuntimeError("telegram uncertain")])
 def test_coop_delivery_quarantines_any_unconfirmed_attempt(send_result):
     bot = Mock()
+    events = []
     if isinstance(send_result, Exception):
-        bot.send_message.side_effect = send_result
+        def send_with_error(*args, **kwargs):
+            events.append("send")
+            raise send_result
+
+        bot.send_message.side_effect = send_with_error
     else:
-        bot.send_message.return_value = send_result
+        bot.send_message.side_effect = lambda *args, **kwargs: events.append("send") or send_result
     mongo = Mock()
     mongo.claim_listing_delivery.return_value = True
-    mongo.quarantine_listing_delivery.return_value = True
+    mongo.quarantine_listing_delivery.side_effect = lambda *args, **kwargs: events.append("quarantine") or True
 
     assert send_coop_listing(coop_listing(), bot, mongo, "coop", url_validator=lambda _: True) is False
     bot.send_message.assert_called_once()
     mongo.release_listing_delivery.assert_not_called()
     mongo.quarantine_listing_delivery.assert_called_once()
     mongo.mark_listing_delivery_sent.assert_not_called()
+    assert events == ["send", "quarantine"]
 
 
 def test_vienna_policy_constants():
