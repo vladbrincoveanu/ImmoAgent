@@ -55,7 +55,7 @@ def test_github_actions_main():
                 error_msg = str(e)
                 if "UnboundLocalError" in error_msg:
                     print(f"❌ FAILED: UnboundLocalError still exists: {e}")
-                    return False
+                    raise AssertionError("UnboundLocalError still exists") from e
                 elif "MongoDB" in error_msg or "Connection" in error_msg:
                     print(f"✅ SUCCESS: Expected MongoDB connection error: {e}")
                     print("✅ This confirms the UnboundLocalError is fixed!")
@@ -66,7 +66,7 @@ def test_github_actions_main():
             
         except Exception as e:
             print(f"❌ FAILED: {e}")
-            return False
+            raise AssertionError("GitHub Actions main simulation failed") from e
         finally:
             os.chdir(original_cwd)
     
@@ -90,14 +90,14 @@ def test_current_environment():
             error_msg = str(e)
             if "UnboundLocalError" in error_msg:
                 print(f"❌ FAILED: UnboundLocalError exists: {e}")
-                return False
+                raise AssertionError("UnboundLocalError exists") from e
             else:
                 print(f"✅ SUCCESS: Expected error (not UnboundLocalError): {e}")
                 return True
         
     except Exception as e:
         print(f"❌ FAILED: {e}")
-        return False
+        raise AssertionError("Current-environment main test failed") from e
 
 def main():
     """Run all tests"""

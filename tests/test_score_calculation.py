@@ -128,6 +128,9 @@ def test_score_calculation_with_real_mongodb():
         min_rooms=1
     )
 
+    if not real_listings:
+        pytest.skip("No stored listings available")
+
     for i, listing in enumerate(real_listings, 1):
         print(f"\n🏠 Real Property {i}:")
         score_simple = score_apartment_simple(listing)
@@ -138,6 +141,7 @@ def test_score_calculation_with_real_mongodb():
         print(f"   📐 Area: {listing.get('area_m2', 0)}m²")
         print(f"   🛏️ Rooms: {listing.get('rooms', 0)}")
         print(f"   📍 District: {listing.get('bezirk', 'N/A')}")
+        assert abs(score_simple - stored_score) < 0.01
 
 def main():
     """Run the test"""
