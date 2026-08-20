@@ -8,10 +8,14 @@ import pytest
 
 from Application.helpers.listing_validator import compute_content_fingerprint
 from Application.telegram_delivery import (
+    COOP_MIN_AREA_M2,
+    COOP_MIN_ROOMS,
     VIENNA_CHANNEL,
     VIENNA_MIN_AREA_M2,
     VIENNA_MIN_ROOMS,
+    coop_filter_reason,
     preserve_delivery_state,
+    send_coop_listing,
     send_vienna_listings,
     vienna_filter_reason,
 )
@@ -31,6 +35,74 @@ def listing(**overrides):
     }
     result.update(overrides)
     return result
+
+
+def coop_listing(**overrides):
+    value = {
+        "url": "https://example.test/coop-1",
+        "title": "Neue Genossenschaft",
+        "area_m2": 75.0,
+        "rooms": 3.0,
+    }
+    value.update(overrides)
+    return value
+
+
+def test_coop_policy_uses_inclusive_area_and_room_boundaries():
+    assert COOP_MIN_AREA_M2 == 75.0
+    assert COOP_MIN_ROOMS == 3.0
+    assert coop_filter_reason(coop_listing(area_m2=75.0, rooms=3.0)) is None
+    assert coop_filter_reason(coop_listing(area_m2=74.99)) is not None
+    assert coop_filter_reason(coop_listing(rooms=2.99)) is not None
+
+
+@pytest.mark.parametrize("field", ["area_m2", "rooms"])
+@pytest.mark.parametrize("value", [None, "75", True, math.nan, math.inf, -math.inf])
+def test_coop_policy_rejects_missing_invalid_and_nonfinite_measurements(field, value):
+    assert coop_filter_reason(coop_listing(**{field: value})) is not None
+
+
+def test_coop_delivery_claims_before_sending_and_marks_success():
+    bot = Mock()
+    bot.send_message.return_value = True
+    mongo = Mock()
+    events = []
+    mongo.claim_listing_delivery.side_effect = lambda *args, **kwargs: events.append("claim") or True
+    mongo.mark_listing_delivery_sent.side_effect = lambda *args, **kwargs: events.append("mark") or True
+
+    assert send_coop_listing(
+        coop_listing(), bot, mongo, "coop",
+        url_validator=lambda url: events.append("url") or True,
+        message_formatter=lambda listing: events.append("format") or "message",
+    ) is True
+    assert events == ["url", "claim", "format", "mark"]
+    bot.send_message.assert_called_once_with("message")
+
+
+def test_coop_delivery_skips_before_bot_when_claim_is_lost():
+    bot = Mock()
+    mongo = Mock()
+    mongo.claim_listing_delivery.return_value = False
+
+    assert send_coop_listing(coop_listing(), bot, mongo, "coop", url_validator=lambda _: True) is False
+    bot.send_message.assert_not_called()
+
+
+@pytest.mark.parametrize("send_result", [False, RuntimeError("telegram uncertain")])
+def test_coop_delivery_quarantines_any_unconfirmed_attempt(send_result):
+    bot = Mock()
+    if isinstance(send_result, Exception):
+        bot.send_message.side_effect = send_result
+    else:
+        bot.send_message.return_value = send_result
+    mongo = Mock()
+    mongo.claim_listing_delivery.return_value = True
+    mongo.quarantine_listing_delivery.return_value = True
+
+    assert send_coop_listing(coop_listing(), bot, mongo, "coop", url_validator=lambda _: True) is False
+    mongo.release_listing_delivery.assert_not_called()
+    mongo.quarantine_listing_delivery.assert_called_once()
+    mongo.mark_listing_delivery_sent.assert_not_called()
 
 
 def test_vienna_policy_constants():
