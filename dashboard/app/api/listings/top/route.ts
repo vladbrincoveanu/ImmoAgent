@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
-import { Document, WithId } from 'mongodb';
+import { Document } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { resolveCoordinates } from '@/lib/district-centroids';
+import { TOP_PROJECTION, buildListingSort, presentTopListing } from '@/lib/listing-data';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
-
-type ListingDocument = Document;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,17 +21,7 @@ export async function GET(request: NextRequest) {
     console.warn('[/api/listings/top] Invalid profile rejected:', profileParam);
   }
 
-  const sortOptions: Record<string, Record<string, 1 | -1>> = {
-    score_desc:
-      profile === DEFAULT_PROFILE
-        ? { score: -1, processed_at: -1 }
-        : { [`scores.${profile}`]: -1, processed_at: -1 },
-    price_asc: { price_total: 1 },
-    price_desc: { price_total: -1 },
-    date_desc: { processed_at: -1 },
-    area_desc: { area_m2: -1 },
-  };
-  const sortBy = sortOptions[sort] ?? sortOptions.score_desc;
+  const sortBy = buildListingSort(profile, sort, genossenschaft ? 'coop' : 'purchase');
 
   try {
     const db = getDb();
@@ -82,8 +70,8 @@ export async function GET(request: NextRequest) {
     const filter: Record<string, unknown> = { $and: andConditions };
 
     const listings = await db
-      .collection<ListingDocument>('listings')
-      .find(filter)
+      .collection<Document>('listings')
+      .find(filter, { projection: TOP_PROJECTION })
       .sort(sortBy)
       .limit(limit)
       .toArray();
@@ -109,50 +97,11 @@ export async function GET(request: NextRequest) {
 
     const PRICE_PER_SQM = (config?.PRICE_PER_SQM as number | undefined) ?? 7000;
 
-    const result = listings.map((l: WithId<ListingDocument>) => {
-      const hasPrice = typeof l.price_total === 'number' && l.price_total > 0;
-      const price_is_estimated = !hasPrice && typeof l.area_m2 === 'number' && l.area_m2 > 0;
-      const price_total = hasPrice
-        ? l.price_total
-        : price_is_estimated
-          ? Math.round(l.area_m2 * PRICE_PER_SQM)
-          : null;
-
-      const scores = (l as { scores?: Record<string, number | null> }).scores;
-      const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
-      const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
-      const priceVsAvgPct = price_total != null && zoneAvg && zoneAvg > 0
-        ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
-        : null;
-      return {
-        _id: l._id.toString(),
-        title: l.title,
-        url: l.url,
-        source_enum: l.source_enum,
-        bezirk: l.bezirk,
-        price_total,
-        area_m2: l.area_m2,
-        rooms: l.rooms,
-        score: (scores?.[profile] ?? l.score ?? null) as number | null,
-        scores: scores ?? null,
-        profile,
-        processed_at: l.processed_at,
-        image_url: l.image_url || l.minio_image_path || null,
-        url_is_valid: l.url_is_valid !== false,
-        price_is_estimated,
-        estimated_down_pct: l.estimated_down_pct ?? undefined,
-        estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
-        estimated_equity_eur: l.estimated_equity_eur ?? undefined,
-        bank_score_confidence: l.bank_score_confidence ?? undefined,
-        coordinate_source: l.coordinate_source ?? undefined,
-        price_vs_avg_pct: priceVsAvgPct,
-        ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
-        coordinates: resolveCoordinates(l.coordinates as { lat: number; lon: number } | null | undefined, l.bezirk as string | null | undefined),
-        price_history: (l as { price_history?: Array<{ price_total: number; date: number }> }).price_history ?? null,
-        address: (l as { address?: string | null }).address ?? null,
-        is_genossenschaft: l.is_genossenschaft === true,
-      };
-    });
+    const result = listings.map((l) => presentTopListing(l, {
+      profile,
+      pricePerSqm: PRICE_PER_SQM,
+      zoneAverage: typeof l.bezirk === 'string' ? zoneAvgMap[l.bezirk] : undefined,
+    }));
 
     let finalResult = belowAvgPct > 0
       ? result.filter((l) => l.price_vs_avg_pct != null && l.price_vs_avg_pct <= -belowAvgPct)
@@ -161,7 +110,9 @@ export async function GET(request: NextRequest) {
       finalResult = finalResult.filter((l) => l.score == null || l.score >= minScore);
     }
 
-    return NextResponse.json({ listings: finalResult, total: finalResult.length });
+    return NextResponse.json({ listings: finalResult, total: finalResult.length }, {
+      headers: { 'Cache-Control': 'public, max-age=15, s-maxage=15, stale-while-revalidate=60' },
+    });
   } catch (err) {
     console.error('[/api/listings/top]', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });

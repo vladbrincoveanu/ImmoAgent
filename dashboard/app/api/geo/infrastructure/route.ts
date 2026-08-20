@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ type: 'FeatureCollection', features }, {
-      headers: { 'Cache-Control': 'public, max-age=3600' },
+      headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400' },
     });
   } catch (err) {
     console.error('[/api/geo/infrastructure]', err);

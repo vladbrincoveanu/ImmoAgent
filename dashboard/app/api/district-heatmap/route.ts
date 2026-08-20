@@ -37,7 +37,9 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ districts });
+    return NextResponse.json({ districts }, {
+      headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400' },
+    });
   } catch (err) {
     console.error('[/api/district-heatmap]', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });

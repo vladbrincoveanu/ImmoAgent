@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import { validateObjectId } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { resolveCoordinates } from '@/lib/district-centroids';
+import { presentListingDetail } from '@/lib/listing-data';
 
 export async function GET(
   req: NextRequest,
@@ -31,29 +31,11 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const profileParam = searchParams.get('profile');
     const profile = isValidProfile(profileParam) ? (profileParam as string) : DEFAULT_PROFILE;
-    const scores = (listing as { scores?: Record<string, number | null> }).scores;
-    const profileScore = (scores?.[profile] ?? listing.score ?? null) as number | null;
+    const result = presentListingDetail(listing, { profile });
 
-    // Flatten for response
-    const result: Record<string, unknown> = { _id: listing._id.toString() };
-    for (const [key, value] of Object.entries(listing)) {
-      if (key === '_id') continue;
-      if (value instanceof ObjectId) {
-        result[key] = value.toString();
-      } else {
-        result[key] = value;
-      }
-    }
-    // Override the score field to reflect the active profile
-    result['score'] = profileScore;
-    result['profile'] = profile;
-    // Add resolved coordinates (stored or district centroid fallback)
-    result['coordinates'] = resolveCoordinates(
-      (listing as { coordinates?: { lat: number; lon: number } | null }).coordinates ?? null,
-      (listing as { bezirk?: string }).bezirk
-    );
-
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { 'Cache-Control': 'public, max-age=15, s-maxage=15, stale-while-revalidate=60' },
+    });
   } catch (err) {
     console.error('[/api/listings/[id]]', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });

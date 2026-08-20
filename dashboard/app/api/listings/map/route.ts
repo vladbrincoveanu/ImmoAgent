@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
-import { MapListing } from '@/lib/types';
-import { Document, WithId } from 'mongodb';
+import { Document } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { resolveCoordinates } from '@/lib/district-centroids';
 import { coopBaseQuery } from '@/lib/coop-query';
+import { MAP_PROJECTION, buildListingSort, presentMapListing } from '@/lib/listing-data';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -23,22 +22,10 @@ export async function GET(request: NextRequest) {
     console.warn('[/api/listings/map] Invalid profile rejected:', profileParam);
   }
 
-  const sortOptions: Record<string, Record<string, 1 | -1>> = {
-    score_desc:
-      profile === DEFAULT_PROFILE
-        ? { score: -1, processed_at: -1 }
-        : { [`scores.${profile}`]: -1, processed_at: -1 },
-    price_asc: { price_total: 1 },
-    price_desc: { price_total: -1 },
-    date_desc: { processed_at: -1 },
-    area_desc: { area_m2: -1 },
-  };
   // Co-op rentals carry no score, so score_desc — which the map page always
   // sends as its default — would order them arbitrarily. Newest-first instead;
   // any other explicitly chosen sort (price, area, date) still applies.
-  const sortBy = genossenschaft && (sortOptions[sort] ?? sortOptions.score_desc) === sortOptions.score_desc
-    ? sortOptions.date_desc
-    : (sortOptions[sort] ?? sortOptions.score_desc);
+  const sortBy = buildListingSort(profile, sort, genossenschaft ? 'coop' : 'purchase');
 
   try {
     const db = getDb();
@@ -86,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     const listings = await db
       .collection<Document>('listings')
-      .find(filter)
+      .find(filter, { projection: MAP_PROJECTION })
       .sort(sortBy)
       .limit(limit)
       .toArray();
@@ -112,73 +99,23 @@ export async function GET(request: NextRequest) {
 
     const PRICE_PER_SQM = (config?.PRICE_PER_SQM as number | undefined) ?? 7000;
 
-    const result: MapListing[] = listings.map((l: WithId<Document>) => {
-      // Price imputation: use area_m2 × PRICE_PER_SQM when price_total is missing
-      const hasPrice = typeof l.price_total === 'number' && (l.price_total as number) > 0;
-      const price_is_estimated = !hasPrice && typeof l.area_m2 === 'number' && (l.area_m2 as number) > 0;
-      const price_total = hasPrice
-        ? (l.price_total as number)
-        : price_is_estimated
-          ? Math.round((l.area_m2 as number) * PRICE_PER_SQM)
-          : null;
-
-      // Geocoded listings keep their real coords; un-geocoded ones fall back
-      // to their Bezirk centroid tagged coordinate_source:'district' so they
-      // still appear on the map (approximate). Only listings with no bezirk
-      // at all stay 'none' / null and are hidden.
-      const storedCoords = (l.coordinates as { lat: number; lon: number } | null | undefined) ?? null;
-      const coordinates = resolveCoordinates(storedCoords, l.bezirk as string | null | undefined);
-      const COORD_SOURCES = new Set(['exact', 'landmark', 'district', 'none']);
-      const rawSource = (l.coordinate_source as string) || 'none';
-      const coordinate_source: 'exact' | 'landmark' | 'district' | 'none' = !coordinates
-        ? 'none'
-        : !storedCoords
-          ? 'district'
-          : COORD_SOURCES.has(rawSource) && rawSource !== 'none'
-            ? (rawSource as 'exact' | 'landmark' | 'district')
-            : 'exact';
-
-      const scores = (l as { scores?: Record<string, number | null> }).scores;
-      const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
-      const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
-      // A co-op's price_total is a monthly rent; comparing it to the district's
-      // average PURCHASE price would render as "-99% vs Bezirk".
-      const isCoop = l.is_genossenschaft === true;
-      const priceVsAvgPct = !isCoop && price_total != null && zoneAvg && zoneAvg > 0
-        ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
-        : null;
-      return {
-        _id: l._id.toString(),
-        title: l.title,
-        url: l.url,
-        source_enum: l.source_enum,
-        bezirk: l.bezirk,
-        price_total,
-        area_m2: l.area_m2,
-        rooms: l.rooms,
-        score: (scores?.[profile] ?? l.score ?? null) as number | null,
-        scores: scores ?? null,
-        profile,
-        image_url: l.image_url || null,
-        coordinates: coordinates ?? null,
-        coordinate_source,
-        landmark_hint: l.landmark_hint || null,
-        price_is_estimated,
-        estimated_down_pct: l.estimated_down_pct ?? undefined,
-        estimated_down_pct_kimv: l.estimated_down_pct_kimv ?? undefined,
-        estimated_equity_eur: l.estimated_equity_eur ?? undefined,
-        bank_score_confidence: l.bank_score_confidence ?? undefined,
-        price_vs_avg_pct: priceVsAvgPct,
-        ubahn_walk_minutes: typeof l.ubahn_walk_minutes === 'number' ? l.ubahn_walk_minutes : null,
-        is_genossenschaft: isCoop,
-      };
-    });
+    const result = listings.map((l) => presentMapListing(l, {
+      profile,
+      pricePerSqm: PRICE_PER_SQM,
+      zoneAverage: l.is_genossenschaft === true
+        ? undefined
+        : typeof l.bezirk === 'string'
+          ? zoneAvgMap[l.bezirk]
+          : undefined,
+    }));
 
     const finalResult = minScore > 0
       ? result.filter((l) => l.score == null || l.score >= minScore)
       : result;
 
-    return NextResponse.json({ listings: finalResult, total: finalResult.length });
+    return NextResponse.json({ listings: finalResult, total: finalResult.length }, {
+      headers: { 'Cache-Control': 'public, max-age=15, s-maxage=15, stale-while-revalidate=60' },
+    });
   } catch (err) {
     console.error('[/api/listings/map]', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { GET as getMap } from './listings/map/route';
 import { GET as getDetail } from './listings/[id]/route';
+import { GET as getInsights } from './insights/route';
 
 jest.mock('@/lib/mongodb', () => ({
   getDb: jest.fn(),
@@ -53,5 +54,39 @@ describe('public API status contracts', () => {
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: 'Database error' });
+  });
+
+  it('computes insight secondary counts in Mongo without materializing listings', async () => {
+    const cursor = (value: unknown[]) => ({
+      toArray: () => Promise.resolve(value),
+    });
+    const aggregate = (jest.fn() as jest.Mock)
+      .mockReturnValueOnce(cursor([{
+          _id: null,
+          count: 1,
+          avg_price: 420000,
+          avg_price_per_m2: 7000,
+          avg_score: 72,
+          unfinanceable_count: 0,
+          district_count: 1,
+        }]))
+      .mockReturnValueOnce(cursor([{
+          below_avg_count: 1,
+          good_transit_count: 1,
+        }]));
+    const find = jest.fn();
+    const db = {
+      collection: jest.fn(() => ({ aggregate, find })),
+    };
+    mockedGetDb.mockReturnValue(db as never);
+
+    const response = await getInsights(new NextRequest('http://localhost/api/insights'));
+
+    expect(response.status).toBe(200);
+    expect(find).not.toHaveBeenCalled();
+    expect(aggregate).toHaveBeenCalledTimes(2);
+    expect(aggregate.mock.calls[1][0]).toContainEqual(expect.objectContaining({
+      $setWindowFields: expect.any(Object),
+    }));
   });
 });

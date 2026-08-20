@@ -46,13 +46,41 @@ type MapListingResponse = MapListing & {
   profile: string;
 };
 
+type TopListingResponse = MapListingResponse & {
+  processed_at: number | null;
+  url_is_valid: boolean;
+  price_history: Array<{ price_total: number; date: number }> | null;
+  address: string | null;
+};
+
 type MapPresentationOptions = {
   profile: string;
   pricePerSqm: number;
   zoneAverage?: number;
 };
 
+type DetailPresentationOptions = {
+  profile: string;
+};
+
 const COORDINATE_SOURCES = new Set<CoordinateSource>(['exact', 'landmark', 'district', 'none']);
+
+const DETAIL_FIELDS = [
+  'url', 'title', 'bezirk', 'address', 'source_enum', 'price_total', 'area_m2', 'rooms',
+  'year_built', 'floor', 'condition', 'heating', 'parking', 'betriebskosten', 'hwb_value',
+  'fgee_value', 'energy_class', 'heating_type', 'energy_carrier', 'available_from',
+  'special_features', 'price_per_m2', 'monatsrate', 'own_funds', 'image_url',
+  'sent_to_telegram', 'processed_at', 'local_image_path', 'coordinate_source', 'landmark_hint',
+  'potential_growth_rating', 'renovation_needed_rating', 'balcony_terrace', 'floor_level',
+  'street_view', 'orientation', 'lift_present', 'facade_renovated', 'parifizierung_complete',
+  'roof_renovated', 'building_condition', 'floor_surface', 'free_area_m2', 'unit_number',
+  'ruecklage_eur_month', 'kitchen_included', 'window_type', 'sonderumlage_risk', 'doppelmakler',
+  'maklerprovision_pct', 'document_urls', 'parent_project_id', 'belehnungswert_factor',
+  'estimated_down_pct', 'estimated_down_pct_kimv', 'estimated_equity_eur', 'bank_score_confidence',
+  'betriebskosten_breakdown', 'score_breakdown', 'ubahn_walk_minutes', 'school_walk_minutes',
+  'infrastructure_distances', 'mortgage_details', 'structured_analysis', 'price_history',
+  'url_is_valid', 'price_is_estimated', 'regulatory', 'green_infra', 'gratzl_id', 'investment',
+] as const;
 
 export function buildListingSort(
   profile: string,
@@ -159,4 +187,52 @@ export function presentMapListing(
     ubahn_walk_minutes: numberOrNull(doc.ubahn_walk_minutes),
     is_genossenschaft: doc.is_genossenschaft === true,
   };
+}
+
+export function presentTopListing(
+  doc: ListingDocument,
+  options: MapPresentationOptions,
+): TopListingResponse {
+  const base = presentMapListing(doc, options);
+  const image_url = stringOrNull(doc.image_url) || stringOrNull(doc.minio_image_path);
+  const price_history = Array.isArray(doc.price_history)
+    ? doc.price_history as Array<{ price_total: number; date: number }>
+    : null;
+
+  return {
+    ...base,
+    image_url,
+    processed_at: numberOrNull(doc.processed_at),
+    url_is_valid: doc.url_is_valid !== false,
+    price_history,
+    address: stringOrNull(doc.address),
+  };
+}
+
+export function presentListingDetail(
+  doc: ListingDocument,
+  { profile }: DetailPresentationOptions,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { _id: doc._id.toString() };
+  for (const field of DETAIL_FIELDS) {
+    if (field in doc) result[field] = doc[field];
+  }
+
+  const storedCoords = readCoordinates(doc.coordinates);
+  const coordinates = resolveCoordinates(storedCoords, stringOrNull(doc.bezirk));
+  const scores = readScores(doc.scores);
+
+  result.score = scores?.[profile] ?? numberOrNull(doc.score);
+  result.profile = profile;
+  result.coordinates = coordinates;
+
+  if (!('coordinate_source' in result)) {
+    result.coordinate_source = !coordinates
+      ? 'none'
+      : storedCoords
+        ? 'exact'
+        : 'district';
+  }
+
+  return result;
 }

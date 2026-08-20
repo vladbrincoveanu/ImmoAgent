@@ -4,6 +4,8 @@ import {
   TOP_PROJECTION,
   buildListingSort,
   presentMapListing,
+  presentListingDetail,
+  presentTopListing,
 } from './listing-data';
 
 const doc = {
@@ -46,5 +48,38 @@ describe('listing-data contracts', () => {
     expect(result.coordinates).not.toBeNull();
     expect(result.coordinate_source).toBe('district');
     expect(result.price_vs_avg_pct).toBe(5);
+  });
+
+  it('preserves top-list fields and image fallback', () => {
+    const result = presentTopListing({
+      ...doc,
+      processed_at: 123,
+      minio_image_path: 'https://cdn.example.test/image.jpg',
+      url_is_valid: false,
+      address: 'Test address',
+      price_history: [{ price_total: 420000, date: 123 }],
+    }, {
+      profile: 'default',
+      pricePerSqm: 7000,
+      zoneAverage: 400000,
+    });
+
+    expect(result.processed_at).toBe(123);
+    expect(result.image_url).toBe('https://cdn.example.test/image.jpg');
+    expect(result.url_is_valid).toBe(false);
+    expect(result.address).toBe('Test address');
+    expect(result.price_history).toEqual([{ price_total: 420000, date: 123 }]);
+  });
+
+  it('keeps detail responses to the public listing contract', () => {
+    const result = presentListingDetail({
+      ...doc,
+      secret_internal_note: 'do not expose',
+    }, { profile: 'urban_professional' });
+
+    expect(result.score).toBe(81);
+    expect(result.profile).toBe('urban_professional');
+    expect(result.coordinates).not.toBeNull();
+    expect(result).not.toHaveProperty('secret_internal_note');
   });
 });
