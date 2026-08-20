@@ -485,7 +485,7 @@ def run(no_send: bool = False) -> int:
         ):
             sent += 1
         else:
-            logger.error(f"❌ send failed (retry next run): {listing.url}")
+            logger.error(f"❌ source delivery unresolved; not retried automatically: {listing.url}")
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")

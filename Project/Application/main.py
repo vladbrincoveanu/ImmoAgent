@@ -868,7 +868,11 @@ def main():
         saved_count = 0
         telegram_sent_count = 0
         high_score_listings = []
-        coop_broadcast_candidates = new_coop_candidates(mongo, all_listings)
+        coop_broadcast_candidates = (
+            new_coop_candidates(mongo, all_listings)
+            if send_to_telegram and coop_bot
+            else []
+        )
 
         for listing in all_listings:
             # Calculate score for the listing (always needed for MongoDB storage)
