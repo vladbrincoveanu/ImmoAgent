@@ -3,7 +3,12 @@ import { getDb } from '@/lib/mongodb';
 import { Document } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { TOP_PROJECTION, buildListingSort, presentTopListing } from '@/lib/listing-data';
+import {
+  TOP_PROJECTION,
+  buildListingSort,
+  buildTopListingFilter,
+  presentTopListing,
+} from '@/lib/listing-data';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -31,43 +36,13 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/top] Invalid district rejected:', searchParams.get('district'));
     }
-    const andConditions: Record<string, unknown>[] = [
-      { url_is_valid: { $ne: false } },
-      { listing_status: { $ne: "taken" } },
-      { price_total: { $gt: 0 } },
-      { area_m2: { $gt: 0 } },
-      { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
-      { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
-      { title: { $nin: [null, ""] } },
-    ];
-
     // min_score is applied AFTER mapping (below), on the profile-resolved
     // score the client actually displays — the raw `score` field can differ
     // from scores.<profile> and filtering on it lets mismatches leak through.
 
-    if (district) {
-      andConditions.push({ bezirk: district });
-    }
-
-    if (genossenschaft) {
-      andConditions.push({ is_genossenschaft: true });
-    }
-
     const status = validateStatus(searchParams.get('status'));
-    if (status !== 'all') {
-      if (status === 'active') {
-        andConditions.push({ listing_status: { $ne: "taken" } });
-      } else if (status === 'taken') {
-        andConditions.push({ listing_status: "taken" });
-      }
-    }
-
     const belowAvgPct = Math.max(0, Math.min(100, Number(searchParams.get('below_avg_pct') ?? 0)));
-    if (belowAvgPct > 0) {
-      andConditions.push({ bezirk: { $exists: true, $ne: null } });
-    }
-
-    const filter: Record<string, unknown> = { $and: andConditions };
+    const filter = buildTopListingFilter({ district, genossenschaft, status, belowAvgPct });
 
     const listings = await db
       .collection<Document>('listings')

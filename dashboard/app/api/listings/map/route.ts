@@ -3,8 +3,12 @@ import { getDb } from '@/lib/mongodb';
 import { Document } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
-import { coopBaseQuery } from '@/lib/coop-query';
-import { MAP_PROJECTION, buildListingSort, presentMapListing } from '@/lib/listing-data';
+import {
+  MAP_PROJECTION,
+  buildListingSort,
+  buildMapListingFilter,
+  presentMapListing,
+} from '@/lib/listing-data';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -35,41 +39,13 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
-    // Co-op rentals store the MONTHLY RENT in price_total, so the purchase €/m²
-    // band below (2500–20000) rejects every one of them (€700 / 60 m² ≈ €12).
-    // They therefore get their own gates — the shared /coop definition, which
-    // already carries the Wien + livable-area guards — and the purchase map
-    // excludes them explicitly rather than relying on that band to do it.
-    const filter: Record<string, unknown> = genossenschaft
-      ? {
-          $and: [
-            coopBaseQuery(),
-            { listing_status: { $ne: 'taken' } },
-            { price_total: { $gt: 0 } },
-            { title: { $nin: [null, ''] } },
-          ],
-        }
-      : {
-          $and: [
-            { url_is_valid: { $ne: false } },
-            { listing_status: { $ne: "taken" } },
-            { is_genossenschaft: { $ne: true } },
-            { price_total: { $gt: 0 } },
-            { area_m2: { $gt: 0 } },
-            { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
-            { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
-            { title: { $nin: [null, ""] } },
-          ],
-        };
+    // Co-op rentals use a separate filter because price_total is monthly rent,
+    // not a purchase price per square metre.
+    const filter = buildMapListingFilter({ district, genossenschaft });
 
     // min_score is applied AFTER mapping (below), on the profile-resolved
     // score the client actually displays — the raw `score` field can differ
     // from scores.<profile> and filtering on it lets mismatches leak through.
-
-    if (district) {
-      filter.bezirk = district;
-    }
-
 
     const listings = await db
       .collection<Document>('listings')

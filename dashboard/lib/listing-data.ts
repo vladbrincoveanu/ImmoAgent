@@ -1,7 +1,8 @@
 import { DEFAULT_PROFILE } from './profile';
 import type { CoordinateSource, MapListing } from './types';
 import { resolveCoordinates } from './district-centroids';
-import type { SortOption } from './validators';
+import { coopBaseQuery } from './coop-query';
+import type { SortOption, StatusOption } from './validators';
 
 export const MAP_PROJECTION: Record<string, 1> = {
   title: 1,
@@ -35,6 +36,74 @@ export const TOP_PROJECTION: Record<string, 1> = {
 };
 
 export type ListingMode = 'purchase' | 'coop';
+
+export type ListingFilter = {
+  $and: Record<string, unknown>[];
+  bezirk?: string;
+};
+
+export function buildMapListingFilter({
+  district,
+  genossenschaft,
+}: {
+  district: string | null;
+  genossenschaft: boolean;
+}): ListingFilter {
+  const filter: ListingFilter = genossenschaft
+    ? {
+        $and: [
+          coopBaseQuery(),
+          { listing_status: { $ne: 'taken' } },
+          { price_total: { $gt: 0 } },
+          { title: { $nin: [null, ''] } },
+        ],
+      }
+    : {
+        $and: [
+          { url_is_valid: { $ne: false } },
+          { listing_status: { $ne: 'taken' } },
+          { is_genossenschaft: { $ne: true } },
+          { price_total: { $gt: 0 } },
+          { area_m2: { $gt: 0 } },
+          { $expr: { $gte: [{ $divide: ['$price_total', '$area_m2'] }, 2500] } },
+          { $expr: { $lte: [{ $divide: ['$price_total', '$area_m2'] }, 20000] } },
+          { title: { $nin: [null, ''] } },
+        ],
+      };
+
+  if (district) filter.bezirk = district;
+  return filter;
+}
+
+export function buildTopListingFilter({
+  district,
+  genossenschaft,
+  status,
+  belowAvgPct,
+}: {
+  district: string | null;
+  genossenschaft: boolean;
+  status: StatusOption;
+  belowAvgPct: number;
+}): ListingFilter {
+  const conditions: Record<string, unknown>[] = [
+    { url_is_valid: { $ne: false } },
+    { listing_status: { $ne: 'taken' } },
+    { price_total: { $gt: 0 } },
+    { area_m2: { $gt: 0 } },
+    { $expr: { $gte: [{ $divide: ['$price_total', '$area_m2'] }, 2500] } },
+    { $expr: { $lte: [{ $divide: ['$price_total', '$area_m2'] }, 20000] } },
+    { title: { $nin: [null, ''] } },
+  ];
+
+  if (district) conditions.push({ bezirk: district });
+  if (genossenschaft) conditions.push({ is_genossenschaft: true });
+  if (status === 'active') conditions.push({ listing_status: { $ne: 'taken' } });
+  if (status === 'taken') conditions.push({ listing_status: 'taken' });
+  if (belowAvgPct > 0) conditions.push({ bezirk: { $exists: true, $ne: null } });
+
+  return { $and: conditions };
+}
 
 type ListingDocument = {
   _id: { toString(): string };

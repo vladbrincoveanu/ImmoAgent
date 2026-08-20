@@ -2,7 +2,9 @@ import { describe, expect, it } from '@jest/globals';
 import {
   MAP_PROJECTION,
   TOP_PROJECTION,
+  buildMapListingFilter,
   buildListingSort,
+  buildTopListingFilter,
   presentMapListing,
   presentListingDetail,
   presentTopListing,
@@ -35,6 +37,34 @@ describe('listing-data contracts', () => {
       'scores.urban_professional': -1,
       processed_at: -1,
     });
+  });
+
+  it('preserves purchase and co-op filter predicates', () => {
+    const purchase = buildMapListingFilter({ district: '1010', genossenschaft: false });
+    expect(purchase.$and).toEqual(expect.arrayContaining([
+      { is_genossenschaft: { $ne: true } },
+    ]));
+    expect(purchase.bezirk).toBe('1010');
+
+    const coop = buildMapListingFilter({ district: null, genossenschaft: true });
+    expect(coop.$and).toEqual(expect.arrayContaining([{ listing_status: { $ne: 'taken' } }]));
+    expect(coop.$and?.[0]).toMatchObject({ is_genossenschaft: true });
+  });
+
+  it('preserves top status and below-average filter gates', () => {
+    const filter = buildTopListingFilter({
+      district: '1020',
+      genossenschaft: true,
+      status: 'taken',
+      belowAvgPct: 10,
+    });
+
+    expect(filter.$and).toEqual(expect.arrayContaining([
+      { bezirk: '1020' },
+      { is_genossenschaft: true },
+      { listing_status: 'taken' },
+      { bezirk: { $exists: true, $ne: null } },
+    ]));
   });
 
   it('preserves district-centroid fallback and profile score', () => {
