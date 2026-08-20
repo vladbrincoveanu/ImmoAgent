@@ -42,6 +42,8 @@ export function ListingCard({ listing, onClick, destLat, destLon, destName }: Li
           <img
             src={listing.image_url!}
             alt={listing.title || 'Property image'}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
             onError={() => setImageError(true)}
           />

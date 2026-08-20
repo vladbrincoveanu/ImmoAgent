@@ -33,7 +33,13 @@ export function SlimListingCard({ listing, selected, onClick }: SlimListingCardP
     >
       <div className="w-14 h-14 rounded-lg flex-shrink-0 bg-gradient-to-br from-[#dde4ee] to-[#c9d3e2] flex items-center justify-center text-ink-3 overflow-hidden">
         {listing.image_url ? (
-          <img src={listing.image_url} alt="" className="w-full h-full object-cover" />
+          <img
+            src={listing.image_url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
         ) : (
           HOUSE_SVG
         )}

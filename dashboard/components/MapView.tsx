@@ -184,9 +184,10 @@ function MarkerLayer({
     }
     const layer = layerGroupRef.current;
 
+    const listingIds = new Set(listings.map((listing) => listing._id));
     const toRemove: string[] = [];
     markerInstances.current.forEach((_, id) => {
-      if (!listings.find((l) => l._id === id)) {
+      if (!listingIds.has(id)) {
         toRemove.push(id);
       }
     });

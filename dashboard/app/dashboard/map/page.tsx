@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { MapView, type ViewportBounds, type LayerState, type StationFeature, type SchoolFeature } from '@/components/MapView';
+import type { ViewportBounds, LayerState, StationFeature, SchoolFeature } from '@/components/MapView';
 import { MapTopBar } from '@/components/MapTopBar';
 import { MapFilterPopover, type MapFilterState, COMMUTE_COORDS } from '@/components/MapFilterPopover';
 import { MapLayersPopover } from '@/components/MapLayersPopover';
@@ -49,8 +49,6 @@ function MapPage() {
   const [bounds, setBounds] = useState<ViewportBounds | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [snapPoints, setSnapPoints] = useState<[number, number, number]>([64, 360, 720]);
-  const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
   // New layout state
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -64,8 +62,17 @@ function MapPage() {
   const [stationData, setStationData] = useState<StationFeature[]>([]);
   const [schoolData, setSchoolData] = useState<SchoolFeature[]>([]);
   const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
+  const [viewportMode, setViewportMode] = useState<'desktop' | 'mobile' | null>(null);
 
   const { newListings } = useListingsSSE();
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 768px)');
+    const updateViewportMode = () => setViewportMode(media.matches ? 'desktop' : 'mobile');
+    updateViewportMode();
+    media.addEventListener('change', updateViewportMode);
+    return () => media.removeEventListener('change', updateViewportMode);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,17 +115,7 @@ function MapPage() {
     });
   }, [newListings]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      const h = window.innerHeight;
-      setSnapPoints([64, Math.round(h * 0.45), Math.round(h * 0.9)]);
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const fetchListings = useCallback(async () => {
+  const fetchListings = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -134,36 +131,25 @@ function MapPage() {
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
       if (genossenschaft) params.set('genossenschaft', 'true');
 
-      const res = await fetch(`/api/listings/map?${params}`);
+      const url = `/api/listings/map?${params.toString()}`;
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`Listings request failed: ${res.status}`);
       const data = await res.json();
       const items = (data.listings ?? []) as Array<MapListing & { scores?: Record<string, number | null> | null }>;
       setListings(items);
-      const map: Record<string, Record<string, number | null>> = {};
-      for (const l of items) {
-        map[l._id] = (l.scores && typeof l.scores === 'object') ? l.scores : { [profile]: l.score ?? null };
-      }
-      setScoresById(map);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [minScore, district, sortBy, profile, maxPrice, maxEquity, equity, rate, showUnfinanceable, belowAvgPct, genossenschaft]);
 
-  useEffect(() => { fetchListings(); }, [fetchListings]);
-
-  // Re-sort locally on profile change
   useEffect(() => {
-    if (Object.keys(scoresById).length === 0) return;
-    setListings((prev) => {
-      const sorted = [...prev].sort((a, b) => {
-        const sa = scoresById[a._id]?.[profile] ?? a.score ?? 0;
-        const sb = scoresById[b._id]?.[profile] ?? b.score ?? 0;
-        return sb - sa;
-      });
-      return sorted;
-    });
-  }, [profile, scoresById]);
+    const controller = new AbortController();
+    void fetchListings(controller.signal);
+    return () => controller.abort();
+  }, [fetchListings]);
 
   const filteredListings = useMemo(() => {
     const maxPriceNum = maxPrice ? Number(maxPrice) : null;
@@ -340,7 +326,7 @@ function MapPage() {
           />
 
           <div className="flex-1 relative">
-            {loading ? (
+            {loading && listings.length === 0 ? (
               <div className="h-full flex items-center justify-center bg-gray-50">
                 <p className="text-gray-500">Loading...</p>
               </div>
@@ -350,29 +336,31 @@ function MapPage() {
               </div>
             ) : (
               <>
-                <MapViewDynamic
-                  listings={viewportListings}
-                  selectedListingId={selectedListingId}
-                  layers={layers}
-                  stationData={stationData}
-                  schoolData={schoolData}
-                  layersPopoverSlot={
-                    <MapLayersPopover
-                      open={layersOpen}
-                      onClose={() => setLayersOpen(false)}
-                      layers={layers}
-                      onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
-                      counts={layerCounts}
-                    />
-                  }
-                  onPinClick={handlePinClick}
-                  onMapClick={() => setSelectedListingId(null)}
-                  onBoundsChange={setBounds}
-                />
+                {viewportMode === 'desktop' && (
+                  <MapViewDynamic
+                    listings={viewportListings}
+                    selectedListingId={selectedListingId}
+                    layers={layers}
+                    stationData={stationData}
+                    schoolData={schoolData}
+                    layersPopoverSlot={
+                      <MapLayersPopover
+                        open={layersOpen}
+                        onClose={() => setLayersOpen(false)}
+                        layers={layers}
+                        onToggle={(k) => setLayers((s) => ({ ...s, [k]: !s[k] }))}
+                        counts={layerCounts}
+                      />
+                    }
+                    onPinClick={handlePinClick}
+                    onMapClick={() => setSelectedListingId(null)}
+                    onBoundsChange={setBounds}
+                  />
+                )}
               </>
             )}
 
-            {selectedListing && !loading && (
+            {selectedListing && viewportMode === 'desktop' && (
               <div data-testid="selected-card-slot" className="absolute inset-0 pointer-events-none">
                 <div className="pointer-events-auto">
                   <SelectedCard
@@ -407,7 +395,7 @@ function MapPage() {
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <div className="flex-1 min-h-0 flex overflow-hidden">
               <div className="flex-1 relative">
-                {loading ? (
+                {loading && listings.length === 0 ? (
                   <div className="h-full flex items-center justify-center bg-gray-50">
                     <p className="text-gray-500">Loading...</p>
                   </div>
@@ -415,18 +403,18 @@ function MapPage() {
                   <div className="h-full flex items-center justify-center bg-gray-50">
                     <p className="text-gray-400">No listings match your filters.</p>
                   </div>
-                ) : (
-                  <MapViewDynamic
-                    listings={listings}
-                    selectedListingId={selectedListingId}
-                    layers={layers}
-                    stationData={stationData}
-                    schoolData={schoolData}
-                    onPinClick={handlePinClick}
-                    onMapClick={handleCloseDetail}
-                    onBoundsChange={setBounds}
-                  />
-                )}
+                ) : viewportMode === 'mobile' ? (
+                    <MapViewDynamic
+                      listings={listings}
+                      selectedListingId={selectedListingId}
+                      layers={layers}
+                      stationData={stationData}
+                      schoolData={schoolData}
+                      onPinClick={handlePinClick}
+                      onMapClick={handleCloseDetail}
+                      onBoundsChange={setBounds}
+                    />
+                ) : null}
               </div>
             </div>
 

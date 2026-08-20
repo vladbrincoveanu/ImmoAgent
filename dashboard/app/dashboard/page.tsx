@@ -37,9 +37,8 @@ function DashboardContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const [scoresById, setScoresById] = useState<Record<string, Record<string, number | null>>>({});
 
-  const fetchListings = useCallback(async () => {
+  const fetchListings = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -51,36 +50,25 @@ function DashboardContent() {
       if (maxEquity) params.set('max_equity', maxEquity);
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
-      const res = await fetch(`/api/listings/top?${params.toString()}`);
+      const url = `/api/listings/top?${params.toString()}`;
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`Listings request failed: ${res.status}`);
       const data = await res.json();
-      const items = (data.listings ?? []) as Array<ListingBase & { scores?: Record<string, number | null> | null }>;
+      const items = (data.listings ?? []) as ListingBase[];
       setListings(items);
-      const map: Record<string, Record<string, number | null>> = {};
-      for (const l of items) {
-        map[l._id] = (l.scores && typeof l.scores === 'object') ? l.scores : { [profile]: l.score ?? null };
-      }
-      setScoresById(map);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [minScore, district, sortBy, profile, maxPrice, maxEquity, belowAvgPct]);
 
-  useEffect(() => { fetchListings(); }, [fetchListings]);
-
-  // Re-sort locally when profile changes (no network call)
   useEffect(() => {
-    if (Object.keys(scoresById).length === 0) return;
-    setListings((prev) => {
-      const sorted = [...prev].sort((a, b) => {
-        const sa = scoresById[a._id]?.[profile] ?? a.score ?? 0;
-        const sb = scoresById[b._id]?.[profile] ?? b.score ?? 0;
-        return sb - sa;
-      });
-      return sorted;
-    });
-  }, [profile, scoresById]);
+    const controller = new AbortController();
+    void fetchListings(controller.signal);
+    return () => controller.abort();
+  }, [fetchListings]);
 
   const equityNum = Number(equity) || 100000;
   const rateNum = Number(rate) || 3.8;
@@ -200,7 +188,7 @@ function DashboardContent() {
           />
         </div>
 
-        {loading ? (
+        {loading && listings.length === 0 ? (
           <p className="text-gray-500">Loading...</p>
         ) : filteredListings.length === 0 ? (
           <p className="text-gray-400">{listings.length === 0 ? 'No listings found.' : 'All listings filtered out.'}</p>
