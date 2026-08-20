@@ -64,6 +64,7 @@ function MapPage() {
   const [railSort, setRailSort] = useState<SortOption>(sortBy || 'score_desc');
   const [viewportMode, setViewportMode] = useState<'desktop' | 'mobile' | null>(null);
   const requestVersion = useRef(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const { newListings } = useListingsSSE();
 
@@ -118,6 +119,7 @@ function MapPage() {
 
   const fetchListings = useCallback(async (signal?: AbortSignal) => {
     const currentRequest = ++requestVersion.current;
+    setFetchError(null);
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -140,8 +142,10 @@ function MapPage() {
       if (currentRequest !== requestVersion.current) return;
       const items = (data.listings ?? []) as Array<MapListing & { scores?: Record<string, number | null> | null }>;
       setListings(items);
+      setFetchError(null);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
+      if (currentRequest === requestVersion.current) setFetchError('Listings unavailable. Try again.');
       console.error(err);
     } finally {
       if (!signal?.aborted && currentRequest === requestVersion.current) setLoading(false);
@@ -285,6 +289,11 @@ function MapPage() {
   return (
     <>
       {viewportMode === null && <MapLoadingState />}
+      {fetchError && (
+        <p role="status" className="fixed top-14 left-1/2 z-[2100] -translate-x-1/2 rounded bg-red-50 px-3 py-2 text-sm text-red-700 shadow" aria-live="polite">
+          {fetchError}
+        </p>
+      )}
 
       {/* DESKTOP — top bar + rail + map */}
       {viewportMode === 'desktop' && (

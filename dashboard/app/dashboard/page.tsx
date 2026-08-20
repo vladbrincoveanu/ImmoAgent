@@ -38,9 +38,11 @@ function DashboardContent() {
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const requestVersion = useRef(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchListings = useCallback(async (signal?: AbortSignal) => {
     const currentRequest = ++requestVersion.current;
+    setFetchError(null);
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -59,8 +61,10 @@ function DashboardContent() {
       if (currentRequest !== requestVersion.current) return;
       const items = (data.listings ?? []) as ListingBase[];
       setListings(items);
+      setFetchError(null);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
+      if (currentRequest === requestVersion.current) setFetchError('Listings unavailable. Try again.');
       console.error(err);
     } finally {
       if (!signal?.aborted && currentRequest === requestVersion.current) setLoading(false);
@@ -189,6 +193,12 @@ function DashboardContent() {
             onMaxCommuteChange={(v) => update({ maxCommute: v })}
           />
         </div>
+
+        {fetchError && (
+          <p role="status" className="mb-3 text-sm text-red-700" aria-live="polite">
+            {fetchError}
+          </p>
+        )}
 
         {loading && listings.length === 0 ? (
           <p className="text-gray-500">Loading...</p>
