@@ -515,6 +515,33 @@ def test_calculate_listing_score_falls_back_without_vienna_bot():
     score_listing.assert_called_once_with(candidate)
 
 
+def test_main_coop_candidates_exclude_existing_urls_and_lookup_errors():
+    from Application import main as main_module
+
+    existing = Listing(
+        url="https://example.test/old",
+        source=Source.GENOSSENSCHAFT,
+        is_genossenschaft=True,
+        coop_source="bautraeger_direct",
+        area_m2=90.0,
+        rooms=4.0,
+    )
+    fresh = Listing(
+        url="https://example.test/new",
+        source=Source.GENOSSENSCHAFT,
+        is_genossenschaft=True,
+        coop_source="bautraeger_direct",
+        area_m2=90.0,
+        rooms=4.0,
+    )
+    mongo = Mock()
+    mongo.get_listings_by_urls.return_value = {existing.url: {"url": existing.url}}
+
+    assert main_module.new_coop_candidates(mongo, [existing, fresh]) == [fresh]
+    mongo.get_listings_by_urls.return_value = None
+    assert main_module.new_coop_candidates(mongo, [fresh]) == []
+
+
 def test_main_completes_coop_route_without_dev_or_vienna_bot():
     from Application import main as main_module
 
@@ -522,7 +549,7 @@ def test_main_completes_coop_route_without_dev_or_vienna_bot():
         url="https://example.test/coop-main",
         source=Source.GENOSSENSCHAFT,
         title="Co-op listing",
-        area_m2=70.0,
+        area_m2=75.0,
         rooms=3.0,
         is_genossenschaft=True,
         coop_source="bautraeger_direct",
@@ -535,6 +562,7 @@ def test_main_completes_coop_route_without_dev_or_vienna_bot():
     }
     mongo = Mock()
     mongo.get_listing.return_value = None
+    mongo.get_listings_by_urls.return_value = {}
     coop_bot = Mock()
     coop_bot.send_message.return_value = True
     ratings = {
@@ -558,6 +586,7 @@ def test_main_completes_coop_route_without_dev_or_vienna_bot():
             patch("Application.main.scrape_willhaben", return_value=([coop_listing], "genossenschaft")), \
             patch("Application.main.mark_taken_listings", return_value={"newly_taken": 0, "already_taken": 0}), \
             patch("Application.main.TelegramBot", return_value=coop_bot) as telegram_bot, \
+            patch("Application.main.send_coop_listing", return_value=True) as send_coop, \
             patch("Application.main.save_listings_to_mongodb", return_value=1) as save_listings, \
             patch("Application.main.validate_url", return_value=True), \
             patch("Application.main.compute_xsrc_fingerprint", return_value="xsrc"), \
@@ -571,8 +600,12 @@ def test_main_completes_coop_route_without_dev_or_vienna_bot():
     telegram_bot.assert_called_once_with("main-token", "coop-chat")
     score_listing.assert_called_once_with(coop_listing.__dict__)
     save_listings.assert_called_once_with([coop_listing])
-    coop_bot.send_message.assert_called_once_with("co-op message")
-    mongo.mark_sent.assert_called_once_with(coop_listing.url)
+    coop_bot.send_message.assert_not_called()
+    send_coop.assert_called_once()
+    send_args, send_kwargs = send_coop.call_args
+    assert send_args[:4] == (coop_listing, coop_bot, mongo, "coop")
+    assert set(send_kwargs) == {"url_validator", "message_formatter"}
+    mongo.mark_sent.assert_not_called()
 
 
 def test_main_uses_vienna_delivery_without_property_summary_or_cooldown():

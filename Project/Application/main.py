@@ -27,7 +27,12 @@ from Domain.location import Coordinates
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
-from Application.telegram_delivery import preserve_delivery_state, send_vienna_listings
+from Application.telegram_delivery import (
+    COOP_CHANNEL,
+    preserve_delivery_state,
+    send_coop_listing,
+    send_vienna_listings,
+)
 from Domain.listing import Listing
 import logging
 import logging.handlers
@@ -123,6 +128,29 @@ def calculate_listing_score(listing, telegram_bot):
 
     from Application.scoring import score_apartment_simple
     return score_apartment_simple(listing_data)
+
+
+def new_coop_candidates(mongo, listings):
+    candidates = []
+    seen_urls = set()
+    for listing in listings:
+        if (
+            not getattr(listing, "is_genossenschaft", False)
+            or getattr(listing, "coop_source", None) == "willhaben"
+            or not getattr(listing, "url", None)
+            or listing.url in seen_urls
+        ):
+            continue
+        seen_urls.add(listing.url)
+        candidates.append(listing)
+
+    if not candidates:
+        return []
+    existing = mongo.get_listings_by_urls([listing.url for listing in candidates])
+    if existing is None:
+        logging.error("Could not determine new co-op listings; skipping source delivery")
+        return []
+    return [listing for listing in candidates if listing.url not in existing]
 
 
 def compute_coordinate_precision_m(coordinate_source):
@@ -840,20 +868,9 @@ def main():
         saved_count = 0
         telegram_sent_count = 0
         high_score_listings = []
-        coop_broadcast_candidates = []
+        coop_broadcast_candidates = new_coop_candidates(mongo, all_listings)
 
         for listing in all_listings:
-            # Co-op listings are eligible for the co-op channel broadcast below,
-            # independent of the main channel's
-            # score threshold. Willhaben-sourced co-ops are excluded: the co-op
-            # surfaces are builder-direct only (they'd link to Willhaben, not the
-            # builder's reservation page, and can leak mis-tagged for-sale units).
-            if listing.is_genossenschaft and listing.coop_source != 'willhaben':
-                if was_listing_sent_recently(mongo, listing.url):
-                    logging.info(f"⏭️ Skipping recent co-op broadcast: {listing.title}")
-                else:
-                    coop_broadcast_candidates.append(listing)
-
             # Calculate score for the listing (always needed for MongoDB storage)
             score = calculate_listing_score(listing, telegram_bot)
             listing.score = score
@@ -890,30 +907,18 @@ def main():
                     deduped[key] = listing
             coop_broadcast_candidates = list(deduped.values())
 
-            # URL validation is mandatory before display/send (CLAUDE.md hard rule).
-            verified_candidates = []
-            for listing in coop_broadcast_candidates:
-                if validate_url(listing.url):
-                    verified_candidates.append(listing)
-                else:
-                    logging.warning(f"🚫 Skipping co-op broadcast — broken URL: {listing.url}")
-                    try:
-                        mongo.mark_url_invalid(listing.url)
-                    except Exception as e:
-                        logging.warning(f"Failed to mark co-op URL invalid: {e}")
-
             coop_sent_count = 0
-            for listing in verified_candidates:
-                try:
-                    msg = format_coop_message(listing)
-                    if coop_bot.send_message(msg):
-                        coop_sent_count += 1
-                        mongo.mark_sent(listing.url)
-                    else:
-                        logging.error(f"❌ Failed to send co-op notification for {listing.title}")
-                except Exception as e:
-                    logging.error(f"❌ Co-op Telegram error for {listing.title}: {e}")
-            logging.info(f"📱 Sent {coop_sent_count}/{len(verified_candidates)} co-op channel notifications")
+            for listing in coop_broadcast_candidates:
+                if send_coop_listing(
+                    listing,
+                    coop_bot,
+                    mongo,
+                    COOP_CHANNEL,
+                    url_validator=validate_url,
+                    message_formatter=format_coop_message,
+                ):
+                    coop_sent_count += 1
+            logging.info(f"📱 Sent {coop_sent_count}/{len(coop_broadcast_candidates)} co-op channel notifications")
 
         score_threshold = 40  # Default threshold
         if config and 'telegram' in config:
