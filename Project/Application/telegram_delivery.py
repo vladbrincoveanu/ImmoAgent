@@ -3,8 +3,10 @@ import math
 import uuid
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
+from types import SimpleNamespace
 from typing import Any, Dict, Optional, Set, Tuple
 
+from Application.coop_format import format_coop_message
 from Application.helpers.listing_validator import compute_content_fingerprint, validate_url
 
 
@@ -13,6 +15,10 @@ logger = logging.getLogger(__name__)
 VIENNA_CHANNEL = "vienna"
 VIENNA_MIN_AREA_M2 = 75.0
 VIENNA_MIN_ROOMS = 3.0
+COOP_CHANNEL = "coop"
+PRIVATE_COOP_CHANNEL = "private_coop"
+COOP_MIN_AREA_M2 = 75.0
+COOP_MIN_ROOMS = 3.0
 DELIVERY_STATE_FIELDS = (
     "telegram_delivery",
     "sent_to_telegram",
@@ -83,6 +89,24 @@ def vienna_filter_reason(
         return "missing or invalid score threshold"
     if score_value <= threshold_value:
         return f"score {score_value:g} does not exceed threshold {threshold_value:g}"
+    return None
+
+
+def coop_filter_reason(listing: Any) -> Optional[str]:
+    data = listing_dict(listing)
+    url = data.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return "missing or invalid URL"
+
+    for field, minimum in (
+        ("area_m2", COOP_MIN_AREA_M2),
+        ("rooms", COOP_MIN_ROOMS),
+    ):
+        value = _policy_number(data.get(field))
+        if value is None:
+            return f"missing or invalid {field}"
+        if value < minimum:
+            return f"{field} {value:g} is below minimum {minimum:g}"
     return None
 
 
@@ -195,3 +219,79 @@ def send_vienna_listings(listings, bot, mongo, url_validator=validate_url) -> in
                 logger.error("Could not quarantine Vienna listing %s", url)
 
     return sent_count
+
+
+def send_coop_listing(
+    listing,
+    bot,
+    mongo,
+    channel: str,
+    *,
+    url_validator=validate_url,
+    message_formatter=format_coop_message,
+) -> bool:
+    data = listing_dict(listing)
+    reason = coop_filter_reason(data)
+    if reason:
+        logger.info("Skipping co-op source listing %r: %s", data.get("url"), reason)
+        return False
+
+    url = data["url"]
+    try:
+        valid = url_validator(url)
+    except Exception as exc:
+        logger.warning("Co-op URL validation failed for %s: %s", url, exc)
+        valid = False
+    if not valid:
+        try:
+            mongo.mark_url_invalid(url)
+        except Exception as exc:
+            logger.warning("Could not mark co-op URL invalid %s: %s", url, exc)
+        return False
+
+    claim_token = uuid.uuid4().hex
+    try:
+        claimed = mongo.claim_listing_delivery(
+            url, "", channel, claim_token=claim_token, lease_seconds=None
+        )
+    except Exception as exc:
+        logger.error("Could not claim co-op listing %s: %s", url, exc)
+        return False
+    if not claimed:
+        logger.info("Skipping co-op listing already claimed or sent: %s", url)
+        return False
+
+    try:
+        if isinstance(listing, Mapping):
+            formatter_data = {
+                "bautraeger": None,
+                "bezirk": None,
+                "builder_url": None,
+                "allocation_model": None,
+                "price_total": None,
+            }
+            formatter_data.update(data)
+            message_listing = SimpleNamespace(**formatter_data)
+        else:
+            message_listing = listing
+        delivered = bool(bot.send_message(message_formatter(message_listing)))
+    except Exception as exc:
+        logger.error("Co-op Telegram send failed for %s: %s", url, exc)
+        delivered = False
+
+    if delivered:
+        try:
+            if mongo.mark_listing_delivery_sent(
+                url, "", channel, claim_token=claim_token
+            ):
+                return True
+        except Exception as exc:
+            logger.error("Could not mark co-op listing sent %s: %s", url, exc)
+
+    try:
+        mongo.quarantine_listing_delivery(
+            url, "", channel, claim_token=claim_token
+        )
+    except Exception as exc:
+        logger.error("Could not quarantine co-op listing %s: %s", url, exc)
+    return False
