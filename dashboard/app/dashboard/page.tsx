@@ -13,6 +13,7 @@ import { EmailAlertsModal } from '@/components/EmailAlertsModal';
 import { ListingBase } from '@/lib/types';
 import { useFilters } from '@/lib/useFilters';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { estimateWalkMinutes, haversineKm } from '@/lib/geo';
 
 function calcMonatsrate(loanAmount: number, rate: number): number {
   if (loanAmount <= 0 || rate <= 0) return 0;
@@ -108,16 +109,6 @@ function DashboardContent() {
     const maxCommuteNum = maxCommute ? Number(maxCommute) : null;
     const destLatNum = destLat ? Number(destLat) : null;
     const destLonNum = destLon ? Number(destLon) : null;
-    const WALK_KMH = 4.8;
-    function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
-      const R = 6371;
-      const dLat = (b.lat - a.lat) * Math.PI / 180;
-      const dLon = (b.lon - a.lon) * Math.PI / 180;
-      const lat1 = a.lat * Math.PI / 180;
-      const lat2 = b.lat * Math.PI / 180;
-      const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-      return 2 * R * Math.asin(Math.sqrt(x));
-    }
     return enrichedListings.filter((l) => {
       if (maxPriceNum != null && Number.isFinite(maxPriceNum) && l.price_total != null && l.price_total > maxPriceNum) return false;
       if (maxEquityNum != null && Number.isFinite(maxEquityNum) && l.estimated_equity_eur != null && l.estimated_equity_eur > maxEquityNum) return false;
@@ -135,7 +126,7 @@ function DashboardContent() {
         const lcoords = (l as ListingBase & { coordinates?: { lat: number; lon: number } | null }).coordinates;
         if (lcoords) {
           const km = haversineKm(lcoords, { lat: destLatNum, lon: destLonNum });
-          const walkMin = Math.round((km / WALK_KMH) * 60);
+          const walkMin = estimateWalkMinutes(km);
           if (walkMin > maxCommuteNum) return false;
         }
       }
