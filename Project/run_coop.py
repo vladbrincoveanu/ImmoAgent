@@ -29,6 +29,12 @@ from Application.scraping.willhaben_private_coop import (
     crawl_newest, is_private_transfer)
 from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.coop_format import format_coop_message
+from Application.telegram_delivery import (
+    COOP_CHANNEL,
+    PRIVATE_COOP_CHANNEL,
+    coop_filter_reason,
+    send_coop_listing,
+)
 from Application.helpers.listing_validator import validate_url
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
@@ -116,12 +122,23 @@ def _mygewo_urls(seen: List[Listing]) -> List[str]:
     return urls
 
 
+def _coop_source_urls(seen: List[Listing]) -> List[str]:
+    urls = []
+    known = set()
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if is_coop_listing(listing) and url and url not in known:
+            known.add(url)
+            urls.append(url)
+    return urls
+
+
 def new_alert_candidates(handler, seen: List[Listing],
                          new_from_willhaben: List[Listing],
                          existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
-    """Return crawl-new Willhaben listings, then new mygewo units once each."""
+    """Return crawl-new Willhaben listings and co-op source units once each."""
     if existing_by_url is _LOOKUP_NOT_PROVIDED:
-        existing_by_url = handler.get_listings_by_urls(_mygewo_urls(seen))
+        existing_by_url = handler.get_listings_by_urls(_coop_source_urls(seen))
 
     candidates = []
     candidate_urls = set()
@@ -138,7 +155,7 @@ def new_alert_candidates(handler, seen: List[Listing],
 
     for listing in seen:
         url = getattr(listing, "url", None) or ""
-        if ("mygewo.at" not in url or url in candidate_urls
+        if (not is_coop_listing(listing) or url in candidate_urls
                 or url in existing_by_url):
             continue
         candidate_urls.add(url)
@@ -352,12 +369,13 @@ def run(no_send: bool = False) -> int:
 
     mygewo_existing: Optional[Dict[str, Dict]] = {}
     mygewo_lookup_failed = False
+    source_channel_candidates: List[Listing] = []
     if not no_send:
-        mygewo_urls = _mygewo_urls(seen)
-        if mygewo_urls:
+        source_urls = _coop_source_urls(seen)
+        if source_urls:
             # One batch lookup feeds both candidate classification and detail reuse.
             # None means the query failed, not that every unit is new.
-            mygewo_existing = handler.get_listings_by_urls(mygewo_urls)
+            mygewo_existing = handler.get_listings_by_urls(source_urls)
             mygewo_lookup_failed = mygewo_existing is None
             if mygewo_lookup_failed:
                 logger.error(
@@ -365,7 +383,12 @@ def run(no_send: bool = False) -> int:
                     "owner alerts so user alerts can retry next poll")
         user_alert_candidates = new_alert_candidates(
             handler, seen, new_from_willhaben, mygewo_existing)
+        source_channel_candidates = user_alert_candidates
         deliver_user_alerts(handler, user_alert_candidates)
+    else:
+        # Dry-run keeps its existing preview behavior without treating the
+        # inventory as new or touching the delivery ledger.
+        source_channel_candidates = seen
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
@@ -431,10 +454,10 @@ def run(no_send: bool = False) -> int:
         handler.upsert_coop_listing(_to_doc(listing))
 
     sent = 0
-    for listing in seen:
+    for listing in source_channel_candidates:
         if mygewo_lookup_failed and "mygewo.at" in (listing.url or ""):
             continue
-        # The channel feeds are co-op only. `seen` now also carries every new
+        # The channel feeds are co-op only. The candidate list can also carry new
         # Willhaben rental, because keyword alerts poll the whole newest-first
         # feed — without this guard the mygewo channel would receive the entire
         # Wien rental market.
@@ -442,23 +465,37 @@ def run(no_send: bool = False) -> int:
             continue
         if not matches_coop_alerts(listing, alerts):
             continue
-        doc = handler.get_listing(listing.url)
-        if doc and doc.get("sent_to_telegram"):
-            continue
-        if not validate_url(listing.url):            # CLAUDE.md hard rule 2
-            logger.warning(f"🚫 broken URL, skipping: {listing.url}")
-            handler.mark_url_invalid(listing.url)
-            continue
         if no_send:
+            reason = coop_filter_reason(listing)
+            if reason:
+                logger.info(f"[no-send] skipping {listing.url}: {reason}")
+                continue
+            if not validate_url(listing.url):       # CLAUDE.md hard rule 2
+                logger.warning(f"🚫 broken URL, skipping: {listing.url}")
+                handler.mark_url_invalid(listing.url)
+                continue
             logger.info(f"[no-send] would alert: {listing.url}")
             sent += 1
             continue
-        # mygewo units carry no coop_kind of their own — they are the default feed.
-        bot = bots.get(getattr(listing, "coop_kind", None) or "mygewo")
-        if bot and bot.send_message(format_coop_message(listing)):
-            handler.mark_sent(listing.url)
+        coop_kind = getattr(listing, "coop_kind", None) or "mygewo"
+        bot = bots.get(coop_kind)
+        if not bot:
+            continue
+        route_name = (
+            PRIVATE_COOP_CHANNEL
+            if coop_kind == "private_transfer"
+            else COOP_CHANNEL
+        )
+        if send_coop_listing(
+            listing,
+            bot,
+            handler,
+            route_name,
+            url_validator=validate_url,
+            message_formatter=format_coop_message,
+        ):
             sent += 1
-        elif bot:
+        else:
             logger.error(f"❌ send failed (retry next run): {listing.url}")
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
