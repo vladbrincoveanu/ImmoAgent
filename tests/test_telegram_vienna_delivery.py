@@ -62,12 +62,20 @@ def test_coop_policy_rejects_missing_invalid_and_nonfinite_measurements(field, v
     assert coop_filter_reason(coop_listing(**{field: value})) is not None
 
 
+@pytest.mark.parametrize("field", ["area_m2", "rooms"])
+def test_coop_policy_rejects_missing_measurements(field):
+    candidate = coop_listing()
+    del candidate[field]
+
+    assert coop_filter_reason(candidate) is not None
+
+
 def test_coop_delivery_claims_before_sending_and_marks_success():
     bot = Mock()
-    bot.send_message.return_value = True
     mongo = Mock()
     events = []
     mongo.claim_listing_delivery.side_effect = lambda *args, **kwargs: events.append("claim") or True
+    bot.send_message.side_effect = lambda *args, **kwargs: events.append("send") or True
     mongo.mark_listing_delivery_sent.side_effect = lambda *args, **kwargs: events.append("mark") or True
 
     assert send_coop_listing(
@@ -75,7 +83,7 @@ def test_coop_delivery_claims_before_sending_and_marks_success():
         url_validator=lambda url: events.append("url") or True,
         message_formatter=lambda listing: events.append("format") or "message",
     ) is True
-    assert events == ["url", "claim", "format", "mark"]
+    assert events == ["url", "claim", "format", "send", "mark"]
     bot.send_message.assert_called_once_with("message")
 
 
@@ -100,6 +108,7 @@ def test_coop_delivery_quarantines_any_unconfirmed_attempt(send_result):
     mongo.quarantine_listing_delivery.return_value = True
 
     assert send_coop_listing(coop_listing(), bot, mongo, "coop", url_validator=lambda _: True) is False
+    bot.send_message.assert_called_once()
     mongo.release_listing_delivery.assert_not_called()
     mongo.quarantine_listing_delivery.assert_called_once()
     mongo.mark_listing_delivery_sent.assert_not_called()
