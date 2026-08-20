@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Per-profile precalculation support
 PROFILE_NAMES: list[str] = list(BUYER_PROFILES.keys())
-LISTING_DELIVERY_CHANNELS = {"vienna"}
+LISTING_DELIVERY_CHANNELS = {"vienna", "coop", "private_coop"}
+NON_EXPIRING_DELIVERY_CHANNELS = {"coop", "private_coop"}
 
 
 def _validate_listing_delivery_channel(channel: str) -> str:
@@ -27,21 +28,32 @@ def _validate_listing_delivery_channel(channel: str) -> str:
     return f"telegram_delivery.{channel}"
 
 
-def _listing_delivery_query(url: str, fingerprint: str, prefix: str) -> Dict[str, Any]:
+def _listing_delivery_query(
+    url: str,
+    fingerprint: str,
+    prefix: str,
+    *,
+    non_expiring: bool = False,
+) -> Dict[str, Any]:
     identity = [{"url": url}]
     if fingerprint:
         identity.append({"content_fingerprint": fingerprint})
-    return {
-        "$and": [
-            {"$or": identity},
-            {f"{prefix}.state": {"$nin": ["sent", "uncertain"]}},
-            {"$or": [
-                {f"{prefix}.claim_until": {"$exists": False}},
-                {f"{prefix}.claim_until": None},
-                {f"{prefix}.claim_until": {"$lte": time.time()}},
-            ]},
-        ]
-    }
+    conditions = [
+        {"$or": identity},
+        {
+            f"{prefix}.state": {
+                "$nin": ["sent", "uncertain"]
+                + (["claimed"] if non_expiring else [])
+            }
+        },
+    ]
+    if not non_expiring:
+        conditions.append({"$or": [
+            {f"{prefix}.claim_until": {"$exists": False}},
+            {f"{prefix}.claim_until": None},
+            {f"{prefix}.claim_until": {"$lte": time.time()}},
+        ]})
+    return {"$and": conditions}
 
 
 def _valid_listing_delivery_identity(url: Any, fingerprint: Any) -> bool:
@@ -567,7 +579,7 @@ class MongoDBHandler:
     def claim_listing_delivery(self, url: str, fingerprint: str,
                                channel: str = "vienna",
                                *, claim_token: str,
-                               lease_seconds: int = 300) -> bool:
+                               lease_seconds: Optional[int] = 300) -> bool:
         prefix = _validate_listing_delivery_channel(channel)
         if (
             getattr(self, "collection", None) is None
@@ -577,14 +589,19 @@ class MongoDBHandler:
             return False
         try:
             now = time.time()
+            source_route = channel in NON_EXPIRING_DELIVERY_CHANNELS
+            update_set = {
+                f"{prefix}.state": "claimed",
+                f"{prefix}.claimed_at": now,
+                f"{prefix}.claim_token": claim_token,
+            }
+            if not source_route:
+                update_set[f"{prefix}.claim_until"] = now + (lease_seconds or 300)
             row = self.collection.find_one_and_update(
-                _listing_delivery_query(url, fingerprint, prefix),
-                {"$set": {
-                    f"{prefix}.state": "claimed",
-                    f"{prefix}.claimed_at": now,
-                    f"{prefix}.claim_until": now + lease_seconds,
-                    f"{prefix}.claim_token": claim_token,
-                }},
+                _listing_delivery_query(
+                    url, fingerprint, prefix, non_expiring=source_route
+                ),
+                {"$set": update_set},
                 return_document=pymongo.ReturnDocument.AFTER,
             )
             return row is not None

@@ -715,6 +715,25 @@ def test_claim_listing_delivery_uses_atomic_route_query_and_lease():
     )
 
 
+def test_source_claim_excludes_existing_claims_without_expiry():
+    collection = Mock()
+    collection.find_one_and_update.return_value = {"_id": "claimed"}
+    mongo = MongoDBHandler.__new__(MongoDBHandler)
+    mongo.collection = collection
+
+    assert mongo.claim_listing_delivery(
+        "https://example.test/coop", "", "coop",
+        claim_token="token", lease_seconds=None,
+    ) is True
+
+    query, update = collection.find_one_and_update.call_args.args[:2]
+    state = next(part for part in query["$and"] if "telegram_delivery.coop.state" in part)
+    assert state == {
+        "telegram_delivery.coop.state": {"$nin": ["sent", "uncertain", "claimed"]}
+    }
+    assert "claim_until" not in update["$set"]
+
+
 def test_listing_delivery_release_and_mark_update_route_and_legacy_state():
     collection = Mock()
     collection.update_one.return_value = Mock(modified_count=1)
