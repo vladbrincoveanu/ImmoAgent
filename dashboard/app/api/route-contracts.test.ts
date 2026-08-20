@@ -38,7 +38,7 @@ describe('public API status contracts', () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ error: 'Invalid listing ID', field: 'id' });
+    expect(await response.json()).toEqual({ error: 'Invalid listing ID', field: 'id' });
     expect(mockedGetDb).not.toHaveBeenCalled();
   });
 
