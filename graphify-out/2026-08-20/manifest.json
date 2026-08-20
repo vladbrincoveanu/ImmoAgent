@@ -765,13 +765,13 @@
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/map/page.tsx": {
-    "mtime": 1787216434.6452281,
-    "ast_hash": "3465215b725a37566a8a6a175af56032",
+    "mtime": 1787212957.319925,
+    "ast_hash": "c06447a2d4da44ce8c488ba363612c6b",
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/page.tsx": {
-    "mtime": 1787216422.4632285,
-    "ast_hash": "300586c29e8520b1906cccb2756186ec",
+    "mtime": 1787212957.3783748,
+    "ast_hash": "99299756fb6b236941db724d06ce360d",
     "semantic_hash": ""
   },
   "dashboard/app/dashboard/taken/page.tsx": {
@@ -815,8 +815,8 @@
     "semantic_hash": ""
   },
   "dashboard/components/ListingDetail.tsx": {
-    "mtime": 1787213165.4790108,
-    "ast_hash": "6e257312786a25431d9fcfcaf959dc10",
+    "mtime": 1787126912.7741857,
+    "ast_hash": "482b10531456adab4fd6df2eac51c5a7",
     "semantic_hash": ""
   },
   "dashboard/components/MapView.tsx": {
@@ -850,8 +850,8 @@
     "semantic_hash": ""
   },
   "dashboard/package.json": {
-    "mtime": 1787213260.4259934,
-    "ast_hash": "b4709ce5bc42788b05f0c4bdd8cdc608",
+    "mtime": 1787169805.8688323,
+    "ast_hash": "1a28e376a258e633a28ad24f7236c27e",
     "semantic_hash": ""
   },
   "dashboard/playwright.config.ts": {
@@ -2107,6 +2107,21 @@
   "dashboard/components/DealScoreBadge.test.ts": {
     "mtime": 1787126912.7693555,
     "ast_hash": "18277dab7760f1f193891b579631295a",
+    "semantic_hash": ""
+  },
+  "dashboard/components/ListingSidebar.tsx": {
+    "mtime": 1787126912.774677,
+    "ast_hash": "3caee5d6689c3cc408b272556b2fb8f2",
+    "semantic_hash": ""
+  },
+  "dashboard/components/ThemeProvider.tsx": {
+    "mtime": 1787126912.7795007,
+    "ast_hash": "451a05da1d88daac596d9988b83bfe6f",
+    "semantic_hash": ""
+  },
+  "dashboard/components/ThemeToggle.tsx": {
+    "mtime": 1787126912.7796595,
+    "ast_hash": "1e9be7282bebbf92566528ba673266f9",
     "semantic_hash": ""
   },
   "dashboard/lib/alert-test.test.ts": {
