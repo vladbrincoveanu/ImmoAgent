@@ -362,7 +362,13 @@ export function ListingDetail({ id, onClose }: ListingDetailProps) {
                       >
                         <div className="w-14 h-14 rounded overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
                           {c.image_url ? (
-                            <img src={c.image_url} alt="" className="w-full h-full object-cover" />
+                            <img
+                              src={c.image_url}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
