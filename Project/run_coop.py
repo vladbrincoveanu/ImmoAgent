@@ -22,7 +22,8 @@ from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
 from Application.alert_dispatcher import dispatch, retry_pending, url_hash
-from Application.alert_matcher import gate_result, keyword_hit, match, rubric_hit
+from Application.alert_matcher import (alert_keywords, gate_result, keyword_hit,
+                                       match, rubric_hit)
 from Application.coop_alert_router import missing_channels, route
 from Application.scraping.willhaben_private_coop import (
     crawl_newest, is_private_transfer)
@@ -163,6 +164,27 @@ def maybe_reprobe_image(stored: dict, resolve) -> dict:
     return out
 
 
+def channel_alert_constrains(alert: Dict) -> bool:
+    """True when this alert narrows the feed to something less than everything.
+
+    The old `coop_alerts.json` broadcast the whole feed because every field in it
+    was null. An alert row with no keywords and no gates is that same object with
+    a new home, and since the channel filter is a UNION, one such row re-opens the
+    firehose no matter how precise every other alert is.
+
+    A `coop_private` alert is exempt: `rubric_hit` already restricts it to units
+    the scraper judged a private transfer, so the constraint is the kind itself
+    and demanding keywords on top would silence that feed.
+
+    Gates are checked for a non-null VALUE, not a present key — `{"min_area":
+    None}` is precisely the all-null shape this guards against."""
+    if alert.get("kind") == "coop_private":
+        return True
+    if alert_keywords(alert):
+        return True
+    return any(v is not None for v in (alert.get("filters") or {}).values())
+
+
 def channel_match(alert: Dict, listing) -> bool:
     """True when this alert wants this unit on a broadcast channel.
 
@@ -175,6 +197,8 @@ def channel_match(alert: Dict, listing) -> bool:
     Deliverability is NOT consulted: an alert whose email is still unconfirmed
     has no usable channel of its own, yet it is still a statement of what this
     feed is for. Filtering is not delivery."""
+    if not channel_alert_constrains(alert):
+        return False
     if not rubric_hit(alert, listing):
         return False
     if not keyword_hit(alert, listing):
@@ -440,6 +464,17 @@ def run(no_send: bool = False) -> int:
     except Exception as e:
         logger.error(f"❌ could not load the channel alert filter: {e}")
         channel_alerts = []
+    # Drop the ones that narrow nothing BEFORE the emptiness check, so "every
+    # alert I have is a catch-all" reports as silence rather than as a filter.
+    vague = [a for a in channel_alerts if not channel_alert_constrains(a)]
+    if vague:
+        logger.warning(
+            f"⚠️ {len(vague)} alert(s) constrain nothing — no keywords and no "
+            f"gates — so they do NOT govern the channel: "
+            f"{[str(a.get('_id')) for a in vague]}. Add a keyword or a filter to "
+            f"put them back on the feed.")
+        channel_alerts = [a for a in channel_alerts
+                          if channel_alert_constrains(a)]
     if not channel_alerts:
         logger.warning("⚠️ no active alerts — the co-op channels stay silent this "
                        "poll. Polling, upserts and user alerts are unaffected.")
