@@ -73,6 +73,16 @@ jobs:
             # are independent of this co-op channel secret.
             echo "::warning::TELEGRAM_COOP_CHANNEL_ID repo secret is missing — scraping/upserts and user-created email alerts still run; only co-op channel notifications are unavailable. Add it under Settings → Secrets to enable the co-op channel."
           fi
+      - name: Warn if COOP_CHANNEL_ALERT_OWNERS secret is missing
+        env:
+          OWNERS: ${{ secrets.COOP_CHANNEL_ALERT_OWNERS }}
+        run: |
+          if [ -z "$OWNERS" ]; then
+            # Same non-fatal reasoning as above. The channel is SILENT without
+            # this by design — the alternative fallback, "broadcast every
+            # subscriber's alerts", is the firehose this filter exists to stop.
+            echo "::warning::COOP_CHANNEL_ALERT_OWNERS repo secret is missing — the co-op CHANNELS will stay silent this run. Scraping, upserts and user-created alerts are unaffected. Set it to the email(s) and/or Telegram chat id(s) whose alerts should define the broadcast feed, comma-separated."
+          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
@@ -88,6 +98,10 @@ jobs:
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
           # Separate channel for private Ablöse hits — see Application/coop_alert_router.py
           TELEGRAM_PRIVATE_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_PRIVATE_COOP_CHANNEL_ID }}
+          # Whose alerts define what the CHANNELS broadcast. `alert_subscriptions`
+          # holds every subscriber's rows, so without this the feed widens with
+          # each new signup. Unset ⇒ silent channels (CLAUDE.md hard rule 7).
+          COOP_CHANNEL_ALERT_OWNERS: ${{ secrets.COOP_CHANNEL_ALERT_OWNERS }}
           # User-created alerts (/alerts) can deliver by email as well as Telegram.
           # Without these the poll still runs and Telegram alerts still land; only
           # the email half is disabled, and it says so loudly in the log.

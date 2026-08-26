@@ -17,7 +17,13 @@ def _l(**kw):
 
 # The static `coop_alerts.json` filter is gone: every field in it was null in
 # CI, so it matched everything and the channel was a firehose. The channel filter
-# is now the union of active alerts — see Tests/test_coop_channel_ledger.py.
+# is now the union of the OWNER's alerts — see Tests/test_coop_channel_ledger.py.
+
+# The channel fails closed when no owner is configured, so every test in this
+# module that expects a send needs one. It is set in the module's single
+# `setUpModule` at the bottom of this file — a second definition here would
+# silently shadow that one and disable the Willhaben adapter guard.
+CHANNEL_OWNER = "owner@x.at"
 
 from unittest.mock import MagicMock, call
 
@@ -131,7 +137,7 @@ def _mongo_mock(get_listing_ret=None, alerts=None):
     # bezirk 1100, so this keyword admits all of them without matching blindly.
     h.get_alert_subscriptions.return_value = (
         [{"_id": "t", "kind": "keyword", "keywords": ["1100"],
-          "telegram_chat_id": "-100"}]
+          "email": CHANNEL_OWNER, "telegram_chat_id": "-100"}]
         if alerts is None else alerts)
     return h
 
@@ -536,10 +542,14 @@ def test_reprobe_skipped_without_builder_url():
 
 def setUpModule():
     os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
+    # The channel filter is owner-scoped and fails closed, so without this every
+    # test in this module that expects a send would poll into silence.
+    os.environ["COOP_CHANNEL_ALERT_OWNERS"] = CHANNEL_OWNER
 
 
 def tearDownModule():
     os.environ.pop("WILLHABEN_PRIVATE_COOP", None)
+    os.environ.pop("COOP_CHANNEL_ALERT_OWNERS", None)
 
 
 class TestWillhabenPrivateCoopWiring(unittest.TestCase):
