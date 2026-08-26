@@ -88,8 +88,11 @@ def _handler(ledger, upsert_result="duplicate", alerts=None):
     h.get_listing.return_value = None             # no doc at that url, ever
     h.get_listings_by_urls.return_value = {}
     h.upsert_coop_listing.return_value = upsert_result
-    h.get_active_alerts.return_value = (
+    h.get_alert_subscriptions.return_value = (
         [OPEN_ALERT] if alerts is None else alerts)
+    # Deliberately empty: the channel filter must NOT read the deliverable-only
+    # view, or an alert whose email is unconfirmed stops governing the feed.
+    h.get_active_alerts.return_value = []
     h.ensure_channel_send_index.side_effect = ledger.ensure
     h.claim_channel_send.side_effect = ledger.claim
     h.mark_channel_send_sent.side_effect = ledger.mark_sent
@@ -303,11 +306,21 @@ class TestChannelFilter(unittest.TestCase):
 
     def test_an_alert_with_no_deliverable_channel_still_governs_the_feed(self):
         """Filtering is not delivery: an alert with an unconfirmed email has no
-        usable channel of its own but must still open the broadcast feed."""
+        usable channel of its own but must still open the broadcast feed.
+
+        `get_active_alerts` drops exactly this alert — which is why the channel
+        reads the unfiltered subscription list instead."""
         alert = {"_id": "a", "kind": "keyword", "email": "pending@x.at",
                  "confirmed": False}
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[alert])
+        bots = _bot_factory()
 
         self.assertTrue(run_coop.channel_match(alert, _l()))
+        self.assertEqual(_poll(handler, [_l()], bots), 0)
+
+        self.assertEqual(_sends(bots[0]), 1)
+        handler.get_active_alerts.assert_not_called()
 
     def test_rubric_gate_is_applied(self):
         """A coop_private alert must not open the feed for a mygewo unit."""
@@ -326,6 +339,29 @@ class TestLedgerHandler(unittest.TestCase):
         handler.db = {"coop_channel_sends": MagicMock()}
         handler.collection = MagicMock()
         return handler
+
+    def test_subscription_query_does_not_filter_on_deliverability(self):
+        """`get_active_alerts` answers "who can we deliver to". The channel needs
+        "what is this feed for", which is every subscription of these kinds."""
+        handler = MongoDBHandler.__new__(MongoDBHandler)
+        collection = MagicMock()
+        collection.find.return_value = [OPEN_ALERT]
+        handler.db = {"alert_subscriptions": collection}
+
+        self.assertEqual(
+            handler.get_alert_subscriptions(["coop_private", "keyword"]),
+            [OPEN_ALERT])
+
+        query = collection.find.call_args[0][0]
+        self.assertEqual(query, {"kind": {"$in": ["coop_private", "keyword"]}})
+
+    def test_subscription_query_failure_is_not_fatal(self):
+        handler = MongoDBHandler.__new__(MongoDBHandler)
+        collection = MagicMock()
+        collection.find.side_effect = RuntimeError("mongo down")
+        handler.db = {"alert_subscriptions": collection}
+
+        self.assertEqual(handler.get_alert_subscriptions("keyword"), [])
 
     def test_ensure_index_reports_failure(self):
         import pymongo

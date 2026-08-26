@@ -432,8 +432,11 @@ def run(no_send: bool = False) -> int:
     # What the channel carries is whatever a live alert asks for. Zero alerts is
     # therefore zero messages, where the old static filter meant "send
     # everything" — a behaviour change that must never be silent.
+    # Every subscription, not `get_active_alerts`: that view drops an alert whose
+    # only address is unconfirmed, and such an alert still says what this feed is
+    # for even though nothing can be delivered to it.
     try:
-        channel_alerts = handler.get_active_alerts(ALERT_KINDS)
+        channel_alerts = handler.get_alert_subscriptions(ALERT_KINDS)
     except Exception as e:
         logger.error(f"❌ could not load the channel alert filter: {e}")
         channel_alerts = []

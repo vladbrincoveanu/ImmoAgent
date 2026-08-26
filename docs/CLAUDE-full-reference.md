@@ -329,7 +329,9 @@ Run locally: `cd Project && python run_coop.py [--no-send]`.
 ### Channel filter — the union of active alerts
 
 The channel carries what a live alert asks for: `run_coop.channel_match_any`
-ORs every subscription from `get_active_alerts(["coop_private", "keyword"])`.
+ORs every subscription from
+`get_alert_subscriptions(["coop_private", "keyword"])` — the unfiltered view,
+not `get_active_alerts`, which drops alerts with no deliverable channel.
 Stricter than the per-user path — a match whose gate could not be checked
 (`unverified`) is delivered to the subscriber, flagged, but kept off the public
 feed. Deliverability is not consulted: an alert with an unconfirmed email still

@@ -710,6 +710,23 @@ class MongoDBHandler:
             print(f"MongoDB alert query error: {e}")
             return []
 
+    def get_alert_subscriptions(self, kind) -> List[Dict]:
+        """Every subscription of these kinds, deliverable or not.
+
+        `get_active_alerts` answers "who can we deliver to" and therefore drops
+        an alert whose only address is unconfirmed. The co-op CHANNEL needs the
+        other question — "what is this feed for" — and that alert is still a
+        statement of it. Filtering is not delivery."""
+        kinds = [kind] if isinstance(kind, str) else list(kind)
+        try:
+            return list(self.db["alert_subscriptions"].find(
+                {"kind": {"$in": kinds}}))
+        except Exception as e:
+            # Same rule as get_active_alerts: never abort the poll that feeds
+            # the website over an alert lookup.
+            logger.error(f"MongoDB alert subscription query error: {e}")
+            return []
+
     # --- alert delivery ledger -------------------------------------------------
     #
     # Why a ledger at all: delivery used to be driven from the in-memory list of

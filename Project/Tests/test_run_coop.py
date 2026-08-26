@@ -126,7 +126,7 @@ def _mongo_mock(get_listing_ret=None, alerts=None):
     h.get_listings_by_urls.return_value = {}
     # One key-less alert = "everything on this feed", which is what these tests
     # assumed before the channel filter existed. Zero alerts now means silence.
-    h.get_active_alerts.return_value = (
+    h.get_alert_subscriptions.return_value = (
         [{"_id": "t", "kind": "keyword", "telegram_chat_id": "-100"}]
         if alerts is None else alerts)
     return h
