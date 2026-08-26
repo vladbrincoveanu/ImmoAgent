@@ -490,26 +490,36 @@ class MongoDBHandler:
             print(f"MongoDB query error: {e}")
             return False
 
-    def mark_sent(self, url: str):
-        """Mark a listing as sent to Telegram with timestamp"""
+    def mark_sent(self, url: str) -> bool:
+        """Mark a listing as sent to Telegram with timestamp. True if a doc matched.
+
+        `matched_count` used to be ignored, so a url with no document — which is
+        exactly what the co-op duplicate/invalid upsert paths leave behind — wrote
+        nothing and still logged success. Report the miss instead of inventing one."""
         try:
             from datetime import datetime
             sent_timestamp = datetime.now().timestamp()
-            self.collection.update_one(
-                {"url": url}, 
+            result = self.collection.update_one(
+                {"url": url},
                 {"$set": {
                     "sent_to_telegram": True,
                     "sent_to_telegram_at": sent_timestamp
                 }}
             )
+            if not getattr(result, "matched_count", 0):
+                logging.error(f"❌ mark_sent matched no listing document: {url}")
+                return False
             logging.info(f"✅ Marked listing as sent to Telegram: {url}")
+            return True
         except pymongo.errors.OperationFailure as e:
             if "authentication" in str(e).lower() or "unauthorized" in str(e).lower():
                 logging.warning(f"⚠️  MongoDB authentication required, skipping update: {e}")
             else:
                 logging.error(f"MongoDB update error: {e}")
+            return False
         except Exception as e:
             logging.error(f"MongoDB update error: {e}")
+            return False
 
     def mark_listings_sent(self, listings: List[Dict]):
         """Mark multiple listings as sent to Telegram"""
@@ -698,6 +708,23 @@ class MongoDBHandler:
             # An alert lookup failure must not abort a poll — the scrape and the
             # upserts that feed the website still have to run.
             print(f"MongoDB alert query error: {e}")
+            return []
+
+    def get_alert_subscriptions(self, kind) -> List[Dict]:
+        """Every subscription of these kinds, deliverable or not.
+
+        `get_active_alerts` answers "who can we deliver to" and therefore drops
+        an alert whose only address is unconfirmed. The co-op CHANNEL needs the
+        other question — "what is this feed for" — and that alert is still a
+        statement of it. Filtering is not delivery."""
+        kinds = [kind] if isinstance(kind, str) else list(kind)
+        try:
+            return list(self.db["alert_subscriptions"].find(
+                {"kind": {"$in": kinds}}))
+        except Exception as e:
+            # Same rule as get_active_alerts: never abort the poll that feeds
+            # the website over an alert lookup.
+            logger.error(f"MongoDB alert subscription query error: {e}")
             return []
 
     # --- alert delivery ledger -------------------------------------------------
@@ -908,6 +935,125 @@ class MongoDBHandler:
         except Exception as e:
             print(f"MongoDB pending delivery query error: {e}")
             return []
+
+    # --- co-op channel send ledger ---------------------------------------------
+    #
+    # Separate from `alert_deliveries` because it answers a different question:
+    # "has this UNIT ever gone out on this CHANNEL", not "has this (alert, ad)
+    # pair been delivered". It is also deliberately independent of the listings
+    # collection. The channel used to gate on `get_listing(url).sent_to_telegram`,
+    # but `upsert_coop_listing` returns without creating a doc at that url on its
+    # duplicate and invalid paths, so the gate had nothing to read and the same
+    # unit went out on every minutely poll.
+
+    def ensure_channel_send_index(self) -> bool:
+        """The unique index is what makes `claim_channel_send` a real claim.
+
+        False means "do not send at all": without it two polls both read
+        "no row" and both send, which is the spam this ledger exists to stop."""
+        try:
+            self.db["coop_channel_sends"].create_index(
+                [("chat_id", 1), ("dedup_key", 1)], unique=True)
+            return True
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB coop channel send index setup failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected coop channel send index failure: {e}")
+            return False
+
+    def claim_channel_send(self, chat_id: str, dedup_key: str, url: str) -> bool:
+        """Take ownership of one (channel, unit) broadcast. True if we now own it.
+
+        Insert BEFORE the send, so a crash mid-send costs one missed unit rather
+        than an unbounded repeat. Any write failure is a refusal, not a send:
+        silence is recoverable, a message per minute is not."""
+        try:
+            self.db["coop_channel_sends"].insert_one({
+                "chat_id": chat_id,
+                "dedup_key": dedup_key,
+                "url": url,
+                "sent": False,
+                "claimed_at": datetime.now(timezone.utc),
+                "sent_at": None,
+            })
+            return True
+        except pymongo.errors.DuplicateKeyError:
+            # Expected: the unit already went out on this channel.
+            return False
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB coop channel send claim failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected coop channel send claim failure: {e}")
+            return False
+
+    def mark_channel_send_sent(self, chat_id: str, dedup_key: str) -> bool:
+        try:
+            result = self.db["coop_channel_sends"].update_one(
+                {"chat_id": chat_id, "dedup_key": dedup_key},
+                {"$set": {"sent": True,
+                          "sent_at": datetime.now(timezone.utc)}})
+            return bool(getattr(result, "matched_count", 0))
+        except Exception as e:
+            logger.error(f"MongoDB coop channel send marker failed: {e}")
+            return False
+
+    def seed_channel_send(self, chat_id: str, dedup_key: str, url: str) -> bool:
+        """Record a unit as already broadcast, without sending it.
+
+        Used once at cutover so the existing inventory does not flood the
+        channels. False means a row was already there — the whole point of
+        making the seed re-runnable."""
+        try:
+            self.db["coop_channel_sends"].insert_one({
+                "chat_id": chat_id,
+                "dedup_key": dedup_key,
+                "url": url,
+                "sent": True,
+                "claimed_at": datetime.now(timezone.utc),
+                "sent_at": None,          # never actually sent, only suppressed
+                "seeded": True,
+            })
+            return True
+        except pymongo.errors.DuplicateKeyError:
+            return False
+        except Exception as e:
+            logger.error(f"MongoDB coop channel send seed failed: {e}")
+            return False
+
+    def get_coop_listings_for_seed(self) -> List[Dict]:
+        """Every stored co-op unit, as the seed's key derivation needs it.
+
+        Mirrors `run_coop.is_coop_listing`: a unit qualifies through its
+        Genossenschaft flag, its channel kind, or its mygewo URL. Missing any of
+        the three would leave that slice of the inventory unseeded, i.e. free to
+        flood on the first poll."""
+        try:
+            return list(self.collection.find(
+                {"$or": [
+                    {"is_genossenschaft": True},
+                    {"coop_kind": {"$exists": True, "$nin": [None, ""]}},
+                    {"url": {"$regex": r"mygewo\.at"}},
+                ]},
+                {"url": 1, "content_fingerprint_xsrc": 1, "bautraeger": 1,
+                 "address": 1, "area_m2": 1, "rooms": 1},
+            ))
+        except Exception as e:
+            logger.error(f"MongoDB co-op seed query failed: {e}")
+            return []
+
+    def release_channel_send(self, chat_id: str, dedup_key: str) -> bool:
+        """Drop the claim after a failed send so the next poll can retry.
+
+        Without this a transient Telegram error would suppress the unit forever."""
+        try:
+            result = self.db["coop_channel_sends"].delete_one(
+                {"chat_id": chat_id, "dedup_key": dedup_key})
+            return bool(getattr(result, "deleted_count", 0))
+        except Exception as e:
+            logger.error(f"MongoDB coop channel send release failed: {e}")
+            return False
 
     def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30,
                         excluded_districts: List[str] = None, min_rooms: float = 0.0,

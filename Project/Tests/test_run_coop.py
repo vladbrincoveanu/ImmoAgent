@@ -15,43 +15,9 @@ def _l(**kw):
                    price_total=kw.pop('price_total', None), **kw)
 
 
-class TestMatchesCoopAlerts(unittest.TestCase):
-    def test_empty_filter_sends_all(self):
-        self.assertTrue(run_coop.matches_coop_alerts(_l(), {}))
-
-    def test_bezirk_include_and_exclude(self):
-        self.assertTrue(run_coop.matches_coop_alerts(_l(bezirk='1100'), {"bezirke": ["1100", "1200"]}))
-        self.assertFalse(run_coop.matches_coop_alerts(_l(bezirk='1010'), {"bezirke": ["1100"]}))
-
-    def test_missing_listing_field_is_permissive(self):
-        # filter wants min_rooms=3 but listing has unknown rooms -> included
-        self.assertTrue(run_coop.matches_coop_alerts(_l(rooms=None), {"min_rooms": 3}))
-        # filter wants a bezirk but listing has none -> included
-        self.assertTrue(run_coop.matches_coop_alerts(_l(bezirk=None), {"bezirke": ["1100"]}))
-
-    def test_min_rooms_min_area_max_cost(self):
-        self.assertFalse(run_coop.matches_coop_alerts(_l(rooms=2), {"min_rooms": 3}))
-        self.assertFalse(run_coop.matches_coop_alerts(_l(area_m2=40), {"min_area": 50}))
-        self.assertFalse(run_coop.matches_coop_alerts(_l(price_total=500), {"max_cost": 400}))
-        self.assertTrue(run_coop.matches_coop_alerts(_l(rooms=3, area_m2=70, price_total=300),
-                                                     {"min_rooms": 3, "min_area": 50, "max_cost": 400}))
-
-
-class TestLoadCoopAlerts(unittest.TestCase):
-    def test_env_override_wins(self):
-        os.environ["COOP_ALERTS"] = '{"min_rooms": 2}'
-        try:
-            self.assertEqual(run_coop.load_coop_alerts().get("min_rooms"), 2)
-        finally:
-            del os.environ["COOP_ALERTS"]
-
-    def test_bad_env_falls_through_to_dict(self):
-        os.environ["COOP_ALERTS"] = 'not-json'
-        try:
-            self.assertIsInstance(run_coop.load_coop_alerts(), dict)  # no crash
-        finally:
-            del os.environ["COOP_ALERTS"]
-
+# The static `coop_alerts.json` filter is gone: every field in it was null in
+# CI, so it matched everything and the channel was a firehose. The channel filter
+# is now the union of active alerts — see Tests/test_coop_channel_ledger.py.
 
 from unittest.mock import MagicMock, call
 
@@ -153,11 +119,16 @@ class TestPollSourceParse(unittest.TestCase):
         sess.get.assert_not_called()
 
 
-def _mongo_mock(get_listing_ret=None):
+def _mongo_mock(get_listing_ret=None, alerts=None):
     h = MagicMock()
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
     h.get_listings_by_urls.return_value = {}
+    # One key-less alert = "everything on this feed", which is what these tests
+    # assumed before the channel filter existed. Zero alerts now means silence.
+    h.get_alert_subscriptions.return_value = (
+        [{"_id": "t", "kind": "keyword", "telegram_chat_id": "-100"}]
+        if alerts is None else alerts)
     return h
 
 
@@ -230,11 +201,10 @@ def test_batch_lookup_failure_excludes_mygewo_but_keeps_willhaben_candidates():
     handler.get_listing.assert_not_called()
 
 
-@patch("run_coop.load_coop_alerts", return_value={})
 @patch("run_coop.validate_url", return_value=True)
 @patch("run_coop.poll_source")
 @patch("run_coop.MongoDBHandler")
-def test_user_alerts_run_before_mygewo_upsert(mongo, poll, validate, alerts):
+def test_user_alerts_run_before_mygewo_upsert(mongo, poll, validate):
     handler = _mongo_mock(get_listing_ret=None)
     events = []
     listing = _l(url="https://mygewo.at/angebot/new")
@@ -287,8 +257,7 @@ def test_batch_existing_docs_are_reused_during_mygewo_detail_processing():
         )
         with patch("run_coop.MongoDBHandler", return_value=handler), \
                 patch("run_coop.poll_source", return_value=[new_listing,
-                                                               existing_listing]), \
-                patch("run_coop.load_coop_alerts", return_value={}):
+                                                            existing_listing]):
             assert run_coop.run(no_send=False) == 0
 
     assert events[0] == ("deliver", [new_listing])
@@ -328,7 +297,6 @@ def test_mygewo_lookup_failure_defers_mygewo_but_keeps_willhaben_processing():
             patch("run_coop.poll_source", return_value=[mygewo]), \
             patch("run_coop.crawl_newest", return_value=[willhaben]), \
             patch("run_coop.WillhabenScraper"), \
-            patch("run_coop.load_coop_alerts", return_value={}), \
             patch("run_coop.validate_url", return_value=True) as validate, \
             patch("run_coop.route", return_value="-100"), \
             patch("run_coop.TelegramBot", return_value=bot), \
@@ -360,7 +328,6 @@ def test_no_send_skips_candidate_lookup_and_user_delivery():
             patch.object(run_coop, "deliver_user_alerts") as deliver, \
             patch("run_coop.MongoDBHandler", return_value=handler), \
             patch("run_coop.poll_source", return_value=[listing]), \
-            patch("run_coop.load_coop_alerts", return_value={}), \
             patch.dict(run_coop.coop.SOURCES,
                        {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
                        clear=True), patch.dict(os.environ,
@@ -373,10 +340,9 @@ def test_no_send_skips_candidate_lookup_and_user_delivery():
 
 
 class TestRun(unittest.TestCase):
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.poll_source", return_value=[])
     @patch("run_coop.MongoDBHandler")
-    def test_missing_optional_telegram_channels_are_warnings(self, MH, poll, alerts):
+    def test_missing_optional_telegram_channels_are_warnings(self, MH, poll):
         MH.return_value = _mongo_mock()
         with patch.dict(os.environ, {
             "TELEGRAM_COOP_CHANNEL_ID": "",
@@ -399,11 +365,10 @@ class TestRun(unittest.TestCase):
         MH.return_value.collection = None
         self.assertEqual(run_coop.run(), 1)
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_no_send_upserts_and_counts_without_sending(self, MH, poll, vurl, alerts):
+    def test_no_send_upserts_and_counts_without_sending(self, MH, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/new")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
@@ -412,12 +377,11 @@ class TestRun(unittest.TestCase):
         MH.return_value.upsert_coop_listing.assert_called_once()
         MH.return_value.mark_sent.assert_not_called()   # no-send never sends
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.TelegramBot")
     @patch("run_coop.MongoDBHandler")
-    def test_sends_via_bot_and_marks_sent(self, MH, TB, poll, vurl, alerts):
+    def test_sends_via_bot_and_marks_sent(self, MH, TB, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         TB.return_value.send_message.return_value = True
         poll.return_value = [_l(url="https://x.at/s")]
@@ -429,12 +393,11 @@ class TestRun(unittest.TestCase):
         TB.return_value.send_message.assert_called_once()
         MH.return_value.mark_sent.assert_called_once_with("https://x.at/s")
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.TelegramBot")
     @patch("run_coop.MongoDBHandler")
-    def test_send_failure_does_not_mark_sent(self, MH, TB, poll, vurl, alerts):
+    def test_send_failure_does_not_mark_sent(self, MH, TB, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         TB.return_value.send_message.return_value = False    # send failed
         poll.return_value = [_l(url="https://x.at/f")]
@@ -445,22 +408,14 @@ class TestRun(unittest.TestCase):
         self.assertEqual(rc, 0)
         MH.return_value.mark_sent.assert_not_called()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
-    @patch("run_coop.poll_source")
-    @patch("run_coop.MongoDBHandler")
-    def test_skips_already_sent(self, MH, poll, alerts):
-        MH.return_value = _mongo_mock(get_listing_ret={"sent_to_telegram": True})
-        poll.return_value = [_l(url="https://x.at/dup")]
-        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(no_send=True)
-        self.assertEqual(rc, 0)
-        MH.return_value.mark_sent.assert_not_called()
+    # Send-once is no longer the `sent_to_telegram` flag's job — that gate read a
+    # document the duplicate/invalid upsert paths never create. The ledger owns
+    # it now: Tests/test_coop_channel_ledger.py.
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=False)   # broken URL
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_broken_url_marked_invalid(self, MH, poll, vurl, alerts):
+    def test_broken_url_marked_invalid(self, MH, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/broken")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
@@ -468,21 +423,25 @@ class TestRun(unittest.TestCase):
         self.assertEqual(rc, 0)
         MH.return_value.mark_url_invalid.assert_called_once_with("https://x.at/broken")
 
-    @patch("run_coop.load_coop_alerts", return_value={"bezirke": ["9999"]})
+    @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_filtered_out_listing_not_alerted(self, MH, poll, alerts):
-        MH.return_value = _mongo_mock(get_listing_ret=None)
-        poll.return_value = [_l(url="https://x.at/other", bezirk="1100")]  # not in 9999
+    def test_filtered_out_listing_not_alerted(self, MH, poll, vurl):
+        """No alert asks for this unit → it never reaches the send checks."""
+        MH.return_value = _mongo_mock(
+            get_listing_ret=None,
+            alerts=[{"_id": "a", "kind": "keyword", "keywords": ["Dachterrasse"],
+                     "telegram_chat_id": "-100"}])
+        poll.return_value = [_l(url="https://x.at/other",
+                                title="Wohnung ohne Freifläche")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
             rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 0)
-        MH.return_value.get_listing.assert_not_called()   # filtered before send checks
+        vurl.assert_not_called()          # filtered before the send checks
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.poll_source", side_effect=RuntimeError("boom"))
     @patch("run_coop.MongoDBHandler")
-    def test_all_adapters_fail_returns_1(self, MH, poll, alerts):
+    def test_all_adapters_fail_returns_1(self, MH, poll):
         MH.return_value = _mongo_mock()
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
             rc = run_coop.run(no_send=True)
@@ -586,13 +545,12 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
     def tearDown(self):
         os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_transfers_are_tagged_and_upserted(self, MH, poll, WS, crawl, vurl, alerts):
+    def test_transfers_are_tagged_and_upserted(self, MH, poll, WS, crawl, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = []
         # The scraper is what classifies an ad; the poll only re-affirms the tag.
@@ -606,14 +564,13 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         self.assertEqual(transfer.coop_kind, "private_transfer")
         MH.return_value.upsert_coop_listing.assert_called_once()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
     def test_an_ordinary_rental_is_never_tagged_as_a_transfer(self, MH, poll, WS,
-                                                              crawl, vurl, alerts):
+                                                              crawl, vurl):
         """The feed is now the whole newest-first rental list. Blanket-tagging it
         would route ordinary rentals into the private-Ablöse channel and corrupt
         /coop/private."""
@@ -627,14 +584,13 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIsNone(rental.coop_kind)
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
     def test_ordinary_rentals_never_reach_the_coop_channel(self, MH, poll, WS,
-                                                           crawl, vurl, alerts):
+                                                           crawl, vurl):
         """Without the co-op guard the mygewo channel would receive the entire
         Wien rental market, since `seen` now carries every new ad."""
         MH.return_value = _mongo_mock(get_listing_ret=None)
@@ -656,14 +612,13 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         self.assertEqual(rc, 0)
         bot.send_message.assert_not_called()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.crawl_newest", side_effect=RuntimeError("blocked"))
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
     def test_willhaben_failure_does_not_fail_the_poll(self, MH, poll, WS, crawl,
-                                                      vurl, alerts):
+                                                      vurl):
         """A Willhaben block must leave the mygewo half of the poll running."""
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://mygewo.at/angebot/1")]
@@ -673,13 +628,11 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         self.assertEqual(rc, 0)
         MH.return_value.upsert_coop_listing.assert_called_once()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source", side_effect=RuntimeError("mygewo down"))
     @patch("run_coop.MongoDBHandler")
-    def test_willhaben_cannot_mask_a_total_mygewo_outage(self, MH, poll, WS, crawl,
-                                                         alerts):
+    def test_willhaben_cannot_mask_a_total_mygewo_outage(self, MH, poll, WS, crawl):
         """Every mygewo adapter failing is still exit 1, even if Willhaben works —
         otherwise a dead poll looks half-alive."""
         MH.return_value = _mongo_mock(get_listing_ret=None)
