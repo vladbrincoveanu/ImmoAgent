@@ -1,6 +1,18 @@
 # Co-op channel: send exactly once + enforce alert filters
 
-Status: design approved via `/grill-me` 2026-08-21. Not yet implemented.
+Status: **implemented 2026-08-24** on `relentless/coop-send-once`. Design approved
+via `/grill-me` 2026-08-21.
+
+Deviations from the design as written, all deliberate:
+
+- `seed_dedup_key` builds an explicit `SimpleNamespace(bautraeger, address,
+  area_m2, rooms)` rather than `SimpleNamespace(**doc)`. Mongo omits absent
+  fields entirely and `compute_xsrc_fingerprint` reads area/rooms as attributes,
+  so `**doc` raises `AttributeError` on exactly the sparse units that depend on
+  the `url_hash` fallback.
+- `Project/coop_alerts.json` is left in the tree but is no longer read by any
+  code path. Nothing else references it.
+- CLAUDE.md hard rule 5 amended (see "Conflict with CLAUDE.md" below).
 Scope: the **broadcast channel feed** in `Project/run_coop.py`. The per-user
 alert path (`alert_dispatcher.dispatch`) is already correct and is out of scope.
 
