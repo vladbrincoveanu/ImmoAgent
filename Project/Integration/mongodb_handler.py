@@ -982,6 +982,50 @@ class MongoDBHandler:
             logger.error(f"MongoDB coop channel send marker failed: {e}")
             return False
 
+    def seed_channel_send(self, chat_id: str, dedup_key: str, url: str) -> bool:
+        """Record a unit as already broadcast, without sending it.
+
+        Used once at cutover so the existing inventory does not flood the
+        channels. False means a row was already there — the whole point of
+        making the seed re-runnable."""
+        try:
+            self.db["coop_channel_sends"].insert_one({
+                "chat_id": chat_id,
+                "dedup_key": dedup_key,
+                "url": url,
+                "sent": True,
+                "claimed_at": datetime.now(timezone.utc),
+                "sent_at": None,          # never actually sent, only suppressed
+                "seeded": True,
+            })
+            return True
+        except pymongo.errors.DuplicateKeyError:
+            return False
+        except Exception as e:
+            logger.error(f"MongoDB coop channel send seed failed: {e}")
+            return False
+
+    def get_coop_listings_for_seed(self) -> List[Dict]:
+        """Every stored co-op unit, as the seed's key derivation needs it.
+
+        Mirrors `run_coop.is_coop_listing`: a unit qualifies through its
+        Genossenschaft flag, its channel kind, or its mygewo URL. Missing any of
+        the three would leave that slice of the inventory unseeded, i.e. free to
+        flood on the first poll."""
+        try:
+            return list(self.collection.find(
+                {"$or": [
+                    {"is_genossenschaft": True},
+                    {"coop_kind": {"$exists": True, "$nin": [None, ""]}},
+                    {"url": {"$regex": r"mygewo\.at"}},
+                ]},
+                {"url": 1, "content_fingerprint_xsrc": 1, "bautraeger": 1,
+                 "address": 1, "area_m2": 1, "rooms": 1},
+            ))
+        except Exception as e:
+            logger.error(f"MongoDB co-op seed query failed: {e}")
+            return []
+
     def release_channel_send(self, chat_id: str, dedup_key: str) -> bool:
         """Drop the claim after a failed send so the next poll can retry.
 

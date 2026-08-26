@@ -118,7 +118,12 @@ def _route(kind):
 
 def _poll(handler, listings, made_bots_factory, no_send=False):
     made, factory = made_bots_factory
-    with patch("run_coop.MongoDBHandler", return_value=handler), \
+    # A mygewo unit with unresolved builder_url/image_url would otherwise send a
+    # live offer-page request from the test suite.
+    with patch.object(run_coop.coop, "resolve_offer_details",
+                      return_value={"builder_url": "", "image_url": ""}), \
+            patch.object(run_coop.coop, "resolve_builder_image", return_value=""), \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
             patch("run_coop.poll_source", return_value=list(listings)), \
             patch("run_coop.validate_url", return_value=True), \
             patch("run_coop.route", side_effect=_route), \
