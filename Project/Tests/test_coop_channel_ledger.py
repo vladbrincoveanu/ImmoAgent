@@ -25,12 +25,14 @@ from Integration.mongodb_handler import MongoDBHandler  # noqa: E402
 MYGEWO_CHAT = "-1001mygewo"
 PRIVATE_CHAT = "-1001private"
 
-# One permissive alert: the channel filter is now the union of active alerts, so
-# without at least one the feed is silent by design (D6). It carries a keyword
-# because an alert that constrains nothing no longer governs the channel — see
-# TestChannelAlertMustConstrain. "wien" is in every `_l()` address.
+# One permissive alert: the channel filter is now the union of the OWNER's
+# alerts, so without at least one the feed is silent by design (D6). It carries a
+# keyword because an alert that constrains nothing no longer governs the channel
+# (TestChannelAlertMustConstrain), and an owner because a foreign alert no longer
+# governs it either (TestChannelOwnerScope). "wien" is in every `_l()` address.
+OWNER = "owner@x.at"
 OPEN_ALERT = {"_id": "open", "kind": "keyword", "keywords": ["wien"],
-              "telegram_chat_id": "-100"}
+              "email": OWNER, "telegram_chat_id": "-100"}
 
 
 def _l(**kw):
@@ -122,7 +124,7 @@ def _route(kind):
     return {"mygewo": MYGEWO_CHAT, "private_transfer": PRIVATE_CHAT}[kind]
 
 
-def _poll(handler, listings, made_bots_factory, no_send=False):
+def _poll(handler, listings, made_bots_factory, no_send=False, owners=OWNER):
     made, factory = made_bots_factory
     # A mygewo unit with unresolved builder_url/image_url would otherwise send a
     # live offer-page request from the test suite.
@@ -138,7 +140,8 @@ def _poll(handler, listings, made_bots_factory, no_send=False):
             patch.dict(run_coop.coop.SOURCES,
                        {"T": {"url": "u", "parser": "p"}}, clear=True), \
             patch.dict(os.environ, {"TELEGRAM_MAIN_BOT_TOKEN": "tok",
-                                    "WILLHABEN_PRIVATE_COOP": "0"}):
+                                    "WILLHABEN_PRIVATE_COOP": "0",
+                                    "COOP_CHANNEL_ALERT_OWNERS": owners}):
         return run_coop.run(no_send=no_send)
 
 
@@ -313,10 +316,11 @@ class TestChannelFilter(unittest.TestCase):
 
         `get_active_alerts` drops exactly this alert — which is why the channel
         reads the unfiltered subscription list instead."""
-        # Keyword-bearing so the test isolates DELIVERABILITY: an unconstrained
-        # alert is rejected for an unrelated reason and would mask the point.
+        # Keyword-bearing and owner-owned so the test isolates DELIVERABILITY:
+        # an unconstrained or foreign alert is rejected for an unrelated reason
+        # and would mask the point. The owner's own address, still unconfirmed.
         alert = {"_id": "a", "kind": "keyword", "keywords": ["wien"],
-                 "email": "pending@x.at", "confirmed": False}
+                 "email": OWNER, "confirmed": False}
         ledger = FakeLedger()
         handler = _handler(ledger, alerts=[alert])
         bots = _bot_factory()
@@ -378,8 +382,11 @@ class TestChannelAlertMustConstrain(unittest.TestCase):
         """End-to-end through the poll: silence, and loudly, since a user who
         created that alert is entitled to know it does not govern the channel."""
         ledger = FakeLedger()
+        # The owner's own alert: a foreign one would be dropped for ownership
+        # first and the constrain warning would never fire, so the test would
+        # pass while proving nothing.
         handler = _handler(ledger, alerts=[
-            {"_id": "a", "kind": "keyword", "telegram_chat_id": "-100"}])
+            {"_id": "a", "kind": "keyword", "email": OWNER}])
         bots = _bot_factory()
 
         with self.assertLogs("run_coop", level=logging.WARNING) as captured:
@@ -396,6 +403,92 @@ class TestChannelAlertMustConstrain(unittest.TestCase):
                  "confirmed": True}
 
         self.assertEqual(len(match([_l()], [alert])), 1)
+
+
+class TestChannelOwnerScope(unittest.TestCase):
+    """The broadcast channel carries the OWNER's alerts, not every subscriber's.
+
+    The union spans every `alert_subscriptions` row of these kinds, so before
+    this scope a stranger signing up for "Dachterrasse" silently widened the
+    owner's channel — and it widened further with every new subscriber. Their own
+    per-user delivery is untouched; only the broadcast feed narrows.
+
+    Ownership is a list-level filter rather than part of `channel_match`, because
+    "does this alert want this unit" and "is this alert mine" are separate
+    questions and only the first one is about the listing."""
+
+    def test_an_alert_owned_by_someone_else_does_not_govern(self):
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "stranger", "kind": "keyword", "keywords": ["wien"],
+             "email": "someone@else.at"}])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
+
+    def test_email_ownership_is_case_insensitive(self):
+        """Mongo stores whatever the signup form sent; a case mismatch must not
+        silently disown the owner's own alert."""
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "mine", "kind": "keyword", "keywords": ["wien"],
+             "email": "Owner@X.at"}])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots, owners="owner@x.at"), 0)
+
+        self.assertEqual(_sends(bots[0]), 1)
+
+    def test_a_telegram_chat_id_can_be_the_owner(self):
+        """Not every alert carries an email — one made from Telegram has only a
+        chat id, and it must still be claimable as the owner's."""
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "mine", "kind": "keyword", "keywords": ["wien"],
+             "telegram_chat_id": "-100777"}])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots, owners="-100777"), 0)
+
+        self.assertEqual(_sends(bots[0]), 1)
+
+    def test_several_owners_can_be_listed(self):
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "mine", "kind": "keyword", "keywords": ["wien"],
+             "email": "second@x.at"}])
+        bots = _bot_factory()
+
+        self.assertEqual(
+            _poll(handler, [_l()], bots, owners="owner@x.at, second@x.at"), 0)
+
+        self.assertEqual(_sends(bots[0]), 1)
+
+    def test_no_owner_configured_broadcasts_nothing_and_names_the_setting(self):
+        """Fail closed, and loudly. Falling back to the union would restore the
+        stranger-widens-my-channel behaviour at exactly the moment nobody has
+        configured anything — the worst time to guess. The log must name the
+        variable, or a silent channel is indistinguishable from a broken one."""
+        ledger = FakeLedger()
+        handler = _handler(ledger)
+        bots = _bot_factory()
+
+        with self.assertLogs("run_coop", level=logging.WARNING) as captured:
+            self.assertEqual(_poll(handler, [_l()], bots, owners=""), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
+        self.assertTrue(any("COOP_CHANNEL_ALERT_OWNERS" in r.getMessage()
+                            for r in captured.records))
+
+    def test_a_foreign_alert_is_still_delivered_to_its_own_owner(self):
+        """The scope is the CHANNEL's. Other people's subscriptions keep working
+        as subscriptions — this must not become a way to mute other users."""
+        stranger = {"_id": "stranger", "kind": "keyword", "keywords": ["wien"],
+                    "email": "someone@else.at", "confirmed": True}
+
+        self.assertEqual(len(match([_l()], [stranger])), 1)
 
 
 class TestLedgerHandler(unittest.TestCase):

@@ -326,7 +326,7 @@ requests/bs4/pymongo — no Selenium/torch).
 
 Run locally: `cd Project && python run_coop.py [--no-send]`.
 
-### Channel filter — the union of active alerts
+### Channel filter — the union of the OWNER's alerts
 
 The channel carries what a live alert asks for: `run_coop.channel_match_any`
 ORs every subscription from
@@ -337,8 +337,29 @@ Stricter than the per-user path — a match whose gate could not be checked
 feed. Deliverability is not consulted: an alert with an unconfirmed email still
 governs the feed, because filtering is not delivery.
 
-**Zero active alerts = a silent channel** (logged at WARNING), where the old
+Three narrowings, applied in this order, before the union is taken:
+
+1. **Ownership** — `COOP_CHANNEL_ALERT_OWNERS` (comma-separated emails and/or
+   Telegram chat ids, case-insensitive) lists whose alerts define the broadcast
+   feed. `alert_subscriptions` holds every subscriber's rows, so without this a
+   stranger signing up for "Dachterrasse" widens the owner's channel, and it
+   widens again with each new subscriber. **Unset = a silent channel**, logged at
+   WARNING: falling back to the union would restore exactly that behaviour at the
+   moment nobody has configured anything. Other subscribers' per-user delivery is
+   untouched.
+2. **Specificity** — `channel_alert_constrains`. An alert with no keywords and no
+   non-null gate is the old all-null `coop_alerts.json` with a new home, and
+   because the filter is a UNION one such row re-broadcasts the whole feed.
+   `coop_private` is exempt: `rubric_hit` is already its constraint.
+3. **Strictness** — `passes and not unverified`, as above.
+
+**Zero governing alerts = a silent channel** (logged at WARNING), where the old
 static filter meant "send everything".
+
+To see what the channels will carry, against real data and without sending
+anything: `python Project/scripts/check_coop_channel_filter.py [--all]`. It calls
+`run_coop.channel_match` rather than re-deriving the rule, so its verdict cannot
+drift from the poller's.
 
 `Project/coop_alerts.json` and the `COOP_ALERTS` env var are no longer read.
 Every field in the tracked file was `null`, so it matched everything, and
@@ -356,7 +377,8 @@ Fail closed: a missing index or any ledger write error skips the send.
 
 Before the first poll after deploying this, seed the ledger once:
 `python Project/scripts/seed_coop_channel_ledger.py` — otherwise the existing
-inventory reads as never-sent and both channels flood.
+inventory reads as never-sent and both channels flood. Set
+`COOP_CHANNEL_ALERT_OWNERS` in the same deploy, or the channels stay silent.
 
 ## Codebase Exploration
 

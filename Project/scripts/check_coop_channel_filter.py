@@ -16,8 +16,9 @@ Two things it is designed to expose:
   * Alerts that constrain NOTHING. The channel filter is a UNION, so one alert
     with no keywords and no gates would broadcast the entire feed. Those rows are
     listed separately as NOT governing.
-  * Alerts that are not yours. The union spans every subscription of these kinds,
-    whoever created it, so the report prints the owner of each one.
+  * Alerts that are not yours. `alert_subscriptions` holds every subscriber's
+    rows, so the report prints each one's owner and whether COOP_CHANNEL_ALERT_OWNERS
+    admits it. Their own per-user delivery is unaffected either way.
 
 By default only units that would be sent are listed; `--all` adds the excluded
 ones with the reason, which is what you want when a unit you expected never
@@ -52,25 +53,35 @@ def doc_to_unit(doc: dict):
     return SimpleNamespace(**{f: doc.get(f) for f in _UNIT_FIELDS})
 
 
-def describe_alert(alert: dict) -> dict:
-    """One alert as the report shows it.
+def describe_alert(owners: set, alert: dict) -> dict:
+    """One alert as the report shows it, and whether it governs the channel.
 
     `gates` keeps only non-null values: `{"min_area": None}` is the all-null
     shape of the old static filter, and printing it as a gate would claim the
-    channel is narrowed when it is not."""
+    channel is narrowed when it is not.
+
+    `why` records the FIRST reason it does not govern, in the poller's own
+    order — ownership before specificity — so the report never says "constrains
+    nothing" about a row that was already someone else's."""
     filters = alert.get("filters") or {}
+    owned = run_coop.alert_is_owned(alert, owners)
+    constrains = run_coop.channel_alert_constrains(alert)
     return {
         "id": str(alert.get("_id")),
         "kind": alert.get("kind"),
         "owner": alert.get("email") or alert.get("telegram_chat_id") or "—",
         "keywords": alert_keywords(alert),
         "gates": {k: v for k, v in filters.items() if v is not None},
-        "governs": run_coop.channel_alert_constrains(alert),
+        "governs": owned and constrains,
+        "why": ("" if owned and constrains
+                else "not yours" if not owned else "constrains nothing"),
     }
 
 
-def _exclusion_reason(alert: dict, unit) -> str:
+def _exclusion_reason(owners: set, alert: dict, unit) -> str:
     """Why this alert refused this unit — the poller's own order of checks."""
+    if not run_coop.alert_is_owned(alert, owners):
+        return "alert belongs to another subscriber"
     if not run_coop.channel_alert_constrains(alert):
         return "alert constrains nothing"
     if not rubric_hit(alert, unit):
@@ -85,15 +96,20 @@ def _exclusion_reason(alert: dict, unit) -> str:
     return "matched"
 
 
-def preview(docs, alerts) -> list:
+def preview(owners: set, docs, alerts) -> list:
     """Per unit: which alerts admit it to a channel, and whether any does.
+
+    Ownership is applied here as well as in `describe_alert`, because a preview
+    that ignored it would predict sends from a stranger's alert that the poller
+    will never make.
 
     Units nothing admits are included too — a report that listed only the sends
     could not tell "correctly filtered out" apart from "never scraped"."""
+    mine = [a for a in alerts if run_coop.alert_is_owned(a, owners)]
     rows = []
     for doc in docs:
         unit = doc_to_unit(doc)
-        matched = [str(a.get("_id")) for a in alerts
+        matched = [str(a.get("_id")) for a in mine
                    if run_coop.channel_match(a, unit)]
         rows.append({
             "url": doc.get("url"),
@@ -101,13 +117,21 @@ def preview(docs, alerts) -> list:
             "matched_by": matched,
             "would_send": bool(matched),
             "reasons": ([] if matched else
-                        sorted({_exclusion_reason(a, unit) for a in alerts})),
+                        sorted({_exclusion_reason(owners, a, unit)
+                                for a in alerts})),
         })
     return rows
 
 
-def report(alerts, docs, show_all=False) -> None:
-    described = [describe_alert(a) for a in alerts]
+def report(owners: set, alerts, docs, show_all=False) -> None:
+    if not owners:
+        logger.warning(
+            f"⚠️ {run_coop.CHANNEL_OWNERS_ENV} is unset, so the channels are "
+            f"SILENT. Set it to your alert's email or Telegram chat id.")
+    else:
+        logger.info(f"Channel owner(s): {sorted(owners)}")
+
+    described = [describe_alert(owners, a) for a in alerts]
     governing = [d for d in described if d["governs"]]
     ignored = [d for d in described if not d["governs"]]
 
@@ -122,12 +146,11 @@ def report(alerts, docs, show_all=False) -> None:
 
     if ignored:
         logger.info(f"\n=== ALERTS THAT DO **NOT** GOVERN ({len(ignored)}) ===")
-        logger.info("  No keywords and no gates: these would have broadcast the "
-                    "whole feed, so the channel ignores them.")
         for d in ignored:
-            logger.info(f"  [{d['kind']}] {d['id']}  owner={d['owner']}")
+            logger.info(f"  [{d['kind']}] {d['id']}  owner={d['owner']}"
+                        f"  — {d['why']}")
 
-    rows = preview(docs, alerts)
+    rows = preview(owners, docs, alerts)
     sends = [r for r in rows if r["would_send"]]
     logger.info(f"\n=== WOULD BROADCAST {len(sends)} of {len(rows)} stored "
                 f"co-op unit(s) ===")
@@ -158,7 +181,8 @@ def main() -> int:
     try:
         alerts = handler.get_alert_subscriptions(run_coop.ALERT_KINDS)
         docs = list(handler.get_coop_listings_for_seed())[:args.limit]
-        report(alerts, docs, show_all=args.show_all)
+        report(run_coop.channel_alert_owners(), alerts, docs,
+               show_all=args.show_all)
     finally:
         handler.close()
     return 0

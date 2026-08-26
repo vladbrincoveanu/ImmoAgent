@@ -31,6 +31,7 @@ Follow `~/.claude/rules/12-rule-template.md`.
 4. MongoDB access via mongodb_handler.py methods only — no raw queries.
 5. Dedup via `url`/`url_hash`; `sent_to_telegram` prevents re-sends — EXCEPT on the co-op channel path, where the `coop_channel_sends` ledger is authoritative (`sent_to_telegram` is written best-effort for the dashboard but is not the gate: the duplicate/invalid upsert paths leave no doc for it to latch onto).
 6. Telegram formatting: follow telegram_bot.py patterns (4096-char limit). Outreach templates are German (outreach/email_sender.py).
+7. The co-op channel broadcasts only alerts owned by `COOP_CHANNEL_ALERT_OWNERS` that constrain something (a keyword, a non-null gate, or the `coop_private` rubric). Unset owners or a catch-all alert = silence, never "send everything" — that fallback was the original firehose. Per-user delivery is unaffected by both rules.
 
 ## Workflow notes
 - New scraper: Application/scraping/<src>_scraper.py → wire into Application/main.py → add --<src>-only flag.

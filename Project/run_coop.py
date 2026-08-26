@@ -164,6 +164,30 @@ def maybe_reprobe_image(stored: dict, resolve) -> dict:
     return out
 
 
+CHANNEL_OWNERS_ENV = "COOP_CHANNEL_ALERT_OWNERS"
+
+
+def channel_alert_owners() -> set:
+    """The identities whose alerts define the broadcast feed, lowercased.
+
+    Comma-separated emails and/or Telegram chat ids. Env rather than config.json
+    to match `coop_alert_router.route`, which reads its chat ids the same way."""
+    raw = os.environ.get(CHANNEL_OWNERS_ENV) or ""
+    return {part.strip().lower() for part in raw.split(",") if part.strip()}
+
+
+def alert_is_owned(alert: Dict, owners: set) -> bool:
+    """True when this alert belongs to one of the channel owners.
+
+    Either identity on the row counts: an alert created from Telegram carries a
+    chat id and no email, one created on /alerts the reverse. Case-insensitive,
+    because the signup form stores whatever was typed and a capital letter must
+    not silently disown the owner's own alert."""
+    identities = {str(alert.get("email") or "").strip().lower(),
+                  str(alert.get("telegram_chat_id") or "").strip().lower()}
+    return bool(owners & (identities - {""}))
+
+
 def channel_alert_constrains(alert: Dict) -> bool:
     """True when this alert narrows the feed to something less than everything.
 
@@ -464,6 +488,28 @@ def run(no_send: bool = False) -> int:
     except Exception as e:
         logger.error(f"❌ could not load the channel alert filter: {e}")
         channel_alerts = []
+    # The channel is the OWNER's feed, not every subscriber's. Without this a
+    # stranger signing up for "Dachterrasse" silently widens the broadcast, and
+    # it widens further with each new subscriber. Their own delivery is
+    # untouched — `deliver_user_alerts` above already ran on the full list.
+    owners = channel_alert_owners()
+    if not owners:
+        # Fail closed: falling back to the union would restore exactly that
+        # behaviour at the moment nobody has configured anything.
+        logger.warning(
+            f"⚠️ {CHANNEL_OWNERS_ENV} is unset — the co-op channels stay silent. "
+            f"Set it to the email(s) or Telegram chat id(s) whose alerts should "
+            f"define the feed, comma-separated. User alerts are unaffected.")
+        channel_alerts = []
+    else:
+        foreign = [a for a in channel_alerts if not alert_is_owned(a, owners)]
+        if foreign:
+            logger.info(
+                f"ℹ️ {len(foreign)} alert(s) belong to other subscribers and do "
+                f"not govern the channel; they are still delivered to them.")
+            channel_alerts = [a for a in channel_alerts
+                              if alert_is_owned(a, owners)]
+
     # Drop the ones that narrow nothing BEFORE the emptiness check, so "every
     # alert I have is a catch-all" reports as silence rather than as a filter.
     vague = [a for a in channel_alerts if not channel_alert_constrains(a)]
