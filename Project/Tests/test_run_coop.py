@@ -124,10 +124,14 @@ def _mongo_mock(get_listing_ret=None, alerts=None):
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
     h.get_listings_by_urls.return_value = {}
-    # One key-less alert = "everything on this feed", which is what these tests
+    # One alert wide enough to admit every `_l()`, which is what these tests
     # assumed before the channel filter existed. Zero alerts now means silence.
+    # It must carry a real constraint: a key-less, gate-less alert no longer
+    # governs the channel (that shape was the old firehose). Every `_l()` here is
+    # bezirk 1100, so this keyword admits all of them without matching blindly.
     h.get_alert_subscriptions.return_value = (
-        [{"_id": "t", "kind": "keyword", "telegram_chat_id": "-100"}]
+        [{"_id": "t", "kind": "keyword", "keywords": ["1100"],
+          "telegram_chat_id": "-100"}]
         if alerts is None else alerts)
     return h
 

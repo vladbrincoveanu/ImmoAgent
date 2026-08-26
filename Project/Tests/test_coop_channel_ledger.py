@@ -26,8 +26,11 @@ MYGEWO_CHAT = "-1001mygewo"
 PRIVATE_CHAT = "-1001private"
 
 # One permissive alert: the channel filter is now the union of active alerts, so
-# without at least one the feed is silent by design (D6).
-OPEN_ALERT = {"_id": "open", "kind": "keyword", "telegram_chat_id": "-100"}
+# without at least one the feed is silent by design (D6). It carries a keyword
+# because an alert that constrains nothing no longer governs the channel — see
+# TestChannelAlertMustConstrain. "wien" is in every `_l()` address.
+OPEN_ALERT = {"_id": "open", "kind": "keyword", "keywords": ["wien"],
+              "telegram_chat_id": "-100"}
 
 
 def _l(**kw):
@@ -310,8 +313,10 @@ class TestChannelFilter(unittest.TestCase):
 
         `get_active_alerts` drops exactly this alert — which is why the channel
         reads the unfiltered subscription list instead."""
-        alert = {"_id": "a", "kind": "keyword", "email": "pending@x.at",
-                 "confirmed": False}
+        # Keyword-bearing so the test isolates DELIVERABILITY: an unconstrained
+        # alert is rejected for an unrelated reason and would mask the point.
+        alert = {"_id": "a", "kind": "keyword", "keywords": ["wien"],
+                 "email": "pending@x.at", "confirmed": False}
         ledger = FakeLedger()
         handler = _handler(ledger, alerts=[alert])
         bots = _bot_factory()
@@ -329,6 +334,68 @@ class TestChannelFilter(unittest.TestCase):
         self.assertFalse(run_coop.channel_match(alert, _l()))
         self.assertTrue(run_coop.channel_match(
             alert, _l(coop_kind="private_transfer")))
+
+
+class TestChannelAlertMustConstrain(unittest.TestCase):
+    """The firehose, re-entering through Mongo.
+
+    `coop_alerts.json` broadcast everything because every one of its fields was
+    null. An alert row with no keywords and no gates has exactly that shape, and
+    because the channel filter is a UNION, one such row silently puts the entire
+    co-op feed back on the channel — the precise bug this branch exists to kill.
+
+    So the channel additionally requires an alert to constrain something. This is
+    a channel rule only: per-user delivery keeps honouring "send me everything"."""
+
+    def test_an_alert_with_no_keywords_and_no_gates_does_not_open_the_feed(self):
+        alert = {"_id": "a", "kind": "keyword", "telegram_chat_id": "-100"}
+
+        self.assertFalse(run_coop.channel_match(alert, _l()))
+
+    def test_all_null_filters_do_not_open_the_feed(self):
+        """The literal `coop_alerts.json` shape: keys present, every value null."""
+        alert = {"_id": "a", "kind": "keyword", "telegram_chat_id": "-100",
+                 "filters": {"min_area": None, "max_rooms": None,
+                             "max_price": None}}
+
+        self.assertFalse(run_coop.channel_match(alert, _l()))
+
+    def test_one_real_gate_is_enough_to_constrain(self):
+        alert = {"_id": "a", "kind": "keyword", "telegram_chat_id": "-100",
+                 "filters": {"min_rooms": 2, "max_price": None}}
+
+        self.assertTrue(run_coop.channel_match(alert, _l(rooms=3)))
+
+    def test_a_coop_private_alert_needs_no_keywords_to_be_specific(self):
+        """For this kind the rubric IS the constraint — demanding keywords on top
+        would silence the private-transfer feed entirely."""
+        alert = {"_id": "a", "kind": "coop_private", "telegram_chat_id": "-100"}
+
+        self.assertTrue(run_coop.channel_match(
+            alert, _l(coop_kind="private_transfer")))
+
+    def test_unconstrained_alert_broadcasts_nothing_and_warns(self):
+        """End-to-end through the poll: silence, and loudly, since a user who
+        created that alert is entitled to know it does not govern the channel."""
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "a", "kind": "keyword", "telegram_chat_id": "-100"}])
+        bots = _bot_factory()
+
+        with self.assertLogs("run_coop", level=logging.WARNING) as captured:
+            self.assertEqual(_poll(handler, [_l()], bots), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
+        self.assertTrue(any("constrain" in r.getMessage().lower()
+                            for r in captured.records))
+
+    def test_an_unconstrained_alert_still_delivers_to_its_own_user(self):
+        """The guard must not leak into the shared matcher: a user who asked for
+        the whole feed in their own inbox keeps receiving it."""
+        alert = {"_id": "a", "kind": "keyword", "email": "u@x.at",
+                 "confirmed": True}
+
+        self.assertEqual(len(match([_l()], [alert])), 1)
 
 
 class TestLedgerHandler(unittest.TestCase):
