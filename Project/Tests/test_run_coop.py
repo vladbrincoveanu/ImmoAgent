@@ -656,6 +656,24 @@ class TestDeliverUserAlerts(unittest.TestCase):
         return h
 
     @patch("Integration.telegram_bot.TelegramBot")
+    def test_legacy_listings_alert_created_by_dashboard_is_delivered(self, TB):
+        """The legacy dashboard modal stores kind='listings'; keep polling it."""
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        alert = {"_id": "a", "kind": "listings", "keyword": "1100",
+                 "telegram_chat_id": "-100", "confirmed": True}
+        handler = self._handler([])
+        handler.get_active_alerts.side_effect = (
+            lambda kinds: [alert] if "listings" in kinds else [])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Wohnung 1100 Wien"
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        handler.get_active_alerts.assert_called_once_with(
+            ["listings", "coop_private", "keyword"])
+        TB.assert_called_once_with("tok", "-100")
+
+    @patch("Integration.telegram_bot.TelegramBot")
     def test_telegram_alert_is_delivered(self, TB):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"

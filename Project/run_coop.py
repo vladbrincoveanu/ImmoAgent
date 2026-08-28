@@ -50,9 +50,14 @@ MAX_DETAIL_FETCHES_PER_RUN = 40
 IMAGE_PROBE_V = 2
 
 
-# Feeds that user-created alerts watch. 'coop_private' is the original
-# private-transfer rubric; 'keyword' is the general feed created on /alerts.
-ALERT_KINDS = ["coop_private", "keyword"]
+# Feeds that user-created alerts watch. 'listings' is the legacy dashboard
+# modal's broad feed; 'coop_private' is the private-transfer rubric; 'keyword'
+# is the general feed created on /alerts.
+USER_ALERT_KINDS = ["listings", "coop_private", "keyword"]
+# Legacy broad alerts are private user subscriptions, not permission to reopen
+# the broadcast co-op channels. Those channels remain governed by the explicit
+# co-op alert kinds only.
+CHANNEL_ALERT_KINDS = ["coop_private", "keyword"]
 _LOOKUP_NOT_PROVIDED = object()
 
 
@@ -75,7 +80,7 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     Returns the number of successful deliveries. Never raises: an alert-delivery
     failure must not fail the poll that feeds the website."""
     try:
-        alerts = handler.get_active_alerts(ALERT_KINDS)
+        alerts = handler.get_active_alerts(USER_ALERT_KINDS)
     except Exception as e:
         logger.error(f"❌ could not load user alerts: {e}")
         return 0
@@ -436,7 +441,7 @@ def run(no_send: bool = False) -> int:
     # only address is unconfirmed, and such an alert still says what this feed is
     # for even though nothing can be delivered to it.
     try:
-        channel_alerts = handler.get_alert_subscriptions(ALERT_KINDS)
+        channel_alerts = handler.get_alert_subscriptions(CHANNEL_ALERT_KINDS)
     except Exception as e:
         logger.error(f"❌ could not load the channel alert filter: {e}")
         channel_alerts = []
