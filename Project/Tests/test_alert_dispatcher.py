@@ -450,7 +450,7 @@ def test_mongo_claim_duplicate_is_distinct_from_operational_failure(caplog):
         def __init__(self, error):
             self.error = error
 
-        def insert_one(self, document):
+        def find_one_and_update(self, filter_doc, update_doc, **kwargs):
             raise self.error
 
     handler = object.__new__(MongoDBHandler)
@@ -480,14 +480,14 @@ def test_mongo_claim_rejects_new_xsrc_key_when_legacy_url_row_exists():
     class _Deliveries:
         def __init__(self):
             self.find_query = None
-            self.inserted = []
+            self.update = None
+            self.options = None
 
-        def find_one(self, query):
-            self.find_query = query
+        def find_one_and_update(self, filter_doc, update_doc, **kwargs):
+            self.find_query = filter_doc
+            self.update = update_doc
+            self.options = kwargs
             return {"alert_id": "a", "url_hash": "legacy-hash"}
-
-        def insert_one(self, document):
-            self.inserted.append(document)
 
     listings = _Listings()
     deliveries = _Deliveries()
@@ -502,10 +502,13 @@ def test_mongo_claim_rejects_new_xsrc_key_when_legacy_url_row_exists():
     assert deliveries.find_query == {
         "alert_id": "a",
         "url_hash": {
-            "$in": [url_hash(legacy_url)]
+            "$in": [fingerprint, url_hash(legacy_url)]
         },
     }
-    assert deliveries.inserted == []
+    assert deliveries.options == {
+        "upsert": True,
+        "return_document": pymongo.ReturnDocument.BEFORE,
+    }
 
 
 def test_mongo_claim_checks_current_url_when_legacy_listing_is_unindexed():
@@ -520,12 +523,9 @@ def test_mongo_claim_checks_current_url_when_legacy_listing_is_unindexed():
         def __init__(self):
             self.find_query = None
 
-        def find_one(self, query):
-            self.find_query = query
+        def find_one_and_update(self, filter_doc, update_doc, **kwargs):
+            self.find_query = filter_doc
             return {"alert_id": "a", "url_hash": "legacy-hash"}
-
-        def insert_one(self, document):
-            raise AssertionError("legacy delivery should block the new claim")
 
     deliveries = _Deliveries()
     handler = object.__new__(MongoDBHandler)
@@ -540,7 +540,49 @@ def test_mongo_claim_checks_current_url_when_legacy_listing_is_unindexed():
     ) is False
     assert deliveries.find_query == {
         "alert_id": "a",
-        "url_hash": {"$in": [url_hash(legacy_url)]},
+        "url_hash": {"$in": [fingerprint, url_hash(legacy_url)]},
+    }
+
+
+def test_mongo_claim_atomically_inserts_when_no_alias_row_exists():
+    legacy_url = "https://www.willhaben.at/unindexed-legacy-unit"
+    fingerprint = "xsrc-fingerprint"
+
+    class _Listings:
+        def find(self, query):
+            return []
+
+    class _Deliveries:
+        def __init__(self):
+            self.find_query = None
+            self.update = None
+            self.options = None
+
+        def find_one_and_update(self, filter_doc, update_doc, **kwargs):
+            self.find_query = filter_doc
+            self.update = update_doc
+            self.options = kwargs
+            return None
+
+    deliveries = _Deliveries()
+    handler = object.__new__(MongoDBHandler)
+    handler.collection = _Listings()
+    handler.db = {"alert_deliveries": deliveries}
+
+    assert handler.claim_delivery(
+        "a",
+        fingerprint,
+        delivery_fingerprint=fingerprint,
+        legacy_delivery_url_hash=url_hash(legacy_url),
+    ) is True
+    assert deliveries.find_query == {
+        "alert_id": "a",
+        "url_hash": {"$in": [fingerprint, url_hash(legacy_url)]},
+    }
+    assert deliveries.update["$setOnInsert"]["url_hash"] == fingerprint
+    assert deliveries.options == {
+        "upsert": True,
+        "return_document": pymongo.ReturnDocument.BEFORE,
     }
 
 

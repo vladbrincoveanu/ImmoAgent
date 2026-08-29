@@ -798,13 +798,8 @@ class MongoDBHandler:
                         delivery_fingerprint):
                     if legacy_hash not in legacy_hashes:
                         legacy_hashes.append(legacy_hash)
-            if legacy_hashes:
-                if self.db["alert_deliveries"].find_one({
-                    "alert_id": alert_id,
-                    "url_hash": {"$in": legacy_hashes},
-                }):
-                    return False
-            self.db["alert_deliveries"].insert_one({
+
+            delivery = {
                 "alert_id": alert_id,
                 "url_hash": url_hash,
                 "chat_id": chat_id,
@@ -816,8 +811,22 @@ class MongoDBHandler:
                 "email_sent": not bool(email),
                 "status": "pending",
                 "created_at": datetime.now(timezone.utc),
-            })
-            return True
+            }
+            claim_keys = [url_hash, *legacy_hashes]
+            claim_filter = {
+                "alert_id": alert_id,
+                "url_hash": (claim_keys[0] if len(claim_keys) == 1
+                              else {"$in": claim_keys}),
+            }
+            existing = self.db["alert_deliveries"].find_one_and_update(
+                claim_filter,
+                {"$setOnInsert": delivery},
+                upsert=True,
+                return_document=pymongo.ReturnDocument.BEFORE,
+            )
+            # With BEFORE, Mongo returns None only for the document this call
+            # inserted. The whole alias check and claim are one atomic command.
+            return existing is None
         except pymongo.errors.DuplicateKeyError:
             # DuplicateKeyError is the expected path here, not an error.
             return False
