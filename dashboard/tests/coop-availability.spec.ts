@@ -1,13 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { MongoClient } from 'mongodb';
 
-const URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/immo';
-const FIXTURE_PREFIX = 'https://fixture.invalid/coop-availability/';
+const URI = 'mongodb://localhost:27017/immo';
+const FIXTURE_ID = `${Date.now()}-${process.pid}`;
+const FIXTURE_PREFIX = `https://fixture.invalid/coop-availability/${FIXTURE_ID}/`;
+const FIXTURE_LABEL = `Availability fixture ${FIXTURE_ID}`;
+const FIXTURE_URLS = [
+  'developer-active',
+  'developer-taken',
+  'private-active',
+  'private-taken',
+].map((suffix) => FIXTURE_PREFIX + suffix);
 
 function doc(suffix: string, extra: Record<string, unknown> = {}) {
   return {
     url: FIXTURE_PREFIX + suffix,
-    title: `Availability fixture ${suffix}`,
+    title: `${FIXTURE_LABEL} ${suffix}`,
     address: `Availabilitygasse ${suffix}, 1220 Wien`,
     bezirk: '1220',
     rooms: 3,
@@ -28,38 +36,50 @@ function doc(suffix: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-let client: MongoClient;
+let client: MongoClient | undefined;
 
 test.beforeAll(async () => {
-  client = new MongoClient(URI);
-  await client.connect();
-  const listings = client.db('immo').collection('listings');
-  await listings.deleteMany({ url: { $regex: '^' + FIXTURE_PREFIX } });
-  await listings.insertMany([
-    doc('developer-active'),
-    doc('developer-taken', { listing_status: 'taken' }),
-    doc('private-active', {
-      coop_kind: 'private_transfer',
-      coop_source: 'willhaben',
-      description: 'Active private transfer',
-    }),
-    doc('private-taken', {
-      coop_kind: 'private_transfer',
-      coop_source: 'willhaben',
-      description: 'Taken private transfer',
-      listing_status: 'taken',
-    }),
-  ]);
+  const nextClient = new MongoClient(URI);
+  try {
+    await nextClient.connect();
+    client = nextClient;
+    const listings = nextClient.db('immo').collection('listings');
+    await listings.deleteMany({ url: { $in: FIXTURE_URLS } });
+    await listings.insertMany([
+      doc('developer-active'),
+      doc('developer-taken', { listing_status: 'taken' }),
+      doc('private-active', {
+        coop_kind: 'private_transfer',
+        coop_source: 'willhaben',
+        description: `${FIXTURE_LABEL} active private transfer`,
+      }),
+      doc('private-taken', {
+        coop_kind: 'private_transfer',
+        coop_source: 'willhaben',
+        description: `${FIXTURE_LABEL} taken private transfer`,
+        listing_status: 'taken',
+      }),
+    ]);
+  } catch (error) {
+    if (!client) await nextClient.close().catch(() => {});
+    throw error;
+  }
 });
 
 test.afterAll(async () => {
-  await client.db('immo').collection('listings')
-    .deleteMany({ url: { $regex: '^' + FIXTURE_PREFIX } });
-  await client.close();
+  const activeClient = client;
+  client = undefined;
+  if (!activeClient) return;
+  try {
+    await activeClient.db('immo').collection('listings')
+      .deleteMany({ url: { $in: FIXTURE_URLS } });
+  } finally {
+    await activeClient.close().catch(() => {});
+  }
 });
 
 test('/coop hides taken developer offers but keeps active offers', async ({ page }) => {
-  await page.goto('/coop');
+  await page.goto(`/coop?q=${encodeURIComponent(FIXTURE_LABEL)}`);
 
   await expect(page.getByTestId('coop-item')).toHaveCount(1);
   await expect(page.getByTestId('coop-address')).toContainText('developer-active');
@@ -67,7 +87,7 @@ test('/coop hides taken developer offers but keeps active offers', async ({ page
 });
 
 test('/coop/private hides taken private transfers but keeps active transfers', async ({ page }) => {
-  await page.goto('/coop/private');
+  await page.goto(`/coop/private?q=${encodeURIComponent(FIXTURE_LABEL)}`);
 
   await expect(page.getByTestId('private-item')).toHaveCount(1);
   await expect(page.getByTestId('private-title')).toContainText('private-active');
