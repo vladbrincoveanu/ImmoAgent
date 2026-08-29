@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint, compute_xsrc_fingerprint
 from Application.helpers.mortgage import add_monthly_payment_calculation
+from Application.telegram_delivery import preserve_delivery_state
 from Application.buyer_profiles import GLOBAL_VALIDATION, BUYER_PROFILES
 from Domain.constants import RENTAL_KEYWORDS, PRICE_ON_REQUEST_KEYWORDS
 import logging
@@ -18,6 +19,65 @@ logger = logging.getLogger(__name__)
 
 # Per-profile precalculation support
 PROFILE_NAMES: list[str] = list(BUYER_PROFILES.keys())
+LISTING_DELIVERY_CHANNELS = {"vienna", "coop", "private_coop"}
+NON_EXPIRING_DELIVERY_CHANNELS = {"coop", "private_coop"}
+
+
+def _validate_listing_delivery_channel(channel: str) -> str:
+    if not isinstance(channel, str) or channel not in LISTING_DELIVERY_CHANNELS:
+        raise ValueError(f"unknown listing delivery channel: {channel}")
+    return f"telegram_delivery.{channel}"
+
+
+def _listing_delivery_query(
+    url: str,
+    fingerprint: str,
+    prefix: str,
+    *,
+    non_expiring: bool = False,
+) -> Dict[str, Any]:
+    identity = [{"url": url}]
+    if fingerprint:
+        identity.append({"content_fingerprint": fingerprint})
+    conditions = [
+        {"$or": identity},
+        {
+            f"{prefix}.state": {
+                "$nin": ["sent", "uncertain"]
+                + (["claimed"] if non_expiring else [])
+            }
+        },
+    ]
+    if not non_expiring:
+        conditions.append({"$or": [
+            {f"{prefix}.claim_until": {"$exists": False}},
+            {f"{prefix}.claim_until": None},
+            {f"{prefix}.claim_until": {"$lte": time.time()}},
+        ]})
+    return {"$and": conditions}
+
+
+def _valid_listing_delivery_identity(url: Any, fingerprint: Any) -> bool:
+    return isinstance(url, str) and bool(url.strip()) and isinstance(fingerprint, str)
+
+
+def _valid_listing_delivery_claim_token(claim_token: Any) -> bool:
+    return isinstance(claim_token, str) and bool(claim_token.strip())
+
+
+def _claimed_listing_delivery_query(
+    url: str, fingerprint: str, prefix: str,
+    claim_token: str,
+) -> Dict[str, Any]:
+    identity = [{"url": url}]
+    if fingerprint:
+        identity.append({"content_fingerprint": fingerprint})
+    conditions = [
+        {"$or": identity},
+        {f"{prefix}.state": "claimed"},
+        {f"{prefix}.claim_token": claim_token},
+    ]
+    return {"$and": conditions}
 
 
 def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
@@ -90,6 +150,24 @@ def handle_fingerprint_match(existing: Dict, incoming: Dict) -> Dict:
         update['taken_at'] = None
 
     return update
+
+
+def _completeness_score(doc: Dict) -> int:
+    """Count of non-null fields, excluding Mongo/bookkeeping keys that are
+    always present and don't reflect scrape data quality."""
+    _EXCLUDE = {"_id", "content_fingerprint", "unit_fingerprint", "source_enum",
+                "url", "processed_at", "sent_to_telegram", "sent_to_telegram_at"}
+    return sum(1 for k, v in doc.items() if k not in _EXCLUDE and v not in (None, "", []))
+
+
+def pick_canonical_doc(docs: List[Dict]) -> Dict:
+    """Given multiple docs sharing a unit_fingerprint, pick the display
+    canonical one: most non-null fields wins; tie-break on earliest
+    first_scraped_at. Per spec 'Resolved decisions' table."""
+    return sorted(
+        docs,
+        key=lambda d: (-_completeness_score(d), d.get("first_scraped_at") or float("inf")),
+    )[0]
 
 
 class MongoDBHandler:
@@ -191,40 +269,37 @@ class MongoDBHandler:
         self.close()
 
     def insert_listing(self, listing: Dict) -> bool:
-        price_val = listing.get('price_total')
+        listing_data = dict(listing)
+        price_val = listing_data.get('price_total')
         if not isinstance(price_val, (int, float)) or price_val <= 0:
-            logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing.get('url')}")
+            logging.info(f"🚫 Skipping save: invalid or missing price_total ({price_val}) for URL {listing_data.get('url')}")
             return False
 
-        valid, reason = is_valid_listing_data(listing)
+        valid, reason = is_valid_listing_data(listing_data)
         if not valid:
             logging.info(f"🚫 Skipping save: validation failed — {reason}")
-            source = listing.get('source_enum', listing.get('source', 'unknown'))
+            source = listing_data.get('source_enum', listing_data.get('source', 'unknown'))
             self.increment_validation_failure(source)
             return False
+
+        fingerprint = compute_content_fingerprint(listing_data)
+        listing_data['content_fingerprint'] = fingerprint
 
         # Co-op cross-source dedup (v1): collapse same unit across Willhaben + Bauträger.
         # compute_xsrc_fingerprint() expects attribute-style access (it was written against
         # the Listing dataclass), but insert_listing() always receives a plain dict — wrap
         # it in SimpleNamespace so the same fields resolve without touching that function.
-        if listing.get('is_genossenschaft'):
-            xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+        if listing_data.get('is_genossenschaft'):
+            xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing_data))
             if xfp:
-                listing['content_fingerprint_xsrc'] = xfp
+                listing_data['content_fingerprint_xsrc'] = xfp
                 try:
                     existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
                     if existing:
                         # Prefer Bauträger-direct (canonical apply URL) over Willhaben.
-                        if (listing.get('coop_source') == 'bautraeger_direct'
+                        if (listing_data.get('coop_source') == 'bautraeger_direct'
                                 and existing.get('coop_source') == 'willhaben'):
-                            self.collection.update_one(
-                                {"_id": existing["_id"]},
-                                {"$set": {
-                                    "url": listing.get('url'),
-                                    "coop_source": 'bautraeger_direct',
-                                    "bautraeger": listing.get('bautraeger'),
-                                }}
-                            )
+                            self._replace_preserving_state(existing, listing_data)
                         logging.info(f"🚫 Skipping cross-source co-op duplicate: {xfp}")
                         return True
                 except pymongo.errors.DuplicateKeyError:
@@ -239,17 +314,14 @@ class MongoDBHandler:
                     print(f"MongoDB co-op dedup error: {e}")
                     return False
 
-        fingerprint = compute_content_fingerprint(listing)
-        listing['content_fingerprint'] = fingerprint
-
         try:
             existing_fingerprint = self.collection.find_one(
-                {"content_fingerprint": fingerprint, "source_enum": listing.get('source_enum', listing.get('source'))}
+                {"content_fingerprint": fingerprint, "source_enum": listing_data.get('source_enum', listing_data.get('source'))}
             )
             if existing_fingerprint:
-                logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing.get('title')} (URL: {listing.get('url')})")
+                logging.info(f"🚫 Skipping duplicate by content fingerprint: {listing_data.get('title')} (URL: {listing_data.get('url')})")
                 return True
-            self.collection.insert_one(listing)
+            self.collection.insert_one(listing_data)
             return True
         except pymongo.errors.DuplicateKeyError:
             return False
@@ -265,21 +337,12 @@ class MongoDBHandler:
 
     def _replace_preserving_state(self, existing: Dict, listing: Dict) -> None:
         """Replace an existing co-op doc with fresh data, carrying over the state
-        the scrape can't know: send-state (NEVER reset on re-poll → no repeated
-        re-spam) and the detail-page-resolved builder_url / image_url (only
-        run_coop resolves those; other write paths would else wipe them)."""
-        listing['_id'] = existing['_id']
-        for k in ("sent_to_telegram", "sent_to_telegram_at", "url_is_valid"):
-            if k in existing:
-                listing[k] = existing[k]
-        # `is not None`, NOT truthiness: "" is the terminal "offer page had no
-        # builder link / no photo" sentinel run_coop writes so it stops
-        # re-fetching that page every poll. A falsy check would drop the "" and
-        # silently restart the re-fetch loop it exists to prevent.
-        for k in ("builder_url", "image_url"):
-            if listing.get(k) is None and existing.get(k) is not None:
-                listing[k] = existing[k]
-        self.collection.replace_one({"_id": existing['_id']}, listing)
+        the scrape can't know: delivery state and the detail-page-resolved
+        builder/image fields. Fresh resolved values win, while an existing empty
+        string remains the terminal sentinel for a resolved-but-empty result."""
+        replacement = preserve_delivery_state(existing, listing)
+        replacement['_id'] = existing['_id']
+        self.collection.replace_one({"_id": existing['_id']}, replacement)
 
     def upsert_coop_listing(self, listing: Dict) -> str:
         """Upsert a co-op listing WITHOUT the price>0 gate (co-op units often
@@ -290,48 +353,49 @@ class MongoDBHandler:
         Preserves send-state on update so a minutely re-poll never resets
         sent_to_telegram and re-spams. Returns one of:
         "inserted" | "updated" | "duplicate" | "invalid" | "error"."""
+        listing_data = dict(listing)
         if self.collection is None:
             return "error"
-        valid, reason = is_valid_listing_data(listing)
+        valid, reason = is_valid_listing_data(listing_data)
         if not valid:
             logging.info(f"🚫 coop upsert skipped — {reason}")
             return "invalid"
         try:
             # Cross-source dedup (Willhaben ↔ Bauträger-direct for one unit).
-            if listing.get('is_genossenschaft'):
-                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing))
+            if listing_data.get('is_genossenschaft'):
+                xfp = compute_xsrc_fingerprint(SimpleNamespace(**listing_data))
                 if xfp:
-                    listing['content_fingerprint_xsrc'] = xfp
+                    listing_data['content_fingerprint_xsrc'] = xfp
                     existing = self.collection.find_one({"content_fingerprint_xsrc": xfp})
-                    if existing and existing.get('url') != listing.get('url'):
-                        if (listing.get('coop_source') == 'bautraeger_direct'
+                    if existing and existing.get('url') != listing_data.get('url'):
+                        if (listing_data.get('coop_source') == 'bautraeger_direct'
                                 and existing.get('coop_source') == 'willhaben'):
                             # Migrate the Willhaben row to the Bauträger-direct
                             # one: replace wholesale (not a 4-field $set) so rent,
                             # area, features, coordinates etc. don't go stale.
-                            listing['content_fingerprint'] = compute_content_fingerprint(listing)
-                            self._replace_preserving_state(existing, listing)
+                            listing_data['content_fingerprint'] = compute_content_fingerprint(listing_data)
+                            self._replace_preserving_state(existing, listing_data)
                             logging.info(f"🔁 coop xsrc migrated to bautraeger_direct: {xfp}")
                             return "updated"
                         logging.info(f"🚫 coop xsrc duplicate: {xfp}")
                         return "duplicate"
 
-            listing['content_fingerprint'] = compute_content_fingerprint(listing)
+            listing_data['content_fingerprint'] = compute_content_fingerprint(listing_data)
 
-            existing_by_url = self.collection.find_one({"url": listing.get('url')})
+            existing_by_url = self.collection.find_one({"url": listing_data.get('url')})
             if existing_by_url:
-                self._replace_preserving_state(existing_by_url, listing)
+                self._replace_preserving_state(existing_by_url, listing_data)
                 return "updated"
 
-            source_enum = listing.get('source_enum', listing.get('source', ''))
+            source_enum = listing_data.get('source_enum', listing_data.get('source', ''))
             existing_by_fp = self.collection.find_one(
-                {"content_fingerprint": listing['content_fingerprint'],
+                {"content_fingerprint": listing_data['content_fingerprint'],
                  "source_enum": source_enum})
             if existing_by_fp:
-                logging.info(f"🚫 coop fingerprint duplicate: {listing.get('url')}")
+                logging.info(f"🚫 coop fingerprint duplicate: {listing_data.get('url')}")
                 return "duplicate"
 
-            self.collection.insert_one(listing)
+            self.collection.insert_one(listing_data)
             return "inserted"
         except Exception as e:
             logging.error(f"upsert_coop_listing error: {e}")
@@ -382,6 +446,18 @@ class MongoDBHandler:
         fingerprint = compute_content_fingerprint(listing)
         listing['content_fingerprint'] = fingerprint
 
+        from Application.helpers.listing_validator import compute_unit_fingerprint as _compute_unit_fp
+        from Domain.listing import Listing as _Listing
+        try:
+            _tmp = _Listing(url=listing.get('url', ''), source=listing.get('source_enum', listing.get('source')))
+            for _f in ("area_m2", "rooms", "bezirk", "address", "coordinates", "coordinate_source"):
+                if _f in listing:
+                    setattr(_tmp, _f, listing[_f])
+            listing['unit_fingerprint'] = _compute_unit_fp(_tmp)
+        except Exception as e:
+            logging.warning(f"unit_fingerprint computation failed: {e}")
+            listing['unit_fingerprint'] = None
+
         try:
             from datetime import datetime
             now = datetime.utcnow()
@@ -405,9 +481,36 @@ class MongoDBHandler:
                     'price_total': price_val,
                     'price_history': price_history,
                     'processed_at': listing.get('processed_at', now.timestamp()),
+                    'unit_fingerprint': listing.get('unit_fingerprint'),
                 }
                 if existing.get('price_at_scrape') is None:
                     update_set['price_at_scrape'] = old_price or price_val
+
+                # Relist detection: only fires for a same-source match on a
+                # previously-taken doc. A cross-source fingerprint match on an
+                # *active* doc from a different source is a plain new insert
+                # elsewhere in this function, never a relist event here -
+                # matching only happens by (content_fingerprint, source_enum),
+                # so `existing` is always same-source by construction.
+                if existing.get('listing_status') == 'taken':
+                    taken_at = existing.get('taken_at')
+                    days_off_market = None
+                    if taken_at:
+                        try:
+                            delta = now - taken_at
+                            days_off_market = delta.days
+                        except TypeError:
+                            days_off_market = None
+                    relist_events = existing.get('relist_events', [])
+                    relist_events.append({
+                        'delisted_at': taken_at,
+                        'republished_at': now,
+                        'days_off_market': days_off_market,
+                        'price_at_relist': price_val,
+                    })
+                    update_set['relist_events'] = relist_events
+                    update_set['times_relisted'] = existing.get('times_relisted', 0) + 1
+                    update_set['listing_status'] = 'active'
 
                 self.collection.update_one(
                     {"_id": existing["_id"]},
@@ -520,6 +623,144 @@ class MongoDBHandler:
             return False
         except Exception as e:
             logging.error(f"MongoDB update error: {e}")
+            return False
+
+    def claim_listing_delivery(self, url: str, fingerprint: str,
+                               channel: str = "vienna",
+                               *, claim_token: str,
+                               lease_seconds: Optional[int] = 300) -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or not _valid_listing_delivery_claim_token(claim_token)
+        ):
+            return False
+        try:
+            now = time.time()
+            source_route = channel in NON_EXPIRING_DELIVERY_CHANNELS
+            update_set = {
+                f"{prefix}.state": "claimed",
+                f"{prefix}.claimed_at": now,
+                f"{prefix}.claim_token": claim_token,
+            }
+            if not source_route:
+                update_set[f"{prefix}.claim_until"] = now + (lease_seconds or 300)
+            row = self.collection.find_one_and_update(
+                _listing_delivery_query(
+                    url, fingerprint, prefix, non_expiring=source_route
+                ),
+                {"$set": update_set},
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
+            return row is not None
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery claim failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected {channel} listing delivery claim failure: {e}")
+            return False
+
+    def release_listing_delivery(self, url: str, fingerprint: str,
+                                 channel: str = "vienna",
+                                 *, claim_token: str) -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or not _valid_listing_delivery_claim_token(claim_token)
+        ):
+            return False
+        try:
+            result = self.collection.update_one(
+                _claimed_listing_delivery_query(
+                    url, fingerprint, prefix, claim_token
+                ),
+                {"$set": {f"{prefix}.state": "failed"},
+                 "$unset": {
+                     f"{prefix}.claim_until": "",
+                     f"{prefix}.claimed_at": "",
+                     f"{prefix}.claim_token": "",
+                 }},
+            )
+            return result.modified_count > 0
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery release failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} listing delivery release failure: {e}"
+            )
+            return False
+
+    def mark_listing_delivery_sent(self, url: str, fingerprint: str,
+                                   channel: str = "vienna",
+                                   *, claim_token: str) -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or not _valid_listing_delivery_claim_token(claim_token)
+        ):
+            return False
+        try:
+            now = time.time()
+            result = self.collection.update_one(
+                _claimed_listing_delivery_query(
+                    url, fingerprint, prefix, claim_token
+                ),
+                {"$set": {
+                    f"{prefix}.state": "sent",
+                    f"{prefix}.sent_at": now,
+                    "sent_to_telegram": True,
+                    "sent_to_telegram_at": now,
+                }, "$unset": {
+                    f"{prefix}.claim_until": "",
+                    f"{prefix}.claim_token": "",
+                }},
+            )
+            return result.modified_count > 0
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery marker failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} listing delivery marker failure: {e}"
+            )
+            return False
+
+    def quarantine_listing_delivery(self, url: str, fingerprint: str,
+                                    channel: str = "vienna",
+                                    *, claim_token: str) -> bool:
+        prefix = _validate_listing_delivery_channel(channel)
+        if (
+            getattr(self, "collection", None) is None
+            or not _valid_listing_delivery_identity(url, fingerprint)
+            or not _valid_listing_delivery_claim_token(claim_token)
+        ):
+            return False
+        try:
+            now = time.time()
+            result = self.collection.update_one(
+                _claimed_listing_delivery_query(
+                    url, fingerprint, prefix, claim_token
+                ),
+                {"$set": {
+                    f"{prefix}.state": "uncertain",
+                    f"{prefix}.uncertain_at": now,
+                }, "$unset": {
+                    f"{prefix}.claim_until": "",
+                    f"{prefix}.claim_token": "",
+                }},
+            )
+            return result.modified_count > 0
+        except pymongo.errors.PyMongoError as e:
+            logger.error(f"MongoDB {channel} listing delivery quarantine failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Unexpected {channel} listing delivery quarantine failure: {e}"
+            )
             return False
 
     def mark_listings_sent(self, listings: List[Dict]):

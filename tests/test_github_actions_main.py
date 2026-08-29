@@ -18,8 +18,8 @@ def test_github_actions_main():
     
     # Set environment variables for testing
     os.environ['MONGODB_URI'] = 'mongodb://test:test@localhost:27017/test'
-    os.environ['TELEGRAM_BOT_MAIN_TOKEN'] = 'test_bot_token_123'
-    os.environ['TELEGRAM_BOT_MAIN_CHAT_ID'] = 'test_chat_id_456'
+    os.environ['TELEGRAM_MAIN_BOT_TOKEN'] = 'test_bot_token_123'
+    os.environ['TELEGRAM_MAIN_CHAT_ID'] = 'test_chat_id_456'
     
     # Create a temporary directory structure similar to GitHub Actions
     with tempfile.TemporaryDirectory() as temp_dir:

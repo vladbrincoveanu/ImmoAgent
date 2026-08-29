@@ -26,17 +26,31 @@ def test_channel_config():
         telegram_config = config.get('telegram', {})
         main_config = telegram_config.get('telegram_main', {})
         dev_config = telegram_config.get('telegram_dev', {})
+        vienna_config = telegram_config.get('telegram_vienna', {})
         
         main_token = main_config.get('bot_token')
         main_chat_id = main_config.get('chat_id')
         dev_token = dev_config.get('bot_token')
         dev_chat_id = dev_config.get('chat_id')
+        vienna_token = vienna_config.get('bot_token')
+        vienna_chat_id = vienna_config.get('chat_id')
+        dev_configured = bool(dev_token and dev_chat_id)
         
-        print(f"📱 Main bot token: {main_token[:10]}..." if main_token else "❌ Main bot token not found")
-        print(f"📱 Main chat ID: {main_chat_id}")
-        print(f"📱 Dev bot token: {dev_token[:10]}..." if dev_token else "❌ Dev bot token not found")
-        print(f"📱 Dev chat ID: {dev_chat_id}")
+        print("📱 Main bot: configured" if main_token else "❌ Main bot not found")
+        print("📱 Main destination: configured" if main_chat_id else "❌ Main destination not found")
+        print("📱 Dev bot: configured" if dev_token else "📱 Dev bot: optional")
+        print("📱 Dev destination: configured" if dev_chat_id else "📱 Dev destination: optional")
+        print("📱 Vienna bot: configured" if vienna_token else "❌ Vienna bot not found")
+        print("📱 Vienna destination: configured" if vienna_chat_id else "❌ Vienna destination not found")
         print()
+
+        if not main_token or not main_chat_id:
+            print("❌ Main Telegram destination not configured")
+            return False
+
+        if not vienna_token or not vienna_chat_id:
+            print("❌ Vienna Telegram destination not configured")
+            return False
         
         # Check if main chat ID is a channel (starts with -100)
         if main_chat_id and main_chat_id.startswith('-100'):
@@ -48,13 +62,19 @@ def test_channel_config():
             print("❌ Main chat ID not found")
             return False
         
-        # Check if dev chat ID is a private chat (positive number)
-        if dev_chat_id and not dev_chat_id.startswith('-100'):
+        # Check the optional dev chat ID only when both dev credentials exist.
+        if dev_configured and not dev_chat_id.startswith('-100'):
             print("✅ Dev chat ID is a private chat (correct for logs)")
-        elif dev_chat_id:
+        elif dev_configured:
             print("⚠️ Dev chat ID is a channel (logs should go to private chat)")
         else:
-            print("❌ Dev chat ID not found")
+            print("ℹ️ Dev credentials absent; skipping optional dev checks")
+
+        # The Vienna destination is a separate channel for filtered crawl results.
+        if vienna_chat_id.startswith('-100'):
+            print("✅ Vienna chat ID is a channel (correct format)")
+        else:
+            print("⚠️ Vienna chat ID is not a channel (should start with -100)")
             return False
         
         # Test main bot connection
@@ -72,7 +92,7 @@ def test_channel_config():
                 return False
         
         # Test dev bot connection
-        if dev_token and dev_chat_id:
+        if dev_configured:
             print("🔍 Testing dev bot connection...")
             try:
                 dev_bot = TelegramBot(dev_token, dev_chat_id)
@@ -85,35 +105,34 @@ def test_channel_config():
                 print(f"❌ Dev bot error: {e}")
                 return False
         
-        # Test sending a message to the channel
-        if main_token and main_chat_id and main_chat_id.startswith('-100'):
-            print("\n📤 Testing channel message...")
+        # Test sending a message to the separate Vienna channel.
+        if vienna_token and vienna_chat_id:
+            print("\n📤 Testing Vienna channel message...")
             try:
-                main_bot = TelegramBot(main_token, main_chat_id)
+                vienna_bot = TelegramBot(vienna_token, vienna_chat_id)
                 test_message = """🧪 <b>Channel Configuration Test</b>
 
 ✅ Channel configuration is working correctly!
-✅ Messages will be sent to the ViennaApartmentsLive channel
-✅ Top5 reports will appear in the channel
+✅ Filtered Vienna crawl messages use the ViennaApartmentsLive channel
 
-This test confirms that run_top5.py will send to the channel, not a private chat."""
+Top5 reports remain on the main destination."""
                 
-                success = main_bot.send_message(test_message)
+                success = vienna_bot.send_message(test_message)
                 if success:
-                    print("✅ Test message sent to channel successfully")
+                    print("✅ Test message sent to Vienna channel successfully")
                     print("📱 Check your ViennaApartmentsLive channel for the test message")
                 else:
-                    print("❌ Failed to send test message to channel")
+                    print("❌ Failed to send test message to Vienna channel")
                     return False
             except Exception as e:
-                print(f"❌ Error sending test message: {e}")
+                print(f"❌ Error sending test message to Vienna channel: {e}")
                 return False
         
         print("\n" + "=" * 50)
         print("🎉 Channel Configuration Test Complete!")
         print("✅ All tests passed")
-        print("✅ run_top5.py will now send to the channel")
-        print("✅ main.py will continue to send to the channel")
+        print("✅ run_top5.py remains configured for the main destination")
+        print("✅ Filtered Vienna crawl uses the separate Vienna destination")
         
         return True
         

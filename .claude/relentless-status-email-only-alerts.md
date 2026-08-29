@@ -1,8 +1,8 @@
 ---
 task: Support email-only keyword alerts
-branch: relentless/email-only-alerts
-current_step: final verification complete; external cron auth remains manual
-status: in_progress
+branch: relentless/email-only-alerts-main
+current_step: deployed and verified; external cron auth remains manual
+status: blocked_external_configuration
 ---
 
 ## Progress
@@ -15,6 +15,7 @@ status: in_progress
 - [ ] Create implementation plan
 - [x] Create implementation plan
 - [x] Implement and verify
+- [x] Deploy dashboard and merge poller into main
 
 ## Pivots
 - None.
@@ -28,7 +29,10 @@ status: in_progress
 - Targeted Playwright DOM checks: 3 passed on isolated port 3011.
 - Full Playwright run: timed out after 300s with unrelated map/co-op failures; alert tests passed.
 - Graphify AST update: completed; 16 non-code/source files produced zero nodes warning.
+- Clean branch alert tests: Python 88 passed; Dashboard Jest 79 passed; TypeScript passed.
+- Vercel production: Ready at https://immo-agent-vienna.vercel.app; `/alerts` returned 200.
+- Authenticated repository dispatch: run 32120500524 succeeded on main SHA ec74486 in 2m3s.
 
 ## External blocker
-cron-job.org remains disabled until its GitHub request includes a valid PAT:
-`Authorization: Bearer <fine-grained PAT>` with repo access and Contents read/write. Expected response: `204 No Content`.
+cron-job.org still reports 404 until its GitHub request includes a valid PAT:
+`Authorization: Bearer <fine-grained PAT>` with access to `vladbrincoveanu/ImmoAgent` and Contents read/write. Expected response: `204 No Content`. An authenticated local dispatch succeeds, proving the endpoint and workflow are valid.

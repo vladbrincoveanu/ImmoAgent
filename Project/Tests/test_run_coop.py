@@ -11,7 +11,7 @@ import run_coop
 def _l(**kw):
     return Listing(url=kw.pop('url', 'https://x.at/a'), source=Source.GENOSSENSCHAFT,
                    is_genossenschaft=True, bezirk=kw.pop('bezirk', '1100'),
-                   rooms=kw.pop('rooms', 3), area_m2=kw.pop('area_m2', 70.0),
+                   rooms=kw.pop('rooms', 3), area_m2=kw.pop('area_m2', 75.0),
                    price_total=kw.pop('price_total', None), **kw)
 
 
@@ -201,6 +201,49 @@ def test_batch_lookup_failure_excludes_mygewo_but_keeps_willhaben_candidates():
     handler.get_listing.assert_not_called()
 
 
+def test_new_direct_coop_listing_is_source_candidate_not_generic_alert_candidate():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = {}
+    listing = _l(url="https://siedlungsunion.at/angebot/new")
+    existing = {}
+
+    assert run_coop.new_alert_candidates(handler, [listing], [], existing) == []
+    assert run_coop.new_source_candidates(handler, [listing], [], existing) == [listing]
+    handler.get_listings_by_urls.assert_not_called()
+
+
+def test_source_feed_uses_new_candidates_not_full_seen_inventory():
+    handler = _mongo_mock()
+    new_listing = _l(url="https://mygewo.at/new", area_m2=75.0, rooms=3)
+    old_listing = _l(url="https://mygewo.at/old", area_m2=90.0, rooms=4)
+    new_listing.builder_url = ""
+    new_listing.image_url = ""
+    old_listing.builder_url = ""
+    old_listing.image_url = ""
+    handler.get_listings_by_urls.return_value = {
+        old_listing.url: {"url": old_listing.url}
+    }
+    bot = MagicMock()
+    bot.send_message.return_value = True
+
+    with patch.object(run_coop, "deliver_user_alerts"), \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
+            patch("run_coop.poll_source", return_value=[new_listing, old_listing]), \
+            patch("run_coop.TelegramBot", return_value=bot), \
+            patch("run_coop.validate_url", return_value=True), \
+            patch.dict(os.environ, {
+                "TELEGRAM_MAIN_BOT_TOKEN": "t",
+                "TELEGRAM_COOP_CHANNEL_ID": "c",
+            }), \
+            patch.dict(run_coop.coop.SOURCES, {
+                "T": {"url": "u", "parser": "p"}
+            }, clear=True):
+        assert run_coop.run(no_send=False) == 0
+
+    bot.send_message.assert_called_once()
+    assert new_listing.url in bot.send_message.call_args.args[0]
+
+
 @patch("run_coop.validate_url", return_value=True)
 @patch("run_coop.poll_source")
 @patch("run_coop.MongoDBHandler")
@@ -384,14 +427,15 @@ class TestRun(unittest.TestCase):
     def test_sends_via_bot_and_marks_sent(self, MH, TB, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         TB.return_value.send_message.return_value = True
-        poll.return_value = [_l(url="https://x.at/s")]
+        poll.return_value = [_l(url="https://mygewo.at/s")]
         with patch.dict(os.environ,
                         {"TELEGRAM_MAIN_BOT_TOKEN": "t", "TELEGRAM_COOP_CHANNEL_ID": "c"}):
             with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
                 rc = run_coop.run(no_send=False)
         self.assertEqual(rc, 0)
         TB.return_value.send_message.assert_called_once()
-        MH.return_value.mark_sent.assert_called_once_with("https://x.at/s")
+        MH.return_value.mark_channel_send_sent.assert_called_once()
+        MH.return_value.mark_sent.assert_called_once_with("https://mygewo.at/s")
 
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
