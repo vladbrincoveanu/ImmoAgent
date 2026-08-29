@@ -151,6 +151,14 @@ def test_crawl_newest_still_respects_dedup_and_the_cap():
     assert len(got) == 2
 
 
+def test_crawl_newest_limits_work_to_the_newest_feed_urls():
+    scraper = FakeScraper(kinds={_A: None, _B: None, _C: None})
+    got = crawl_newest(scraper, is_new=lambda u: True, keep=lambda l: True,
+                       max_feed_urls=2)
+    assert [listing.url for listing in got] == [_A, _B]
+    assert scraper.detail_calls == [_A, _B]
+
+
 def test_crawl_private_coop_is_crawl_newest_with_the_transfer_filter():
     """The wrapper must not drift from the behaviour its own tests above pin."""
     scraper = FakeScraper(kinds={_A: "private_transfer", _B: None})

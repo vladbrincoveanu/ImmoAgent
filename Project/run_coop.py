@@ -10,7 +10,6 @@ Run from Project/:  python run_coop.py [--no-send]
 """
 import argparse
 import hashlib
-import json
 import logging
 import os
 from dataclasses import asdict
@@ -22,20 +21,15 @@ from Domain.listing import Listing
 from Domain.sources import Source
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
-from Application.alert_dispatcher import dispatch, retry_pending
-from Application.alert_matcher import match
+from Application.alert_dispatcher import dispatch, retry_pending, url_hash
+from Application.alert_matcher import gate_result, keyword_hit, match, rubric_hit
 from Application.coop_alert_router import missing_channels, route
 from Application.scraping.willhaben_private_coop import (
     crawl_newest, is_private_transfer)
 from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.coop_format import format_coop_message
-from Application.telegram_delivery import (
-    COOP_CHANNEL,
-    PRIVATE_COOP_CHANNEL,
-    coop_filter_reason,
-    send_coop_listing,
-)
-from Application.helpers.listing_validator import validate_url
+from Application.helpers.listing_validator import (
+    compute_xsrc_fingerprint, validate_url)
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 
@@ -207,47 +201,45 @@ def maybe_reprobe_image(stored: dict, resolve) -> dict:
     return out
 
 
-def load_coop_alerts() -> dict:
-    """Alert filter. Precedence: COOP_ALERTS env (JSON) > config.json coop_alerts
-    > Project/coop_alerts.json > {} (send all). config.json is gitignored/absent
-    in CI, so the tracked coop_alerts.json is the CI-visible source."""
-    env = os.environ.get("COOP_ALERTS")
-    if env:
-        try:
-            data = json.loads(env)
-            if isinstance(data, dict):
-                return data
-        except json.JSONDecodeError:
-            logger.warning("COOP_ALERTS env is not valid JSON; ignoring")
-    cfg = load_config() or {}
-    if isinstance(cfg.get("coop_alerts"), dict):
-        return cfg["coop_alerts"]
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "coop_alerts.json")
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+def channel_match(alert: Dict, listing) -> bool:
+    """True when this alert wants this unit on a broadcast channel.
+
+    Stricter than the per-user path, deliberately. `gate_result`'s `unverified`
+    — a gate is set and the source did not publish the field — is delivered to
+    the user who asked for it, flagged. On a public feed that same match is
+    noise, so the channel takes `passes and not unverified`. The strictness lives
+    here rather than in the shared matcher, which keeps email behaviour untouched.
+
+    Deliverability is NOT consulted: an alert whose email is still unconfirmed
+    has no usable channel of its own, yet it is still a statement of what this
+    feed is for. Filtering is not delivery."""
+    if not rubric_hit(alert, listing):
+        return False
+    if not keyword_hit(alert, listing):
+        return False
+    passes, unverified = gate_result(alert, listing)
+    return passes and not unverified
 
 
-def matches_coop_alerts(listing: Listing, alerts: dict) -> bool:
-    """True if the listing passes the (optional) alert filter. Empty/missing
-    filter field = no constraint. Missing LISTING field = permissive (never
-    excludes) — for a single power-user, speed/coverage beats precision."""
-    bezirke = alerts.get("bezirke") or []
-    if bezirke and listing.bezirk and listing.bezirk not in bezirke:
-        return False
-    max_cost = alerts.get("max_cost")
-    if max_cost is not None and listing.price_total is not None and listing.price_total > max_cost:
-        return False
-    min_rooms = alerts.get("min_rooms")
-    if min_rooms is not None and listing.rooms is not None and listing.rooms < min_rooms:
-        return False
-    min_area = alerts.get("min_area")
-    if min_area is not None and listing.area_m2 is not None and listing.area_m2 < min_area:
-        return False
-    return True
+def channel_match_any(listing, alerts: List[Dict]) -> bool:
+    """The channel filter: the union of every active alert.
+
+    Replaces the old static `coop_alerts.json` filter, whose fields were all null
+    in CI — so it matched everything and the channel was a firehose. Alerts are a
+    single source of truth the owner can retune without a redeploy, and they
+    carry keywords, which the static filter had no field for."""
+    return any(channel_match(alert, listing) for alert in alerts)
+
+
+def channel_dedup_key(listing) -> str:
+    """The ledger key for one unit.
+
+    The xsrc fingerprint is what collapses the same unit under its mygewo URL and
+    its Bauträger-direct URL into a single send. It is COMPUTED here and never
+    read off the Listing: `content_fingerprint_xsrc` is a declared field that no
+    code path ever populates on the object (only into Mongo dicts), so reading it
+    would yield None for every unit and silently degrade every key to url_hash."""
+    return compute_xsrc_fingerprint(listing) or url_hash(listing.url or "")
 
 
 _UA = {"User-Agent": "Mozilla/5.0 (compatible; immo-scouter-coop/1.0; +alerts)"}
@@ -321,14 +313,13 @@ def _log_parsed(name: str, listings: List[Listing]) -> List[Listing]:
 
 def run(no_send: bool = False) -> int:
     """Poll → upsert → alert. Exit 0 unless MongoDB is down or ALL adapters fail."""
-    alerts = load_coop_alerts()
     # Name every unset channel up front. Previously a missing secret produced one
     # warning that looked identical to a quiet market, and the poll ran green for
     # weeks while delivering nothing.
     for name in missing_channels():
-        logger.error(f"🔴 {name} is unset — source-channel notifications for that "
-                     "feed are disabled. Scraping, upserts, and user-created "
-                     "email alerts continue.")
+        logger.warning(f"⚠️ {name} is unset — source-channel notifications for that "
+                       "feed are disabled. Scraping, upserts, and user-created "
+                       "email alerts continue.")
     handler = MongoDBHandler()
     if handler.collection is None:
         logger.error("❌ No MongoDB connection; aborting")
@@ -337,6 +328,7 @@ def run(no_send: bool = False) -> int:
     # One bot per feed. Co-op alerts go ONLY to co-op channels — the main channel
     # excludes co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
     bots = {}
+    chat_ids = {}                       # the ledger is keyed per channel (D2)
     if not no_send:
         token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
         if token:
@@ -344,10 +336,11 @@ def run(no_send: bool = False) -> int:
                 chat_id = route(kind)
                 if chat_id:
                     bots[kind] = TelegramBot(token, chat_id)
+                    chat_ids[kind] = chat_id
         if not bots:
-            logger.error("❌ no Telegram bot token or co-op channel configured; "
-                         "Telegram source-channel notifications are disabled, "
-                         "but polling/upserts and user-created email alerts continue")
+            logger.warning("⚠️ no Telegram bot token or co-op channel configured; "
+                           "Telegram source-channel notifications are disabled, "
+                           "but polling/upserts and user-created email alerts continue")
 
     seen: List[Listing] = []
     ok_adapters = 0
@@ -481,6 +474,31 @@ def run(no_send: bool = False) -> int:
                 listing.image_probe_v = probed["image_probe_v"]
         handler.upsert_coop_listing(_to_doc(listing))
 
+    # What the channel carries is whatever a live alert asks for. Zero alerts is
+    # therefore zero messages, where the old static filter meant "send
+    # everything" — a behaviour change that must never be silent.
+    # Every subscription, not `get_active_alerts`: that view drops an alert whose
+    # only address is unconfirmed, and such an alert still says what this feed is
+    # for even though nothing can be delivered to it.
+    try:
+        channel_alerts = handler.get_alert_subscriptions(ALERT_KINDS)
+    except Exception as e:
+        logger.error(f"❌ could not load the channel alert filter: {e}")
+        channel_alerts = []
+    if not channel_alerts:
+        logger.warning("⚠️ no active alerts — the co-op channels stay silent this "
+                       "poll. Polling, upserts and user alerts are unaffected.")
+
+    # The unique index is what makes a claim a claim. Without it, skip every send
+    # rather than risk re-opening the per-minute repeat (fail closed: a missed
+    # unit is recoverable, a channel nobody can read is not).
+    ledger_ready = True
+    if not no_send and bots:
+        ledger_ready = handler.ensure_channel_send_index()
+        if not ledger_ready:
+            logger.error("❌ co-op channel send ledger unavailable; skipping all "
+                         "channel sends this poll")
+
     sent = 0
     for listing in source_channel_candidates:
         if source_lookup_failed and "mygewo.at" in (listing.url or ""):
@@ -491,40 +509,38 @@ def run(no_send: bool = False) -> int:
         # Wien rental market.
         if not is_coop_listing(listing):
             continue
-        if not matches_coop_alerts(listing, alerts):
+        if not channel_match_any(listing, channel_alerts):
+            continue
+        if not validate_url(listing.url):            # CLAUDE.md hard rule 2
+            logger.warning(f"🚫 broken URL, skipping: {listing.url}")
+            handler.mark_url_invalid(listing.url)
             continue
         if no_send:
-            reason = coop_filter_reason(listing)
-            if reason:
-                logger.info(f"[no-send] skipping {listing.url}: {reason}")
-                continue
-            if not validate_url(listing.url):       # CLAUDE.md hard rule 2
-                logger.warning(f"🚫 broken URL, skipping: {listing.url}")
-                handler.mark_url_invalid(listing.url)
-                continue
             logger.info(f"[no-send] would alert: {listing.url}")
             sent += 1
             continue
-        coop_kind = getattr(listing, "coop_kind", None) or "mygewo"
-        bot = bots.get(coop_kind)
-        if not bot:
+        # mygewo units carry no coop_kind of their own — they are the default feed.
+        kind = getattr(listing, "coop_kind", None) or "mygewo"
+        bot, chat_id = bots.get(kind), chat_ids.get(kind)
+        if not bot or not chat_id or not ledger_ready:
             continue
-        route_name = (
-            PRIVATE_COOP_CHANNEL
-            if coop_kind == "private_transfer"
-            else COOP_CHANNEL
-        )
-        if send_coop_listing(
-            listing,
-            bot,
-            handler,
-            route_name,
-            url_validator=validate_url,
-            message_formatter=format_coop_message,
-        ):
+        # Claim BEFORE sending. The listings doc cannot be the gate: the
+        # duplicate and invalid upsert paths never create one at this url, so
+        # `sent_to_telegram` had nothing to latch onto and the unit went out on
+        # every poll. Cost of claiming first: a crash between here and the send
+        # drops this unit permanently. Deliberate — silence over spam.
+        key = channel_dedup_key(listing)
+        if not handler.claim_channel_send(chat_id, key, listing.url):
+            continue
+        if bot.send_message(format_coop_message(listing)):
+            handler.mark_channel_send_sent(chat_id, key)
+            # Best-effort, for the dashboard only — no longer the send gate.
+            handler.mark_sent(listing.url)
             sent += 1
         else:
-            logger.error(f"❌ source delivery unresolved; not retried automatically: {listing.url}")
+            # Release, or one bad minute at Telegram silences the unit forever.
+            handler.release_channel_send(chat_id, key)
+            logger.error(f"❌ send failed (retry next run): {listing.url}")
 
     logger.info(f"📱 coop: {sent} alerted/queued from {len(seen)} seen "
                 f"across {ok_adapters}/{len(coop.SOURCES)} adapters")

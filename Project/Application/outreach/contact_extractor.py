@@ -13,14 +13,6 @@ from dataclasses import dataclass
 from enum import Enum
 from Application.helpers.utils import smart_sleep
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
-
 class ContactType(Enum):
     EMAIL = "email"
     CONTACT_FORM = "contact_form"
@@ -110,6 +102,11 @@ class ContactExtractor:
             return
         
         try:
+            # Contact extraction can use Selenium, but lightweight pollers only
+            # import the seller classifier from this module.
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+
             chrome_options = Options()
             chrome_options.add_argument('--headless')
             chrome_options.add_argument('--no-sandbox')
@@ -360,5 +357,4 @@ class ContactExtractor:
     def cleanup(self):
         """Clean up resources."""
         self._close_selenium()
-
 

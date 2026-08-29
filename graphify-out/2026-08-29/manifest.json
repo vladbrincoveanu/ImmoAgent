@@ -850,8 +850,8 @@
     "semantic_hash": ""
   },
   "dashboard/playwright.config.ts": {
-    "mtime": 1787982577.4609203,
-    "ast_hash": "168a9d67f467b8704309dead00f8272f",
+    "mtime": 1788001487.5655756,
+    "ast_hash": "92364927138bc46aef51bcce8c742a47",
     "semantic_hash": ""
   },
   "dashboard/postcss.config.js": {
@@ -2845,8 +2845,8 @@
     "semantic_hash": ""
   },
   "dashboard/tests/coop-availability.spec.ts": {
-    "mtime": 1787995300.1096485,
-    "ast_hash": "6987077438e65715c68476fd1b5cdfbe",
+    "mtime": 1788001389.0050826,
+    "ast_hash": "9dc8a9f98214c0e204e3590bd8cb6012",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-08-29-coop-availability-ui-plan.md": {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>coop-availability-filter — Complete Call Flow &amp; Architecture Documentation</title>
+<title>main-push — Complete Call Flow &amp; Architecture Documentation</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
 :root {
@@ -59,8 +59,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
 <body>
 <div class="container">
 
-<h1>coop-availability-filter — Complete Call Flow &amp; Architecture Documentation</h1>
-<p class="subtitle">Generated from graphify knowledge graph: 5299 nodes, 6997 edges, 676 communities. Commit: 41dd883</p>
+<h1>main-push — Complete Call Flow &amp; Architecture Documentation</h1>
+<p class="subtitle">Generated from graphify knowledge graph: 5468 nodes, 7461 edges, 666 communities. Commit: 6de3c0c</p>
 
 <div class="nav">
     <a href="#overview">Architecture Overview</a>
@@ -88,23 +88,23 @@ hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
 
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    EXTRACT_PIPELINE_5F350230("Extraction Pipeline<br/><small>395 nodes</small>")
+    EXTRACT_PIPELINE_5F350230("Extraction Pipeline<br/><small>394 nodes</small>")
     class EXTRACT_PIPELINE_5F350230 module;
-    BUILD_GRAPH_321CBB04("Graph Build<br/><small>331 nodes</small>")
+    BUILD_GRAPH_321CBB04("Graph Build<br/><small>370 nodes</small>")
     class BUILD_GRAPH_321CBB04 module;
-    ANALYSIS_CLUSTERING_C79796DA("Analysis &amp; Clustering<br/><small>97 nodes</small>")
+    ANALYSIS_CLUSTERING_C79796DA("Analysis &amp; Clustering<br/><small>133 nodes</small>")
     class ANALYSIS_CLUSTERING_C79796DA module;
     OUTPUTS_DOCS_ED82387C("Outputs &amp; Docs<br/><small>19 nodes</small>")
     class OUTPUTS_DOCS_ED82387C module;
-    CLI_SKILLS_9964CBB8("CLI &amp; Skill Installers<br/><small>504 nodes</small>")
+    CLI_SKILLS_9964CBB8("CLI &amp; Skill Installers<br/><small>457 nodes</small>")
     class CLI_SKILLS_9964CBB8 module;
-    INGEST_CACHE_UPDATE_FF457338("Ingestion &amp; Updates<br/><small>175 nodes</small>")
+    INGEST_CACHE_UPDATE_FF457338("Ingestion &amp; Updates<br/><small>225 nodes</small>")
     class INGEST_CACHE_UPDATE_FF457338 module;
-    SERVE_API_35EC8E86("Serving API<br/><small>606 nodes</small>")
+    SERVE_API_35EC8E86("Serving API<br/><small>610 nodes</small>")
     class SERVE_API_35EC8E86 module;
-    SECURITY_GLOBAL_5B9C6A04("Security &amp; Global Graph<br/><small>96 nodes</small>")
+    SECURITY_GLOBAL_5B9C6A04("Security &amp; Global Graph<br/><small>79 nodes</small>")
     class SECURITY_GLOBAL_5B9C6A04 module;
-    TESTS_FIXTURES_B84B1DCC("Tests &amp; Fixtures<br/><small>1909 nodes</small>")
+    TESTS_FIXTURES_B84B1DCC("Tests &amp; Fixtures<br/><small>2102 nodes</small>")
     class TESTS_FIXTURES_B84B1DCC module;
     COMMUNITY_99_0C70C308("Community 99<br/><small>31 nodes</small>")
     class COMMUNITY_99_0C70C308 module;
@@ -116,20 +116,20 @@ flowchart LR
     class COMMUNITY_56_189C238D module;
     LISTING_VALIDATOR_MODULE_789F17A0("Listing Validator Module<br/><small>25 nodes</small>")
     class LISTING_VALIDATOR_MODULE_789F17A0 module;
-    OTHER_D0941E68("Other<br/><small>1027 nodes</small>")
+    OTHER_D0941E68("Other<br/><small>939 nodes</small>")
     class OTHER_D0941E68 module;
     TESTS_FIXTURES_B84B1DCC -->|method x54| EXTRACT_PIPELINE_5F350230
-    TESTS_FIXTURES_B84B1DCC -->|imports x33| OTHER_D0941E68
-    INGEST_CACHE_UPDATE_FF457338 -->|contains x32| TESTS_FIXTURES_B84B1DCC
-    CLI_SKILLS_9964CBB8 -->|imports x25| TESTS_FIXTURES_B84B1DCC
-    EXTRACT_PIPELINE_5F350230 -->|references x18| TESTS_FIXTURES_B84B1DCC
+    TESTS_FIXTURES_B84B1DCC -->|imports x43| INGEST_CACHE_UPDATE_FF457338
+    INGEST_CACHE_UPDATE_FF457338 -->|contains x40| TESTS_FIXTURES_B84B1DCC
+    TESTS_FIXTURES_B84B1DCC -->|imports x34| OTHER_D0941E68
+    TESTS_FIXTURES_B84B1DCC -->|contains x20| BUILD_GRAPH_321CBB04
+    EXTRACT_PIPELINE_5F350230 -->|references x19| TESTS_FIXTURES_B84B1DCC
+    OTHER_D0941E68 -->|contains x17| TESTS_FIXTURES_B84B1DCC
     TESTS_FIXTURES_B84B1DCC -->|imports x15| SERVE_API_35EC8E86
-    OTHER_D0941E68 -->|imports x14| SERVE_API_35EC8E86
+    TESTS_FIXTURES_B84B1DCC -->|method x14| ANALYSIS_CLUSTERING_C79796DA
     COMMUNITY_56_189C238D -->|imports x13| TESTS_FIXTURES_B84B1DCC
-    OTHER_D0941E68 -->|contains x11| TESTS_FIXTURES_B84B1DCC
-    TESTS_FIXTURES_B84B1DCC -->|imports x11| CLI_SKILLS_9964CBB8
-    TESTS_FIXTURES_B84B1DCC -->|calls x11| INGEST_CACHE_UPDATE_FF457338
     COMMUNITY_99_0C70C308 -->|imports x11| OTHER_D0941E68
+    OTHER_D0941E68 -->|contains x9| SERVE_API_35EC8E86
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
     classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
@@ -146,43 +146,42 @@ flowchart LR
     <h4>Architecture Layers</h4>
     <table style="width:100%;font-size:0.85rem;">
       <tr><th>Layer</th><th>Nodes</th><th>Communities</th></tr>
-      <tr><td>Extraction Pipeline</td><td>395</td><td><code>155, 40, 8, 131, 88, 89, 158, 172, 193, 147, 291, 197, 251, 307, 329, 350, 352, 358, 395, 149, 494, 520, 521</code></td></tr><tr><td>Graph Build</td><td>331</td><td><code>11, 22, 53, 30, 60, 98, 72, 75, 205, 206, 165, 179, 241, 242, 223, 261, 267, 268, 279, 289, 290, 345, 374, 228, 522, 540, 542, 642, 643</code></td></tr><tr><td>Analysis &amp; Clustering</td><td>97</td><td><code>44, 122, 140, 115, 221, 195, 303, 373, 403, 138, 566</code></td></tr><tr><td>Outputs &amp; Docs</td><td>19</td><td><code>224, 106, 4</code></td></tr><tr><td>CLI &amp; Skill Installers</td><td>504</td><td><code>2, 3, 50, 12, 29, 108, 67, 87, 156, 125, 126, 143, 157, 240, 16, 201, 203, 209, 262, 274, 288, 293, 285, 286, 301, 302, 316, 317, 318, 320, 328, 342, 343, 332, 360, 369, 379, 382, 396, 397, 402, 105, 445, 454, 500, 501, 502, 503, 504, 634</code></td></tr><tr><td>Ingestion &amp; Updates</td><td>175</td><td><code>14, 39, 77, 5, 173, 181, 263, 264, 278, 331, 334, 349, 371, 375, 466</code></td></tr><tr><td>Serving API</td><td>606</td><td><code>31, 26, 33, 41, 34, 36, 37, 18, 52, 54, 57, 58, 62, 82, 104, 107, 141, 142, 154, 183, 185, 134, 202, 297, 298, 311, 277, 333, 340, 280, 388, 416, 137, 510, 627</code></td></tr><tr><td>Security &amp; Global Graph</td><td>96</td><td><code>19, 129, 64, 218, 292, 367, 562</code></td></tr><tr><td>Tests &amp; Fixtures</td><td>1909</td><td><code>6, 49, 0, 9, 354, 21, 51, 111, 15, 32, 13, 27, 20, 90, 35, 38, 43, 45, 71, 70, 74, 85, 69, 48, 222, 24, 59, 282, 91, 103, 109, 112, 66, 116, 236, 113, 81, 84, 127, 144, 146, 170, 124, 128, 215, 55, 110, 145, 168, 182, 23, 93, 121, 247, 281, 92, 169, 175, 237, 123, 180, 270, 271, 213, 214, 196, 217, 248, 252, 272, 283, 78, 79, 95, 199, 216, 269, 284, 294, 295, 296, 63, 76, 96, 198, 305, 306, 308, 322, 323, 325, 326, 327, 73, 330, 347, 348, 356, 357, 355, 361, 362, 363, 364, 368, 380, 381, 324, 351, 370, 378, 404, 353, 366, 376, 377, 386, 387, 389, 391, 392, 393, 399, 406, 407, 408, 412, 414, 421, 422, 442, 438, 441</code></td></tr><tr><td>Community 99</td><td>31</td><td><code>99</code></td></tr><tr><td>Community 46</td><td>30</td><td><code>46</code></td></tr><tr><td>Community 47</td><td>27</td><td><code>47</code></td></tr><tr><td>Community 56</td><td>27</td><td><code>56</code></td></tr><tr><td>Listing Validator Module</td><td>25</td><td><code>25</code></td></tr><tr><td>Other</td><td>1027</td><td><code>86, 28, 80, 100, 101, 118, 119, 120, 130, 102, 94, 159, 171, 83, 132, 194, 114, 135, 136, 17, 204, 207, 208, 1, 164, 166, 200, 219, 220, 167, 184, 238, 239, 61, 212, 225, 254, 255, 265, 266, 68, 246, 273, 275, 300, 287, 299, 152, 243, 276, 304, 309, 310, 312, 313, 314, 315, 319, 321, 133, 335, 336, 337, 338, 339, 341, 344, 153, 346, 177, 178, 372, 400, 401, 210, 211, 244, 359, 365, 383, 384, 385, 398, 405, 417, 10, 117, 139, 148, 150, 151, 160, 161, 162, 163, 174, 176, 186, 187, 188, 189, 190, 191, 192, 226, 227, 229, 230, 231, 232, 233, 234, 235, 245, 249, 250, 253, 256, 257, 258, 259, 260, 390, 394, 409, 410, 411, 413, 415, 418, 419, 42, 420, 423, 424, 425, 426, 427, 428, 429, 430, 431, 432, 433, 434, 435, 436, 437, 439, 440, 444, 446, 447, 448, 449, 450, 451, 452, 453, 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465, 467, 468, 469, 470, 473, 474, 475, 476, 477, 478, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 495, 496, 497, 498, 499, 505, 506, 507, 508, 509, 511, 512, 513, 514, 515, 516, 517, 518, 519, 523, 524, 525, 526, 527, 528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 539, 541, 543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 560, 561, 563, 564, 565, 567, 568, 569, 570, 571, 572, 573, 574, 575, 576, 577, 578, 581, 582, 583, 584, 585, 591, 592, 593, 594, 595, 596, 597, 598, 599, 600, 601, 602, 603, 604, 605, 606, 607, 608, 609, 610, 611, 612, 613, 614, 615, 616, 617, 626, 628, 629, 630, 631, 632, 633, 635, 636, 637, 638, 639, 640, 641, 644, 645, 646, 647, 648, 649, 65, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 660, 661, 662, 663, 664, 665, 666, 667, 668, 669, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680, 681, 682, 683, 684, 685, 686, 687, 688, 689, 690, 691, 692, 693, 694, 7, 97</code></td></tr>
+      <tr><td>Extraction Pipeline</td><td>394</td><td><code>155, 40, 8, 91, 88, 89, 158, 172, 193, 195, 236, 247, 147, 346, 392, 395, 149, 494, 520, 521</code></td></tr><tr><td>Graph Build</td><td>370</td><td><code>11, 22, 53, 179, 30, 60, 98, 72, 75, 140, 184, 205, 206, 165, 241, 242, 261, 267, 268, 275, 279, 289, 290, 345, 374, 228, 522, 540, 542, 642, 643</code></td></tr><tr><td>Analysis &amp; Clustering</td><td>133</td><td><code>28, 44, 122, 221, 222, 237, 291, 303, 366, 373, 403, 138, 566</code></td></tr><tr><td>Outputs &amp; Docs</td><td>19</td><td><code>224, 106, 4</code></td></tr><tr><td>CLI &amp; Skill Installers</td><td>457</td><td><code>2, 12, 29, 113, 108, 67, 87, 156, 125, 126, 157, 143, 240, 16, 203, 209, 246, 262, 274, 288, 293, 285, 286, 301, 302, 316, 317, 350, 352, 358, 318, 320, 328, 342, 343, 332, 360, 377, 369, 394, 379, 382, 396, 397, 402, 407, 105, 445, 454, 500, 501, 502, 503, 504, 634</code></td></tr><tr><td>Ingestion &amp; Updates</td><td>225</td><td><code>14, 24, 39, 5, 77, 173, 135, 181, 263, 264, 278, 331, 334, 349, 371, 375, 466</code></td></tr><tr><td>Serving API</td><td>610</td><td><code>31, 26, 41, 33, 34, 18, 36, 37, 52, 54, 57, 58, 62, 82, 104, 107, 141, 142, 154, 183, 185, 134, 202, 297, 298, 311, 277, 333, 340, 280, 388, 416, 137, 510, 627</code></td></tr><tr><td>Security &amp; Global Graph</td><td>79</td><td><code>19, 129, 218, 292, 562</code></td></tr><tr><td>Tests &amp; Fixtures</td><td>2102</td><td><code>51, 90, 0, 9, 49, 1, 354, 111, 3, 6, 132, 13, 15, 27, 23, 32, 20, 35, 38, 50, 43, 45, 64, 71, 215, 74, 85, 69, 70, 48, 59, 103, 109, 110, 112, 115, 146, 66, 116, 121, 55, 123, 145, 81, 84, 144, 124, 128, 127, 168, 182, 21, 93, 170, 197, 200, 92, 169, 175, 201, 213, 217, 180, 223, 270, 214, 251, 271, 196, 248, 252, 272, 281, 282, 283, 304, 329, 78, 79, 95, 199, 216, 269, 284, 294, 295, 296, 63, 76, 96, 198, 305, 306, 308, 322, 323, 325, 326, 327, 365, 330, 347, 348, 356, 357, 367, 376, 73, 355, 361, 362, 363, 364, 368, 380, 381, 324, 351, 370, 378, 404, 353, 386, 387, 389, 391, 399, 406, 408, 412, 421, 422, 438, 441</code></td></tr><tr><td>Community 99</td><td>31</td><td><code>99</code></td></tr><tr><td>Community 46</td><td>30</td><td><code>46</code></td></tr><tr><td>Community 47</td><td>27</td><td><code>47</code></td></tr><tr><td>Community 56</td><td>27</td><td><code>56</code></td></tr><tr><td>Listing Validator Module</td><td>25</td><td><code>25</code></td></tr><tr><td>Other</td><td>939</td><td><code>86, 80, 100, 101, 118, 119, 120, 130, 102, 94, 159, 131, 17, 171, 83, 114, 194, 136, 204, 207, 208, 164, 166, 219, 220, 167, 238, 239, 61, 212, 225, 254, 255, 265, 266, 68, 273, 300, 307, 287, 299, 152, 243, 276, 309, 310, 312, 313, 314, 315, 319, 321, 133, 335, 336, 337, 338, 339, 341, 344, 153, 393, 177, 178, 372, 400, 401, 210, 211, 244, 359, 383, 384, 385, 398, 405, 417, 10, 117, 139, 148, 150, 151, 160, 161, 162, 163, 174, 176, 186, 187, 188, 189, 190, 191, 192, 226, 227, 229, 230, 231, 232, 233, 234, 235, 245, 249, 250, 253, 256, 257, 258, 259, 260, 390, 409, 410, 411, 413, 414, 415, 418, 419, 42, 420, 423, 424, 426, 429, 430, 431, 432, 433, 434, 435, 436, 437, 439, 440, 444, 446, 447, 448, 450, 451, 452, 453, 455, 456, 457, 458, 459, 461, 462, 463, 469, 470, 473, 474, 475, 476, 477, 478, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 495, 496, 497, 498, 499, 505, 506, 507, 508, 509, 511, 512, 513, 514, 515, 516, 517, 518, 519, 523, 524, 525, 526, 527, 528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 539, 541, 543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 560, 561, 563, 564, 565, 567, 568, 569, 570, 571, 572, 573, 574, 575, 576, 577, 578, 581, 582, 583, 584, 585, 591, 592, 593, 594, 595, 596, 597, 598, 599, 600, 601, 602, 603, 604, 605, 606, 607, 608, 609, 610, 611, 612, 613, 614, 615, 616, 617, 626, 628, 629, 630, 631, 632, 633, 635, 636, 637, 638, 639, 640, 641, 644, 645, 646, 647, 648, 649, 65, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 660, 661, 662, 663, 664, 665, 666, 667, 668, 669, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680, 681, 682, 683, 684, 685, 686, 687, 688, 689, 690, 691, 692, 693, 694, 7, 97</code></td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Core Flow</h4>
-    <div class="arrow-chain">Outputs &amp; Docs -&gt; Extraction Pipeline -&gt; Tests &amp; Fixtures -&gt; Other -&gt; Serving API -&gt; Graph Build -&gt; CLI &amp; Skill Installers</div>
+    <div class="arrow-chain">Outputs &amp; Docs -&gt; Extraction Pipeline -&gt; Tests &amp; Fixtures -&gt; Ingestion &amp; Updates -&gt; Other -&gt; Serving API -&gt; Graph Build</div>
   </div>
 </div>
 <div class="grid">
   <div class="card">
     <h4>Graph Report Highlights</h4>
     <ul>
-      <li>5299 nodes · 6997 edges · 676 communities (344 shown, 332 thin omitted)</li>
-      <li>Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 825 edges (avg confidence: 0.77)</li>
+      <li>5468 nodes · 7461 edges · 666 communities (360 shown, 306 thin omitted)</li>
+      <li>Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 899 edges (avg confidence: 0.76)</li>
       <li>Token cost: 0 input · 0 output</li>
-      <li>1. `MongoDBHandler` - 123 edges</li>
+      <li>1. `MongoDBHandler` - 142 edges</li>
       <li>2. `WillhabenScraper` - 94 edges</li>
-      <li>3. `DerStandardScraper` - 64 edges</li>
+      <li>3. `Listing` - 72 edges</li>
     </ul>
   </div>
 </div>
 <hr>
 <!-- ====== 2. Extraction Pipeline ====== -->
 <h2 id="extract-pipeline">2. Extraction Pipeline</h2>
-<p>Extraction Pipeline groups implementation around project, application, scraping, scraperpy, mostly in Application/scraping/willhaben_scraper.py, Application/scraping/derstandard_scraper.py, Application/scraping/immo_kurier_scraper.py. This section covers 395 nodes and 486 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Extraction Pipeline groups implementation around project, application, scraping, scraperpy, mostly in Application/scraping/willhaben_scraper.py, Application/scraping/derstandard_scraper.py, Application/scraping/immo_kurier_scraper.py. This section covers 394 nodes and 528 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Extraction Pipeline (395 nodes, 486 edges)
+    %% Section: Extraction Pipeline (394 nodes, 528 edges)
     subgraph extract_pipeline_Project_Application_analyzer_py_d7156780["Project/Application/analyzer.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_63764305("analyze_listing_content()<br/><small>Project/Application/analyzer.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7("_extract_from_html()<br/><small>Project/Application/analyzer.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c("analyze_listing()<br/><small>Project/Application/analyzer.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_3a86ad12("_extract_from_html()<br/><small>Project/Application/analyzer.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_da1e166b("_extract_with_regex()<br/><small>Project/Application/analyzer.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc("analyze_listing_content()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd("analyze_listing()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_39781854("_extract_text_content()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_00c74080("_create_default_result()<br/><small>Project/Application/analyzer.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_e6eba0c2("StructuredAnalyzer<br/><small>Project/Application/analyzer.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_5ee305e4("analyze_listing_content()<br/><small>Project/Application/analyzer.py</small>")
     end
@@ -192,34 +191,33 @@ flowchart LR
         users_vladbrincoveanu_desktop_startup_immo_scout_4b49ffd8("extract_area()<br/><small>Application/crawling/crawler.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_7d5ec02a("extract_bezirk()<br/><small>Application/crawling/crawler.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_0b027a6a("extract_price()<br/><small>Application/crawling/crawler.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_d9cee268("extract_special_comments()<br/><small>Application/crawling/crawler.py</small>")
     end
     subgraph extract_pipeline_Application_scraping_immo_kurie_7f1893b8["Application/scraping/immo_kurier_scraper.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_e1d66e50("ImmoKurierScraper<br/><small>Application/scraping/immo_kurier_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_068dbb8a("scrape_single_listing()<br/><small>Application/scraping/immo_kurier_scraper.py</small>")
     end
-    users_vladbrincoveanu_desktop_startup_immo_scout_3565b0e5("ContactExtractor<br/><small>Application/outreach/contact_extractor.py</small>")
+    project_application_outreach_contact_extractor_c_96f926d3("ContactExtractor<br/><small>Application/outreach/contact_extractor.py</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_de7f5da0("DerStandardScraper<br/><small>Application/scraping/derstandard_scraper.py</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_d9563077("scrape_single_listing()<br/><small>Application/scraping/willhaben_scraper.py</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_63764305 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7
-    users_vladbrincoveanu_desktop_startup_immo_scout_63764305 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c
+    project_application_scraping_willhaben_scraper_w_6e3ead5f("scrape_single_listing()<br/><small>Application/scraping/willhaben_scraper.py</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_3a86ad12 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_da1e166b
-    users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7
-    users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c
-    users_vladbrincoveanu_desktop_startup_immo_scout_da1e166b -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7
-    users_vladbrincoveanu_desktop_startup_immo_scout_e6eba0c2 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c
+    users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_39781854
+    users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_da1e166b
+    users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_00c74080
     users_vladbrincoveanu_desktop_startup_immo_scout_e6eba0c2 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_5ee305e4
+    users_vladbrincoveanu_desktop_startup_immo_scout_e6eba0c2 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_00c74080
     users_vladbrincoveanu_desktop_startup_immo_scout_7b221b31 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_ab4aa24d
     users_vladbrincoveanu_desktop_startup_immo_scout_7b221b31 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_4b49ffd8
     users_vladbrincoveanu_desktop_startup_immo_scout_7b221b31 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_7d5ec02a
     users_vladbrincoveanu_desktop_startup_immo_scout_7b221b31 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0b027a6a
+    users_vladbrincoveanu_desktop_startup_immo_scout_7b221b31 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_d9cee268
     users_vladbrincoveanu_desktop_startup_immo_scout_e1d66e50 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_068dbb8a
-    %% Omitted for readability: 377 nodes, 0 edges
-    class users_vladbrincoveanu_desktop_startup_immo_scout_63764305 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c function;
+    %% Omitted for readability: 376 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_3a86ad12 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_da1e166b function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_39781854 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_00c74080 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_e6eba0c2 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_5ee305e4 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_7b221b31 function;
@@ -227,11 +225,12 @@ flowchart LR
     class users_vladbrincoveanu_desktop_startup_immo_scout_4b49ffd8 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_7d5ec02a function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_0b027a6a function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_d9cee268 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_e1d66e50 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_068dbb8a function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_3565b0e5 klass;
+    class project_application_outreach_contact_extractor_c_96f926d3 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_de7f5da0 klass;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_d9563077 function;
+    class project_application_scraping_willhaben_scraper_w_6e3ead5f function;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
     classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
@@ -258,7 +257,7 @@ flowchart LR
   <td><code>StructuredAnalyzer</code><br><small style="color:var(--muted)">Project/Application/analyzer.py</small></td>
   <td><span class="tag tag-class">Class</span></td>
   <td>External entry / no inbound edge</td>
-  <td><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/immo_kurier_scraper.py</small><br><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>analyze_listing()</code><br><small style="color:var(--muted)">Project/Application/analyzer.py</small><br>+3 more</td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/immo_kurier_scraper.py</small><br><code>_create_default_result()</code><br><small style="color:var(--muted)">Project/Application/analyzer.py</small><br>+3 more</td>
   <td>Orchestrates analysis and returns structured documentation data.</td>
 </tr>
 <tr>
@@ -287,30 +286,14 @@ flowchart LR
 </tr>
 <tr>
   <td>5</td>
-  <td><code>score_apartment_simple()</code><br><small style="color:var(--muted)">Project/Application/scoring.py</small></td>
-  <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>main()</code><br><small style="color:var(--muted)">Tests/test_derstandard_enhanced_logging.py</small><br><code>scrape_search_results()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>test_derstandard_scraper()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
-  <td>score_apartment_simple() node in Project/Application/scoring.py.</td>
-</tr>
-<tr>
-  <td>6</td>
-  <td><code>Simple version that just returns the score without breakdown.     Clamps negativ</code><br><small style="color:var(--muted)">Project/Application/scoring.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Design note for Simple version that just returns the score without breakdown.     Clamps negativ.</td>
-</tr>
-<tr>
-  <td>7</td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-class">Class</span></td>
   <td><code>StructuredAnalyzer</code><br><small style="color:var(--muted)">Project/Application/analyzer.py</small></td>
-  <td><code>__del__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>_ensure_serializable()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br>+42 more</td>
+  <td><code>__del__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>_ensure_serializable()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br>+43 more</td>
   <td>DerStandardScraper node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>8</td>
+  <td>6</td>
   <td><code>.__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>StructuredAnalyzer</code><br><small style="color:var(--muted)">Project/Application/analyzer.py</small></td>
@@ -318,7 +301,7 @@ flowchart LR
   <td>.__init__() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>9</td>
+  <td>7</td>
   <td><code>.load_config()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -326,7 +309,7 @@ flowchart LR
   <td>Reads, resolves, or persists project configuration.</td>
 </tr>
 <tr>
-  <td>10</td>
+  <td>8</td>
   <td><code>._setup_selenium()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -334,7 +317,7 @@ flowchart LR
   <td>._setup_selenium() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>11</td>
+  <td>9</td>
   <td><code>.__del__()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -342,7 +325,7 @@ flowchart LR
   <td>.__del__() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>12</td>
+  <td>10</td>
   <td><code>.extract_listing_urls_from_page()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -350,7 +333,7 @@ flowchart LR
   <td>Organizes documentation pages, navigation, or content lookup.</td>
 </tr>
 <tr>
-  <td>13</td>
+  <td>11</td>
   <td><code>.is_collection_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -358,7 +341,7 @@ flowchart LR
   <td>.is_collection_listing() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>14</td>
+  <td>12</td>
   <td><code>.extract_individual_property_urls_from_collection()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -366,7 +349,7 @@ flowchart LR
   <td>.extract_individual_property_urls_from_collection() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>15</td>
+  <td>13</td>
   <td><code>.navigate_collection_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_individual_property_urls_from_collection()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -374,7 +357,7 @@ flowchart LR
   <td>.navigate_collection_listing() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>16</td>
+  <td>14</td>
   <td><code>.extract_image_url()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -382,7 +365,7 @@ flowchart LR
   <td>.extract_image_url() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>17</td>
+  <td>15</td>
   <td><code>.get_page_with_selenium()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>navigate_collection_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -390,7 +373,7 @@ flowchart LR
   <td>Organizes documentation pages, navigation, or content lookup.</td>
 </tr>
 <tr>
-  <td>18</td>
+  <td>16</td>
   <td><code>.extract_listing_urls()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_listing_urls_from_page()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>get_page_with_selenium()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -398,7 +381,7 @@ flowchart LR
   <td>.extract_listing_urls() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>19</td>
+  <td>17</td>
   <td><code>.scrape_single_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_image_url()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>get_page_with_selenium()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br>+2 more</td>
@@ -406,7 +389,7 @@ flowchart LR
   <td>.scrape_single_listing() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>20</td>
+  <td>18</td>
   <td><code>.extract_property_data_from_json()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>scrape_single_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -414,7 +397,7 @@ flowchart LR
   <td>.extract_property_data_from_json() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>21</td>
+  <td>19</td>
   <td><code>.extract_from_html_selectors()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_image_url()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>scrape_single_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -422,7 +405,7 @@ flowchart LR
   <td>Exports documentation data to a target format.</td>
 </tr>
 <tr>
-  <td>22</td>
+  <td>20</td>
   <td><code>.extract_metadata_details()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_from_html_selectors()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -430,7 +413,7 @@ flowchart LR
   <td>.extract_metadata_details() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>23</td>
+  <td>21</td>
   <td><code>.extract_price()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -438,7 +421,7 @@ flowchart LR
   <td>.extract_price() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>24</td>
+  <td>22</td>
   <td><code>.extract_area()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -446,7 +429,7 @@ flowchart LR
   <td>.extract_area() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>25</td>
+  <td>23</td>
   <td><code>.extract_rooms()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -454,7 +437,7 @@ flowchart LR
   <td>.extract_rooms() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>26</td>
+  <td>24</td>
   <td><code>.extract_district()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -462,7 +445,7 @@ flowchart LR
   <td>.extract_district() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>27</td>
+  <td>25</td>
   <td><code>.extract_year_built()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -470,7 +453,7 @@ flowchart LR
   <td>.extract_year_built() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>28</td>
+  <td>26</td>
   <td><code>.extract_year()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_from_html_selectors()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_metadata_details()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br>+1 more</td>
@@ -478,7 +461,7 @@ flowchart LR
   <td>.extract_year() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>29</td>
+  <td>27</td>
   <td><code>.calculate_monthly_rate()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
@@ -486,12 +469,28 @@ flowchart LR
   <td>.calculate_monthly_rate() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 <tr>
-  <td>30</td>
+  <td>28</td>
   <td><code>.get_mortgage_breakdown()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
   <td>No direct outbound edge</td>
   <td>.get_mortgage_breakdown() node in Application/scraping/derstandard_scraper.py.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>.extract_energy_class()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>extract_from_html_selectors()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.extract_energy_class() node in Application/scraping/derstandard_scraper.py.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>.extract_street_view()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>DerStandardScraper</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small><br><code>scrape_single_listing()</code><br><small style="color:var(--muted)">Application/scraping/derstandard_scraper.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.extract_street_view() node in Application/scraping/derstandard_scraper.py.</td>
 </tr>
 </table>
 
@@ -506,78 +505,84 @@ flowchart LR
 <tr><td><code>Application/outreach/contact_extractor.py</code></td><td>28 nodes</td></tr>
 <tr><td><code>Application/crawling/crawler.py</code></td><td>21 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-05-12-neubauprojekt-expansion-rich-extraction-design.md</code></td><td>21 nodes</td></tr>
-<tr><td><code>Project/Application/analyzer.py</code></td><td>15 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-05-31-taken-listings-tracking-plan.md</code></td><td>15 nodes</td></tr>
+<tr><td><code>Project/Application/analyzer.py</code></td><td>14 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: explains x147, calls x135, contains x90, method x82. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: explains x145, calls x136, contains x89, method x82. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
 
 <!-- ====== 3. Graph Build ====== -->
 <h2 id="build-graph">3. Graph Build</h2>
-<p>Graph Build groups implementation around 2026, docs, superpowers, designmd, mostly in dashboard/package.json, superpowers/specs/2026-06-11-graph-leverage-skill-hygiene-design.md, superpowers/plans/2026-07-14-genossenschaft-coverage-vertical.md. This section covers 331 nodes and 313 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Graph Build groups implementation around 2026, docs, superpowers, designmd, mostly in dashboard/package.json, superpowers/specs/2026-06-11-graph-leverage-skill-hygiene-design.md, superpowers/plans/2026-07-14-genossenschaft-coverage-vertical.md. This section covers 370 nodes and 357 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Graph Build (331 nodes, 313 edges)
-    subgraph build_graph_dashboard_package_json_19b2dc33["dashboard/package.json"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_365fb123("@jest/globals<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_709a8ca9("@playwright/test<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_62f90f02("@types/geojson<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_0372deef("@types/jest<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_fbcb36be("@types/leaflet<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_e42a7558("@types/node<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_bf440b9c("@types/nodemailer<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_1c6699e7("@types/react<br/><small>dashboard/package.json</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_5af7e2e5("@types/react-dom<br/><small>dashboard/package.json</small>")
-    end
+    %% Section: Graph Build (370 nodes, 357 edges)
     subgraph build_graph_Application_helpers_utils_py_65a24ca2["Application/helpers/utils.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_3fd65d54("DataLoader<br/><small>Application/helpers/utils.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_330c9093("UBahnProximityCalculator<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_65396672("get_data_path()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_b104a9ee("load_ubahn_stations()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_1d8b13d5("load_vienna_schools()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_b4708c1a("__init__()<br/><small>Application/helpers/utils.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_d18edcd5("calculate_ubahn_proximity()<br/><small>Application/helpers/utils.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_74c5dc77("find_nearest_station()<br/><small>Application/helpers/utils.py</small>")
     end
-    subgraph build_graph_dashboard_scripts_build_districts_ge_b86566c7["dashboard/scripts/build-districts-geojson.mjs"]
-        dashboard_scripts_build_districts_geojson_perpdi_b7d5c9bd("perpDist()<br/><small>dashboard/scripts/build-districts-geojson.mjs</small>")
-        dashboard_scripts_build_districts_geojson_rdp_c4bc2301("rdp()<br/><small>dashboard/scripts/build-districts-geojson.mjs</small>")
-        dashboard_scripts_build_districts_geojson_simpli_7655281d("simplifyRing()<br/><small>dashboard/scripts/build-districts-geojson.mjs</small>")
+    subgraph build_graph_Project_Integration_mongodb_handler_e0b98892["Project/Integration/mongodb_handler.py"]
+        project_integration_mongodb_handler_mongodbhandl_aa0d4432("get_top_listings()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_72300d40("get_recently_sent_listings()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_38152f8f("_build_top_listings_query()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_3331f4de("_apply_top_listings_exclusion_filters()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_e8f95892("_fetch_and_score_listings()<br/><small>Project/Integration/mongodb_handler.py</small>")
     end
-    users_vladbrincoveanu_desktop_startup_immo_scout_20d78263("__init__()<br/><small>Application/helpers/geocoding.py</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_20d78263 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_b104a9ee
-    users_vladbrincoveanu_desktop_startup_immo_scout_20d78263 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_1d8b13d5
+    subgraph build_graph_Project_Domain_location_py_98c476d1["Project/Domain/location.py"]
+        users_vladbrincoveanu_desktop_startup_immo_scout_c7b9e375("UBahnStation<br/><small>Project/Domain/location.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_6ad717b2("walking_time_to()<br/><small>Project/Domain/location.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_7811a17c("distance_to()<br/><small>Project/Domain/location.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_5b547bad("walking_time_to()<br/><small>Project/Domain/location.py</small>")
+    end
+    project_run_top5_normalize_district_code_279614d2("normalize_district_code()<br/><small>Project/run_top5.py</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_3fd65d54 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_65396672
     users_vladbrincoveanu_desktop_startup_immo_scout_3fd65d54 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_b104a9ee
     users_vladbrincoveanu_desktop_startup_immo_scout_3fd65d54 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_1d8b13d5
     users_vladbrincoveanu_desktop_startup_immo_scout_65396672 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_b104a9ee
     users_vladbrincoveanu_desktop_startup_immo_scout_65396672 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_1d8b13d5
     users_vladbrincoveanu_desktop_startup_immo_scout_b104a9ee -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_b4708c1a
-    dashboard_scripts_build_districts_geojson_perpdi_b7d5c9bd -->|calls| dashboard_scripts_build_districts_geojson_rdp_c4bc2301
-    dashboard_scripts_build_districts_geojson_rdp_c4bc2301 -->|calls| dashboard_scripts_build_districts_geojson_simpli_7655281d
-    %% Omitted for readability: 313 nodes, 0 edges
-    class users_vladbrincoveanu_desktop_startup_immo_scout_365fb123 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_709a8ca9 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_62f90f02 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_0372deef function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_fbcb36be function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_e42a7558 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_bf440b9c function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_1c6699e7 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_5af7e2e5 function;
+    users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_d18edcd5
+    users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_74c5dc77
+    users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_b4708c1a
+    users_vladbrincoveanu_desktop_startup_immo_scout_6ad717b2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_7811a17c
+    users_vladbrincoveanu_desktop_startup_immo_scout_c7b9e375 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_7811a17c
+    users_vladbrincoveanu_desktop_startup_immo_scout_c7b9e375 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_5b547bad
+    project_integration_mongodb_handler_mongodbhandl_72300d40 -->|calls| project_integration_mongodb_handler_mongodbhandl_38152f8f
+    project_integration_mongodb_handler_mongodbhandl_aa0d4432 -->|calls| project_integration_mongodb_handler_mongodbhandl_3331f4de
+    project_integration_mongodb_handler_mongodbhandl_aa0d4432 -->|calls| project_integration_mongodb_handler_mongodbhandl_38152f8f
+    project_integration_mongodb_handler_mongodbhandl_aa0d4432 -->|calls| project_integration_mongodb_handler_mongodbhandl_e8f95892
+    %% Omitted for readability: 352 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_3fd65d54 klass;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_65396672 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_b104a9ee function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_1d8b13d5 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_b4708c1a function;
-    class dashboard_scripts_build_districts_geojson_perpdi_b7d5c9bd function;
-    class dashboard_scripts_build_districts_geojson_rdp_c4bc2301 function;
-    class dashboard_scripts_build_districts_geojson_simpli_7655281d function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_20d78263 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_d18edcd5 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_74c5dc77 function;
+    class project_integration_mongodb_handler_mongodbhandl_aa0d4432 function;
+    class project_integration_mongodb_handler_mongodbhandl_72300d40 function;
+    class project_integration_mongodb_handler_mongodbhandl_38152f8f function;
+    class project_integration_mongodb_handler_mongodbhandl_3331f4de function;
+    class project_integration_mongodb_handler_mongodbhandl_e8f95892 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_c7b9e375 klass;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_6ad717b2 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_7811a17c function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_5b547bad function;
+    class project_run_top5_normalize_district_code_279614d2 function;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
     classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
@@ -793,6 +798,14 @@ flowchart LR
 </tr>
 <tr>
   <td>25</td>
+  <td><code>nanoid</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>nanoid node in dashboard/package.json.</td>
+</tr>
+<tr>
+  <td>26</td>
   <td><code>sharp</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td>External entry / no inbound edge</td>
@@ -800,7 +813,7 @@ flowchart LR
   <td>sharp node in dashboard/package.json.</td>
 </tr>
 <tr>
-  <td>26</td>
+  <td>27</td>
   <td><code>devDependencies</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td>External entry / no inbound edge</td>
@@ -808,7 +821,7 @@ flowchart LR
   <td>devDependencies node in dashboard/package.json.</td>
 </tr>
 <tr>
-  <td>27</td>
+  <td>28</td>
   <td><code>@jest/globals</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td>External entry / no inbound edge</td>
@@ -816,7 +829,7 @@ flowchart LR
   <td>@jest/globals node in dashboard/package.json.</td>
 </tr>
 <tr>
-  <td>28</td>
+  <td>29</td>
   <td><code>@playwright/test</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td>External entry / no inbound edge</td>
@@ -824,20 +837,12 @@ flowchart LR
   <td>Verifies imports, entry points, or version behavior.</td>
 </tr>
 <tr>
-  <td>29</td>
+  <td>30</td>
   <td><code>@types/geojson</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
   <td>@types/geojson node in dashboard/package.json.</td>
-</tr>
-<tr>
-  <td>30</td>
-  <td><code>@types/jest</code><br><small style="color:var(--muted)">dashboard/package.json</small></td>
-  <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>@types/jest node in dashboard/package.json.</td>
 </tr>
 </table>
 
@@ -846,7 +851,7 @@ flowchart LR
     <h4>Key Files</h4>
     <table style="width:100%;font-size:0.85rem;">
       <tr><th>File</th><th>Coverage</th></tr>
-      <tr><td><code>dashboard/package.json</code></td><td>43 nodes</td></tr>
+      <tr><td><code>dashboard/package.json</code></td><td>44 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-06-11-graph-leverage-skill-hygiene-design.md</code></td><td>32 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-07-14-genossenschaft-coverage-vertical.md</code></td><td>27 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-05-13-dashboard-filters-telegram-score-dedup-design.md</code></td><td>27 nodes</td></tr>
@@ -858,77 +863,82 @@ flowchart LR
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x297, calls x7, explains x4, method x3. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x298, explains x23, calls x17, references x9. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
 
 <!-- ====== 4. Analysis & Clustering ====== -->
 <h2 id="analysis-clustering">4. Analysis &amp; Clustering</h2>
-<p>Analysis &amp; Clustering groups implementation around coop, 2026, docs, superpowers, mostly in superpowers/specs/2026-07-30-coop-private-alerts-design.md, superpowers/specs/2026-07-21-coop-builder-links-design.md, Project/Integration/mongodb_handler.py. This section covers 97 nodes and 94 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Analysis &amp; Clustering groups implementation around coop, 2026, docs, superpowers, mostly in app/coop/page.tsx, superpowers/specs/2026-07-30-coop-private-alerts-design.md, superpowers/specs/2026-07-21-coop-builder-links-design.md. This section covers 133 nodes and 156 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Analysis &amp; Clustering (97 nodes, 94 edges)
+    %% Section: Analysis &amp; Clustering (133 nodes, 156 edges)
     subgraph analysis_clustering_Project_Integration_mongodb_417b1fd6["Project/Integration/mongodb_handler.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_56accdf2("get_top_listings()<br/><small>Project/Integration/mongodb_handler.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_8d86173a("get_recently_sent_listings()<br/><small>Project/Integration/mongodb_handler.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_0d8f06bc("_build_top_listings_query()<br/><small>Project/Integration/mongodb_handler.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_d8d1a805("_apply_top_listings_exclusion_filters()<br/><small>Project/Integration/mongodb_handler.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_b779f207("_fetch_and_score_listings()<br/><small>Project/Integration/mongodb_handler.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_15505c84("_log_top_listings_summary()<br/><small>Project/Integration/mongodb_handler.py</small>")
-    end
-    subgraph analysis_clustering_coop_private_page_tsx_ea151497["coop/private/page.tsx"]
-        dashboard_app_coop_private_page_f9bcad0e("page.tsx")
-        dashboard_app_coop_private_page_buildquery_d29558b2("buildQuery()<br/><small>coop/private/page.tsx</small>")
-        dashboard_app_coop_private_page_escaperegex_143cd827("escapeRegex()<br/><small>coop/private/page.tsx</small>")
-        dashboard_app_coop_private_page_fmtint_a9235b61("fmtInt()<br/><small>coop/private/page.tsx</small>")
-        dashboard_app_coop_private_page_privatecooppage_fdf6b5ce("PrivateCoopPage()<br/><small>coop/private/page.tsx</small>")
-        dashboard_app_coop_private_page_fmtarea_046190ce("fmtArea()<br/><small>coop/private/page.tsx</small>")
+        project_integration_mongodb_handler_valid_listin_2c98507c("delivery claim token()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_valid_listin_9178af61("listing delivery identity()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_validate_lis_289faebb("listing delivery channel()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_claimed_list_95093438("listing delivery query()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_d6b3f866("claim_listing_delivery()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_d7b68177("mark_listing_delivery_sent()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_bb3fcf10("quarantine_listing_delivery()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_mongodbhandl_0c384ab4("release_listing_delivery()<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_listing_deli_8f762ef0("_listing_delivery_query()<br/><small>Project/Integration/mongodb_handler.py</small>")
     end
     subgraph analysis_clustering_Project_Application_analyzer_5e54c662["Project/Application/analyzer.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd("analyze_listing()<br/><small>Project/Application/analyzer.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_d217f530("analyze_listing()<br/><small>Project/Application/analyzer.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_402c26f4("_prepare_input_text()<br/><small>Project/Application/analyzer.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_00c74080("_create_default_result()<br/><small>Project/Application/analyzer.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_39781854("_extract_text_content()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_05ef4527("is_available()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_63764305("analyze_listing_content()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7("_extract_from_html()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c("analyze_listing()<br/><small>Project/Application/analyzer.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc("analyze_listing_content()<br/><small>Project/Application/analyzer.py</small>")
     end
-    dashboard_lib_coop_query_privatecoopquery_ccef1d11("privateCoopQuery()<br/><small>dashboard/lib/coop-query.ts</small>")
+    dashboard_app_coop_page_040eefee("page.tsx")
+    dashboard_app_coop_private_page_f9bcad0e("page.tsx")
     users_vladbrincoveanu_desktop_startup_immo_scout_d217f530 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_402c26f4
-    users_vladbrincoveanu_desktop_startup_immo_scout_d217f530 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_00c74080
-    users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_39781854
-    users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_00c74080
-    users_vladbrincoveanu_desktop_startup_immo_scout_8d86173a -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0d8f06bc
-    users_vladbrincoveanu_desktop_startup_immo_scout_56accdf2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_d8d1a805
-    users_vladbrincoveanu_desktop_startup_immo_scout_56accdf2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0d8f06bc
-    users_vladbrincoveanu_desktop_startup_immo_scout_56accdf2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_b779f207
-    users_vladbrincoveanu_desktop_startup_immo_scout_56accdf2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_15505c84
-    dashboard_app_coop_private_page_escaperegex_143cd827 -->|calls| dashboard_app_coop_private_page_buildquery_d29558b2
-    dashboard_app_coop_private_page_fmtint_a9235b61 -->|calls| dashboard_app_coop_private_page_privatecooppage_fdf6b5ce
-    dashboard_app_coop_private_page_fmtarea_046190ce -->|calls| dashboard_app_coop_private_page_privatecooppage_fdf6b5ce
-    dashboard_app_coop_private_page_buildquery_d29558b2 -->|calls| dashboard_lib_coop_query_privatecoopquery_ccef1d11
-    dashboard_app_coop_private_page_buildquery_d29558b2 -->|calls| dashboard_app_coop_private_page_privatecooppage_fdf6b5ce
-    dashboard_app_coop_private_page_f9bcad0e -->|imports| dashboard_lib_coop_query_privatecoopquery_ccef1d11
-    %% Omitted for readability: 79 nodes, 0 edges
-    class users_vladbrincoveanu_desktop_startup_immo_scout_56accdf2 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_8d86173a function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_0d8f06bc function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_d8d1a805 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_b779f207 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_15505c84 function;
-    class dashboard_app_coop_private_page_f9bcad0e ui;
-    class dashboard_app_coop_private_page_buildquery_d29558b2 ui;
-    class dashboard_app_coop_private_page_escaperegex_143cd827 ui;
-    class dashboard_app_coop_private_page_fmtint_a9235b61 ui;
-    class dashboard_app_coop_private_page_privatecooppage_fdf6b5ce ui;
-    class dashboard_app_coop_private_page_fmtarea_046190ce ui;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_1b3df9cd function;
+    users_vladbrincoveanu_desktop_startup_immo_scout_d217f530 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_05ef4527
+    users_vladbrincoveanu_desktop_startup_immo_scout_63764305 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7
+    users_vladbrincoveanu_desktop_startup_immo_scout_63764305 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c
+    users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7
+    users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c
+    project_integration_mongodb_handler_validate_lis_289faebb -->|calls| project_integration_mongodb_handler_mongodbhandl_d6b3f866
+    project_integration_mongodb_handler_validate_lis_289faebb -->|calls| project_integration_mongodb_handler_mongodbhandl_d7b68177
+    project_integration_mongodb_handler_validate_lis_289faebb -->|calls| project_integration_mongodb_handler_mongodbhandl_bb3fcf10
+    project_integration_mongodb_handler_validate_lis_289faebb -->|calls| project_integration_mongodb_handler_mongodbhandl_0c384ab4
+    project_integration_mongodb_handler_listing_deli_8f762ef0 -->|calls| project_integration_mongodb_handler_mongodbhandl_d6b3f866
+    project_integration_mongodb_handler_valid_listin_9178af61 -->|calls| project_integration_mongodb_handler_mongodbhandl_d6b3f866
+    project_integration_mongodb_handler_valid_listin_9178af61 -->|calls| project_integration_mongodb_handler_mongodbhandl_d7b68177
+    project_integration_mongodb_handler_valid_listin_9178af61 -->|calls| project_integration_mongodb_handler_mongodbhandl_bb3fcf10
+    project_integration_mongodb_handler_valid_listin_9178af61 -->|calls| project_integration_mongodb_handler_mongodbhandl_0c384ab4
+    project_integration_mongodb_handler_valid_listin_2c98507c -->|calls| project_integration_mongodb_handler_mongodbhandl_d6b3f866
+    project_integration_mongodb_handler_valid_listin_2c98507c -->|calls| project_integration_mongodb_handler_mongodbhandl_d7b68177
+    project_integration_mongodb_handler_valid_listin_2c98507c -->|calls| project_integration_mongodb_handler_mongodbhandl_bb3fcf10
+    project_integration_mongodb_handler_valid_listin_2c98507c -->|calls| project_integration_mongodb_handler_mongodbhandl_0c384ab4
+    project_integration_mongodb_handler_claimed_list_95093438 -->|calls| project_integration_mongodb_handler_mongodbhandl_d7b68177
+    project_integration_mongodb_handler_claimed_list_95093438 -->|calls| project_integration_mongodb_handler_mongodbhandl_bb3fcf10
+    project_integration_mongodb_handler_claimed_list_95093438 -->|calls| project_integration_mongodb_handler_mongodbhandl_0c384ab4
+    %% Omitted for readability: 115 nodes, 0 edges
+    class project_integration_mongodb_handler_valid_listin_2c98507c function;
+    class project_integration_mongodb_handler_valid_listin_9178af61 function;
+    class project_integration_mongodb_handler_validate_lis_289faebb function;
+    class project_integration_mongodb_handler_claimed_list_95093438 function;
+    class project_integration_mongodb_handler_mongodbhandl_d6b3f866 function;
+    class project_integration_mongodb_handler_mongodbhandl_d7b68177 function;
+    class project_integration_mongodb_handler_mongodbhandl_bb3fcf10 function;
+    class project_integration_mongodb_handler_mongodbhandl_0c384ab4 function;
+    class project_integration_mongodb_handler_listing_deli_8f762ef0 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_d217f530 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_402c26f4 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_00c74080 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_39781854 function;
-    class dashboard_lib_coop_query_privatecoopquery_ccef1d11 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_05ef4527 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_63764305 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_8ec617d7 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_0a07576c function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_de6b69cc function;
+    class dashboard_app_coop_page_040eefee ui;
+    class dashboard_app_coop_private_page_f9bcad0e ui;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
     classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
@@ -952,243 +962,243 @@ flowchart LR
 </tr>
 <tr>
   <td>1</td>
-  <td><code>2026-07-30-coop-private-alerts-design.md</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>page.tsx</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing 2026-07-30-coop-private-alerts-design.md.</td>
+  <td><code>coop-query.ts</code><br><small style="color:var(--muted)">dashboard/lib/coop-query.ts</small><br><code>CoopTabs()</code><br><small style="color:var(--muted)">dashboard/components/CoopTabs.tsx</small><br><code>CoopTabs.tsx</code><br><small style="color:var(--muted)">dashboard/components/CoopTabs.tsx</small><br>+2 more</td>
+  <td>Module file in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>2</td>
-  <td><code>Co-op images, private-Ablöse rubric, and alerts dashboard</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>metadata</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Co-op images, private-Ablöse rubric, and alerts dashboard.</td>
+  <td>metadata node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>3</td>
-  <td><code>Verified starting state</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>CoopRow</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Verified starting state.</td>
+  <td>CoopRow node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>4</td>
-  <td><code>Builder-page photo probe (measured 2026-07-30)</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>BASE_QUERY</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Builder-page photo probe (measured 2026-07-30).</td>
+  <td>BASE_QUERY node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>5</td>
-  <td><code>Decisions taken</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>Filters</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Decisions taken.</td>
+  <td>Filters node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>6</td>
-  <td><code>P0 — Telegram plumbing</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>escapeRegex()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing P0 — Telegram plumbing.</td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>escapeRegex() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>7</td>
-  <td><code>Module: `coop_alert_router`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>rangeClause()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `coop_alert_router`.</td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>rangeClause() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>8</td>
-  <td><code>P1 — Co-op images: second hop</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing P1 — Co-op images: second hop.</td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>escapeRegex()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small><br><code>rangeClause()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><code>bucketClauses()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small><br><code>getCoopListings()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>buildQuery() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>9</td>
-  <td><code>Module: `coop_image_resolver`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `coop_image_resolver`.</td>
+  <td><code>getCoopListings()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small><br><code>toArray()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>getCoopListings() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>10</td>
-  <td><code>Re-probe safety</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>fmtInt()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Re-probe safety.</td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>fmtInt() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>11</td>
-  <td><code>P2 — Willhaben private-Ablöse crawler</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>fmtArea()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing P2 — Willhaben private-Ablöse crawler.</td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>fmtArea() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>12</td>
-  <td><code>Module: `willhaben_private_coop`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>ago()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `willhaben_private_coop`.</td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>ago() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>13</td>
-  <td><code>Cadence</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>Bucket</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Cadence.</td>
+  <td>Bucket node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>14</td>
-  <td><code>P3 — `/coop/private` page and free-text search</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>bucketClauses()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing P3 — `/coop/private` page and free-text search.</td>
+  <td>bucketClauses() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>15</td>
-  <td><code>Module: `coop_private_query`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>ROOM_BUCKETS</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `coop_private_query`.</td>
+  <td>ROOM_BUCKETS node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>16</td>
-  <td><code>Module: `CoopPrivatePage`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>AREA_BUCKETS</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `CoopPrivatePage`.</td>
+  <td>AREA_BUCKETS node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>17</td>
-  <td><code>P4 — Alerts dashboard</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>RENT_BUCKETS</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing P4 — Alerts dashboard.</td>
+  <td>RENT_BUCKETS node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>18</td>
-  <td><code>Module: `alert_matcher`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>CAPITAL_BUCKETS</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `alert_matcher`.</td>
+  <td>CAPITAL_BUCKETS node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>19</td>
-  <td><code>Module: `alert_dispatcher`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>FEATURE_OPTIONS</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `alert_dispatcher`.</td>
+  <td>FEATURE_OPTIONS node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>20</td>
-  <td><code>Module: `AlertsDashboardPage`</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Module: `AlertsDashboardPage`.</td>
+  <td><code>toArray()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>getCoopListings()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>toArray() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>21</td>
-  <td><code>Testing</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>numParam()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Testing.</td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td>numParam() node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>22</td>
-  <td><code>Risks</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>Search</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Risks.</td>
+  <td>Search node in app/coop/page.tsx.</td>
 </tr>
 <tr>
   <td>23</td>
-  <td><code>Sequencing</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-30-coop-private-alerts-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>CoopPage()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>ago()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small><br><code>fmtArea()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small><br><code>fmtInt()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small><br>+3 more</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Sequencing.</td>
+  <td>Organizes documentation pages, navigation, or content lookup.</td>
 </tr>
 <tr>
   <td>24</td>
-  <td><code>2026-07-21-coop-builder-links-design.md</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>page.tsx</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing 2026-07-21-coop-builder-links-design.md.</td>
+  <td><code>coop-query.ts</code><br><small style="color:var(--muted)">dashboard/lib/coop-query.ts</small><br><code>CoopTabs()</code><br><small style="color:var(--muted)">dashboard/components/CoopTabs.tsx</small><br><code>CoopTabs.tsx</code><br><small style="color:var(--muted)">dashboard/components/CoopTabs.tsx</small><br>+3 more</td>
+  <td>Module file in coop/private/page.tsx.</td>
 </tr>
 <tr>
   <td>25</td>
-  <td><code>/coop: Genossenschaft rentals only + builder-direct reservation links</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>metadata</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing /coop: Genossenschaft rentals only + builder-direct reservation links.</td>
+  <td>metadata node in coop/private/page.tsx.</td>
 </tr>
 <tr>
   <td>26</td>
-  <td><code>Problem (from user, verified in code)</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>PrivateRow</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Documentation node describing Problem (from user, verified in code).</td>
+  <td>PrivateRow node in coop/private/page.tsx.</td>
 </tr>
 <tr>
   <td>27</td>
-  <td><code>Root cause (verified)</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>escapeRegex()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Root cause (verified).</td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td>escapeRegex() node in coop/private/page.tsx.</td>
 </tr>
 <tr>
   <td>28</td>
-  <td><code>Feasibility findings (verified live)</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>fmtInt()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Feasibility findings (verified live).</td>
+  <td><code>PrivateCoopPage()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td>fmtInt() node in coop/private/page.tsx.</td>
 </tr>
 <tr>
   <td>29</td>
-  <td><code>Design decisions (user-approved)</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
+  <td><code>fmtArea()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Design decisions (user-approved).</td>
+  <td><code>PrivateCoopPage()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td>fmtArea() node in coop/private/page.tsx.</td>
 </tr>
 <tr>
   <td>30</td>
-  <td><code>Modules</code><br><small style="color:var(--muted)">superpowers/specs/2026-07-21-coop-builder-links-design.md</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
-  <td>Documentation node describing Modules.</td>
+  <td><code>buildQuery()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>escapeRegex()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small></td>
+  <td><code>PrivateCoopPage()</code><br><small style="color:var(--muted)">coop/private/page.tsx</small><br><code>privateCoopQuery()</code><br><small style="color:var(--muted)">dashboard/lib/coop-query.ts</small></td>
+  <td>buildQuery() node in coop/private/page.tsx.</td>
 </tr>
 </table>
 
@@ -1197,19 +1207,19 @@ flowchart LR
     <h4>Key Files</h4>
     <table style="width:100%;font-size:0.85rem;">
       <tr><th>File</th><th>Coverage</th></tr>
-      <tr><td><code>superpowers/specs/2026-07-30-coop-private-alerts-design.md</code></td><td>23 nodes</td></tr>
+      <tr><td><code>app/coop/page.tsx</code></td><td>23 nodes</td></tr>
+<tr><td><code>superpowers/specs/2026-07-30-coop-private-alerts-design.md</code></td><td>23 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-07-21-coop-builder-links-design.md</code></td><td>15 nodes</td></tr>
-<tr><td><code>Project/Integration/mongodb_handler.py</code></td><td>12 nodes</td></tr>
+<tr><td><code>Project/Application/analyzer.py</code></td><td>13 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-05-14-plan6-dashboard-improvements.md</code></td><td>11 nodes</td></tr>
-<tr><td><code>Project/Application/analyzer.py</code></td><td>10 nodes</td></tr>
+<tr><td><code>superpowers/specs/2026-08-29-coop-availability-ui-design.md</code></td><td>11 nodes</td></tr>
+<tr><td><code>Project/Integration/mongodb_handler.py</code></td><td>9 nodes</td></tr>
 <tr><td><code>coop/private/page.tsx</code></td><td>8 nodes</td></tr>
-<tr><td><code>graphify/references/query.md</code></td><td>6 nodes</td></tr>
-<tr><td><code>scripts/token_benchmark.py</code></td><td>3 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x63, calls x15, explains x11, imports x3. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x96, calls x39, explains x6, imports x6. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
@@ -1481,14 +1491,15 @@ flowchart LR
 
 <!-- ====== 6. CLI & Skill Installers ====== -->
 <h2 id="cli-skills">6. CLI &amp; Skill Installers</h2>
-<p>CLI &amp; Skill Installers groups implementation around claude, 2026, skills, docs, mostly in superpowers/plans/2026-04-21-global-skill-memory-loop.md, docs/CLAUDE-full-reference.md, skills/ui-ux-pro-max/SKILL.md. This section covers 504 nodes and 515 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>CLI &amp; Skill Installers groups implementation around claude, 2026, skills, docs, mostly in superpowers/plans/2026-04-21-global-skill-memory-loop.md, docs/CLAUDE-full-reference.md, skills/ui-ux-pro-max/SKILL.md. This section covers 457 nodes and 449 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: CLI &amp; Skill Installers (504 nodes, 515 edges)
+    %% Section: CLI &amp; Skill Installers (457 nodes, 449 edges)
     subgraph cli_skills_ui_ux_pro_max_scripts_core_py_d2cbbff3["ui-ux-pro-max/scripts/core.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_0088fa0a("BM25<br/><small>ui-ux-pro-max/scripts/core.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_142e39a5("Core search function using BM25<br/><small>ui-ux-pro-max/scripts/core.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_ec121e01("tokenize()<br/><small>ui-ux-pro-max/scripts/core.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_55669c4b("fit()<br/><small>ui-ux-pro-max/scripts/core.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_c5aca5e0("__init__()<br/><small>ui-ux-pro-max/scripts/core.py</small>")
@@ -1507,8 +1518,7 @@ flowchart LR
         users_vladbrincoveanu_desktop_startup_immo_scout_9c7fa5ee("_find_reasoning_rule()<br/><small>ui-ux-pro-max/scripts/design_system.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_874c1045("generate()<br/><small>ui-ux-pro-max/scripts/design_system.py</small>")
     end
-    project_application_cleanup_414c3e43("cleanup.py")
-    users_vladbrincoveanu_desktop_startup_immo_scout_223c7813("parse_cli_args()<br/><small>Project/run_outreach.py</small>")
+    project_integration_mongodb_handler_mongodbhandl_03e58160("close()<br/><small>Project/Integration/mongodb_handler.py</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_0088fa0a -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_55669c4b
     users_vladbrincoveanu_desktop_startup_immo_scout_0088fa0a -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_c5aca5e0
     users_vladbrincoveanu_desktop_startup_immo_scout_0088fa0a -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_d23a7901
@@ -1529,8 +1539,9 @@ flowchart LR
     users_vladbrincoveanu_desktop_startup_immo_scout_9c7fa5ee -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_19e1ac6d
     users_vladbrincoveanu_desktop_startup_immo_scout_19e1ac6d -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_874c1045
     users_vladbrincoveanu_desktop_startup_immo_scout_433563ca -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_874c1045
-    %% Omitted for readability: 486 nodes, 0 edges
+    %% Omitted for readability: 439 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_0088fa0a klass;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_142e39a5 concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_ec121e01 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_55669c4b function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_c5aca5e0 function;
@@ -1546,8 +1557,7 @@ flowchart LR
     class users_vladbrincoveanu_desktop_startup_immo_scout_433563ca function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_9c7fa5ee function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_874c1045 function;
-    class project_application_cleanup_414c3e43 module;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_223c7813 entry;
+    class project_integration_mongodb_handler_mongodbhandl_03e58160 function;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
     classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
@@ -1630,7 +1640,7 @@ flowchart LR
   <td><code>_search_csv()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>_load_csv()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small><br><code>BM25</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small><br><code>fit()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small><br>+1 more</td>
-  <td><code>design_system.py</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/design_system.py</small><br><code>search()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small><br><code>search.py</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/search.py</small><br>+1 more</td>
+  <td><code>search()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small><br><code>search_stack()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small></td>
   <td>_search_csv() node in ui-ux-pro-max/scripts/core.py.</td>
 </tr>
 <tr>
@@ -1702,7 +1712,7 @@ flowchart LR
   <td><code>Core search function using BM25</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small></td>
   <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
-  <td>No direct outbound edge</td>
+  <td><code>design_system.py</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/design_system.py</small><br><code>search.py</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/search.py</small></td>
   <td>Design note for Core search function using BM25.</td>
 </tr>
 <tr>
@@ -1733,7 +1743,7 @@ flowchart LR
   <td>21</td>
   <td><code>design_system.py</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/design_system.py</small></td>
   <td><span class="tag tag-class">Module</span></td>
-  <td><code>_search_csv()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small></td>
+  <td><code>Core search function using BM25</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/core.py</small></td>
   <td>No direct outbound edge</td>
   <td>Module file in ui-ux-pro-max/scripts/design_system.py.</td>
 </tr>
@@ -1758,7 +1768,7 @@ flowchart LR
   <td><code>._load_reasoning()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/design_system.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
   <td><code>__init__()</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/design_system.py</small><br><code>DesignSystemGenerator</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/design_system.py</small></td>
-  <td><code>search.py</code><br><small style="color:var(--muted)">ui-ux-pro-max/scripts/search.py</small></td>
+  <td>No direct outbound edge</td>
   <td>._load_reasoning() node in ui-ux-pro-max/scripts/design_system.py.</td>
 </tr>
 <tr>
@@ -1817,35 +1827,34 @@ flowchart LR
     <table style="width:100%;font-size:0.85rem;">
       <tr><th>File</th><th>Coverage</th></tr>
       <tr><td><code>superpowers/plans/2026-04-21-global-skill-memory-loop.md</code></td><td>63 nodes</td></tr>
-<tr><td><code>docs/CLAUDE-full-reference.md</code></td><td>49 nodes</td></tr>
+<tr><td><code>docs/CLAUDE-full-reference.md</code></td><td>50 nodes</td></tr>
 <tr><td><code>skills/ui-ux-pro-max/SKILL.md</code></td><td>42 nodes</td></tr>
 <tr><td><code>ui-ux-pro-max/scripts/design_system.py</code></td><td>34 nodes</td></tr>
-<tr><td><code>Project/Application/main.py</code></td><td>31 nodes</td></tr>
 <tr><td><code>skills/graphify/SKILL.md</code></td><td>24 nodes</td></tr>
 <tr><td><code>ui-ux-pro-max/scripts/core.py</code></td><td>20 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-04-21-global-skill-memory-loop-design.md</code></td><td>20 nodes</td></tr>
+<tr><td><code>skills/multi-agent-code-review/SKILL.md</code></td><td>18 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x383, explains x52, calls x36, method x12. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x355, explains x33, calls x30, method x12. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
 
 <!-- ====== 7. Ingestion & Updates ====== -->
 <h2 id="ingest-cache-update">7. Ingestion &amp; Updates</h2>
-<p>Ingestion &amp; Updates groups implementation around project, docs, superpowers, plans, mostly in Application/scraping/genossenschaft_scraper.py, Project/Integration/minio_handler.py, superpowers/plans/2026-05-13-neubauprojekt-bank-scoring.md. This section covers 175 nodes and 186 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Ingestion &amp; Updates groups implementation around project, docs, superpowers, plans, mostly in Application/scraping/genossenschaft_scraper.py, Project/run_coop.py, Project/Integration/minio_handler.py. This section covers 225 nodes and 257 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Ingestion &amp; Updates (175 nodes, 186 edges)
+    %% Section: Ingestion &amp; Updates (225 nodes, 257 edges)
     subgraph ingest_cache_update_Application_scraping_genosse_b4b217a4["Application/scraping/genossenschaft_scraper.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_04ad6b7d("fetch()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_978aabfe("resolve_offer_details()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_941715cb("_decode_ewkb_point()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9("fetch_all_mygewo()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_978aabfe("resolve_offer_details()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_36d0d55d("scrape_all()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_8ab8b51a("_new_coop_listing()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_5dbff166("_units_to_listings()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
@@ -1853,16 +1862,22 @@ flowchart LR
         users_vladbrincoveanu_desktop_startup_immo_scout_093757ff("_mygewo_units()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_543a1d85("_mygewo_rpc_fallback()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_c12dff3f("_to_float()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_b00a6759("_offer_url_map()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_3c7d924a("_seroval_json_decode()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_1b99da98("_fetch_mygewo_page()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_70dad336("_find_units_payload()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_941715cb("_decode_ewkb_point()<br/><small>Application/scraping/genossenschaft_scraper.py</small>")
+    end
+    subgraph ingest_cache_update_Application_helpers_listing_c2e14a32["Application/helpers/listing_validator.py"]
+        project_application_helpers_listing_validator_va_43f49eaa("validate_url()<br/><small>Application/helpers/listing_validator.py</small>")
+        project_application_helpers_listing_validator_fi_ec1d07a6("filter_valid_urls()<br/><small>Application/helpers/listing_validator.py</small>")
     end
     subgraph ingest_cache_update_Application_scraping_willhab_57fb938f["Application/scraping/willhaben_scraper.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_b11aaa64("extract_listing_urls()<br/><small>Application/scraping/willhaben_scraper.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_664ab29f("expand_project_to_units()<br/><small>Application/scraping/willhaben_scraper.py</small>")
+        project_application_scraping_willhaben_scraper_w_1f3f8331("extract_listing_urls()<br/><small>Application/scraping/willhaben_scraper.py</small>")
+        project_application_scraping_willhaben_scraper_w_32f6e602("expand_project_to_units()<br/><small>Application/scraping/willhaben_scraper.py</small>")
+    end
+    subgraph ingest_cache_update_Project_run_coop_py_1c3f0c1f["Project/run_coop.py"]
+        project_run_coop_is_coop_listing_7c4f842a("is_coop_listing()<br/><small>Project/run_coop.py</small>")
+        project_run_coop_coop_source_urls_48c60787("_coop_source_urls()<br/><small>Project/run_coop.py</small>")
     end
     users_vladbrincoveanu_desktop_startup_immo_scout_d085342e("MinIOHandler<br/><small>Project/Integration/minio_handler.py</small>")
+    project_application_helpers_listing_validator_va_43f49eaa -->|calls| project_application_helpers_listing_validator_fi_ec1d07a6
     users_vladbrincoveanu_desktop_startup_immo_scout_04ad6b7d -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9
     users_vladbrincoveanu_desktop_startup_immo_scout_04ad6b7d -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_978aabfe
     users_vladbrincoveanu_desktop_startup_immo_scout_04ad6b7d -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_36d0d55d
@@ -1871,19 +1886,15 @@ flowchart LR
     users_vladbrincoveanu_desktop_startup_immo_scout_093757ff -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_543a1d85
     users_vladbrincoveanu_desktop_startup_immo_scout_c12dff3f -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_5dbff166
     users_vladbrincoveanu_desktop_startup_immo_scout_941715cb -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_5dbff166
-    users_vladbrincoveanu_desktop_startup_immo_scout_b00a6759 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9
     users_vladbrincoveanu_desktop_startup_immo_scout_5dbff166 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9
     users_vladbrincoveanu_desktop_startup_immo_scout_5dbff166 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_543a1d85
-    users_vladbrincoveanu_desktop_startup_immo_scout_3c7d924a -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_1b99da98
-    users_vladbrincoveanu_desktop_startup_immo_scout_70dad336 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_1b99da98
-    users_vladbrincoveanu_desktop_startup_immo_scout_1b99da98 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9
     users_vladbrincoveanu_desktop_startup_immo_scout_543a1d85 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9
-    users_vladbrincoveanu_desktop_startup_immo_scout_b11aaa64 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_664ab29f
-    %% Omitted for readability: 157 nodes, 0 edges
+    project_application_scraping_willhaben_scraper_w_1f3f8331 -->|calls| project_application_scraping_willhaben_scraper_w_32f6e602
+    project_run_coop_is_coop_listing_7c4f842a -->|calls| project_run_coop_coop_source_urls_48c60787
+    %% Omitted for readability: 207 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_04ad6b7d function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_978aabfe function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_941715cb function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_f18d10c9 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_978aabfe function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_36d0d55d function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_8ab8b51a function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_5dbff166 function;
@@ -1891,12 +1902,13 @@ flowchart LR
     class users_vladbrincoveanu_desktop_startup_immo_scout_093757ff function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_543a1d85 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_c12dff3f function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_b00a6759 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_3c7d924a function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_1b99da98 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_70dad336 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_b11aaa64 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_664ab29f function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_941715cb function;
+    class project_application_helpers_listing_validator_va_43f49eaa function;
+    class project_application_helpers_listing_validator_fi_ec1d07a6 function;
+    class project_application_scraping_willhaben_scraper_w_1f3f8331 function;
+    class project_application_scraping_willhaben_scraper_w_32f6e602 function;
+    class project_run_coop_is_coop_listing_7c4f842a function;
+    class project_run_coop_coop_source_urls_48c60787 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_d085342e klass;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
@@ -2167,44 +2179,44 @@ flowchart LR
     <table style="width:100%;font-size:0.85rem;">
       <tr><th>File</th><th>Coverage</th></tr>
       <tr><td><code>Application/scraping/genossenschaft_scraper.py</code></td><td>37 nodes</td></tr>
+<tr><td><code>Project/run_coop.py</code></td><td>28 nodes</td></tr>
 <tr><td><code>Project/Integration/minio_handler.py</code></td><td>24 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-05-13-neubauprojekt-bank-scoring.md</code></td><td>22 nodes</td></tr>
+<tr><td><code>Application/scraping/willhaben_scraper.py</code></td><td>18 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-05-28-bank-loan-ready-feasibility.md</code></td><td>14 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-04-19-dashboard-visual-redesign.md</code></td><td>13 nodes</td></tr>
-<tr><td><code>Application/scraping/willhaben_scraper.py</code></td><td>10 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-04-21-price-estimation.md</code></td><td>9 nodes</td></tr>
-<tr><td><code>superpowers/plans/2026-05-14-bank-scoring-altbau-fix.md</code></td><td>9 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x106, explains x36, calls x27, method x11. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x125, explains x57, calls x53, method x11. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
 
 <!-- ====== 8. Serving API ====== -->
 <h2 id="serve-api">8. Serving API</h2>
-<p>Serving API groups implementation around docs, 2026, superpowers, designmd, mostly in docs/improvements.md, superpowers/specs/2026-06-13-dashboard-ui-redesign-design.md, superpowers/specs/2026-05-31-taken-listings-tracking-design.md. This section covers 606 nodes and 764 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Serving API groups implementation around docs, 2026, superpowers, designmd, mostly in docs/improvements.md, superpowers/specs/2026-06-13-dashboard-ui-redesign-design.md, superpowers/specs/2026-05-31-taken-listings-tracking-design.md. This section covers 610 nodes and 785 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Serving API (606 nodes, 764 edges)
+    %% Section: Serving API (610 nodes, 785 edges)
     subgraph serve_api_Application_helpers_geocoding_py_f7dcb231["Application/helpers/geocoding.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_51660e01("ViennaGeocoder<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2("calculate_distance()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_8e01ac19("calculate_walking_route()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_142be9d1("_determine_district_from_coords()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_21ebb6d0("_estimate_ubahn_distance_geographically()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_02e80c0a("find_nearby_amenities()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_4c6c1016("find_nearest_school()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_e25d2e68("find_nearest_ubahn()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_650b0983("get_amenity_summary()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_6991f902("get_school_walk_minutes()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_e1f53c74("_get_ubahn_distance_broader_search()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_cfba8fa8("_get_ubahn_distance_by_district()<br/><small>Application/helpers/geocoding.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_e820be3a("get_walking_distance_to_nearest_school()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_58839abe("ViennaGeocoder<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_1051bf02("calculate_distance()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_62c545e8("calculate_walking_route()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_eb851248("_determine_district_from_coords()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_d8004fc1("_estimate_ubahn_distance_geographically()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_8aef2bf0("find_nearby_amenities()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_1e149259("find_nearest_school()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_30592211("find_nearest_ubahn()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_b6022ff5("get_amenity_summary()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_d2e952ab("get_school_walk_minutes()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_a2a7dc49("_get_ubahn_distance_broader_search()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_934f43fd("_get_ubahn_distance_by_district()<br/><small>Application/helpers/geocoding.py</small>")
+        project_application_helpers_geocoding_viennageoc_50ddf484("get_walking_distance_to_nearest_school()<br/><small>Application/helpers/geocoding.py</small>")
     end
     subgraph serve_api_listings_map_route_ts_0b72f182["listings/map/route.ts"]
         dashboard_app_api_listings_map_route_9a89889f("route.ts")
@@ -2215,42 +2227,42 @@ flowchart LR
         dashboard_app_api_listings_top_route_get_788d190f("GET()<br/><small>listings/top/route.ts</small>")
     end
     dashboard_app_api_listings_id_route_0a890ce0("route.ts")
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_8e01ac19
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_142be9d1
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_21ebb6d0
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_02e80c0a
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_4c6c1016
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_e25d2e68
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_650b0983
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_6991f902
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_e1f53c74
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_cfba8fa8
-    users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_e820be3a
-    users_vladbrincoveanu_desktop_startup_immo_scout_4c6c1016 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2
-    users_vladbrincoveanu_desktop_startup_immo_scout_4c6c1016 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_6991f902
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8e01ac19
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_21ebb6d0
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_02e80c0a
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_e25d2e68
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_e1f53c74
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_cfba8fa8
-    users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_e820be3a
-    users_vladbrincoveanu_desktop_startup_immo_scout_cfba8fa8 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_142be9d1
-    %% Omitted for readability: 588 nodes, 0 edges
-    class users_vladbrincoveanu_desktop_startup_immo_scout_51660e01 klass;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_e73d33e2 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_8e01ac19 api;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_142be9d1 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_21ebb6d0 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_02e80c0a function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_4c6c1016 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_e25d2e68 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_650b0983 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_6991f902 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_e1f53c74 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_cfba8fa8 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_e820be3a function;
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_1051bf02
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_62c545e8
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_eb851248
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_d8004fc1
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_8aef2bf0
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_1e149259
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_30592211
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_b6022ff5
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_d2e952ab
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_a2a7dc49
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_934f43fd
+    project_application_helpers_geocoding_viennageoc_58839abe -->|method| project_application_helpers_geocoding_viennageoc_50ddf484
+    project_application_helpers_geocoding_viennageoc_1e149259 -->|calls| project_application_helpers_geocoding_viennageoc_1051bf02
+    project_application_helpers_geocoding_viennageoc_1e149259 -->|calls| project_application_helpers_geocoding_viennageoc_d2e952ab
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_62c545e8
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_d8004fc1
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_8aef2bf0
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_30592211
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_a2a7dc49
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_934f43fd
+    project_application_helpers_geocoding_viennageoc_1051bf02 -->|calls| project_application_helpers_geocoding_viennageoc_50ddf484
+    project_application_helpers_geocoding_viennageoc_934f43fd -->|calls| project_application_helpers_geocoding_viennageoc_eb851248
+    %% Omitted for readability: 592 nodes, 0 edges
+    class project_application_helpers_geocoding_viennageoc_58839abe klass;
+    class project_application_helpers_geocoding_viennageoc_1051bf02 function;
+    class project_application_helpers_geocoding_viennageoc_62c545e8 api;
+    class project_application_helpers_geocoding_viennageoc_eb851248 function;
+    class project_application_helpers_geocoding_viennageoc_d8004fc1 function;
+    class project_application_helpers_geocoding_viennageoc_8aef2bf0 function;
+    class project_application_helpers_geocoding_viennageoc_1e149259 function;
+    class project_application_helpers_geocoding_viennageoc_30592211 function;
+    class project_application_helpers_geocoding_viennageoc_b6022ff5 function;
+    class project_application_helpers_geocoding_viennageoc_d2e952ab function;
+    class project_application_helpers_geocoding_viennageoc_a2a7dc49 function;
+    class project_application_helpers_geocoding_viennageoc_934f43fd function;
+    class project_application_helpers_geocoding_viennageoc_50ddf484 function;
     class dashboard_app_api_listings_map_route_9a89889f api;
     class dashboard_app_api_listings_map_route_get_4f53eccc function;
     class dashboard_app_api_listings_top_route_2ecbc4a2 api;
@@ -2529,36 +2541,26 @@ flowchart LR
 <tr><td><code>superpowers/specs/2026-05-31-taken-listings-tracking-design.md</code></td><td>35 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-06-09-gratzl-micro-locations-15min-design.md</code></td><td>29 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-06-09-green-infrastructure-wieneu-design.md</code></td><td>29 nodes</td></tr>
-<tr><td><code>Application/helpers/geocoding.py</code></td><td>27 nodes</td></tr>
+<tr><td><code>Application/helpers/geocoding.py</code></td><td>28 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-04-19-property-map-design.md</code></td><td>27 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-06-09-rent-regulated-layer-design.md</code></td><td>25 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x514, calls x97, imports x74, imports x47. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x514, calls x100, imports x77, imports x49. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
 
 <!-- ====== 9. Security & Global Graph ====== -->
 <h2 id="security-global">9. Security &amp; Global Graph</h2>
-<p>Security &amp; Global Graph groups implementation around docs, 2026, superpowers, repo, mostly in superpowers/specs/2026-06-10-repo-audit.md, superpowers/plans/2026-05-14-plan1-security-hardening.md, Application/helpers/utils.py. This section covers 96 nodes and 89 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Security &amp; Global Graph groups implementation around docs, 2026, superpowers, repo, mostly in superpowers/specs/2026-06-10-repo-audit.md, superpowers/plans/2026-05-14-plan1-security-hardening.md, docs/improvements.md. This section covers 79 nodes and 74 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Security &amp; Global Graph (96 nodes, 89 edges)
-    subgraph security_global_Application_helpers_utils_py_fa1a1848["Application/helpers/utils.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6("utils.py")
-        users_vladbrincoveanu_desktop_startup_immo_scout_63474bbd("estimate_betriebskosten()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_58e0e0a8("format_currency()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_b6fc3d3b("format_distance()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_e3daf9f5("format_walking_time()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_9af0f309("get_walking_times()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_fa7fbef3("safe_float()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_30c449a0("safe_int()<br/><small>Application/helpers/utils.py</small>")
-    end
+    %% Section: Security &amp; Global Graph (79 nodes, 74 edges)
     subgraph security_global_superpowers_specs_2026_06_10_rep_0ada9160["superpowers/specs/2026-06-10-repo-audit.md"]
         users_vladbrincoveanu_desktop_startup_immo_scout_c172d795("immo-scouter Repository Audit<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_f36473fc("Improvement Strategy<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
@@ -2566,40 +2568,52 @@ flowchart LR
         users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b("Audit Report<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_cf249ff2("Security<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_95f0f609("Architecture &amp; Design<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_af2d6ba2("Code Quality<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_b1761180("Testing<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_1088624a("Performance / DevEx<br/><small>superpowers/specs/2026-06-10-repo-audit.md</small>")
     end
-    users_vladbrincoveanu_desktop_startup_immo_scout_c4ac43e5("get_real_ubahn_walk_minutes()<br/><small>Application/scraping/willhaben_scraper.py</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f("Outreach Email Setup Guide<br/><small>Project/OUTREACH_SETUP.md</small>")
+    subgraph security_global_Project_OUTREACH_SETUP_md_e75bcd4f["Project/OUTREACH_SETUP.md"]
+        users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f("Outreach Email Setup Guide<br/><small>Project/OUTREACH_SETUP.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_fa879238("Environment Variables<br/><small>Project/OUTREACH_SETUP.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_35232d06("OUTREACH_SETUP.md")
+        users_vladbrincoveanu_desktop_startup_immo_scout_5e887ba4("Quick Setup<br/><small>Project/OUTREACH_SETUP.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_b7a14eb5("Security Notes<br/><small>Project/OUTREACH_SETUP.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_8951e644("Testing<br/><small>Project/OUTREACH_SETUP.md</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_d49f9dd2("🔒 Security Best Practice<br/><small>Project/OUTREACH_SETUP.md</small>")
+    end
     users_vladbrincoveanu_desktop_startup_immo_scout_90f625ad("11. Additional Code Pattern Issues Foun...<br/><small>docs/improvements.md</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_037f3e49("Plan 1 of 6: Security Hardening — Imple...<br/><small>superpowers/plans/2026-05-14-plan1-security-hardening.md</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_63474bbd
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_58e0e0a8
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_b6fc3d3b
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_e3daf9f5
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_9af0f309
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_fa7fbef3
-    users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_30c449a0
+    users_vladbrincoveanu_desktop_startup_immo_scout_35232d06 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f
+    users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_fa879238
+    users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_5e887ba4
+    users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_d49f9dd2
+    users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_b7a14eb5
+    users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_8951e644
     users_vladbrincoveanu_desktop_startup_immo_scout_c172d795 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b
     users_vladbrincoveanu_desktop_startup_immo_scout_c172d795 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_f36473fc
     users_vladbrincoveanu_desktop_startup_immo_scout_c172d795 -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_e674c8aa
     users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_95f0f609
+    users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_af2d6ba2
+    users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_1088624a
     users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_cf249ff2
-    %% Omitted for readability: 78 nodes, 0 edges
-    class users_vladbrincoveanu_desktop_startup_immo_scout_14c6a8a6 module;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_63474bbd function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_58e0e0a8 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_b6fc3d3b function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_e3daf9f5 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_9af0f309 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_fa7fbef3 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_30c449a0 function;
+    users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b -->|contains| users_vladbrincoveanu_desktop_startup_immo_scout_b1761180
+    %% Omitted for readability: 61 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_c172d795 concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_f36473fc concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_e674c8aa concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_00ecc59b concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_cf249ff2 concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_95f0f609 concept;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_c4ac43e5 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_af2d6ba2 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_b1761180 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_1088624a concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_74d0713f concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_fa879238 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_35232d06 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_5e887ba4 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_b7a14eb5 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_8951e644 concept;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_d49f9dd2 concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_90f625ad concept;
     class users_vladbrincoveanu_desktop_startup_immo_scout_037f3e49 concept;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
@@ -2872,27 +2886,25 @@ flowchart LR
       <tr><th>File</th><th>Coverage</th></tr>
       <tr><td><code>superpowers/specs/2026-06-10-repo-audit.md</code></td><td>43 nodes</td></tr>
 <tr><td><code>superpowers/plans/2026-05-14-plan1-security-hardening.md</code></td><td>18 nodes</td></tr>
-<tr><td><code>Application/helpers/utils.py</code></td><td>15 nodes</td></tr>
 <tr><td><code>docs/improvements.md</code></td><td>11 nodes</td></tr>
 <tr><td><code>Project/OUTREACH_SETUP.md</code></td><td>7 nodes</td></tr>
-<tr><td><code>Application/scraping/willhaben_scraper.py</code></td><td>2 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x81, explains x8. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x74. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
 
 <!-- ====== 10. Tests & Fixtures ====== -->
 <h2 id="tests-fixtures">10. Tests &amp; Fixtures</h2>
-<p>Tests &amp; Fixtures groups implementation around test, tests, project, application, mostly in Project/Tests/test_run_coop.py, Project/Integration/mongodb_handler.py, Project/Tests/test_alert_dispatcher.py. This section covers 1909 nodes and 3105 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Tests &amp; Fixtures groups implementation around test, tests, project, application, mostly in Project/Tests/test_run_coop.py, Project/Integration/mongodb_handler.py, Project/Tests/test_coop_channel_ledger.py. This section covers 2102 nodes and 3470 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Tests &amp; Fixtures (1909 nodes, 3105 edges)
+    %% Section: Tests &amp; Fixtures (2102 nodes, 3470 edges)
     subgraph tests_fixtures_Project_Application_alert_dispatc_30e3621d["Project/Application/alert_dispatcher.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_3dece965("is_sendable_url()<br/><small>Project/Application/alert_dispatcher.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_9e0b7ea7("dispatch()<br/><small>Project/Application/alert_dispatcher.py</small>")
@@ -2907,16 +2919,16 @@ flowchart LR
         users_vladbrincoveanu_desktop_startup_immo_scout_224a705c("_release_delivery_channel()<br/><small>Project/Application/alert_dispatcher.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_c77e9447("pending delivery channel()<br/><small>Project/Application/alert_dispatcher.py</small>")
     end
+    subgraph tests_fixtures_Project_Integration_mongodb_handl_b6515364["Project/Integration/mongodb_handler.py"]
+        project_integration_mongodb_handler_mongodbhandl_653815db("MongoDBHandler<br/><small>Project/Integration/mongodb_handler.py</small>")
+        project_integration_mongodb_handler_feb52c87("mongodb_handler.py")
+    end
     subgraph tests_fixtures_Project_Tests_test_alert_dispatch_9a4841f8["Project/Tests/test_alert_dispatcher.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_ec3b5e4b("_Handler<br/><small>Project/Tests/test_alert_dispatcher.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_e45b4aca("_L<br/><small>Project/Tests/test_alert_dispatcher.py</small>")
     end
-    subgraph tests_fixtures_Project_Tests_test_alert_matcher_aa6787b1["Project/Tests/test_alert_matcher.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_7c431247("_alert()<br/><small>Project/Tests/test_alert_matcher.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_eed5bd99("_LN<br/><small>Project/Tests/test_alert_matcher.py</small>")
-    end
-    users_vladbrincoveanu_desktop_startup_immo_scout_913f1049("MongoDBHandler<br/><small>Project/Integration/mongodb_handler.py</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_7be650e6("_l()<br/><small>Project/Tests/test_run_coop.py</small>")
+    users_vladbrincoveanu_desktop_startup_immo_scout_7c431247("_alert()<br/><small>Project/Tests/test_alert_matcher.py</small>")
+    project_tests_test_run_coop_l_aad7ee0f("_l()<br/><small>Project/Tests/test_run_coop.py</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_3dece965 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_9e0b7ea7
     users_vladbrincoveanu_desktop_startup_immo_scout_13644249 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_9e0b7ea7
     users_vladbrincoveanu_desktop_startup_immo_scout_3c61e3ce -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_7e410774
@@ -2930,7 +2942,7 @@ flowchart LR
     users_vladbrincoveanu_desktop_startup_immo_scout_224a705c -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_9e0b7ea7
     users_vladbrincoveanu_desktop_startup_immo_scout_224a705c -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_aa7b8a7d
     users_vladbrincoveanu_desktop_startup_immo_scout_c77e9447 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_aa7b8a7d
-    %% Omitted for readability: 1891 nodes, 0 edges
+    %% Omitted for readability: 2084 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_3dece965 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_9e0b7ea7 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_13644249 function;
@@ -2943,12 +2955,12 @@ flowchart LR
     class users_vladbrincoveanu_desktop_startup_immo_scout_f35a5a9b function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_224a705c function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_c77e9447 function;
+    class project_integration_mongodb_handler_mongodbhandl_653815db klass;
+    class project_integration_mongodb_handler_feb52c87 module;
     class users_vladbrincoveanu_desktop_startup_immo_scout_ec3b5e4b test;
     class users_vladbrincoveanu_desktop_startup_immo_scout_e45b4aca test;
     class users_vladbrincoveanu_desktop_startup_immo_scout_7c431247 test;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_eed5bd99 test;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_913f1049 klass;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_7be650e6 test;
+    class project_tests_test_run_coop_l_aad7ee0f test;
     classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
     classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
     classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
@@ -2972,243 +2984,243 @@ flowchart LR
 </tr>
 <tr>
   <td>1</td>
-  <td><code>alert_dispatcher.py</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-class">Module</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>The alert&#x27;s keys, lowercased and stripp...</code><br><small style="color:var(--muted)">Project/Application/alert_matcher.py</small></td>
-  <td>Module file in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">Application/scraping/willhaben_scraper.py</small><br><code>Amenity</code><br><small style="color:var(--muted)">Application/scraping/immo_kurier_scraper.py</small><br><code>Amenity</code><br><small style="color:var(--muted)">Application/scraping/willhaben_scraper.py</small><br>+6 more</td>
+  <td><code>__init__()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>_delivery_channel_fields()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>_FakeCollection</code><br><small style="color:var(--muted)">Project/Tests/test_coop_images.py</small><br>+72 more</td>
+  <td>MongoDBHandler node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>2</td>
-  <td><code>is_sendable_url()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.__init__()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>is_sendable_url() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.__init__() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>3</td>
-  <td><code>url_hash()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.insert_listing()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>Caches analysis results or computes cache keys.</td>
+  <td><code>compute_xsrc_fingerprint()</code><br><small style="color:var(--muted)">Application/helpers/listing_validator.py</small><br><code>is_valid_listing_data()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><code>_replace_preserving_state()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>increment_validation_failure()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>.insert_listing() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>4</td>
-  <td><code>_num()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>._replace_preserving_state()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>build_message()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>_num() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>insert_listing()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>preserve_delivery_state()</code><br><small style="color:var(--muted)">Project/Application/telegram_delivery.py</small></td>
+  <td><code>_preserving()</code><br><small style="color:var(--muted)">Project/Tests/test_coop_images.py</small><br><code>upsert_coop_listing()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>._replace_preserving_state() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>5</td>
-  <td><code>build_message()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.upsert_coop_listing()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td><code>_num()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>build_message() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>_replace_preserving_state()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>compute_xsrc_fingerprint()</code><br><small style="color:var(--muted)">Application/helpers/listing_validator.py</small><br><code>is_valid_listing_data()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br>+1 more</td>
+  <td>No direct outbound edge</td>
+  <td>.upsert_coop_listing() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>6</td>
-  <td><code>_default_telegram()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.update_profile_scores()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>retry_pending()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>_default_telegram() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.update_profile_scores() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>7</td>
-  <td><code>_default_email()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.mark_listing_taken()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>_default_email() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mark_listing_taken() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>8</td>
-  <td><code>_default_email_content()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.update_listing_coordinates()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>retry_pending()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>_default_email_content() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.update_listing_coordinates() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>9</td>
-  <td><code>_mark_delivery_channel_sent()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.listing_exists()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>retry_pending()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>run_coop.py</code><br><small style="color:var(--muted)">Project/run_coop.py</small><br>+1 more</td>
-  <td>_mark_delivery_channel_sent() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.listing_exists() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>10</td>
-  <td><code>_release_delivery_channel()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.mark_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>retry_pending()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>_release_delivery_channel() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mark_sent() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>11</td>
-  <td><code>_claim_pending_delivery_channel()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.mark_listings_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>retry_pending()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td>_claim_pending_delivery_channel() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mark_listings_sent() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>12</td>
-  <td><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.mark_url_invalid()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td><code>_default_email()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>_default_telegram()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>_release_delivery_channel()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br>+4 more</td>
-  <td><code>and marks sent()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br><code>as question marks()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br><code>at claim time()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br>+27 more</td>
-  <td>dispatch() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mark_url_invalid() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>13</td>
-  <td><code>retry_pending()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
+  <td><code>.get_source_meta()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td><code>_default_email_content()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>_default_telegram()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br><code>_release_delivery_channel()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br>+2 more</td>
-  <td><code>at claim time()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br><code>deliver_user_alerts()</code><br><small style="color:var(--muted)">Project/run_coop.py</small><br><code>from stored payload()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br>+5 more</td>
-  <td>retry_pending() node in Project/Application/alert_dispatcher.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.get_source_meta() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>14</td>
-  <td><code>Deliver one matched (alert, listing) pair exactly once.  The problem this solves</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.set_source_meta()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Deliver one matched (alert, listing) pair exactly once.  The problem this solves.</td>
+  <td>.set_source_meta() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>15</td>
-  <td><code>Structural URL check — see the module docstring for why not validate_url.</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.get_unsent_listings()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Structural URL check — see the module docstring for why not validate_url..</td>
+  <td>.get_unsent_listings() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>16</td>
-  <td><code>Stable per-ad key for the ledger, matching the project&#x27;s dedup scheme.</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.get_listing()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Stable per-ad key for the ledger, matching the project&#x27;s dedup scheme..</td>
+  <td>.get_listing() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>17</td>
-  <td><code>Render a number for the message, or an explicit &#x27;?&#x27; when unknown.      &#x27;?&#x27; rathe</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.get_listings_by_urls()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Render a number for the message, or an explicit &#x27;?&#x27; when unknown.      &#x27;?&#x27; rathe.</td>
+  <td>.get_listings_by_urls() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>18</td>
-  <td><code>The Telegram body for one alert hit, truncated to the API limit.      Deliberate</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.get_active_alerts()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for The Telegram body for one alert hit, truncated to the API limit.      Deliberate.</td>
+  <td>.get_active_alerts() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>19</td>
-  <td><code>Deliver one pair. True only when something was actually sent.      Never raises:</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.get_alert_subscriptions()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Deliver one pair. True only when something was actually sent.      Never raises:.</td>
+  <td>.get_alert_subscriptions() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>20</td>
-  <td><code>Re-send deliveries that were claimed but never sent. Returns the count.      Thi</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.ensure_delivery_index()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Re-send deliveries that were claimed but never sent. Returns the count.      Thi.</td>
+  <td>.ensure_delivery_index() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>21</td>
-  <td><code>alert_email.py</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td><span class="tag tag-class">Module</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.claim_delivery()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Module file in Project/Application/alert_email.py.</td>
+  <td>.claim_delivery() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>22</td>
-  <td><code>_format_number()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
+  <td><code>._delivery_channel_fields()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>_body()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td>_format_number() node in Project/Application/alert_email.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><code>claim_pending_delivery_channel()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>mark_delivery_channel_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>release_delivery_channel()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>._delivery_channel_fields() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>23</td>
-  <td><code>_body()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
+  <td><code>._other_channel_complete_expression()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td><code>_format_number()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td><code>build_alert_email()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small><br><code>test_alert_dispatcher.py</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small></td>
-  <td>_body() node in Project/Application/alert_email.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><code>mark_delivery_channel_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>._other_channel_complete_expression() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>24</td>
-  <td><code>build_alert_email()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
+  <td><code>.release_delivery_channel()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td><code>_body()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small><br><code>dispatch()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small></td>
-  <td><code>flag unverified values()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br><code>malformed numeric values()</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small><br><code>send_alert_email()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td>build_alert_email() node in Project/Application/alert_email.py.</td>
+  <td><code>_delivery_channel_fields()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.release_delivery_channel() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>25</td>
-  <td><code>send_alert_email_content()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
+  <td><code>.mark_delivery_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td>External entry / no inbound edge</td>
-  <td><code>send_alert_email()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td>send_alert_email_content() node in Project/Application/alert_email.py.</td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mark_delivery_sent() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>26</td>
-  <td><code>send_alert_email()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
+  <td><code>.mark_delivery_channel_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td><span class="tag tag-func">Function</span></td>
-  <td><code>build_alert_email()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small><br><code>send_alert_email_content()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
+  <td><code>_delivery_channel_fields()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>_other_channel_complete_expression()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small><br><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>send_alert_email() node in Project/Application/alert_email.py.</td>
+  <td>.mark_delivery_channel_sent() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>27</td>
-  <td><code>Plain-text email delivery for user-created co-op alerts.  Deliberately NOT reusi</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.stale_pending_deliveries()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Plain-text email delivery for user-created co-op alerts.  Deliberately NOT reusi.</td>
+  <td>.stale_pending_deliveries() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>28</td>
-  <td><code>Send prepared alert content, returning False on configuration or SMTP errors.</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.ensure_channel_send_index()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Send prepared alert content, returning False on configuration or SMTP errors..</td>
+  <td>.ensure_channel_send_index() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>29</td>
-  <td><code>Build and send one alert using the shared SMTP implementation.</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small></td>
-  <td><span class="tag tag-func">Concept</span></td>
-  <td>External entry / no inbound edge</td>
+  <td><code>.claim_channel_send()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
   <td>No direct outbound edge</td>
-  <td>Design note for Build and send one alert using the shared SMTP implementation..</td>
+  <td>.claim_channel_send() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 <tr>
   <td>30</td>
-  <td><code>test_alert_dispatcher.py</code><br><small style="color:var(--muted)">Project/Tests/test_alert_dispatcher.py</small></td>
-  <td><span class="tag tag-func">Test</span></td>
-  <td><code>_body()</code><br><small style="color:var(--muted)">Project/Application/alert_email.py</small><br><code>datetime</code><br><code>delivery channel sent()</code><br><small style="color:var(--muted)">Project/Application/alert_dispatcher.py</small><br>+1 more</td>
-  <td><code>main()</code><br><small style="color:var(--muted)">Project/run_coop.py</small></td>
-  <td>Module file in Project/Tests/test_alert_dispatcher.py.</td>
+  <td><code>.mark_channel_send_sent()</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>MongoDBHandler</code><br><small style="color:var(--muted)">Project/Integration/mongodb_handler.py</small></td>
+  <td>No direct outbound edge</td>
+  <td>.mark_channel_send_sent() node in Project/Integration/mongodb_handler.py.</td>
 </tr>
 </table>
 
@@ -3217,19 +3229,19 @@ flowchart LR
     <h4>Key Files</h4>
     <table style="width:100%;font-size:0.85rem;">
       <tr><th>File</th><th>Coverage</th></tr>
-      <tr><td><code>Project/Tests/test_run_coop.py</code></td><td>86 nodes</td></tr>
-<tr><td><code>Project/Integration/mongodb_handler.py</code></td><td>78 nodes</td></tr>
-<tr><td><code>Project/Tests/test_alert_dispatcher.py</code></td><td>57 nodes</td></tr>
+      <tr><td><code>Project/Tests/test_run_coop.py</code></td><td>78 nodes</td></tr>
+<tr><td><code>Project/Integration/mongodb_handler.py</code></td><td>76 nodes</td></tr>
+<tr><td><code>Project/Tests/test_coop_channel_ledger.py</code></td><td>64 nodes</td></tr>
 <tr><td><code>Tests/test_field_extractors.py</code></td><td>57 nodes</td></tr>
+<tr><td><code>Project/Tests/test_alert_dispatcher.py</code></td><td>56 nodes</td></tr>
 <tr><td><code>Project/Tests/test_alert_matcher.py</code></td><td>50 nodes</td></tr>
 <tr><td><code>tests/test_telegram_vienna_delivery.py</code></td><td>48 nodes</td></tr>
 <tr><td><code>Tests/test_feasibility.py</code></td><td>44 nodes</td></tr>
-<tr><td><code>Tests/test_derstandard_integration.py</code></td><td>37 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x907, calls x616, explains x466, method x326. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x983, calls x680, explains x509, method x383. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
@@ -4901,61 +4913,62 @@ flowchart LR
 
 <!-- ====== 16. Other ====== -->
 <h2 id="other">16. Other</h2>
-<p>Other groups implementation around docs, 2026, superpowers, specs, mostly in docs/improvements.md, superpowers/specs/2026-04-19-dashboard-visual-redesign.md, superpowers/specs/2026-05-14-map-redesign-booking-style.md. This section covers 1027 nodes and 752 internal edges; the diagram shows only representative relationships to stay readable.</p>
+<p>Other groups implementation around docs, 2026, superpowers, specs, mostly in docs/improvements.md, superpowers/specs/2026-04-19-dashboard-visual-redesign.md, superpowers/specs/2026-05-14-map-redesign-booking-style.md. This section covers 939 nodes and 658 internal edges; the diagram shows only representative relationships to stay readable.</p>
 
 <div class="mermaid">
 %%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
 flowchart LR
-    %% Section: Other (1027 nodes, 752 edges)
+    %% Section: Other (939 nodes, 658 edges)
     subgraph other_Application_helpers_utils_py_b29f5bdc["Application/helpers/utils.py"]
-        users_vladbrincoveanu_desktop_startup_immo_scout_330c9093("UBahnProximityCalculator<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_5a01b492("ViennaDistrictHelper<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_bdb2a8a8("get_default_ubahn_time()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_ab726fff("get_district_name()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_010a75a0("is_valid_district()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_24720736("get_default_ubahn_time()<br/><small>Application/helpers/utils.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_8694de84("calculate_ubahn_proximity()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_d18edcd5("calculate_ubahn_proximity()<br/><small>Application/helpers/utils.py</small>")
-        users_vladbrincoveanu_desktop_startup_immo_scout_74c5dc77("find_nearest_station()<br/><small>Application/helpers/utils.py</small>")
+    end
+    subgraph other_Application_outreach_email_sender_py_3b44219e["Application/outreach/email_sender.py"]
+        users_vladbrincoveanu_desktop_startup_immo_scout_7bd53b92("generate unsubscribe token()<br/><small>Application/outreach/email_sender.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_618eb7e8("send_offers_batch()<br/><small>Application/outreach/email_sender.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_92705139("_is_valid_email()<br/><small>Application/outreach/email_sender.py</small>")
+        users_vladbrincoveanu_desktop_startup_immo_scout_8b88dd96("OutreachMessage<br/><small>Application/outreach/email_sender.py</small>")
     end
     subgraph other_Project_Application_buyer_profiles_py_ea478f2a["Project/Application/buyer_profiles.py"]
         users_vladbrincoveanu_desktop_startup_immo_scout_488209c0("BuyerPersona<br/><small>Project/Application/buyer_profiles.py</small>")
         users_vladbrincoveanu_desktop_startup_immo_scout_42d0c891("from_value()<br/><small>Project/Application/buyer_profiles.py</small>")
     end
-    users_vladbrincoveanu_desktop_startup_immo_scout_7bd53b92("generate unsubscribe token()<br/><small>Application/outreach/email_sender.py</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_652ee0a9("Coordinates<br/><small>Project/Domain/location.py</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_b34482e0("deploy.sh script<br/><small>Project/deploy.sh</small>")
-    users_vladbrincoveanu_desktop_startup_immo_scout_a7d78eac("buyer_persona_type()<br/><small>Project/run_top5.py</small>")
+    project_run_top5_buyer_persona_type_6af5aea4("buyer_persona_type()<br/><small>Project/run_top5.py</small>")
+    dashboard_app_page_1abe4b06("page.tsx")
     dashboard_components_addressblock_b506b191("AddressBlock.tsx")
     dashboard_components_listingcard_ac72a716("ListingCard.tsx")
     users_vladbrincoveanu_desktop_startup_immo_scout_155f0c67("setup-graphify.sh script<br/><small>scripts/setup-graphify.sh</small>")
     users_vladbrincoveanu_desktop_startup_immo_scout_488209c0 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_42d0c891
-    users_vladbrincoveanu_desktop_startup_immo_scout_42d0c891 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_a7d78eac
+    users_vladbrincoveanu_desktop_startup_immo_scout_42d0c891 -->|calls| project_run_top5_buyer_persona_type_6af5aea4
     users_vladbrincoveanu_desktop_startup_immo_scout_5a01b492 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_bdb2a8a8
     users_vladbrincoveanu_desktop_startup_immo_scout_5a01b492 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_ab726fff
     users_vladbrincoveanu_desktop_startup_immo_scout_5a01b492 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_010a75a0
     users_vladbrincoveanu_desktop_startup_immo_scout_bdb2a8a8 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_24720736
     users_vladbrincoveanu_desktop_startup_immo_scout_bdb2a8a8 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_8694de84
-    users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_d18edcd5
-    users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_8694de84
-    users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 -->|method| users_vladbrincoveanu_desktop_startup_immo_scout_74c5dc77
+    users_vladbrincoveanu_desktop_startup_immo_scout_7bd53b92 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_618eb7e8
+    users_vladbrincoveanu_desktop_startup_immo_scout_92705139 -->|calls| users_vladbrincoveanu_desktop_startup_immo_scout_618eb7e8
     dashboard_components_addressblock_b506b191 -->|imports| dashboard_components_listingcard_ac72a716
-    %% Omitted for readability: 1009 nodes, 0 edges
-    class users_vladbrincoveanu_desktop_startup_immo_scout_330c9093 klass;
+    %% Omitted for readability: 921 nodes, 0 edges
     class users_vladbrincoveanu_desktop_startup_immo_scout_5a01b492 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_bdb2a8a8 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_ab726fff function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_010a75a0 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_24720736 function;
     class users_vladbrincoveanu_desktop_startup_immo_scout_8694de84 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_d18edcd5 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_74c5dc77 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_7bd53b92 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_618eb7e8 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_92705139 function;
+    class users_vladbrincoveanu_desktop_startup_immo_scout_8b88dd96 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_488209c0 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_42d0c891 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_7bd53b92 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_652ee0a9 klass;
     class users_vladbrincoveanu_desktop_startup_immo_scout_b34482e0 function;
-    class users_vladbrincoveanu_desktop_startup_immo_scout_a7d78eac function;
+    class project_run_top5_buyer_persona_type_6af5aea4 function;
+    class dashboard_app_page_1abe4b06 ui;
     class dashboard_components_addressblock_b506b191 ui;
     class dashboard_components_listingcard_ac72a716 ui;
     class users_vladbrincoveanu_desktop_startup_immo_scout_155f0c67 function;
@@ -5174,51 +5187,51 @@ flowchart LR
 </tr>
 <tr>
   <td>25</td>
-  <td><code>page.tsx</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>2026-04-19-dashboard-visual-redesign.md</code><br><small style="color:var(--muted)">superpowers/specs/2026-04-19-dashboard-visual-redesign.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Module file in app/coop/page.tsx.</td>
+  <td>Documentation node describing 2026-04-19-dashboard-visual-redesign.md.</td>
 </tr>
 <tr>
   <td>26</td>
-  <td><code>metadata</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Dashboard Visual Redesign — Design Spec</code><br><small style="color:var(--muted)">superpowers/specs/2026-04-19-dashboard-visual-redesign.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>metadata node in app/coop/page.tsx.</td>
+  <td>Documentation node describing Dashboard Visual Redesign — Design Spec.</td>
 </tr>
 <tr>
   <td>27</td>
-  <td><code>CoopRow</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Overview</code><br><small style="color:var(--muted)">superpowers/specs/2026-04-19-dashboard-visual-redesign.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>CoopRow node in app/coop/page.tsx.</td>
+  <td>Documentation node describing Overview.</td>
 </tr>
 <tr>
   <td>28</td>
-  <td><code>BASE_QUERY</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Design Decisions</code><br><small style="color:var(--muted)">superpowers/specs/2026-04-19-dashboard-visual-redesign.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>BASE_QUERY node in app/coop/page.tsx.</td>
+  <td>Documentation node describing Design Decisions.</td>
 </tr>
 <tr>
   <td>29</td>
-  <td><code>Filters</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Color Palette</code><br><small style="color:var(--muted)">superpowers/specs/2026-04-19-dashboard-visual-redesign.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
   <td>No direct outbound edge</td>
-  <td>Filters node in app/coop/page.tsx.</td>
+  <td>Documentation node describing Color Palette.</td>
 </tr>
 <tr>
   <td>30</td>
-  <td><code>escapeRegex()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Typography</code><br><small style="color:var(--muted)">superpowers/specs/2026-04-19-dashboard-visual-redesign.md</small></td>
+  <td><span class="tag tag-func">Concept</span></td>
   <td>External entry / no inbound edge</td>
-  <td><code>buildQuery()</code><br><small style="color:var(--muted)">app/coop/page.tsx</small></td>
-  <td>escapeRegex() node in app/coop/page.tsx.</td>
+  <td>No direct outbound edge</td>
+  <td>Documentation node describing Typography.</td>
 </tr>
 </table>
 
@@ -5230,16 +5243,16 @@ flowchart LR
       <tr><td><code>docs/improvements.md</code></td><td>79 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-04-19-dashboard-visual-redesign.md</code></td><td>25 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-05-14-map-redesign-booking-style.md</code></td><td>24 nodes</td></tr>
-<tr><td><code>app/coop/page.tsx</code></td><td>23 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-04-25-mobile-ux-overhaul-design.md</code></td><td>23 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-05-12-bank-loan-profile-field-extraction-design.md</code></td><td>22 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-05-13-neubauprojekt-bank-scoring-design.md</code></td><td>22 nodes</td></tr>
 <tr><td><code>superpowers/specs/2026-04-25-map-mobile-responsive-design.md</code></td><td>21 nodes</td></tr>
+<tr><td><code>superpowers/plans/2026-05-14-plan5-outreach-system.md</code></td><td>18 nodes</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Design Notes</h4>
-    <p>This section comes from graphify community clustering. Relationship summary: contains x553, explains x54, calls x46, references x30. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x491, explains x49, calls x32, references x26. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
   </div>
 </div>
 <hr>
@@ -5307,26 +5320,26 @@ flowchart LR
   <div class="card">
     <h4>Graph</h4>
     <table style="width:100%;font-size:0.85rem;">
-      <tr><td>Nodes</td><td>5299</td></tr>
-      <tr><td>Edges</td><td>6997</td></tr>
+      <tr><td>Nodes</td><td>5468</td></tr>
+      <tr><td>Edges</td><td>7461</td></tr>
       <tr><td>Hyperedges</td><td>5</td></tr>
-      <tr><td>Communities</td><td>676</td></tr>
+      <tr><td>Communities</td><td>666</td></tr>
       <tr><td>Documented Sections</td><td>15</td></tr>
     </table>
   </div>
   <div class="card">
     <h4>Edge Confidence</h4>
     <table style="width:100%;font-size:0.85rem;">
-      <tr><td>EXTRACTED</td><td>6172</td></tr>
-      <tr><td>INFERRED</td><td>825</td></tr>
+      <tr><td>EXTRACTED</td><td>6562</td></tr>
+      <tr><td>INFERRED</td><td>899</td></tr>
       <tr><td>AMBIGUOUS</td><td>0</td></tr>
     </table>
   </div>
 </div>
 
 <div style="text-align:center; padding:40px 0; color: var(--muted); font-size:0.9rem;">
-  <p>coop-availability-filter — Architecture Documentation</p>
-  <p>Generated: 2026-08-29 11:07 UTC · graphify callflow-html</p>
+  <p>main-push — Architecture Documentation</p>
+  <p>Generated: 2026-08-29 12:49 UTC · graphify callflow-html</p>
 </div>
 
 </div><!-- .container -->
