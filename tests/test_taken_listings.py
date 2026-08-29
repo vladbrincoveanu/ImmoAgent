@@ -63,6 +63,34 @@ def test_daily_revalidation_batch_processing():
     assert result['checked'] == 60
     assert mock_mark.call_count == 3  # 3 batches of 20
 
+def test_mark_taken_listings_probes_builder_url_but_marks_canonical_url():
+    """Builder-offer removal marks the stored MyGEWO record as taken."""
+    from Application.cleanup import mark_taken_listings
+    from unittest.mock import MagicMock, patch
+
+    canonical_url = 'https://mygewo.at/genossenschaftswohnungen/angebot/unit'
+    builder_url = 'https://builder.example/offers/unit'
+    mock_mongo = MagicMock()
+    mock_mongo.collection = MagicMock()
+    mock_mongo.collection.find.return_value = [{
+        '_id': 3,
+        'url': canonical_url,
+        'builder_url': builder_url,
+        'source_enum': 'genossenschaft',
+    }]
+    mock_mongo.mark_listing_taken = MagicMock(return_value=True)
+
+    with patch('Application.cleanup.requests.head') as mock_head:
+        mock_head.return_value = MagicMock(status_code=410)
+        result = mark_taken_listings(
+            mock_mongo,
+            source_filter=['genossenschaft'],
+        )
+
+    assert result['newly_taken'] == 1
+    assert mock_head.call_args.args[0] == builder_url
+    mock_mongo.mark_listing_taken.assert_called_once_with(canonical_url)
+
 print("✅ Tests written")
 
 if __name__ == '__main__':
