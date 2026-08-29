@@ -1,7 +1,7 @@
 ---
 title: Co-op Availability UI Filtering
 date: 2026-08-29
-status: draft
+status: approved
 ui_scope: true
 ---
 
