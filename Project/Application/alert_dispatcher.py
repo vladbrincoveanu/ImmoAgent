@@ -9,27 +9,25 @@ The ledger fixes both halves. `claim_delivery` is atomic, so concurrent polls
 cannot double-send. A claimed row that is never marked sent is a visible record
 of a failed delivery, and `retry_pending` picks it up on the next poll.
 
-Every sender is injected so the tests run without network or Mongo.
+Every sender and URL validator is injected through module-level seams so the
+tests run without network or Mongo.
 
 ## Note on URL validation
 
 Project rule 2 requires `listing_validator.validate_url` before anything is
-displayed or sent. That function performs a live GET of up to 50KB. Running it
-here would put a second network round trip on the critical path of a
-first-come-first-served alert, and would re-fetch a page the poller downloaded
-successfully seconds earlier — `scrape_single_listing` only returns a Listing
-after a 200. So this module does a structural check instead, and the expensive
-liveness check stays where it already runs, in the scrape path. A dead URL
-cannot reach here without also having been alive one poll earlier.
+displayed or sent. Dispatch keeps the cheap structural check as a fast reject,
+then performs the live validation immediately before claiming a delivery. This
+also protects listings that enter the alert path from a source other than the
+full scrape pipeline.
 """
 import hashlib
 import html
 import logging
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 from urllib.parse import urlparse
 
 from Application.alert_matcher import channels_for
-from Application.helpers.listing_validator import compute_xsrc_fingerprint
+from Application.helpers.listing_validator import compute_xsrc_fingerprint, validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +189,7 @@ def dispatch(
     token: Optional[str],
     send_telegram: Optional[Callable[[str, str], bool]] = None,
     send_email: Optional[Callable[[str, object], bool]] = None,
+    url_validation_cache: Optional[Dict[str, bool]] = None,
 ) -> bool:
     """Deliver one pair. True only when something was actually sent.
 
@@ -203,6 +202,16 @@ def dispatch(
     if not is_sendable_url(getattr(listing, "url", None)):
         logger.warning(
             f"alert delivery skipped, unusable url: {getattr(listing, 'url', None)!r}")
+        return False
+    validation_cache = url_validation_cache if url_validation_cache is not None else {}
+    if listing.url not in validation_cache:
+        try:
+            validation_cache[listing.url] = bool(validate_url(listing.url))
+        except Exception as e:
+            logger.warning(f"alert delivery URL validation failed: {e}")
+            validation_cache[listing.url] = False
+    if not validation_cache[listing.url]:
+        logger.warning(f"alert delivery skipped, URL failed validation: {listing.url!r}")
         return False
 
     try:

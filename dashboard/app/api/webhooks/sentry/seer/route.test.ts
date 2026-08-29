@@ -148,6 +148,16 @@ describe('POST /api/webhooks/sentry/seer', () => {
     expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 
+  it('rejects timestamps too far in the future', async () => {
+    const futureTimestamp = String(Math.floor(Date.now() / 1000) + 301);
+    const res = await POST(request(payload(), { timestamp: futureTimestamp }));
+    const body = await responseBody(res);
+
+    expect(res.status).toBe(400);
+    expect(body).toEqual({ error: 'Expired webhook timestamp' });
+    expect(mockUpdateOne).not.toHaveBeenCalled();
+  });
+
   it('fails closed when the client secret is not configured', async () => {
     delete process.env.SENTRY_SEER_CLIENT_SECRET;
 

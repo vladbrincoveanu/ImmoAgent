@@ -690,6 +690,12 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
 class TestDeliverUserAlerts(unittest.TestCase):
     """Alerts users create on /alerts, delivered from the poll."""
 
+    def setUp(self):
+        self._url_validation = patch(
+            "Application.alert_dispatcher.validate_url", return_value=True)
+        self._url_validation.start()
+        self.addCleanup(self._url_validation.stop)
+
     def _handler(self, alerts):
         """A handler whose ledger is empty and whose claims always succeed —
         i.e. every pair is being delivered for the first time."""

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pymongo
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -21,6 +22,15 @@ from Application.alert_dispatcher import (  # noqa: E402
 from Application.alert_email import build_alert_email  # noqa: E402
 from Integration.mongodb_handler import MongoDBHandler  # noqa: E402
 from run_coop import deliver_user_alerts  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def bypass_live_url_validation_in_unit_tests(monkeypatch):
+    """Keep dispatcher tests deterministic while exercising the validator seam."""
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.validate_url",
+        lambda url: url != "not-a-url",
+    )
 
 
 class _L:
@@ -225,6 +235,27 @@ def test_different_alerts_each_get_the_same_listing():
     assert len(sent) == 2
 
 
+def test_alert_batch_validates_a_shared_url_once(monkeypatch):
+    handler = _Handler()
+    handler.ensure_delivery_index = lambda: True
+    alerts = [{**_ALERT, "_id": "a1"}, {**_ALERT, "_id": "a2"}]
+    calls = []
+
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.validate_url",
+        lambda url: calls.append(url) or True,
+    )
+    monkeypatch.setenv("TELEGRAM_MAIN_BOT_TOKEN", "test-token")
+    monkeypatch.setattr(
+        "Application.alert_dispatcher._default_telegram",
+        lambda token: lambda chat_id, message: True,
+    )
+    handler.get_active_alerts = lambda kinds: alerts
+
+    assert deliver_user_alerts(handler, [_L()]) == 2
+    assert calls == [_L().url]
+
+
 def test_alert_with_no_channel_claims_nothing():
     handler = _Handler()
     silent = {**_ALERT, "telegram_chat_id": None, "email": None}
@@ -237,6 +268,15 @@ def test_invalid_url_is_never_sent():
     """Project rule: URL validation is mandatory before anything is sent."""
     handler = _Handler()
     assert dispatch(_ALERT, _L(url="not-a-url"), False, handler, token="t",
+                    send_telegram=lambda c, m: True) is False
+    assert handler.rows == {}
+
+
+def test_live_url_validation_failure_is_never_sent(monkeypatch):
+    handler = _Handler()
+    monkeypatch.setattr("Application.alert_dispatcher.validate_url", lambda url: False)
+
+    assert dispatch(_ALERT, _L(), False, handler, token="t",
                     send_telegram=lambda c, m: True) is False
     assert handler.rows == {}
 

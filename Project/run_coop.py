@@ -102,9 +102,11 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     # claimed but unsent; those ads are no longer in the "new" set, so this is
     # the only path that can still deliver them.
     delivered = retry_pending(handler, token)
+    url_validation_cache = {}
 
     for alert, listing, unverified in match(listings, alerts):
-        if dispatch(alert, listing, unverified, handler, token):
+        if dispatch(alert, listing, unverified, handler, token,
+                    url_validation_cache=url_validation_cache):
             delivered += 1
     logger.info(f"🔔 user alerts: {delivered} delivery(ies) "
                 f"for {len(listings)} new listing(s) across {len(alerts)} alert(s)")
