@@ -103,7 +103,6 @@ listing lookup. A dead row becomes eligible after one minute, just beyond the
 delivery without waiting five minutes.
 
 ## Latency and fallback behavior
-
 The honest GitHub-hosted SLA is about **2–3 minutes** from a listing appearing
 to a Telegram or email notification. One minute belongs to the external
 trigger; runner pickup, checkout, dependency installation, scraping, and

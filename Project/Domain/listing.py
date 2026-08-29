@@ -44,7 +44,7 @@ class Listing:
     local_image_path: Optional[str] = None
     coordinates: Optional[Coordinates] = None
     coordinate_source: Optional[str] = None  # 'exact' | 'landmark' | 'none'
-    coordinate_precision_m: Optional[int] = None  # 10=exact, 200=landmark-guess, None=no coords
+    coordinate_precision_m: Optional[int] = None  # 10 | 200 | None; see compute_coordinate_precision_m()
     landmark_hint: Optional[str] = None
     source_enum: Optional[Source] = None
     score: Optional[float] = None
@@ -77,6 +77,7 @@ class Listing:
     bank_score_confidence:   Optional[str]      = None  # "low" | "medium" | "high"
     betriebskosten_breakdown: Optional[Dict[str, Any]] = field(default_factory=dict)
     is_provisionsfrei:      Optional[bool]       = None
+    seller_type:             Optional[str]  = None   # 'private' | 'agency' | 'bautraeger' | 'unknown'
     bezirk_score:           Optional[float]      = None
     # --- Genossenschaft / co-op vertical (v1) ---
     is_genossenschaft:      Optional[bool]  = None
@@ -84,10 +85,10 @@ class Listing:
     allocation_model:       Optional[str]   = None   # 'first_come' | 'wohn_ticket'
     coop_source:            Optional[str]   = None   # 'bautraeger_direct' | 'willhaben'
     coop_kind:              Optional[str]   = None   # 'mygewo' | 'private_transfer' — routes the Telegram feed; see Application/coop_alert_router.py
-    seller_type:            Optional[str]   = None   # 'private' | 'agency' | 'unknown' — classify_seller()
     description:            Optional[str]   = None   # ad free text, bounded; searched by /coop/private (title alone misses "Nachmieter gesucht" buried in the body)
     builder_url:            Optional[str]   = None   # builder's own reservation URL (mygewo → "Original-Anzeige")
     image_probe_v:          Optional[int]   = None   # photo-resolution strategy that last probed this unit; see run_coop.IMAGE_PROBE_V
     buyable:                Optional[bool]  = None   # mygewo "mit Kaufoption"; True = purchase-option unit (excluded from the rent-only feed)
     content_fingerprint_xsrc: Optional[str] = None   # source-independent dedup key
     first_seen_at:          Optional[str]   = None   # ISO8601; earliest date the source recorded this unit (mygewo: `first_seen`) — proxy for a "posted" date, not the Bauträger's own publish date
+    unit_fingerprint:        Optional[str]   = None   # cross-source dedup key; see compute_unit_fingerprint

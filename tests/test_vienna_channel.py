@@ -9,7 +9,8 @@ import os
 
 # Add the project root to the path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_dir = os.path.join(current_dir, 'Project')
+repo_root = os.path.dirname(current_dir)
+project_dir = os.path.join(repo_root, 'Project')
 sys.path.insert(0, project_dir)
 
 from Application.main import load_config
@@ -28,18 +29,18 @@ def test_vienna_channel():
     
     # Check telegram configuration
     telegram_config = config.get('telegram', {})
-    main_config = telegram_config.get('telegram_main', {})
+    vienna_config = telegram_config.get('telegram_vienna', {})
     
-    bot_token = main_config.get('bot_token')
-    chat_id = main_config.get('chat_id')
+    bot_token = vienna_config.get('bot_token')
+    chat_id = vienna_config.get('chat_id')
     
     if not bot_token or not chat_id:
-        print("❌ Telegram main bot not configured")
+        print("❌ Vienna Telegram bot not configured")
         print("   Please run setup_vienna_channel.py first")
         return False
     
-    print(f"🤖 Bot token: {bot_token[:10]}...")
-    print(f"📱 Channel ID: {chat_id}")
+    print("🤖 Using configured Vienna bot token")
+    print("📱 Vienna destination: configured")
     print()
     
     # Test bot connection

@@ -111,6 +111,17 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
     return delivered
 
 
+def _coop_source_urls(seen: List[Listing]) -> List[str]:
+    urls = []
+    known = set()
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if is_coop_listing(listing) and url and url not in known:
+            known.add(url)
+            urls.append(url)
+    return urls
+
+
 def _mygewo_urls(seen: List[Listing]) -> List[str]:
     urls = []
     known = set()
@@ -125,7 +136,7 @@ def _mygewo_urls(seen: List[Listing]) -> List[str]:
 def new_alert_candidates(handler, seen: List[Listing],
                          new_from_willhaben: List[Listing],
                          existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
-    """Return crawl-new Willhaben listings, then new mygewo units once each."""
+    """Return crawl-new Willhaben listings and mygewo units once each."""
     if existing_by_url is _LOOKUP_NOT_PROVIDED:
         existing_by_url = handler.get_listings_by_urls(_mygewo_urls(seen))
 
@@ -150,6 +161,33 @@ def new_alert_candidates(handler, seen: List[Listing],
         candidate_urls.add(url)
         candidates.append(listing)
 
+    return candidates
+
+
+def new_source_candidates(handler, seen: List[Listing],
+                          new_from_willhaben: List[Listing],
+                          existing_by_url=_LOOKUP_NOT_PROVIDED) -> List[Listing]:
+    """Return new source-channel co-op units without widening user alerts."""
+    if existing_by_url is _LOOKUP_NOT_PROVIDED:
+        existing_by_url = handler.get_listings_by_urls(_coop_source_urls(seen))
+
+    candidates = new_alert_candidates(
+        handler, seen, new_from_willhaben, existing_by_url
+    )
+    if existing_by_url is None:
+        return candidates
+
+    candidate_urls = {getattr(listing, "url", None) for listing in candidates}
+    for listing in seen:
+        url = getattr(listing, "url", None) or ""
+        if (
+            is_coop_listing(listing)
+            and url
+            and url not in candidate_urls
+            and url not in existing_by_url
+        ):
+            candidate_urls.add(url)
+            candidates.append(listing)
     return candidates
 
 
@@ -355,22 +393,29 @@ def run(no_send: bool = False) -> int:
             # A Willhaben block must not take the mygewo half of the poll with it.
             logger.error(f"❌ willhaben newest adapter failed: {e}")
 
-    mygewo_existing: Optional[Dict[str, Dict]] = {}
-    mygewo_lookup_failed = False
+    source_existing: Optional[Dict[str, Dict]] = {}
+    source_lookup_failed = False
+    source_channel_candidates: List[Listing] = []
     if not no_send:
-        mygewo_urls = _mygewo_urls(seen)
-        if mygewo_urls:
+        source_urls = _coop_source_urls(seen)
+        if source_urls:
             # One batch lookup feeds both candidate classification and detail reuse.
             # None means the query failed, not that every unit is new.
-            mygewo_existing = handler.get_listings_by_urls(mygewo_urls)
-            mygewo_lookup_failed = mygewo_existing is None
-            if mygewo_lookup_failed:
+            source_existing = handler.get_listings_by_urls(source_urls)
+            source_lookup_failed = source_existing is None
+            if source_lookup_failed:
                 logger.error(
-                    "❌ mygewo lookup failed; deferring mygewo detail/upsert and "
+                    "❌ co-op source lookup failed; deferring mygewo detail/upsert and "
                     "owner alerts so user alerts can retry next poll")
+        source_channel_candidates = new_source_candidates(
+            handler, seen, new_from_willhaben, source_existing)
         user_alert_candidates = new_alert_candidates(
-            handler, seen, new_from_willhaben, mygewo_existing)
+            handler, seen, new_from_willhaben, source_existing)
         deliver_user_alerts(handler, user_alert_candidates)
+    else:
+        # Dry-run keeps its existing preview behavior without treating the
+        # inventory as new or touching the delivery ledger.
+        source_channel_candidates = seen
 
     # The offer-page fetch is the only per-unit request this poll makes. It runs
     # at most once per unit ever and is capped per run so a mass re-scrape — or a
@@ -388,14 +433,14 @@ def run(no_send: bool = False) -> int:
     # `!src` placeholder already treat "" exactly like None.
     detail_fetches = 0
     for listing in seen:
-        if mygewo_lookup_failed and "mygewo.at" in (listing.url or ""):
+        if source_lookup_failed and "mygewo.at" in (listing.url or ""):
             continue
         # mygewo units store the aggregator URL; resolve the builder's own
         # reservation page and the unit photo once, reusing values already
         # resolved on an earlier poll.
         if "mygewo.at" in (listing.url or "") and (
                 listing.builder_url is None or listing.image_url is None):
-            existing = (mygewo_existing or {}).get(listing.url, {})
+            existing = (source_existing or {}).get(listing.url, {})
             if listing.builder_url is None:
                 listing.builder_url = existing.get("builder_url")
             if listing.image_url is None:
@@ -461,10 +506,10 @@ def run(no_send: bool = False) -> int:
                          "channel sends this poll")
 
     sent = 0
-    for listing in seen:
-        if mygewo_lookup_failed and "mygewo.at" in (listing.url or ""):
+    for listing in source_channel_candidates:
+        if source_lookup_failed and "mygewo.at" in (listing.url or ""):
             continue
-        # The channel feeds are co-op only. `seen` now also carries every new
+        # The channel feeds are co-op only. The candidate list can also carry new
         # Willhaben rental, because keyword alerts poll the whole newest-first
         # feed — without this guard the mygewo channel would receive the entire
         # Wien rental market.

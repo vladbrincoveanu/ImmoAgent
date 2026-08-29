@@ -45,8 +45,8 @@ The application supports loading configuration from environment variables, perfe
 ### Optional Environment Variables
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TELEGRAM_BOT_VIENNA_TOKEN` | Telegram bot token for Vienna channel | Uses main token |
-| `TELEGRAM_BOT_VIENNA_CHAT_ID` | Telegram chat ID for Vienna channel | Uses main chat ID |
+| `TELEGRAM_BOT_VIENNA_TOKEN` | Explicit Telegram bot token for the Vienna feed; no main-channel fallback | Set explicitly |
+| `TELEGRAM_BOT_VIENNA_CHAT_ID` | Explicit Telegram chat ID for the Vienna feed; no main-channel fallback | Set explicitly |
 | `TELEGRAM_COOP_CHANNEL_ID` | Telegram chat ID for the Genossenschaft (co-op) alert channel | Uses main token; unset disables co-op broadcasts |
 | `OLLAMA_BASE_URL` | Ollama API base URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model name | `llama3.1:8b` |
@@ -124,20 +124,20 @@ The application supports different buyer profiles for customized property scorin
 ### Usage
 ```bash
 # Use default profile (owner_occupier)
-python run.py
+python Project/run.py
 
 # Use specific profile
-python run.py --buyer-profile=growing_family
+python Project/run.py --buyer-profile=growing_family
 
 # Use persona enum shorthand
-python run_top5.py --buyer-persona=owner_occupier
+python Project/run_top5.py --buyer-persona=owner_occupier
 
 # Top5 with specific profile
-python run_top5.py --buyer-profile=budget_buyer
+python Project/run_top5.py --buyer-profile=budget_buyer
 
 # Scan deeper or faster
-python run.py --deep-scan     # up to 20 pages/source (configurable)
-python run.py --quick-scan    # skim ~4 pages/source for a quick refresh
+python Project/run.py --deep-scan     # up to 20 pages/source (configurable)
+python Project/run.py --quick-scan    # skim ~4 pages/source for a quick refresh
 ```
 
 ## 📊 Usage
@@ -211,15 +211,19 @@ Project/
 ## 🧪 Testing
 
 ```bash
-cd Tests
-
 # Run all tests
-python run_tests.py
+python tests/run_tests.py
 
 # Test specific functionality
-python test_github_actions_simple.py
-python test_env_var_fallback.py
-python test_buyer_profiles.py
+python tests/test_github_actions_simple.py
+python tests/test_env_var_fallback.py
+python tests/test_buyer_profiles.py
+
+# Test the Vienna channel configuration
+python tests/test_vienna_channel.py
+
+# Configure the Vienna channel
+python Project/setup_vienna_channel.py
 ```
 
 ## 📝 Configuration Priority
