@@ -26,6 +26,8 @@ jobs:
 
           # Pass the exact DeepSeek V4 Flash model from your curl command
           CONFIG.MODEL: "deepseek-ai/DeepSeek-V4-Flash-0731"
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "32000"
+          CONFIG.FALLBACK_MODELS: '["deepseek-ai/DeepSeek-V4-Flash-0731"]'
 
           # Re-review an open PR when a new commit triggers synchronize.
           github_action_config.handle_push_trigger: "true"
