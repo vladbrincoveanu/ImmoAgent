@@ -1,16 +1,16 @@
-# Graph Report - cleanup-alerts-2026-08-28  (2026-08-29)
+# Graph Report - cleanup-alerts-2026-08-28  (2026-08-28)
 
 ## Corpus Check
-- 464 files · ~382,046 words
+- 454 files · ~376,185 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5270 nodes · 7276 edges · 667 communities (355 shown, 312 thin omitted)
-- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 863 edges (avg confidence: 0.76)
+- 5176 nodes · 7131 edges · 666 communities (356 shown, 310 thin omitted)
+- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 849 edges (avg confidence: 0.76)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `69be9c9d`
+- Built from commit: `ba6da553`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -212,6 +212,7 @@
 - [[_COMMUNITY_Community 196|Community 196]]
 - [[_COMMUNITY_Community 197|Community 197]]
 - [[_COMMUNITY_.extract_heating|.extract_heating]]
+- [[_COMMUNITY_Community 199|Community 199]]
 - [[_COMMUNITY_.extract_parking|.extract_parking]]
 - [[_COMMUNITY_Community 201|Community 201]]
 - [[_COMMUNITY_Community 202|Community 202]]
@@ -373,43 +374,43 @@
 - [[_COMMUNITY_Community 361|Community 361]]
 - [[_COMMUNITY_Community 362|Community 362]]
 - [[_COMMUNITY_Community 363|Community 363]]
-- [[_COMMUNITY_test_price_filtering|test_price_filtering]]
+- [[_COMMUNITY_Community 364|Community 364]]
 - [[_COMMUNITY_Community 365|Community 365]]
-- [[_COMMUNITY_.extract_hwb_value|.extract_hwb_value]]
+- [[_COMMUNITY_Community 366|Community 366]]
 - [[_COMMUNITY_graphify reference GitHub clone and cross-repo merge|graphify reference: GitHub clone and cross-repo merge]]
 - [[_COMMUNITY_graphify reference transcribe video and audio|graphify reference: transcribe video and audio]]
 - [[_COMMUNITY_Co-op fast-poll (Phase A)|Co-op fast-poll (Phase A)]]
-- [[_COMMUNITY_test_run_top5_behavior|test_run_top5_behavior]]
+- [[_COMMUNITY_._close_selenium|._close_selenium]]
 - [[_COMMUNITY_Community 372|Community 372]]
 - [[_COMMUNITY_debug_environment|debug_environment]]
 - [[_COMMUNITY_benchmark|benchmark]]
-- [[_COMMUNITY_test_rating_calculation.py|test_rating_calculation.py]]
+- [[_COMMUNITY_Community 376|Community 376]]
 - [[_COMMUNITY_test_derstandard_scraper|test_derstandard_scraper]]
 - [[_COMMUNITY_test_district_extraction|test_district_extraction]]
-- [[_COMMUNITY_test_telegram_message_formatting|test_telegram_message_formatting]]
+- [[_COMMUNITY_test_energy_extraction|test_energy_extraction]]
 - [[_COMMUNITY_Community 380|Community 380]]
 - [[_COMMUNITY_Community 381|Community 381]]
-- [[_COMMUNITY_.extract_special_comment|.extract_special_comment]]
+- [[_COMMUNITY_Community 382|Community 382]]
 - [[_COMMUNITY_test_scraper_mongodb|test_scraper_mongodb]]
 - [[_COMMUNITY_extraction-spec|extraction-spec.md]]
 - [[_COMMUNITY_SKILL|SKILL.md]]
-- [[_COMMUNITY_.close|.close]]
+- [[_COMMUNITY_Community 391|Community 391]]
 - [[_COMMUNITY_page-health.spec.ts|page-health.spec.ts]]
 - [[_COMMUNITY_Architecture|Architecture]]
 - [[_COMMUNITY_coop-poll-window.sh|coop-poll-window.sh]]
-- [[_COMMUNITY_.upsert_coop_listing|.upsert_coop_listing]]
-- [[_COMMUNITY_test_channel_config|test_channel_config]]
+- [[_COMMUNITY_Community 395|Community 395]]
+- [[_COMMUNITY_Community 396|Community 396]]
 - [[_COMMUNITY_.extract_district|.extract_district]]
-- [[_COMMUNITY_main|main]]
-- [[_COMMUNITY_main|main]]
+- [[_COMMUNITY_.extract_price|.extract_price]]
+- [[_COMMUNITY_.extract_floor|.extract_floor]]
 - [[_COMMUNITY_Community 400|Community 400]]
 - [[_COMMUNITY_Community 401|Community 401]]
-- [[_COMMUNITY_main|main]]
-- [[_COMMUNITY_.extract_energy_class|.extract_energy_class]]
+- [[_COMMUNITY_Community 402|Community 402]]
+- [[_COMMUNITY_Community 403|Community 403]]
 - [[_COMMUNITY_Community 404|Community 404]]
 - [[_COMMUNITY_Community 405|Community 405]]
 - [[_COMMUNITY_graphify|graphify]]
-- [[_COMMUNITY_.extract_floor|.extract_floor]]
+- [[_COMMUNITY_scrape_derstandard|scrape_derstandard]]
 - [[_COMMUNITY_Community 411|Community 411]]
 - [[_COMMUNITY_Community 412|Community 412]]
 - [[_COMMUNITY_Community 413|Community 413]]
@@ -426,16 +427,15 @@
 - [[_COMMUNITY_Any|Any]]
 - [[_COMMUNITY_Any|Any]]
 - [[_COMMUNITY_Any|Any]]
+- [[_COMMUNITY_Namespace|Namespace]]
 - [[_COMMUNITY_Any|Any]]
 - [[_COMMUNITY_Any|Any]]
 - [[_COMMUNITY_Community 447|Community 447]]
-- [[_COMMUNITY_.extract_orientation|.extract_orientation]]
 - [[_COMMUNITY_Community 454|Community 454]]
 - [[_COMMUNITY_Community 455|Community 455]]
 - [[_COMMUNITY_Community 456|Community 456]]
 - [[_COMMUNITY_Community 457|Community 457]]
 - [[_COMMUNITY_Community 459|Community 459]]
-- [[_COMMUNITY_next-env.d.ts|next-env.d.ts]]
 - [[_COMMUNITY_Community 461|Community 461]]
 - [[_COMMUNITY_Community 462|Community 462]]
 - [[_COMMUNITY_Community 463|Community 463]]
@@ -639,20 +639,18 @@
 - [[_COMMUNITY_Community 694|Community 694]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `MongoDBHandler` - 129 edges
+1. `MongoDBHandler` - 126 edges
 2. `WillhabenScraper` - 94 edges
 3. `Listing` - 81 edges
 4. `DerStandardScraper` - 64 edges
-5. `getDb()` - 62 edges
+5. `getDb()` - 60 edges
 6. `ImmoKurierScraper` - 57 edges
 7. `load_config()` - 47 edges
 8. `TelegramBot` - 45 edges
-9. `dispatch()` - 43 edges
-10. `_Handler` - 41 edges
+9. `dispatch()` - 39 edges
+10. `_Handler` - 38 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `main()` --calls--> `DerStandardScraper`  [INFERRED]
-  Tests/quick_derstandard_test.py → Project/Application/scraping/derstandard_scraper.py
 - `.vercel README (root)` --semantically_similar_to--> `.vercel README (dashboard)`  [INFERRED] [semantically similar]
   .vercel/README.txt → dashboard/.vercel/README.txt
 - `compute_bank_score()` --references--> `ENERGY_BASE`  [EXTRACTED]
@@ -660,6 +658,8 @@
 - `test_bank_loan_ready_has_bezirk_score()` --calls--> `get_profile()`  [INFERRED]
   tests/test_bank_loan_ready_profile.py → Project/Application/buyer_profiles.py
 - `test_bank_loan_ready_has_is_provisionsfrei()` --calls--> `get_profile()`  [INFERRED]
+  tests/test_bank_loan_ready_profile.py → Project/Application/buyer_profiles.py
+- `test_bank_loan_ready_hwb_weight_is_013()` --calls--> `get_profile()`  [INFERRED]
   tests/test_bank_loan_ready_profile.py → Project/Application/buyer_profiles.py
 
 ## Import Cycles
@@ -672,23 +672,23 @@
 - **Login Flow** — immo_scouter_login_fresh_username_field, immo_scouter_login_fresh_password_field, immo_scouter_login_fresh_sign_in_button, immo_scouter_login_fresh_login_form [INFERRED 0.85]
 - **Filter / Sort / Display Flow** — map_after_auth_drop_min_score_filter, map_after_auth_drop_district_filter, map_after_auth_drop_sort_control, map_after_auth_drop_listing_card, map_after_auth_drop_leaflet_map [INFERRED 0.85]
 
-## Communities (667 total, 312 thin omitted)
+## Communities (666 total, 310 thin omitted)
 
 ### Community 0 - "Feasibility & Loan Math"
-Cohesion: 0.05
-Nodes (81): build_message(), _coop_delivery_fingerprint(), _default_email(), _default_email_content(), _default_telegram(), dispatch(), is_sendable_url(), _mark_delivery_channel_sent() (+73 more)
+Cohesion: 0.06
+Nodes (75): build_message(), _claim_pending_delivery_channel(), _default_email(), _default_email_content(), _default_telegram(), dispatch(), is_sendable_url(), _mark_delivery_channel_sent() (+67 more)
 
 ### Community 1 - "Dashboard Mobile UI"
-Cohesion: 0.14
-Nodes (20): acceptedResponse(), COMPLETED_ACTION_DATA, hasValidSignature(), isDuplicateKeyError(), isFreshTimestamp(), isRecord(), isSafeInteger(), isSeerAction() (+12 more)
+Cohesion: 0.06
+Nodes (33): calculate_ubahn_proximity(), DataLoader, format_distance(), format_walking_time(), get_default_ubahn_time(), get_walking_times(), Coordinates, Utility class for loading JSON data files (+25 more)
 
 ### Community 2 - "BM25 Search Index"
 Cohesion: 0.09
 Nodes (22): Buyer Profiles System, CI/CD Integration, CLAUDE.md — 12-rule template, Codebase Exploration, File Locations, graphify, Key Dependencies, NEVER VIOLATE RULES (+14 more)
 
 ### Community 3 - "Willhaben Field Extractors"
-Cohesion: 0.06
-Nodes (24): BeautifulSoup, Extract floor information, Extract property condition with more specific patterns, Extract heating type with more specific patterns, Extract parking information, Extract special comments or conditions, Extract required own funds, Extract energy class (e.g., A, B, C, D, E, F, G) (+16 more)
+Cohesion: 0.07
+Nodes (23): BeautifulSoup, Extract floor information, Extract property condition with more specific patterns, Extract heating type with more specific patterns, Extract parking information, Extract required own funds, Extract energy class (e.g., A, B, C, D, E, F, G), Extract HWB (Heizwärmebedarf) value in kWh/m²/year (+15 more)
 
 ### Community 4 - "ADRs & Domain Concepts"
 Cohesion: 0.50
@@ -699,12 +699,12 @@ Cohesion: 0.13
 Nodes (11): Sleep with ±30% random jitter to avoid bot detection, smart_sleep(), Extract listing URLs from search results page, Return True if the URL is a Neubauprojekt project page (not an individual unit)., Scrape listings from a Willhaben search agent page., Fetch a Neubauprojekt page and return individual unit listing URLs., Ensure all data is JSON serializable for MongoDB, Check if a Listing object meets the defined criteria. (+3 more)
 
 ### Community 6 - "Listing Field Extractors"
-Cohesion: 0.09
-Nodes (17): estimate_betriebskosten(), Estimate monthly operating costs (Betriebskosten) for an apartment based on area, BeautifulSoup, Extract floor level as integer: 0=ground, 1+=floors, Extract main image URL from listing page, Scrape a single listing and return a Listing object, Extract price from listing page, Extract area from listing page (+9 more)
+Cohesion: 0.08
+Nodes (20): estimate_betriebskosten(), Estimate monthly operating costs (Betriebskosten) for an apartment based on area, Any, BeautifulSoup, Extract balcony/terrace presence: 1 = has outdoor space, 0 = none, Extract data from any JSON structure in the HTML (if available), Scrape a single listing and return a Listing object, Extract title from listing page (+12 more)
 
 ### Community 8 - "Bank Scoring Engine"
 Cohesion: 0.07
-Nodes (68): alert_keywords(), alert_matches(), channels_for(), gate_result(), keyword_hit(), match(), Match newly seen listings against user-created alerts.  Users create these on /a, (passes, unverified) for one alert's numeric filters.      `unverified` is True (+60 more)
+Nodes (66): alert_keywords(), alert_matches(), channels_for(), gate_result(), keyword_hit(), match(), Match newly seen listings against user-created alerts.  Users create these on /a, True when this alert wants this listing, ignoring the unverified flag.      Reta (+58 more)
 
 ### Community 9 - "Test Suite / Extractors"
 Cohesion: 0.06
@@ -715,8 +715,8 @@ Cohesion: 0.33
 Nodes (3): Check if listing meets the defined criteria, Scrape Immo Kurier search results and return a list of Listing objects., Extract listing URLs from search results page
 
 ### Community 12 - "U-Bahn & Amenity Proximity"
-Cohesion: 0.07
-Nodes (28): Calculate energy class based on HWB and fGEE values         Returns the most res, Calculate U-Bahn walking distance, Get nearby amenities and calculate school proximity using real distance calculat, Calculate real walking minutes to nearest U-Bahn station using static data, Calculate real walking minutes to nearest school using static data, Extract special features, Clean heating type to extract the base type, Calculate total monthly cost (mortgage + operating costs) (+20 more)
+Cohesion: 0.06
+Nodes (30): Extract special comments or conditions, Calculate energy class based on HWB and fGEE values         Returns the most res, Load criteria from JSON file, Calculate U-Bahn walking distance, Get nearby amenities and calculate school proximity using real distance calculat, Calculate real walking minutes to nearest U-Bahn station using static data, Calculate real walking minutes to nearest school using static data, Extract special features (+22 more)
 
 ### Community 13 - "Real Listing Integration Tests"
 Cohesion: 0.05
@@ -727,8 +727,8 @@ Cohesion: 0.05
 Nodes (43): dependencies, leaflet, mongodb, next, next-themes, nodemailer, react, react-dom (+35 more)
 
 ### Community 15 - "Top 5 / Investment Analysis"
-Cohesion: 0.15
-Nodes (17): calculate_investment_analysis(), compute_listing_depth(), enrich_listing(), ensure_price_metrics(), estimate_regional_rent(), investment_comparison(), normalize_district_code(), Any (+9 more)
+Cohesion: 0.12
+Nodes (20): calculate_investment_analysis(), compute_listing_depth(), enrich_listing(), ensure_price_metrics(), estimate_regional_rent(), investment_comparison(), normalize_district_code(), Any (+12 more)
 
 ### Community 16 - "CLAUDE.md & Project Rules"
 Cohesion: 0.36
@@ -736,15 +736,15 @@ Nodes (9): CLAUDE.md (12-rule + project doc), SMTP / API secrets must use env va
 
 ### Community 17 - "MinIO Image Storage"
 Cohesion: 0.10
-Nodes (30): _bot_factory(), FakeLedger, _handler(), _l(), _poll(), The co-op CHANNEL must send each unit exactly once, and only units a live alert, One bot per chat id, so a per-channel assertion is possible., The ledger, exercised through the poll entry point. (+22 more)
+Nodes (27): _bot_factory(), FakeLedger, _l(), _poll(), One bot per chat id, so a per-channel assertion is possible., The ledger, exercised through the poll entry point., THE bug: upsert returns "duplicate" ⇒ no listings doc ⇒ the old         sent_to_, Pins the trap: `Listing.content_fingerprint_xsrc` is declared but never (+19 more)
 
 ### Community 18 - "Outlines Structured Output"
-Cohesion: 0.10
-Nodes (18): bodyOf(), responseBody(), Amenity, Amenity, Listing, Represents a single real estate listing., Source, TestMain (+10 more)
+Cohesion: 0.11
+Nodes (13): Amenity, Amenity, Source, MortgageCalculator, Calculate mortgage payments using standard financial formulas, Calculate monthly mortgage payment using standard annuity formula.         M = L, Calculate loan amount after down payment, Estimate current Austrian mortgage interest rates (+5 more)
 
 ### Community 19 - "Geocoding & Distances"
-Cohesion: 0.15
-Nodes (14): Coordinates, Calculate distance between two coordinates using Haversine formula (in meters), Find the nearest U-Bahn station and return distance in meters and station name, Find nearby amenities using Overpass API, Calculate actual walking distance to nearest U-Bahn station using Overpass API w, Fallback 1: Use static station coordinates by district, Fallback 2: Try broader search radius with simplified query, Estimate distance based on proximity to major U-Bahn hubs (+6 more)
+Cohesion: 0.16
+Nodes (13): Coordinates, Calculate distance between two coordinates using Haversine formula (in meters), Find the nearest U-Bahn station and return distance in meters and station name, Calculate actual walking distance to nearest U-Bahn station using Overpass API w, Fallback 1: Use static station coordinates by district, Fallback 2: Try broader search radius with simplified query, Estimate distance based on proximity to major U-Bahn hubs, Determine district from coordinates using reverse geocoding (+5 more)
 
 ### Community 20 - "Listing Validation"
 Cohesion: 0.08
@@ -755,8 +755,8 @@ Cohesion: 0.05
 Nodes (42): A1. HIGH — Two parallel web stacks (Flask + Next.js), A2. HIGH — `app_broken.py` (24.9K) is dead code with hardcoded secrets, A3. MEDIUM — Dual sources of truth for scoring weights, A4. MEDIUM — `Listing` dataclass has 70+ fields; growth trajectory is unsustainable, Architecture & Design, Audit Report, C1. HIGH — `dashboard/lib/types.ts` has duplicate `MapListing` interface, C2. HIGH — `MongoDBHandler.__init__` mutates URI string with TLS hack (+34 more)
 
 ### Community 22 - "Derstandard Scraper Debug"
-Cohesion: 0.05
-Nodes (38): load_config(), Load config from config.json, Test the ViennaApartmentsLive channel setup, test_vienna_channel(), main(), Debug criteria matching, get_current_db_count(), main() (+30 more)
+Cohesion: 0.06
+Nodes (32): load_config(), Load config from config.json, Test the ViennaApartmentsLive channel setup, test_vienna_channel(), main(), Test criteria loading and application, get_current_db_count(), main() (+24 more)
 
 ### Community 23 - "Contact Extraction"
 Cohesion: 0.17
@@ -768,15 +768,15 @@ Nodes (41): 1. Accessibility (CRITICAL), 2. Touch & Interaction (CRITICAL), 3. P
 
 ### Community 25 - "Listing Validator Module"
 Cohesion: 0.08
-Nodes (32): _normalize_image_url(), _og_image(), A raw payload value → an absolute image URL, or None.      Accepts a bare string, The offer page's share image (og:image / twitter:image), else the first     real, One fetch of a Bauträger's own page → a unit photo URL, or None.      mygewo's /, resolve_builder_image(), Replace an existing co-op doc with fresh data, carrying over the state         t, _FakeCollection (+24 more)
+Nodes (36): _image_from_unit(), _normalize_image_url(), _og_image(), A raw payload value → an absolute image URL, or None.      Accepts a bare string, First usable image URL among the candidate keys of a decoded RPC unit., The offer page's share image (og:image / twitter:image), else the first     real, One fetch of a Bauträger's own page → a unit photo URL, or None.      mygewo's /, resolve_builder_image() (+28 more)
 
 ### Community 26 - "Outlines vs Scraper Tests"
-Cohesion: 0.11
-Nodes (29): crawl_newest(), crawl_private_coop(), is_private_transfer(), Fast poll of Willhaben for private co-op transfers (Weitergabe / Ablöse).  Why t, Private co-op transfers only — `crawl_newest` with the original filter., The original filter, now one `keep` predicate among others., One poll of the newest-first Willhaben feed → the new ads `keep` wants.      `sc, FakeScraper (+21 more)
+Cohesion: 0.09
+Nodes (31): bodyOf(), crawl_newest(), crawl_private_coop(), is_private_transfer(), Fast poll of Willhaben for private co-op transfers (Weitergabe / Ablöse).  Why t, Private co-op transfers only — `crawl_newest` with the original filter., The original filter, now one `keep` predicate among others., One poll of the newest-first Willhaben feed → the new ads `keep` wants.      `sc (+23 more)
 
 ### Community 27 - "Buyer Profile Registry"
-Cohesion: 0.25
-Nodes (10): get_profile(), print_profile_summary(), Any, Get a specific buyer profile by name.          Args:         profile_name: Name, Print a summary of a buyer profile.          Args:         profile_name: Name of, test_bank_loan_ready_has_bezirk_score(), test_bank_loan_ready_has_is_provisionsfrei(), test_bank_loan_ready_hwb_weight_is_013() (+2 more)
+Cohesion: 0.13
+Nodes (15): get_profile(), list_profiles(), print_profile_summary(), Any, Get a specific buyer profile by name.          Args:         profile_name: Name, List all available buyer profiles.          Returns:         Dict mapping profil, Validate that profile weights sum to 1.0.          Args:         weights: Dictio, Print a summary of a buyer profile.          Args:         profile_name: Name of (+7 more)
 
 ### Community 28 - "Location Coordinates"
 Cohesion: 0.05
@@ -788,7 +788,7 @@ Nodes (32): ago(), AREA_BUCKETS, BASE_QUERY, Bucket, bucketClauses(), buildQuery
 
 ### Community 30 - "Community 30"
 Cohesion: 0.06
-Nodes (32): DerStandardScraper, BeautifulSoup, Extract additional details from metadata sections, Extract area from text, handling various formats, Extract number of rooms from text, Extract district from address, Extract construction year with enhanced patterns and validation, Extract year from text with enhanced patterns (+24 more)
+Nodes (29): DerStandardScraper, BeautifulSoup, Extract additional details from metadata sections, Extract number of rooms from text, Extract construction year with enhanced patterns and validation, Extract year from text with enhanced patterns, Get detailed breakdown of monthly payment components using realistic Austrian ra, Extract energy class from text (+21 more)
 
 ### Community 31 - "Community 31"
 Cohesion: 0.10
@@ -803,32 +803,32 @@ Cohesion: 0.06
 Nodes (35): Add new tests, `app/globals.css`, Architecture, Bounds + click, Component Decisions — Keep / Modify / Delete, Context, Create (5), Dashboard UI Redesign — /dashboard/map (+27 more)
 
 ### Community 34 - "Community 34"
-Cohesion: 0.14
-Nodes (8): LightweightAnalyzer, Lightweight analyzer using regex patterns for fast extraction     Fallback when, Always available - no model loading required, Create default result when analysis fails, Test LightweightAnalyzer handles edge cases properly, Test LightweightAnalyzer extracts expected fields from rich data, Test LightweightAnalyzer handles minimal data gracefully, TestOutlinesIntegration
+Cohesion: 0.07
+Nodes (18): LightweightAnalyzer, Analyze listing content and return enhanced data with structured extraction, Extract additional information from HTML content using aggressive patterns and s, Lightweight analyzer using regex patterns for fast extraction     Fallback when, Always available - no model loading required, Analyze listing data using regex patterns, Analyze listing content with HTML enhancement, Extract text content from listing data (+10 more)
 
 ### Community 35 - "Community 35"
 Cohesion: 0.06
 Nodes (34): 1. MongoDB Schema Changes, 2. Re-validation Jobs, 2a. Lightweight Post-Scrape Check, 2b. Thorough Daily Revalidation, 2c. First-Scrape Timestamp, 3. Price History Tracking, 4. Stats API Endpoints, 4a. `GET /api/stats/taken` (+26 more)
 
 ### Community 36 - "Community 36"
-Cohesion: 0.21
-Nodes (19): _bezirk_from(), _decode_ewkb_point(), _mygewo_states(), _new_coop_listing(), _num(), _num_before_keyword(), _num_by_keyword(), parse_bwsg() (+11 more)
+Cohesion: 0.11
+Nodes (31): _bezirk_from(), _builder_url_from(), fetch(), _mygewo_states(), _new_coop_listing(), _num(), _num_before_keyword(), _num_by_keyword() (+23 more)
 
 ### Community 37 - "Community 37"
-Cohesion: 0.05
-Nodes (22): normalize_listing_schema(), Normalize listing data to ensure consistent schema, Normalize listing data to ensure consistent schema, Test district extraction from addresses, Test year extraction from various formats, Test energy class extraction, Test walking times for districts, Test listing data validation (+14 more)
+Cohesion: 0.06
+Nodes (18): Test district extraction from addresses, Test year extraction from various formats, Test energy class extraction, Test walking times for districts, Test listing data validation, Test schema normalization, Test MongoDB integration, Integration tests for derStandard scraper (+10 more)
 
 ### Community 38 - "Community 38"
 Cohesion: 0.07
 Nodes (20): download_images_for_listings(), optimize_images(), Download images for listings that have image_url but no minio_image_path, Optimize all images in MinIO, MinIOHandler, Download image from MinIO to local file, Get presigned URL for image access, Delete image from MinIO (+12 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.10
-Nodes (15): Test real Immo Kurier listing extraction with data validation, Test real derStandard listing extraction with data validation, Test MongoDB storage and retrieval with real data, Test Telegram message formatting with real data, Test comprehensive data quality validation, Test complete pipeline: extraction -> validation -> storage -> messaging, Test that data from main.py workflow is properly structured for MongoDB and Tele, Test that Telegram messages contain all required data without corruption (+7 more)
+Cohesion: 0.09
+Nodes (16): Test real Immo Kurier listing extraction with data validation, Test real derStandard listing extraction with data validation, Test MongoDB storage and retrieval with real data, Test Telegram message formatting with real data, Set up test environment, Test comprehensive data quality validation, Test complete pipeline: extraction -> validation -> storage -> messaging, Test that data from main.py workflow is properly structured for MongoDB and Tele (+8 more)
 
 ### Community 40 - "Community 40"
-Cohesion: 0.15
-Nodes (10): ImmoKurierScraper, Estimate down payment (typically 20% in Austria), Calculate total monthly cost including mortgage and Betriebskosten, Cleanup when object is destroyed, Scrape listings from Immo Kurier, scrape_immo_kurier(), test_extract_price_formats(), test_real_immo_kurier_listing_extraction() (+2 more)
+Cohesion: 0.11
+Nodes (13): ImmoKurierScraper, Estimate down payment (typically 20% in Austria), Calculate total monthly cost including mortgage and Betriebskosten, Cleanup when object is destroyed, Load criteria from JSON file, Scrape listings from Immo Kurier, scrape_immo_kurier(), test_extract_price_formats() (+5 more)
 
 ### Community 41 - "Community 41"
 Cohesion: 0.16
@@ -856,27 +856,27 @@ Nodes (28): API (Next.js, `dashboard/tests/api-profile.spec.ts`), Architecture, 
 
 ### Community 48 - "Community 48"
 Cohesion: 0.13
-Nodes (18): Alert, AlertFilters, AlertsPage(), describeFilters(), keysOf(), AlertTestChannel, AlertTestError, ChannelAttempt (+10 more)
+Nodes (19): Alert, AlertFilters, AlertsPage(), DEFAULT_KEYWORDS, describeFilters(), keysOf(), AlertTestChannel, AlertTestError (+11 more)
 
 ### Community 49 - "Community 49"
 Cohesion: 0.07
 Nodes (26): File Structure, Genossenschaft Coverage Vertical Implementation Plan, Phase 1 — Domain model (M1), Phase 2 — Cross-source dedup (M2), Phase 3 — Co-op detection + Willhaben tagging (M3), Phase 4 — Pilot Bauträger adapters (M4), Phase 5 — Dashboard co-op filter + map layer (M7)  [ui_scope], Phase 6 — Telegram co-op channel broadcast (M5) (+18 more)
 
 ### Community 50 - "Community 50"
-Cohesion: 0.06
-Nodes (42): check_and_alert_rejection_rate(), clean_stale_or_broken_listings(), comprehensive_cleanup_all_listings(), deep_cleanup_database(), Cleanup module for immo-scouter. Contains all database cleanup and maintenance f, Comprehensive cleanup that checks ALL listings for broken URLs and invalid data., One-time comprehensive cleanup: removes invalid data, broken URLs, very old list, Prune obviously broken/stale listings to avoid serving dead links.      Args: (+34 more)
+Cohesion: 0.07
+Nodes (34): check_and_alert_rejection_rate(), clean_stale_or_broken_listings(), comprehensive_cleanup_all_listings(), deep_cleanup_database(), Comprehensive cleanup that checks ALL listings for broken URLs and invalid data., One-time comprehensive cleanup: removes invalid data, broken URLs, very old list, Prune obviously broken/stale listings to avoid serving dead links.      Args:, Check rejection rate and send Telegram alert if above threshold. (+26 more)
 
 ### Community 51 - "Community 51"
 Cohesion: 0.03
-Nodes (27): _claim_pending_delivery_channel(), MongoDBHandler, Take ownership of one (channel, unit) broadcast. True if we now own it., Record a unit as already broadcast, without sending it.          Used once at cu, Every stored co-op unit, as the seed's key derivation needs it.          Mirrors, Drop the claim after a failed send so the next poll can retry.          Without, Get validation metrics for a source or all sources., Reset metrics for a source or all sources. (+19 more)
+Nodes (27): MongoDBHandler, Record a unit as already broadcast, without sending it.          Used once at cu, Every stored co-op unit, as the seed's key derivation needs it.          Mirrors, Drop the claim after a failed send so the next poll can retry.          Without, Get validation metrics for a source or all sources., Reset metrics for a source or all sources., Create pending outreach jobs in MongoDB for tracking and retry., Get jobs ready for sending (pending or retry-eligible). (+19 more)
 
 ### Community 52 - "Community 52"
 Cohesion: 0.07
 Nodes (26): Execution Handoff, File Structure, Modified files, New files, Per-Profile Precalculated Scores — Implementation Plan, Self-Review (post-write), Task 0: Branch setup, Task 10: API routes — detail and stream (+18 more)
 
 ### Community 53 - "Community 53"
-Cohesion: 0.12
-Nodes (9): Get top listings from MongoDB sorted by score with additional filters., Build the MongoDB query for top-listing candidates. Pure query construction., Fetch candidates, calculate missing scores, filter by min_score, re-sort by scor, Drop rentals, price-on-request, and expensive-low-score listings; cap at limit., Log summary of top-listing search results., Get URLs of listings sent to Telegram in the last N days, add_monthly_payment_calculation(), Mortgage payment math used by all property scrapers.  Single source of truth for (+1 more)
+Cohesion: 0.50
+Nodes (3): _rate_limited_get(), Geocode an address using OpenStreetMap Nominatim, Nominatim requires max 1 req/sec — enforce via semaphore
 
 ### Community 54 - "Community 54"
 Cohesion: 0.07
@@ -903,8 +903,8 @@ Cohesion: 0.08
 Nodes (23): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+15 more)
 
 ### Community 60 - "Community 60"
-Cohesion: 0.38
-Nodes (6): main(), Test that all profile weights sum to 1.0, Test how different profiles score the same property, test_profile_comparison(), test_profile_weights(), Determine if property has balcony or terrace based on description.          Retu
+Cohesion: 0.20
+Nodes (10): print_all_profiles(), Print a summary of all available buyer profiles., main(), Show all available buyer profiles, main(), Test that all profile weights sum to 1.0, Test how different profiles score the same property, test_profile_comparison() (+2 more)
 
 ### Community 61 - "Community 61"
 Cohesion: 0.27
@@ -915,8 +915,8 @@ Cohesion: 0.08
 Nodes (23): 1. Architecture, 2. Module Design Blocks, 3. Data Flow, 4. Error Handling, 5. Testing, 6. Out of Scope (defer to v2), 7. Migration & Rollout, 8. Known Risks (+15 more)
 
 ### Community 63 - "Community 63"
-Cohesion: 0.43
-Nodes (3): extract_facade_renovated(), True if facade renovation mentioned, False if explicitly negated, None if absent, TestExtractFacadeRenovated
+Cohesion: 0.23
+Nodes (7): _any_match(), extract_bautraeger(), extract_facade_renovated(), Extract boolean property features from listing full-page text. Two-pass approach, Name of the co-op Bauträger if one of the known pilot builders is     mentioned,, True if facade renovation mentioned, False if explicitly negated, None if absent, TestExtractFacadeRenovated
 
 ### Community 64 - "Community 64"
 Cohesion: 0.08
@@ -935,8 +935,8 @@ Cohesion: 0.28
 Nodes (9): Immo-Scouter Brand Label, Dashboard Link, Login Form, Immo-Scouter Login Page Screenshot, Map Link, Password Input Field, Sign In Button, Top Navigation Bar (+1 more)
 
 ### Community 69 - "Community 69"
-Cohesion: 0.18
-Nodes (10): _generate_unsubscribe_token(), _is_valid_email(), OutreachMessage, Email sender module for sending outreach messages to property listings. Supports, Generate a one-time unsubscribe token for GDPR compliance., Verify unsubscribe token matches recipient., Send offer emails to a batch of listings with SMTP connection reuse., Send one email using an existing SMTP server connection. (+2 more)
+Cohesion: 0.10
+Nodes (24): channel_dedup_key(), channel_match_any(), conditional_fetch(), is_coop_listing(), _log_parsed(), main(), _mygewo_urls(), new_alert_candidates() (+16 more)
 
 ### Community 70 - "Community 70"
 Cohesion: 0.09
@@ -951,8 +951,8 @@ Cohesion: 0.12
 Nodes (12): Generate expected data for accuracy testing, Compare performance speed between Outlines and scraper-only approaches, Set up test data and analyzers, Compare accuracy between Outlines and scraper-only approaches, Generate realistic test data with various scenarios, Test how well each approach scales with larger datasets, Generate a large dataset for scalability testing, Simulate scraper-only extraction logic (+4 more)
 
 ### Community 73 - "Community 73"
-Cohesion: 0.15
-Nodes (9): mockCollection, mockConfirmationEmail, mockDb, mockGetDb, mockGetOrCreateUserId, mockInsertOne, MockObjectId, mockSendMail (+1 more)
+Cohesion: 0.36
+Nodes (7): get_project_root(), Finds the project root by looking for a sentinel file (e.g., README.md)., main(), Test configuration loading in a simulated GitHub Actions environment, Test configuration loading in the current environment, test_current_environment(), test_github_actions_config_loading()
 
 ### Community 74 - "Community 74"
 Cohesion: 0.18
@@ -1019,12 +1019,12 @@ Cohesion: 0.10
 Nodes (19): Architecture, BoundsTracker (inner component), Changes to `map/page.tsx`, Edge Cases, Files Created, Files Deleted, Files Modified, Goal (+11 more)
 
 ### Community 90 - "Community 90"
-Cohesion: 0.18
-Nodes (12): filter_valid_urls(), _norm(), Validate that a URL is accessible, returns 200, and is not a soft-404.     Uses, Filter out listings with broken or invalid URLs.     Optionally marks broken URL, Lowercase, fold umlauts/ß, collapse whitespace, strip non-alnum runs to single s, validate_url(), format_investment_summary(), main() (+4 more)
+Cohesion: 0.38
+Nodes (3): extract_doppelmakler(), True if Doppelmakler disclosed, None otherwise., TestExtractDoppelmakler
 
 ### Community 91 - "Community 91"
-Cohesion: 0.67
-Nodes (3): main(), Test the new message format without rate line, test_message_format()
+Cohesion: 0.12
+Nodes (14): Send listing notification to Telegram, send_telegram_notification(), Calculate the score for a listing, Send a formatted property notification if score is above threshold, Format property listing as concise HTML message, Test if the bot can connect to Telegram API without sending a message, TelegramBot, Test the ViennaApartmentsLive channel setup (+6 more)
 
 ### Community 92 - "Community 92"
 Cohesion: 0.43
@@ -1035,40 +1035,40 @@ Cohesion: 0.43
 Nodes (3): extract_lift_present(), True if lift mentioned, False if explicitly absent, None if not mentioned., TestExtractLiftPresent
 
 ### Community 94 - "Community 94"
-Cohesion: 0.19
-Nodes (6): extract_maklerprovision_pct(), extract_ruecklage_eur_month(), Extract monthly Reparaturrücklage in EUR. Handles German thousands separators., Extract broker commission percentage. Returns float e.g. 3.0 for '3% Kundenprovi, TestExtractMaklerprovisionPct, TestExtractRuecklageEurMonth
+Cohesion: 0.43
+Nodes (3): extract_maklerprovision_pct(), Extract broker commission percentage. Returns float e.g. 3.0 for '3% Kundenprovi, TestExtractMaklerprovisionPct
 
 ### Community 95 - "Community 95"
-Cohesion: 0.25
-Nodes (9): AddressBlock(), AddressBlockProps, BankScoreConfidence, Coordinates, CoordinateSource, GreenInfraProfile, InvestmentProfile, MortgageDetails (+1 more)
+Cohesion: 0.43
+Nodes (3): extract_ruecklage_eur_month(), Extract monthly Reparaturrücklage in EUR. Handles German thousands separators., TestExtractRuecklageEurMonth
 
 ### Community 96 - "Community 96"
 Cohesion: 0.43
 Nodes (3): extract_sonderumlage_risk(), True if Sonderumlage mentioned, False if explicitly absent, None if not mentione, TestExtractSonderumlageRisk
 
 ### Community 98 - "Community 98"
-Cohesion: 0.19
-Nodes (12): get_current_weights(), _get_weights(), print_apartment_ranking(), Get the current criteria weights (thread-safe).          Returns:         dict:, Internal helper: return provided weights or fetch from thread context., Scores multiple apartments and returns them sorted by score., Prints a ranking of apartments by score., Validate that weights sum to 1.0 (+4 more)
+Cohesion: 0.15
+Nodes (17): get_current_weights(), _get_weights(), print_apartment_ranking(), print_apartment_score(), Get the current criteria weights (thread-safe).          Returns:         dict:, Internal helper: return provided weights or fetch from thread context., Calculates the total weighted score for a single apartment.     Returns the scor, Prints a detailed breakdown of apartment scoring. (+9 more)
 
 ### Community 99 - "Community 99"
 Cohesion: 0.09
 Nodes (27): calcMonatsrate(), DashboardContent(), CommuteFilter(), CommuteFilterProps, Destination, EmailAlertsModal(), EmailAlertsModalProps, FilterBar() (+19 more)
 
 ### Community 100 - "Community 100"
-Cohesion: 0.13
-Nodes (23): init_sentry(), Any, Initialize Sentry when ``SENTRY_DSN`` is configured.      Telemetry is deliberat, channel_dedup_key(), channel_match_any(), conditional_fetch(), is_coop_listing(), _log_parsed() (+15 more)
+Cohesion: 0.11
+Nodes (19): _decode_ewkb_point(), fetch_all_mygewo(), _mygewo_rpc_fallback(), _mygewo_ssr_url(), _mygewo_units(), _mygewo_units_from_rpc(), _offer_url_map(), Map seroval ref id -> its object body text, for the `$R[NN]={…}` blocks     myge (+11 more)
 
 ### Community 101 - "Community 101"
 Cohesion: 0.18
 Nodes (18): parse_mygewo(), Parse ONE server-rendered mygewo search page (page 0) into Wien rentals.      Ke, test_listing_image_is_none_when_payload_has_no_image(), test_ssr_literal_image_reaches_the_listing(), _by_bezirk(), _card(), _city(), _company() (+10 more)
 
 ### Community 102 - "Community 102"
-Cohesion: 0.08
-Nodes (21): _l(), _mongo_mock(), No alert asks for this unit → it never reaches the send checks., The feed is now the whole newest-first rental list. Blanket-tagging it         w, Without the co-op guard the mygewo channel would receive the entire         Wien, A Willhaben block must leave the mygewo half of the poll running., Every mygewo adapter failing is still exit 1, even if Willhaben works —, _resp() (+13 more)
+Cohesion: 0.16
+Nodes (11): _l(), test_batch_existing_docs_are_reused_during_mygewo_detail_processing(), test_batch_lookup_failure_excludes_mygewo_but_keeps_willhaben_candidates(), test_existing_mygewo_listing_is_not_a_new_user_alert_candidate(), test_mygewo_lookup_failure_defers_mygewo_but_keeps_willhaben_processing(), test_new_mygewo_listing_is_a_user_alert_candidate(), test_no_send_skips_candidate_lookup_and_user_delivery(), test_user_alerts_run_before_mygewo_upsert() (+3 more)
 
 ### Community 103 - "Community 103"
-Cohesion: 0.15
-Nodes (8): Alerts users create on /alerts, delivered from the poll., A handler whose ledger is empty and whose claims always succeed —         i.e. e, The pre-kind dashboard alert shape remains deliverable by email., Anyone can type someone else's address into the form., A broken alert lookup must not fail the poll that feeds the website., The ledger, from the poll's point of view: a pair another poll already         o, The at-least-once guarantee, exercised through the poll entry point., TestDeliverUserAlerts
+Cohesion: 0.16
+Nodes (8): Alerts users create on /alerts, delivered from the poll., A handler whose ledger is empty and whose claims always succeed —         i.e. e, The legacy dashboard modal stores kind='listings'; keep polling it., Anyone can type someone else's address into the form., A broken alert lookup must not fail the poll that feeds the website., The ledger, from the poll's point of view: a pair another poll already         o, The at-least-once guarantee, exercised through the poll entry point., TestDeliverUserAlerts
 
 ### Community 104 - "Community 104"
 Cohesion: 0.11
@@ -1095,8 +1095,8 @@ Cohesion: 0.24
 Nodes (11): main(), Stream listings; compute scores; write $set updates. Idempotent.      Returns a, run_backfill(), Unit tests for profile_scoring.score_all_profiles()., test_all_scores_are_floats_in_range(), test_different_profiles_yield_different_scores(), test_empty_listing_returns_zero_scores(), test_missing_field_does_not_break_scoring() (+3 more)
 
 ### Community 111 - "Community 111"
-Cohesion: 0.05
-Nodes (33): datetime, list_profiles(), print_all_profiles(), List all available buyer profiles.          Returns:         Dict mapping profil, Validate that profile weights sum to 1.0.          Args:         weights: Dictio, Print a summary of all available buyer profiles., validate_profile_weights(), Optional telemetry setup shared by the Python job entrypoints. (+25 more)
+Cohesion: 0.09
+Nodes (21): datetime, Cleanup module for immo-scouter. Contains all database cleanup and maintenance f, _check_for_block(), _is_blocked_page(), Detect if page shows captcha, challenge, or access denied, Raise exception if page is blocked/captcha, main(), Success-metric instrument: count unique deduped co-op units live now, broken dow (+13 more)
 
 ### Community 112 - "Community 112"
 Cohesion: 0.11
@@ -1135,8 +1135,8 @@ Cohesion: 0.12
 Nodes (16): Build order (dependency-sorted), Deferred to post-v1 (explicitly NOT in this design), Genossenschaft coverage vertical — v1 design, M1 — Domain model + co-op source, M2 — Cross-source dedup (source-independent fingerprint), M3 — Co-op detection / tagging, M4 — Co-op scraper (3 pilot adapters), M5 — Telegram co-op channel broadcast (+8 more)
 
 ### Community 122 - "Community 122"
-Cohesion: 0.23
-Nodes (4): geocode_listing(), Geocode a listing's location and store coordinates.     Returns updated listing, TestGeocodePrecision, TestGeocodeListing
+Cohesion: 0.18
+Nodes (15): missing_channels(), Which Telegram channel a co-op hit belongs in.  Two feeds, deliberately not one:, Chat id for this kind of co-op hit, or None when its secret is unset.      No cr, Every channel secret that is unset, for one loud log line at startup., route(), Co-op alert routing: which Telegram channel a co-op hit goes to.  The bug this g, Urgent Ablöse hits must not be buried in the bulk mygewo feed., An empty repo secret reads back as "" — that is not a valid chat id. (+7 more)
 
 ### Community 123 - "Community 123"
 Cohesion: 0.18
@@ -1159,8 +1159,8 @@ Cohesion: 0.12
 Nodes (15): Decisions (from brainstorming, locked), Error handling, Goal, Module: `config.json` — `coop_alerts` block (extend), Module: dashboard filter wiring (extend), Module: `.github/workflows/coop-fast-poll.yml` (new), Module: `mongodb_handler.py` — source-meta methods (extend), Module: `Project/Application/scraping/coop/` (new package, refactor) (+7 more)
 
 ### Community 128 - "Community 128"
-Cohesion: 0.21
-Nodes (13): filter_valid_listings(), get_validation_stats(), is_valid_listing(), Validate if a listing has realistic prices and data      Args:         listing:, Filter a list of listings to only include valid ones      Args:         listings, Get statistics about listing validation          Args:         listings: List of, main(), Test valid listing validation (+5 more)
+Cohesion: 0.20
+Nodes (14): filter_valid_listings(), get_validation_stats(), is_valid_listing(), Any, Validate if a listing has realistic prices and data      Args:         listing:, Filter a list of listings to only include valid ones      Args:         listings, Get statistics about listing validation          Args:         listings: List of, main() (+6 more)
 
 ### Community 129 - "Community 129"
 Cohesion: 0.12
@@ -1175,8 +1175,8 @@ Cohesion: 0.13
 Nodes (14): /coop: Genossenschaft rentals only + builder-direct reservation links, Data flow, Design decisions (user-approved), Edge cases, Feasibility findings (verified live), Module: builder_url enrichment (run_coop.py), Module: /coop query + link (dashboard/app/coop/page.tsx), Module: Domain + Telegram consistency (+6 more)
 
 ### Community 132 - "Community 132"
-Cohesion: 0.18
-Nodes (11): fetch_all_mygewo(), _mygewo_rpc_fallback(), _mygewo_ssr_url(), _mygewo_units(), _offer_url_map(), Map seroval ref id -> its object body text, for the `$R[NN]={…}` blocks     myge, Extract structured unit dicts from mygewo's SSR-dehydrated data.      mygewo (Ta, uuid -> mygewo /angebot/ URL, recovered from the rendered result cards.      Onl (+3 more)
+Cohesion: 0.25
+Nodes (5): Check if a Listing object meets the defined criteria., Ensure all data is JSON serializable for MongoDB, Scrape all listings from search results with MongoDB integration, Test the derStandard scraper, test_derstandard_scraper()
 
 ### Community 133 - "Community 133"
 Cohesion: 0.50
@@ -1227,36 +1227,36 @@ Cohesion: 0.14
 Nodes (13): bank_loan_ready Feasibility Engine Implementation Plan, File Map, Placeholder scan, Self-Review, Spec coverage check, Task 1: Add 6 new fields to Domain/listing.py, Task 2: Create Application/feasibility.py, Task 3: Update scoring.py NORMALIZATION_RANGES (+5 more)
 
 ### Community 152 - "Community 152"
-Cohesion: 0.10
-Nodes (12): OutlinesAnalyzer, Load the model (called in thread with timeout), Check if analyzer is available, Analyzer using Outlines for 100% guaranteed structured output, Start model initialization in background thread, Initialize the Outlines model with caching, Test that multiple analyzers can be created without conflicts, Test that the analyzer handles timeouts gracefully (+4 more)
+Cohesion: 0.07
+Nodes (19): BaseModel, OutlinesAnalyzer, Load the model (called in thread with timeout), Check if analyzer is available, Analyze listing data and return structured output with timeout, Generate structured output with Outlines, Prepare input text from listing data, Create default result when analysis fails (+11 more)
 
 ### Community 153 - "Community 153"
 Cohesion: 0.67
 Nodes (4): home-ai prod docker stack: mongodb + minio + flask + nginx, Local docker stack: mongo + ollama + minio, Docker Compose Prod (home-ai), Docker Compose (immo local stack)
 
 ### Community 154 - "Community 154"
-Cohesion: 0.20
-Nodes (5): Extract additional information from HTML content using aggressive patterns and s, Analyze listing data using regex patterns, Extract text content from listing data, Extract information using regex patterns, Create default result structure
+Cohesion: 0.18
+Nodes (10): _generate_unsubscribe_token(), _is_valid_email(), OutreachMessage, Email sender module for sending outreach messages to property listings. Supports, Generate a one-time unsubscribe token for GDPR compliance., Verify unsubscribe token matches recipient., Send offer emails to a batch of listings with SMTP connection reuse., Send one email using an existing SMTP server connection. (+2 more)
 
 ### Community 155 - "Community 155"
-Cohesion: 0.25
-Nodes (8): BuyerPersona, Enumerated buyer personas for safer switching., Normalize arbitrary input to a BuyerPersona enum member., buyer_persona_type(), parse_cli_args(), Namespace, argparse helper to coerce user input into a BuyerPersona., Parse CLI flags for the Top5 report.
+Cohesion: 0.11
+Nodes (9): Load configuration from config.json, Setup Selenium WebDriver for dynamic content, Main analyzer that uses the best available method for structured output, Analyze listing with HTML content, StructuredAnalyzer, Test that the system falls back gracefully when analysis fails, Test the structured analyzer with sample data, Test that the JSON schema is properly enforced (+1 more)
 
 ### Community 156 - "Community 156"
-Cohesion: 0.20
-Nodes (6): Save multiple listings to MongoDB         Returns the number of successfully sav, Close the MongoDB connection, Destructor to ensure connection is closed, Insert or update listing with price history tracking.          On new listing: s, Save listings to MongoDB, save_listings_to_mongodb()
+Cohesion: 0.15
+Nodes (8): clean_utf8_text(), Send a message to the Telegram chat, Clean text to ensure UTF-8 compatibility and proper formatting, TelegramTokenFilter, Test the message formatting with sample data, test_message_formatting(), Test that Telegram message spacing is properly formatted, test_telegram_spacing()
 
 ### Community 158 - "Community 158"
 Cohesion: 0.15
 Nodes (13): Acceptance Criteria, Architecture, Channel Rules, Data Flow, Error Handling, Existing Behavior and Gaps, Fast Email-Only Keyword Alerts, Goal (+5 more)
 
 ### Community 159 - "Community 159"
-Cohesion: 0.32
-Nodes (6): Enum, ContactType, Contact extractor module for extracting email addresses and contact forms from l, __getattr__(), Outreach module for automated contact extraction and message sending., Load the SMTP sender only for callers that use outreach email.
+Cohesion: 0.17
+Nodes (12): BuyerPersona, Enumerated buyer personas for safer switching., Normalize arbitrary input to a BuyerPersona enum member., buyer_persona_type(), parse_cli_args(), Namespace, argparse helper to coerce user input into a BuyerPersona., Parse CLI flags for the Top5 report. (+4 more)
 
 ### Community 164 - "Community 164"
 Cohesion: 0.25
-Nodes (8): _builder_url_from(), fetch(), One fetch of a mygewo /angebot/ page → {"builder_url", "image_url"}.      Delibe, Builder reservation page for a mygewo /angebot/ URL (see     `resolve_offer_deta, The builder's own reservation page, from a fetched mygewo offer page.      mygew, resolve_builder_url(), resolve_offer_details(), scrape_all()
+Nodes (5): Coordinates, Parse __NEXT_DATA__ and return the advertDetails dict, or {} on failure., Parse __NEXT_DATA__ attributes array into a flat {name: [values]} dict., Recover a full street address (street + house number) from the listing         t, Extract Willhaben's published exact coordinates from the COORDINATES         att
 
 ### Community 166 - "Community 166"
 Cohesion: 0.15
@@ -1283,8 +1283,8 @@ Cohesion: 0.15
 Nodes (12): File Map, Plan 4 of 6: Scraping Robustness — Implementation Plan, Plan 4 Self-Review, Task 1: Add content_fingerprint as MongoDB dedup key (fix same-agent duplicates), Task 2: Add random jitter to all time.sleep() calls (anti-detection), Task 3: Move regex compilation to module level in landmark_extractor.py, Task 4: Add captcha / challenge detection in willhaben_scraper.py, Task 5: Add undetected-chromedriver for willhaben scraping (+4 more)
 
 ### Community 172 - "Community 172"
-Cohesion: 0.25
-Nodes (8): _fetch_mygewo_page(), _find_units_payload(), _mygewo_rpc_payload(), Decode seroval's JSON node form ({"t":<type>,"s"/"a"/"p":…}) into plain     Pyth, Locate the {units, total, …} dict anywhere in the decoded response tree., The seroval-encoded {data:{search:{states}, page}} argument envelope., GET one RPC page. Returns (raw unit dicts, total, has_next_page)., _seroval_json_decode()
+Cohesion: 0.40
+Nodes (3): Amenity, Find nearby amenities using Overpass API, Summarize amenities by category
 
 ### Community 173 - "Community 173"
 Cohesion: 0.15
@@ -1307,20 +1307,20 @@ Cohesion: 0.17
 Nodes (12): §1 Historical trigger tier (not operational), §2 Poller tier, §3 Matcher, §4 Delivery, §5 Dashboard, §6 Data model, §7 Rate limiting, Historical architecture (not current) (+4 more)
 
 ### Community 181 - "Community 181"
-Cohesion: 0.20
-Nodes (9): All MyGEWO Co-op Alerts Implementation Plan, Current Context, File Map, Task 1: Add the failing MyGEWO matcher tests, Task 2: Implement the Python matcher and user-alert query, Task 3: Lock down broadcast isolation, Task 4: Extend API validation, Task 5: Update the dashboard form and browser regression (+1 more)
+Cohesion: 0.23
+Nodes (4): geocode_listing(), Geocode a listing's location and store coordinates.     Returns updated listing, TestGeocodePrecision, TestGeocodeListing
 
 ### Community 182 - "Community 182"
-Cohesion: 0.25
-Nodes (7): All MyGEWO Co-op Alerts, Data Flow, Design, Error Handling, Non-Goals, Problem, Testing
+Cohesion: 0.17
+Nodes (6): Get top listings from MongoDB sorted by score with additional filters., Build the MongoDB query for top-listing candidates. Pure query construction., Fetch candidates, calculate missing scores, filter by min_score, re-sort by scor, Drop rentals, price-on-request, and expensive-low-score listings; cap at limit., Log summary of top-listing search results., Get URLs of listings sent to Telegram in the last N days
 
 ### Community 183 - "Community 183"
 Cohesion: 0.26
 Nodes (3): The three ledger methods, against a mocked pymongo collection., `get_active_alerts` answers "who can we deliver to". The channel needs         ", TestLedgerHandler
 
 ### Community 184 - ".extract_from_json_data"
-Cohesion: 0.36
-Nodes (3): compute_content_fingerprint_v2(), Cross-source-stable content fingerprint. Prefers address (survives ad-text     e, TestContentFingerprintV2
+Cohesion: 0.17
+Nodes (5): The feed is now the whole newest-first rental list. Blanket-tagging it         w, Without the co-op guard the mygewo channel would receive the entire         Wien, A Willhaben block must leave the mygewo half of the poll running., Every mygewo adapter failing is still exit 1, even if Willhaben works —, TestWillhabenPrivateCoopWiring
 
 ### Community 185 - "main"
 Cohesion: 0.17
@@ -1334,10 +1334,6 @@ Nodes (11): File Map, Mobile UX Overhaul — Implementation Plan, Spec Coverage,
 Cohesion: 0.17
 Nodes (11): `extract_floor_level(soup)` → `int`, `extract_orientation(soup)` → `int`, `extract_street_view(soup)` → `int`, Extraction Logic Reference, File Map, Prime New Build Scraper Extraction — Implementation Plan, Self-Review Checklist, Task 1: Willhaben Scraper (+3 more)
 
-### Community 195 - "Community 195"
-Cohesion: 0.25
-Nodes (4): Estimate current Austrian mortgage interest rates, Test interest rate estimation, Test total monthly cost calculation, TestMortgageCalculator
-
 ### Community 196 - "Community 196"
 Cohesion: 0.17
 Nodes (11): Dashboard Filters + Telegram Score + Telegram Dedup + Cleanup Implementation Plan, File Map, Success Criteria, Task 1: Dashboard map/route.ts — Raise price floor + title guard, Task 2: Dashboard top/route.ts — Raise price floor + title guard, Task 3: GLOBAL_VALIDATION min_price_per_m2 Update, Task 4: Telegram Score Display, Task 5: Telegram 7-Day Dedup Cooldown (+3 more)
@@ -1347,8 +1343,12 @@ Cohesion: 0.17
 Nodes (11): Auth System — Implementation Plan, Auth System Self-Review, File Map, Task 1: Install next-auth@4, Task 2: Create NextAuth config, Task 3: Create login page, Task 4: Add SessionProvider to layout, Task 5: Create auth middleware (+3 more)
 
 ### Community 198 - ".extract_heating"
-Cohesion: 0.36
-Nodes (6): backfill(), _make_fake_mongo(), Integration test: backfill_profile_scores is idempotent., Returns a MagicMock MongoDBHandler with 2 distinct cursor states., test_dry_run_does_not_write(), test_first_run_updates_missing_score_listings()
+Cohesion: 0.24
+Nodes (11): add_fingerprints_to_existing(), cleanup_duplicates(), cleanup_price_on_request(), is_migration_done(), main(), mark_migration_done(), Check if migration has already been run., Mark migration as done so it won't run again. (+3 more)
+
+### Community 199 - "Community 199"
+Cohesion: 0.24
+Nodes (8): Setup logging to Telegram for the specified logger, Custom logging handler that sends logs to Telegram, TelegramLogHandler, main(), test_dev_handler_security(), test_dev_logging(), test_telegram_config(), test_telegram_connection()
 
 ### Community 200 - ".extract_parking"
 Cohesion: 0.17
@@ -1362,10 +1362,6 @@ Nodes (10): Commits (3 new on top of `74b551c`), Dashboard smoke tests (5/5 pass
 Cohesion: 0.18
 Nodes (10): Co-op Feed Fixes (P0 + P1) Implementation Plan, File Structure, Owner-blocked step (cannot be automated), Task 1: Builder-page image hop, Task 2: One-shot re-probe gated on `image_probe_v`, Task 3: Telegram channel router, Task 4: Workflow cadence and secret wiring, Task 5: Coverage measurement (`test_scope: true`) (+2 more)
 
-### Community 203 - "Community 203"
-Cohesion: 0.29
-Nodes (7): _image_from_unit(), _mygewo_units_from_rpc(), First usable image URL among the candidate keys of a decoded RPC unit., RPC unit objects → the same dict shape `_mygewo_units` produces from SSR,     so, test_image_read_from_any_candidate_key(), test_rpc_mapping_carries_the_image_through(), test_unit_without_any_image_key_yields_none()
-
 ### Community 204 - "Community 204"
 Cohesion: 0.18
 Nodes (10): 1. Incumbent = MyGEWO (validated, occupied), 2. Why it fits immo-scouter (near-zero marginal cost), 3. Beat MyGEWO on its 3 cracks, 4. Beachhead logic (resolves rent-pivot §4 crux), 5. Money model, 6. Risks (honest), 7. How to do it (build order), 8. Verdict (+2 more)
@@ -1375,8 +1371,8 @@ Cohesion: 0.18
 Nodes (11): maybe_reprobe_image(), Re-probe one unit's photo if it predates the current probe version.      Returns, Every unit already in Mongo predates the field entirely., Terminal within a version: no photo stays no photo, and costs no request., A v2 miss records "" and bumps the version, so it never retries again., No builder page to hop to — no request, and no version bump, so the unit     sta, test_reprobe_miss_is_terminal_at_new_version(), test_reprobe_skipped_without_builder_url() (+3 more)
 
 ### Community 206 - "Community 206"
-Cohesion: 0.08
-Nodes (14): Load configuration from config.json, Setup Selenium WebDriver for dynamic content, Load criteria from JSON file, Load criteria from JSON file, Main analyzer that uses the best available method for structured output, Analyze listing with HTML content, StructuredAnalyzer, Test that the system can start without hanging (+6 more)
+Cohesion: 0.29
+Nodes (3): _mongo_mock(), No alert asks for this unit → it never reaches the send checks., TestRun
 
 ### Community 207 - "test_fast_startup.py"
 Cohesion: 0.44
@@ -1399,20 +1395,20 @@ Cohesion: 0.20
 Nodes (7): 1. Configure the GitHub PAT, 2. Configure cron-job.org, 3. Configure alert channels, 4. What each poll delivers, Alert Setup, Latency and fallback behavior, Operational checks
 
 ### Community 214 - "Community 214"
-Cohesion: 0.12
-Nodes (12): format_coop_message(), Formatting for co-op (Genossenschaft) Telegram alerts. Kept separate from Applic, Format a co-op (Genossenschaft) listing as an HTML Telegram message.      parse_, _coop(), TestFormatCoopMessage, Seeding the co-op channel ledger from units already in Mongo.  Without it, switc, main(), Test criteria loading and application (+4 more)
+Cohesion: 0.33
+Nodes (5): format_coop_message(), Formatting for co-op (Genossenschaft) Telegram alerts. Kept separate from Applic, Format a co-op (Genossenschaft) listing as an HTML Telegram message.      parse_, _coop(), TestFormatCoopMessage
 
 ### Community 215 - "Community 215"
-Cohesion: 0.06
-Nodes (31): Send listing notification to Telegram, send_telegram_notification(), clean_utf8_text(), Send a message to the Telegram chat, Setup logging to Telegram for the specified logger, Send a formatted property notification if score is above threshold, Format property listing as concise HTML message, Clean text to ensure UTF-8 compatibility and proper formatting (+23 more)
+Cohesion: 0.27
+Nodes (5): compute_content_fingerprint_v2(), _norm(), Cross-source-stable content fingerprint. Prefers address (survives ad-text     e, Lowercase, fold umlauts/ß, collapse whitespace, strip non-alnum runs to single s, TestContentFingerprintV2
 
 ### Community 216 - "Community 216"
-Cohesion: 0.29
-Nodes (6): File Map, Legacy Alert Kind Compatibility Implementation Plan, Task 1: Write the failing legacy regression, Task 2: Implement the minimal compatibility query, Task 3: Verify user/channel separation and full suites, Task 4: Review and commit
+Cohesion: 0.22
+Nodes (10): filter_valid_urls(), Validate that a URL is accessible, returns 200, and is not a soft-404.     Uses, Filter out listings with broken or invalid URLs.     Optionally marks broken URL, validate_url(), format_investment_summary(), main(), Setup logging configuration, Format investment analysis results for display (concise) (+2 more)
 
 ### Community 217 - "Community 217"
-Cohesion: 0.40
-Nodes (3): Amenity, Represents a nearby amenity with distance information, Calculate walking time in minutes (80m/min average)
+Cohesion: 0.20
+Nodes (6): Save multiple listings to MongoDB         Returns the number of successfully sav, Close the MongoDB connection, Destructor to ensure connection is closed, Insert or update listing with price history tracking.          On new listing: s, Save listings to MongoDB, save_listings_to_mongodb()
 
 ### Community 218 - "main"
 Cohesion: 0.20
@@ -1423,8 +1419,8 @@ Cohesion: 0.20
 Nodes (9): Common Mistakes, Feedback Step (added by override), Finishing a Development Branch, Integration, Original finishing-a-development-branch Skill (preserved), Overview, Quick Reference, Red Flags (+1 more)
 
 ### Community 220 - "Community 220"
-Cohesion: 0.18
-Nodes (15): missing_channels(), Which Telegram channel a co-op hit belongs in.  Two feeds, deliberately not one:, Chat id for this kind of co-op hit, or None when its secret is unset.      No cr, Every channel secret that is unset, for one loud log line at startup., route(), Co-op alert routing: which Telegram channel a co-op hit goes to.  The bug this g, Urgent Ablöse hits must not be buried in the bulk mygewo feed., An empty repo secret reads back as "" — that is not a valid chat id. (+7 more)
+Cohesion: 0.25
+Nodes (9): AddressBlock(), AddressBlockProps, BankScoreConfidence, Coordinates, CoordinateSource, GreenInfraProfile, InvestmentProfile, MortgageDetails (+1 more)
 
 ### Community 221 - "Community 221"
 Cohesion: 0.20
@@ -1436,15 +1432,15 @@ Nodes (10): Architecture, Layer 1: Graph as first-class artifact, Layer 2: Skill
 
 ### Community 223 - "Community 223"
 Cohesion: 0.29
-Nodes (9): calculate_all_ratings(), calculate_balcony_terrace(), calculate_floor_level(), calculate_potential_growth_rating(), calculate_renovation_needed_rating(), Calculate potential growth rating (1-5) based on property characteristics., Calculate renovation needed rating (1-5) based on property characteristics., Extract floor level from property data.          Returns:         int: Floor lev (+1 more)
+Nodes (9): calculate_all_ratings(), calculate_balcony_terrace(), calculate_floor_level(), calculate_potential_growth_rating(), calculate_renovation_needed_rating(), Calculate potential growth rating (1-5) based on property characteristics., Calculate renovation needed rating (1-5) based on property characteristics., Determine if property has balcony or terrace based on description.          Retu (+1 more)
 
 ### Community 224 - "Community 224"
 Cohesion: 0.27
 Nodes (9): get_current_profile(), Get the name of the current buyer profile.          Returns:         str: Name o, main(), Test that all modules can be imported, Test config loading in GitHub Actions environment, Test buyer profile functionality, test_buyer_profile(), test_config_loading() (+1 more)
 
 ### Community 225 - "Community 225"
-Cohesion: 0.33
-Nodes (3): Analyze listing content and return enhanced data with structured extraction, Analyze listing content with HTML enhancement, Extract additional information from HTML content
+Cohesion: 0.22
+Nodes (5): Coordinates, Validate coordinates after initialization, Calculate distance to another coordinate using Haversine formula (in meters), Calculate walking time to another coordinate in minutes, Calculate distance to given coordinates
 
 ### Community 236 - "Priority Summary"
 Cohesion: 0.22
@@ -1467,8 +1463,8 @@ Cohesion: 0.22
 Nodes (9): Delivery Ledger, Module: Alert Dispatcher, Module: Alert Test Channel Policy, Module: Alert Test Route, Module: Alerts Dashboard, Module: cron-job.org Workflow Contract, Module: Dashboard Alert Mailer, Module: Fast Co-op Poll (+1 more)
 
 ### Community 241 - "Community 241"
-Cohesion: 0.04
-Nodes (50): calculate_ubahn_proximity(), DataLoader, format_distance(), format_walking_time(), get_default_ubahn_time(), get_project_root(), get_walking_times(), load_config() (+42 more)
+Cohesion: 0.25
+Nodes (6): load_config(), Supplement config with environment variables if they exist, Loads configuration from config.json at the project root., supplement_config_with_env_vars(), Set up test environment and clear old data, TestNullValuesValidation
 
 ### Community 242 - "Community 242"
 Cohesion: 0.22
@@ -1507,7 +1503,7 @@ Cohesion: 0.22
 Nodes (9): Goal (B approach + hygiene overlay), Hygiene targets, Open questions for next session, Problem, Risks, Spec: Graph-First Skills + Long-Term Skill Hygiene, Success criteria, Token economics target (+1 more)
 
 ### Community 261 - "Community 261"
-Cohesion: 0.24
+Cohesion: 0.25
 Nodes (7): Simple version that just returns the score without breakdown.     Clamps negativ, score_apartment_simple(), main(), Test enhanced logging, main(), Test score calculation and negative score handling, test_score_calculation()
 
 ### Community 262 - "middleware.ts"
@@ -1535,8 +1531,8 @@ Cohesion: 0.31
 Nodes (7): bad, features, out, perpDist(), rdp(), simplifyGeometry(), simplifyRing()
 
 ### Community 268 - "Community 268"
-Cohesion: 0.47
-Nodes (5): main(), Test fetching top listings from MongoDB, Test Telegram message formatting, test_mongodb_top_listings(), test_telegram_formatting()
+Cohesion: 0.32
+Nodes (6): Enum, ContactType, Contact extractor module for extracting email addresses and contact forms from l, __getattr__(), Outreach module for automated contact extraction and message sending., Load the SMTP sender only for callers that use outreach email.
 
 ### Community 269 - "Community 269"
 Cohesion: 0.50
@@ -1546,13 +1542,17 @@ Nodes (7): compute_xsrc_fingerprint(), Source-INDEPENDENT fingerprint for co-op 
 Cohesion: 0.36
 Nodes (3): classify_seller(), Classify a listing's seller as 'private' / 'agency' / 'unknown' from ad text, TestClassifySeller
 
+### Community 271 - "Community 271"
+Cohesion: 0.25
+Nodes (8): _fetch_mygewo_page(), _find_units_payload(), _mygewo_rpc_payload(), Decode seroval's JSON node form ({"t":<type>,"s"/"a"/"p":…}) into plain     Pyth, Locate the {units, total, …} dict anywhere in the decoded response tree., The seroval-encoded {data:{search:{states}, page}} argument envelope., GET one RPC page. Returns (raw unit dicts, total, has_next_page)., _seroval_json_decode()
+
 ### Community 272 - "Community 272"
 Cohesion: 0.39
 Nodes (6): _patch(), Tests for resolve_builder_url — mygewo /angebot/ → builder reservation URL.  No, test_extracts_original_anzeige_deep_link(), test_falls_back_to_builder_homepage(), test_ignores_mygewo_self_link_uses_homepage_fallback(), test_returns_none_when_no_signal()
 
 ### Community 273 - "Community 273"
-Cohesion: 0.38
-Nodes (4): Test that the system starts quickly, Test OutlinesAnalyzer speed specifically, TestFastStartup, timeout_handler()
+Cohesion: 0.32
+Nodes (3): _resp(), TestConditionalFetch, TestPollSource
 
 ### Community 274 - "Community 274"
 Cohesion: 0.25
@@ -1567,12 +1567,8 @@ Cohesion: 0.39
 Nodes (7): normalize_value(), Normalizes a given actual_value for a criterion to a score between 0 and 100., test_bezirk_score_0_normalizes_0(), test_bezirk_score_1_normalizes_100(), test_is_provisionsfrei_0_normalizes_0(), test_is_provisionsfrei_1_normalizes_100(), test_unknown_criterion_returns_0()
 
 ### Community 277 - "Community 277"
-Cohesion: 0.67
-Nodes (3): main(), Test that connection test doesn't send messages, test_connection_silent()
-
-### Community 278 - ".extract_rooms"
-Cohesion: 0.33
-Nodes (4): BaseModel, Generate structured output with Outlines, Structured real estate property data model, RealEstateData
+Cohesion: 0.36
+Nodes (6): backfill(), _make_fake_mongo(), Integration test: backfill_profile_scores is idempotent., Returns a MagicMock MongoDBHandler with 2 distinct cursor states., test_dry_run_does_not_write(), test_first_run_updates_missing_score_listings()
 
 ### Community 279 - ".extract_title"
 Cohesion: 0.36
@@ -1587,12 +1583,12 @@ Cohesion: 0.29
 Nodes (6): Attempts / Pivots, Blockers, Next action, Progress, Relentless Status, Subagent dispatch
 
 ### Community 282 - "compute_content_fingerprint"
-Cohesion: 0.33
-Nodes (3): Analyze listing data and return structured output with timeout, Prepare input text from listing data, Check if analyzer is available
+Cohesion: 0.29
+Nodes (4): compute_content_fingerprint(), Compute a content fingerprint hash for dedup based on key property fields.     U, Increment validation failure counter for a source., Upsert a co-op listing WITHOUT the price>0 gate (co-op units often         have
 
 ### Community 283 - "extract_is_genossenschaft"
-Cohesion: 0.16
-Nodes (13): _any_match(), extract_bautraeger(), extract_doppelmakler(), extract_is_genossenschaft(), Extract boolean property features from listing full-page text. Two-pass approach, True if Doppelmakler disclosed, None otherwise., True if co-op/subsidized markers present, False if explicitly free-financed,, Name of the co-op Bauträger if one of the known pilot builders is     mentioned, (+5 more)
+Cohesion: 0.43
+Nodes (6): extract_is_genossenschaft(), True if co-op/subsidized markers present, False if explicitly free-financed,, test_negative_freifinanziert(), test_none_when_no_signal(), test_positive_gefoerdert(), test_positive_genossenschaft()
 
 ### Community 284 - "extract_roof_renovated"
 Cohesion: 0.43
@@ -1619,20 +1615,20 @@ Cohesion: 0.29
 Nodes (6): Environment Variables, Outreach Email Setup Guide, Quick Setup, 🔒 Security Best Practice, Security Notes, Testing
 
 ### Community 290 - "main"
-Cohesion: 0.67
-Nodes (3): estimate(), GET(), RENT_PER_M2
+Cohesion: 0.38
+Nodes (5): main(), parse_cli_args(), Main function to run the outreach process., Setup logging configuration., setup_logging()
 
 ### Community 291 - "test_derstandard_scraper"
 Cohesion: 0.33
 Nodes (6): analyze_page_structure(), Analyze the page structure to understand the layout, Test the derStandard scraper with various URLs, Test extraction from an individual listing, test_derstandard_scraper(), test_individual_listing()
 
 ### Community 292 - ".test_fast_startup"
-Cohesion: 0.50
-Nodes (3): _rate_limited_get(), Geocode an address using OpenStreetMap Nominatim, Nominatim requires max 1 req/sec — enforce via semaphore
+Cohesion: 0.38
+Nodes (4): Test that the system starts quickly, Test OutlinesAnalyzer speed specifically, TestFastStartup, timeout_handler()
 
 ### Community 293 - ".test_analyzer_performance"
-Cohesion: 0.40
-Nodes (4): mark_listing_taken sets listing_status=taken and url_is_valid=False, When same URL re-scrapped with different price, old price pushed to history, test_mark_listing_taken(), test_price_history_on_re_scrape()
+Cohesion: 0.38
+Nodes (4): Test that the system can start without hanging, Test analyzer performance, TestQuickMain, timeout_handler()
 
 ### Community 294 - "Relentless Status"
 Cohesion: 0.33
@@ -1731,8 +1727,8 @@ Cohesion: 0.60
 Nodes (5): print_error(), print_status(), print_success(), print_warning(), deploy.sh script
 
 ### Community 319 - "Amenity"
-Cohesion: 0.25
-Nodes (5): Check if a Listing object meets the defined criteria., Ensure all data is JSON serializable for MongoDB, Scrape all listings from search results with MongoDB integration, Test the derStandard scraper, test_derstandard_scraper()
+Cohesion: 0.33
+Nodes (3): Amenity, Represents a nearby amenity with distance information, Calculate walking time in minutes (80m/min average)
 
 ### Community 320 - "rescrape_listing"
 Cohesion: 0.40
@@ -1743,16 +1739,20 @@ Cohesion: 0.60
 Nodes (5): die(), ok(), setup-graphify.sh script, step(), warn()
 
 ### Community 322 - "Community 322"
-Cohesion: 0.33
-Nodes (5): Alternatives Rejected, Design, Legacy Alert Kind Compatibility, Problem, Testing
+Cohesion: 0.47
+Nodes (5): main(), Test that listings sent to Telegram are tracked and not sent again, Test the mark_sent functionality, test_duplicate_prevention(), test_mark_sent_functionality()
 
 ### Community 324 - "Community 324"
-Cohesion: 0.24
-Nodes (11): add_fingerprints_to_existing(), cleanup_duplicates(), cleanup_price_on_request(), is_migration_done(), main(), mark_migration_done(), Check if migration has already been run., Mark migration as done so it won't run again. (+3 more)
+Cohesion: 0.47
+Nodes (5): main(), Test config loading in current environment, Test environment variable fallback for config loading, test_current_environment(), test_env_var_fallback()
 
 ### Community 325 - "Community 325"
 Cohesion: 0.47
 Nodes (5): main(), Test main function in GitHub Actions-like environment, Test main function in current environment, test_current_environment(), test_github_actions_main()
+
+### Community 326 - "Community 326"
+Cohesion: 0.47
+Nodes (5): main(), Test scraping search results, Test the fixed Immo Kurier scraper, test_immo_kurier_scraper(), test_search_results()
 
 ### Community 327 - "Community 327"
 Cohesion: 0.47
@@ -1761,6 +1761,10 @@ Nodes (5): main(), Test that log directories are created automatically, Test tha
 ### Community 328 - "Community 328"
 Cohesion: 0.47
 Nodes (5): main(), Test MongoDB connection with GitHub Actions compatible settings, Test alternative connection methods, test_alternative_connection(), test_mongodb_connection()
+
+### Community 329 - "Community 329"
+Cohesion: 0.47
+Nodes (5): main(), Test fetching top listings from MongoDB, Test Telegram message formatting, test_mongodb_top_listings(), test_telegram_formatting()
 
 ### Community 330 - "Community 330"
 Cohesion: 0.40
@@ -1826,9 +1830,13 @@ Nodes (5): Layer 3: New skills to design, Module: `graph-blast-radius` skill, Mo
 Cohesion: 0.40
 Nodes (4): Test all enhanced features, Test individual extraction methods, test_enhanced_features(), test_extraction_methods()
 
+### Community 346 - "Community 346"
+Cohesion: 0.40
+Nodes (4): mark_listing_taken sets listing_status=taken and url_is_valid=False, When same URL re-scrapped with different price, old price pushed to history, test_mark_listing_taken(), test_price_history_on_re_scrape()
+
 ### Community 347 - "Community 347"
-Cohesion: 0.67
-Nodes (3): main(), Test the new top5 filtering functionality, test_top5_filters()
+Cohesion: 0.40
+Nodes (4): Test the UTF-8 cleaning function, Test Telegram message formatting with problematic data, test_telegram_message_formatting(), test_utf8_cleaning()
 
 ### Community 348 - "graphify reference: add a URL and watch a folder"
 Cohesion: 0.50
@@ -1843,8 +1851,8 @@ Cohesion: 0.50
 Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
 
 ### Community 351 - "route.ts"
-Cohesion: 0.25
-Nodes (5): Coordinates, Parse __NEXT_DATA__ and return the advertDetails dict, or {} on failure., Parse __NEXT_DATA__ attributes array into a flat {name: [values]} dict., Recover a full street address (street + house number) from the listing         t, Extract Willhaben's published exact coordinates from the COORDINATES         att
+Cohesion: 0.67
+Nodes (3): estimate(), GET(), RENT_PER_M2
 
 ### Community 352 - "alerts-page.spec.ts"
 Cohesion: 0.50
@@ -1870,41 +1878,41 @@ Nodes (3): FIXTURES, GEOCODED, NO_COORD
 Cohesion: 0.50
 Nodes (3): Final gate (before declaring done / committing), Iteration loop (token-efficient), UI Testing Rule
 
+### Community 359 - "Community 359"
+Cohesion: 0.67
+Nodes (3): main(), Test that the Telegram channel configuration is correct, test_channel_config()
+
+### Community 360 - "Community 360"
+Cohesion: 0.67
+Nodes (3): main(), Test that line breaks are preserved in message formatting, test_line_breaks()
+
+### Community 362 - "Community 362"
+Cohesion: 0.67
+Nodes (3): main(), Test that connection test doesn't send messages, test_connection_silent()
+
 ### Community 363 - "Community 363"
 Cohesion: 0.67
 Nodes (3): main(), Test that the --send-to-telegram flag is properly handled, test_telegram_flag()
 
-### Community 365 - "Community 365"
-Cohesion: 0.47
-Nodes (5): main(), Test config loading in current environment, Test environment variable fallback for config loading, test_current_environment(), test_env_var_fallback()
+### Community 364 - "Community 364"
+Cohesion: 0.67
+Nodes (3): main(), Test the new top5 filtering functionality, test_top5_filters()
 
-### Community 366 - ".extract_hwb_value"
-Cohesion: 0.47
-Nodes (5): main(), Test scraping search results, Test the fixed Immo Kurier scraper, test_immo_kurier_scraper(), test_search_results()
+### Community 365 - "Community 365"
+Cohesion: 0.67
+Nodes (3): main(), Test the new message format without rate line, test_message_format()
+
+### Community 366 - "Community 366"
+Cohesion: 0.67
+Nodes (3): main(), Test that top5 formatting matches main.py format, test_top5_formatting()
 
 ### Community 369 - "Co-op fast-poll (Phase A)"
 Cohesion: 0.67
 Nodes (3): Channel filter — the union of active alerts, Co-op fast-poll (Phase A), Send-once — `coop_channel_sends` ledger
 
-### Community 370 - "test_run_top5_behavior"
-Cohesion: 0.47
-Nodes (5): main(), Test that run_top5.py uses all-time listings with duplicate prevention, Test that run_top5.py uses correct config parameters, test_config_parameters(), test_run_top5_behavior()
-
-### Community 376 - "test_rating_calculation.py"
-Cohesion: 0.29
-Nodes (9): print_apartment_score(), Calculates the total weighted score for a single apartment.     Returns the scor, Prints a detailed breakdown of apartment scoring., score_apartment(), main(), Test the rating calculation functions, Test the complete scoring system with calculated ratings, test_rating_calculation() (+1 more)
-
 ### Community 381 - "Community 381"
 Cohesion: 0.50
 Nodes (3): GEOJSON, HEATMAP, LISTINGS
-
-### Community 396 - "test_channel_config"
-Cohesion: 0.67
-Nodes (3): main(), Test that the Telegram channel configuration is correct, test_channel_config()
-
-### Community 397 - ".extract_district"
-Cohesion: 0.25
-Nodes (5): compute_content_fingerprint(), Any, Compute a content fingerprint hash for dedup based on key property fields.     U, Increment validation failure counter for a source., Upsert a co-op listing WITHOUT the price>0 gate (co-op units often         have
 
 ### Community 400 - "Community 400"
 Cohesion: 0.67
@@ -1915,21 +1923,21 @@ Cohesion: 0.22
 Nodes (7): Architecture, Commands (run from Project/), Config & security, graphify, Hard rules (never violate), Rules, Workflow notes
 
 ## Knowledge Gaps
-- **1896 isolated node(s):** `coop-poll-window.sh script`, `test_smtp.sh script`, `AlertFilters`, `Alert`, `HWB_UPPER` (+1891 more)
+- **1859 isolated node(s):** `coop-poll-window.sh script`, `test_smtp.sh script`, `AlertFilters`, `Alert`, `DEFAULT_KEYWORDS` (+1854 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **312 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **310 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `MongoDBHandler` connect `Community 51` to `Feasibility & Loan Math`, `Community 261`, `U-Bahn & Amenity Proximity`, `.extract_district`, `Community 268`, `MinIO Image Storage`, `Outlines Structured Output`, `Derstandard Scraper Debug`, `Listing Validator Module`, `Community 156`, `Community 30`, `Community 32`, `Community 37`, `Community 38`, `.test_analyzer_performance`, `Community 40`, `Community 43`, `Community 50`, `_handler_with_fake_meta`, `Community 53`, `Community 183`, `rescrape_listing`, `Community 326`, `.extract_heating`, `Community 328`, `Community 206`, `test_fast_startup.py`, `Community 215`, `Community 90`, `Community 347`, `Community 100`, `Community 109`, `Community 110`, `Community 111`, `Community 241`, `test_run_top5_behavior`?**
-  _High betweenness centrality (0.077) - this node is a cross-community bridge._
-- **Why does `WillhabenScraper` connect `U-Bahn & Amenity Proximity` to `Willhaben Field Extractors`, `Listing Schema & Analyzer`, `middleware.ts`, `.close`, `Community 263`, `Community 143`, `Outlines Structured Output`, `Geocoding & Distances`, `Community 165`, `Community 50`, `Community 51`, `rescrape_listing`, `Community 72`, `Community 206`, `Community 81`, `Community 215`, `test_enhanced_scraper.py`, `route.ts`, `Community 100`, `Community 359`, `Community 111`, `Community 241`?**
-  _High betweenness centrality (0.045) - this node is a cross-community bridge._
-- **Why does `Listing` connect `Outlines Structured Output` to `Feasibility & Loan Math`, `Willhaben Field Extractors`, `Community 132`, `Listing Schema & Analyzer`, `Listing Field Extractors`, `Scraping Entry Points`, `U-Bahn & Amenity Proximity`, `Community 269`, `MinIO Image Storage`, `Derstandard Scraper Debug`, `Outlines vs Scraper Tests`, `Community 30`, `Community 36`, `Community 164`, `Community 40`, `Community 43`, `Community 50`, `Community 51`, `Community 183`, `Amenity`, `Community 214`, `Community 100`, `Community 101`, `Community 102`, `Community 103`, `Community 241`?**
-  _High betweenness centrality (0.042) - this node is a cross-community bridge._
-- **Are the 69 inferred relationships involving `MongoDBHandler` (e.g. with `main()` and `save_listings_to_mongodb()`) actually correct?**
-  _`MongoDBHandler` has 69 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `MongoDBHandler` connect `Community 51` to `Feasibility & Loan Math`, `Community 261`, `U-Bahn & Amenity Proximity`, `MinIO Image Storage`, `Outlines Structured Output`, `Community 277`, `Derstandard Scraper Debug`, `Listing Validator Module`, `compute_content_fingerprint`, `Community 155`, `Community 30`, `Community 32`, `main`, `Community 37`, `Community 38`, `Community 39`, `Community 40`, `Community 43`, `Community 50`, `_handler_with_fake_meta`, `Community 182`, `Community 183`, `rescrape_listing`, `Community 322`, `Community 69`, `Community 328`, `Community 329`, `test_fast_startup.py`, `Community 216`, `Community 217`, `Community 346`, `Community 364`, `Community 109`, `Community 110`, `Community 111`, `Community 241`?**
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
+- **Why does `WillhabenScraper` connect `U-Bahn & Amenity Proximity` to `Willhaben Field Extractors`, `Listing Schema & Analyzer`, `middleware.ts`, `Community 391`, `Community 263`, `Community 143`, `Outlines Structured Output`, `Geocoding & Distances`, `Community 155`, `Community 164`, `Community 165`, `Community 36`, `Community 39`, `.test_analyzer_performance`, `Community 50`, `Community 51`, `rescrape_listing`, `Community 69`, `Community 72`, `Community 81`, `test_enhanced_scraper.py`, `Community 91`, `Community 225`, `Community 111`, `Community 241`, `test_energy_extraction`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `Listing` connect `Community 36` to `Feasibility & Loan Math`, `Willhaben Field Extractors`, `Community 132`, `Listing Schema & Analyzer`, `Listing Field Extractors`, `Scraping Entry Points`, `U-Bahn & Amenity Proximity`, `Community 269`, `MinIO Image Storage`, `Outlines Structured Output`, `Community 273`, `Derstandard Scraper Debug`, `Outlines vs Scraper Tests`, `Community 30`, `Community 40`, `Community 43`, `Community 50`, `Community 51`, `Community 183`, `.extract_from_json_data`, `Community 69`, `Community 206`, `Community 214`, `Community 225`, `Community 100`, `Community 101`, `Community 102`, `Community 103`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Are the 67 inferred relationships involving `MongoDBHandler` (e.g. with `main()` and `save_listings_to_mongodb()`) actually correct?**
+  _`MongoDBHandler` has 67 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 25 inferred relationships involving `WillhabenScraper` (e.g. with `scrape_willhaben()` and `ViennaGeocoder`) actually correct?**
   _`WillhabenScraper` has 25 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 44 inferred relationships involving `Listing` (e.g. with `DerStandardScraper` and `Amenity`) actually correct?**
