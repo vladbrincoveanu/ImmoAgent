@@ -57,11 +57,12 @@ def _coop_delivery_fingerprint(alert, listing) -> Optional[str]:
     if ((alert or {}).get("kind") not in COOP_ALERT_KINDS
             or not getattr(listing, "is_genossenschaft", False)):
         return None
-    try:
-        return compute_xsrc_fingerprint(listing)
-    except Exception as e:
-        logger.warning(f"co-op delivery fingerprint failed; using URL key: {e}")
-        return None
+    # Let dispatch catch computation failures and defer this delivery. Falling
+    # back to a URL key after an exception can duplicate a unit that was claimed
+    # earlier under its stable xsrc fingerprint. A deliberate None from the
+    # helper still means the record lacks a safe cross-source key and may use
+    # the legacy URL key for compatibility.
+    return compute_xsrc_fingerprint(listing)
 
 
 def _num(value, suffix: str = "") -> str:
@@ -232,7 +233,7 @@ def dispatch(
 
             email_subject, email_body = build_alert_email(listing, unverified)
     except Exception as e:
-        logger.error(f"❌ alert {alert_id} payload rendering failed: {e}")
+        logger.error(f"❌ alert {alert_id} payload/fingerprint preparation failed: {e}")
         return False
     # The message and destination go onto the claim row BEFORE the send. That is
     # what makes retry possible without a url_hash -> listing reverse lookup,

@@ -203,10 +203,10 @@ def test_general_alert_keeps_distinct_urls_distinct():
     assert len(handler.rows) == 4
 
 
-def test_coop_alert_with_malformed_fingerprint_fields_falls_back_to_url():
+def test_coop_alert_without_safe_fingerprint_falls_back_to_url():
     handler, sent = _Handler(), []
-    listing = _L(area_m2="unknown")
-    listing.bautraeger = "ÖVW"
+    listing = _L()
+    listing.bautraeger = None
     listing.address = "Musterstraße 1, 1100 Wien"
     listing.is_genossenschaft = True
     listing.coop_source = "willhaben"
@@ -299,6 +299,21 @@ def test_live_url_validation_failure_is_never_sent(monkeypatch):
 
     assert dispatch(_ALERT, _L(), False, handler, token="t",
                     send_telegram=lambda c, m: True) is False
+    assert handler.rows == {}
+
+
+def test_fingerprint_failure_defers_coop_delivery(monkeypatch):
+    handler = _Handler()
+    listing = _L()
+    listing.is_genossenschaft = True
+    listing.bautraeger = "Bautraeger"
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.compute_xsrc_fingerprint",
+        lambda value: (_ for _ in ()).throw(RuntimeError("malformed fields")),
+    )
+
+    assert dispatch({**_ALERT, "kind": "mygewo"}, listing, False, handler,
+                    token="t", send_telegram=lambda c, m: True) is False
     assert handler.rows == {}
 
 
