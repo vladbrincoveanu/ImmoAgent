@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { MongoClient } from 'mongodb';
 
-const URI = 'mongodb://localhost:27017/immo';
+const URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/immo';
 const FIXTURE_ID = `${Date.now()}-${process.pid}`;
 const FIXTURE_PREFIX = `https://fixture.invalid/coop-availability/${FIXTURE_ID}/`;
 const FIXTURE_LABEL = `Availability fixture ${FIXTURE_ID}`;
@@ -29,6 +29,7 @@ function doc(suffix: string, extra: Record<string, unknown> = {}) {
     is_genossenschaft: true,
     buyable: false,
     coop_source: 'bautraeger_direct',
+    source_enum: FIXTURE_LABEL,
     url_is_valid: true,
     listing_status: 'active',
     processed_at: Math.floor(Date.now() / 1000),
@@ -84,6 +85,15 @@ test('/coop hides taken developer offers but keeps active offers', async ({ page
   await expect(page.getByTestId('coop-item')).toHaveCount(1);
   await expect(page.getByTestId('coop-address')).toContainText('developer-active');
   await expect(page.locator('body')).not.toContainText('developer-taken');
+
+  const mapResponse = await page.request.get('/api/listings/map?genossenschaft=true&district=1220');
+  expect(mapResponse.ok()).toBeTruthy();
+  const mapPayload = await mapResponse.json();
+  const fixtureMapRows = mapPayload.listings.filter((listing: { url: string }) =>
+    listing.url.startsWith(FIXTURE_PREFIX),
+  );
+  expect(fixtureMapRows).toHaveLength(1);
+  expect(fixtureMapRows[0].url).toBe(FIXTURE_URLS[0]);
 });
 
 test('/coop/private hides taken private transfers but keeps active transfers', async ({ page }) => {
@@ -92,4 +102,15 @@ test('/coop/private hides taken private transfers but keeps active transfers', a
   await expect(page.getByTestId('private-item')).toHaveCount(1);
   await expect(page.getByTestId('private-title')).toContainText('private-active');
   await expect(page.locator('body')).not.toContainText('private-taken');
+});
+
+test('taken co-op rows remain included in availability statistics', async ({ page }) => {
+  const statsResponse = await page.request.get('/api/stats/taken');
+  expect(statsResponse.ok()).toBeTruthy();
+  const statsPayload = await statsResponse.json();
+  const fixtureStats = statsPayload.by_source.find(
+    (entry: { source: string }) => entry.source === FIXTURE_LABEL,
+  );
+
+  expect(fixtureStats).toMatchObject({ active: 2, taken: 2 });
 });
