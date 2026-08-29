@@ -14,31 +14,45 @@ logger = logging.getLogger(__name__)
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+ALERT_EMAIL_SUBJECT = "Neue passende Wohnungsanzeige"
 
 
-def _body(listing) -> str:
+def _format_number(value, label: str):
+    if value is None:
+        return None
+    try:
+        return f"{round(float(value))} {label}"
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _body(listing, unverified: bool = False) -> str:
     bits = []
     title = getattr(listing, "title", None) or getattr(listing, "address", None)
     if title:
-        bits.append(title)
-    rooms = getattr(listing, "rooms", None)
-    area = getattr(listing, "area_m2", None)
-    rent = getattr(listing, "price_total", None)
+        bits.append(str(title))
+    rent = _format_number(getattr(listing, "price_total", None), "Miete")
     spec = " · ".join(s for s in [
-        f"{round(rooms)} Zimmer" if rooms else None,
-        f"{round(area)} m²" if area else None,
-        f"€{round(rent)} Miete" if rent else None,
+        _format_number(getattr(listing, "rooms", None), "Zimmer"),
+        _format_number(getattr(listing, "area_m2", None), "m²"),
+        f"€{rent}" if rent else None,
     ] if s)
     if spec:
         bits.append(spec)
-    bits.append(getattr(listing, "url", "") or "")
+    bits.append(str(getattr(listing, "url", "") or ""))
     bits.append("")
-    bits.append("Private Genossenschafts-Weitergabe — wer zuerst kommt.")
+    bits.append("Passende Wohnungsanzeige — Angaben bitte vor Ort prüfen.")
+    if unverified:
+        bits.append("⚠️ Größe/Zimmer/Preis unbekannt — vor Ort prüfen")
     return "\n".join(bits)
 
 
-def send_alert_email(to_addr: str, listing) -> bool:
-    """Send one alert. False (never an exception) when SMTP is unconfigured or fails.
+def build_alert_email(listing, unverified: bool = False) -> tuple[str, str]:
+    return ALERT_EMAIL_SUBJECT, _body(listing, unverified)
+
+
+def send_alert_email_content(to_addr: str, subject: str, body: str) -> bool:
+    """Send prepared alert content, returning False on configuration or SMTP errors.
 
     The poll must survive a broken mail server: the scrape and the upserts that
     feed the website are more important than any single notification."""
@@ -51,10 +65,10 @@ def send_alert_email(to_addr: str, listing) -> bool:
         return False
 
     msg = EmailMessage()
-    msg["Subject"] = "Neue Genossenschafts-Weitergabe"
+    msg["Subject"] = subject
     msg["From"] = user
     msg["To"] = to_addr
-    msg.set_content(_body(listing))
+    msg.set_content(body)
 
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
@@ -65,3 +79,9 @@ def send_alert_email(to_addr: str, listing) -> bool:
     except Exception as e:
         logger.error(f"alert email to {to_addr} failed: {e}")
         return False
+
+
+def send_alert_email(to_addr: str, listing, unverified: bool = False) -> bool:
+    """Build and send one alert using the shared SMTP implementation."""
+    subject, body = build_alert_email(listing, unverified)
+    return send_alert_email_content(to_addr, subject, body)

@@ -46,7 +46,7 @@ class CoopPollWindowTest(unittest.TestCase):
 
     def _run(self, env_extra, timeout=60):
         env = dict(os.environ)
-        # Keep the real scraper and the real 5-minute cadence out of the tests.
+        # Keep the real scraper and the default cadence out of the tests.
         env.update({"POLL_INTERVAL_SECONDS": "1", "POLL_WINDOW_SECONDS": "0"})
         env.update(env_extra)
         return subprocess.run(
@@ -139,10 +139,10 @@ class CoopPollWindowTest(unittest.TestCase):
 
     # --- dispatch vs fallback default ----------------------------------------
     #
-    # Cadence comes from an external trigger firing repository_dispatch every ~2
-    # minutes, so a dispatched run must do ONE poll and exit. If it looped, each
-    # run would still be polling when the next dispatch arrived and would be
-    # cancelled mid-poll by `cancel-in-progress`.
+    # Cadence comes from an external trigger firing repository_dispatch every
+    # minute, so dispatched and scheduled runs must do ONE poll and exit. The
+    # shared workflow group keeps one run active plus one pending instead of
+    # cancelling the active run.
 
     def _run_bare(self, env_extra, timeout=60):
         """Like `_run`, but WITHOUT the POLL_WINDOW_SECONDS override, so the
@@ -160,20 +160,29 @@ class CoopPollWindowTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("window complete: 1 polls, 0 failed", r.stdout)
 
-    def test_a_scheduled_run_keeps_the_fallback_window(self):
-        """The fallback must still loop — it is what covers a dead trigger."""
-        ok = self._stub("ok.sh", 'exit 0')
-        r = self._run_bare({"POLL_CMD": str(ok), "GITHUB_EVENT_NAME": "schedule",
-                            # Clamp it so the test does not actually run 55 min.
-                            "POLL_WINDOW_SECONDS": "3"})
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn("window complete: 1 polls", r.stdout)
-
-    def test_an_explicit_window_overrides_the_dispatch_default(self):
-        """Debugging a dispatched run must still be possible."""
+    def test_a_dispatched_run_ignores_window_override(self):
+        """The external trigger owns cadence; dispatch cannot open a window."""
         ok = self._stub("ok.sh", 'exit 0')
         r = self._run_bare({"POLL_CMD": str(ok),
                             "GITHUB_EVENT_NAME": "repository_dispatch",
+                            "POLL_WINDOW_SECONDS": "3"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("window complete: 1 polls, 0 failed", r.stdout)
+
+    def test_a_scheduled_run_polls_exactly_once(self):
+        """The fallback must not block later minutely dispatches."""
+        ok = self._stub("ok.sh", 'exit 0')
+        r = self._run_bare({"POLL_CMD": str(ok), "GITHUB_EVENT_NAME": "schedule",
+                            # A nonzero override keeps the regression test fast.
+                            "POLL_WINDOW_SECONDS": "3"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("window complete: 1 polls, 0 failed", r.stdout)
+
+    def test_a_manual_run_keeps_explicit_window(self):
+        """Manual workflow_dispatch remains the operator-controlled window."""
+        ok = self._stub("ok.sh", 'exit 0')
+        r = self._run_bare({"POLL_CMD": str(ok),
+                            "GITHUB_EVENT_NAME": "workflow_dispatch",
                             "POLL_WINDOW_SECONDS": "3"})
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("window complete: 1 polls", r.stdout)

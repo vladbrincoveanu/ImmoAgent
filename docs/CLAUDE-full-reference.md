@@ -311,15 +311,17 @@ See README.md for example GitHub Actions workflow.
 
 ## Co-op fast-poll (Phase A)
 
-`Project/run_coop.py` — lightweight coop poller for GitHub Actions cron `*/5`
-(`.github/workflows/coop-fast-poll.yml`, ~08:00–22:00 Vienna Mon–Sat). Replaces
+`Project/run_coop.py` — lightweight coop poller driven by minutely
+`repository_dispatch` events, with `.github/workflows/coop-fast-poll.yml` as a
+fallback (~08:00–22:00 Vienna Mon–Sat). Replaces
 the old `coop-scrape.yml` (*/15). Polls the Genossenschaft adapters with
 conditional GET (ETag/Last-Modified/page-hash stored in the `source_meta`
 Mongo collection), upserts via `MongoDBHandler.upsert_coop_listing()` (price-less;
-preserves `sent_to_telegram` on re-poll), and DMs matches to
-`TELEGRAM_COOP_CHANNEL_ID` only (no main-chat fallback — the main channel
-excludes co-ops by design; if unset, alerts are disabled loudly and the CI
-workflow fails fast). CI installs `Project/requirements-coop.txt` (slim:
+preserves `sent_to_telegram` on re-poll), and sends matches to the configured
+co-op channel feeds. User-created alerts are delivered through their configured
+Telegram and/or confirmed email channels; missing Telegram channel secrets do
+not disable scraping or email-only alerts. CI installs
+`Project/requirements-coop.txt` (slim:
 requests/bs4/pymongo — no Selenium/torch).
 
 Run locally: `cd Project && python run_coop.py [--no-send]`.

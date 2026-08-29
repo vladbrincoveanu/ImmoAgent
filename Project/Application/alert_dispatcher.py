@@ -112,13 +112,61 @@ def _default_telegram(token: str) -> Callable[[str, str], bool]:
     return send
 
 
-def _default_email() -> Callable[[str, object], bool]:
+def _default_email(unverified: bool = False) -> Callable[[str, object], bool]:
     from Application.alert_email import send_alert_email
 
     def send(address: str, listing) -> bool:
-        return bool(send_alert_email(address, listing))
+        return bool(send_alert_email(address, listing, unverified=unverified))
 
     return send
+
+
+def _default_email_content() -> Callable[[str, str, str], bool]:
+    from Application.alert_email import send_alert_email_content
+
+    def send(address: str, subject: str, body: str) -> bool:
+        return bool(send_alert_email_content(address, subject, body))
+
+    return send
+
+
+def _mark_delivery_channel_sent(handler, alert_id, key: str, channel: str,
+                                legacy_telegram: bool = False) -> bool:
+    try:
+        if legacy_telegram and channel == "telegram":
+            # Rows created before channel flags existed are Telegram-only.
+            result = handler.mark_delivery_sent(alert_id, key)
+        else:
+            result = handler.mark_delivery_channel_sent(alert_id, key, channel)
+        if result is False:
+            logger.error(f"❌ could not mark alert {channel} delivery sent")
+            return False
+        return True
+    except Exception as e:
+        logger.error(f"❌ could not mark alert {channel} delivery sent: {e}")
+        return False
+
+
+def _release_delivery_channel(handler, alert_id, key: str, channel: str) -> None:
+    release = getattr(handler, "release_delivery_channel", None)
+    if not callable(release):
+        return
+    try:
+        if release(alert_id, key, channel) is False:
+            logger.error(f"❌ could not release alert {channel} delivery lease")
+    except Exception as e:
+        logger.error(f"❌ could not release alert {channel} delivery lease: {e}")
+
+
+def _claim_pending_delivery_channel(handler, alert_id, key: str, channel: str) -> bool:
+    claim = getattr(handler, "claim_pending_delivery_channel", None)
+    if not callable(claim):
+        return True
+    try:
+        return bool(claim(alert_id, key, channel))
+    except Exception as e:
+        logger.error(f"❌ could not claim alert {channel} delivery lease: {e}")
+        return False
 
 
 def dispatch(
@@ -144,11 +192,27 @@ def dispatch(
         return False
 
     alert_id, key = alert.get("_id"), url_hash(listing.url)
-    message = build_message(listing, unverified)
+    try:
+        message = build_message(listing, unverified)
+        email_subject = email_body = None
+        if email:
+            from Application.alert_email import build_alert_email
+
+            email_subject, email_body = build_alert_email(listing, unverified)
+    except Exception as e:
+        logger.error(f"❌ alert {alert_id} payload rendering failed: {e}")
+        return False
     # The message and destination go onto the claim row BEFORE the send. That is
     # what makes retry possible without a url_hash -> listing reverse lookup,
     # which the schema does not support.
-    if not handler.claim_delivery(alert_id, key, chat_id, message):
+    try:
+        claimed = handler.claim_delivery(
+            alert_id, key, chat_id, message, email, email_subject, email_body
+        )
+    except Exception as e:
+        logger.error(f"❌ alert {alert_id} claim failed: {e}")
+        return False
+    if not claimed:
         # Someone already owns this pair. Not an error — this is the guarantee.
         return False
 
@@ -157,19 +221,27 @@ def dispatch(
     if chat_id and token:
         sender = send_telegram or _default_telegram(token)
         try:
-            delivered = bool(sender(chat_id, message)) or delivered
+            if sender(chat_id, message):
+                if _mark_delivery_channel_sent(handler, alert_id, key, "telegram"):
+                    delivered = True
+                else:
+                    _release_delivery_channel(handler, alert_id, key, "telegram")
         except Exception as e:
             logger.error(f"❌ alert telegram send failed ({chat_id}): {e}")
 
     if email:
-        sender = send_email or _default_email()
+        sender = send_email or _default_email(unverified)
         try:
-            delivered = bool(sender(email, listing)) or delivered
+            if sender(email, listing):
+                if _mark_delivery_channel_sent(handler, alert_id, key, "email"):
+                    delivered = True
+                else:
+                    _release_delivery_channel(handler, alert_id, key, "email")
         except Exception as e:
             logger.error(f"❌ alert email send failed ({email}): {e}")
 
     if delivered:
-        handler.mark_delivery_sent(alert_id, key)
+        logger.info(f"✅ alert {alert_id} delivery channel succeeded")
     else:
         # The row stays `pending` on purpose. That is the retry signal, and it is
         # also the only durable evidence that a delivery was attempted and lost.
@@ -181,6 +253,7 @@ def retry_pending(
     handler,
     token: Optional[str],
     send_telegram: Optional[Callable[[str, str], bool]] = None,
+    send_email: Optional[Callable[[str, str, str], bool]] = None,
 ) -> int:
     """Re-send deliveries that were claimed but never sent. Returns the count.
 
@@ -190,8 +263,8 @@ def retry_pending(
     destination, no listing lookup is needed — the ad may not even be "new" any
     more by the time this runs.
 
-    Email is deliberately not retried here: the row stores one Telegram
-    destination, and re-deriving an address risks mailing the wrong person."""
+    Both channels are retried from their stored destination and rendered content;
+    no current alert or listing lookup is needed."""
     try:
         # Materialised inside the try: a handler that returns a cursor can fail
         # on iteration rather than on the call, and that must not abort the poll.
@@ -204,15 +277,103 @@ def retry_pending(
     logger.warning(f"↻ retrying {len(rows)} pending alert delivery(ies)")
     resent = 0
     for row in rows:
+        alert_id, key = row.get("alert_id"), row.get("url_hash")
         chat_id, message = row.get("chat_id"), row.get("message")
-        if not chat_id or not message or not token:
-            continue
-        sender = send_telegram or _default_telegram(token)
-        try:
-            if sender(chat_id, message):
-                handler.mark_delivery_sent(row.get("alert_id"), row.get("url_hash"))
+        new_fields = (
+            "email", "email_subject", "email_body", "telegram_sent", "email_sent"
+        )
+        legacy_telegram = not any(field in row for field in new_fields)
+        if legacy_telegram:
+            if not chat_id:
+                logger.error(
+                    f"❌ legacy alert delivery {alert_id}/{key} has no chat_id; "
+                    "leaving pending"
+                )
+                continue
+            if not message:
+                logger.error(
+                    f"❌ legacy alert delivery {alert_id}/{key} has no message; "
+                    "leaving pending"
+                )
+                continue
+            if not token or not _claim_pending_delivery_channel(
+                handler, alert_id, key, "telegram"
+            ):
+                continue
+            sender = send_telegram or _default_telegram(token)
+            try:
+                sent = bool(sender(chat_id, message))
+            except Exception as e:
+                _release_delivery_channel(handler, alert_id, key, "telegram")
+                logger.error(f"❌ retry failed for {chat_id}: {e}")
+                continue
+            if not sent:
+                _release_delivery_channel(handler, alert_id, key, "telegram")
+                continue
+            if _mark_delivery_channel_sent(
+                handler, alert_id, key, "telegram", legacy_telegram=True
+            ):
                 resent += 1
-        except Exception as e:
-            # Stays pending, gets picked up again next poll.
-            logger.error(f"❌ retry failed for {chat_id}: {e}")
+            else:
+                _release_delivery_channel(handler, alert_id, key, "telegram")
+            continue
+
+        if not all(field in row for field in new_fields):
+            logger.error(
+                f"❌ incomplete alert delivery {alert_id}/{key}; leaving pending"
+            )
+            continue
+
+        telegram_sent = bool(row["telegram_sent"])
+        email = row["email"]
+        email_subject = row["email_subject"]
+        email_body = row["email_body"]
+        email_sent = bool(row["email_sent"])
+        row_delivered = False
+
+        if chat_id and not telegram_sent:
+            if not message:
+                logger.error(f"❌ alert delivery {alert_id}/{key} has no Telegram message")
+            elif token and _claim_pending_delivery_channel(
+                handler, alert_id, key, "telegram"
+            ):
+                sender = send_telegram or _default_telegram(token)
+                try:
+                    sent = bool(sender(chat_id, message))
+                except Exception as e:
+                    _release_delivery_channel(handler, alert_id, key, "telegram")
+                    logger.error(f"❌ retry failed for {chat_id}: {e}")
+                else:
+                    if not sent:
+                        _release_delivery_channel(handler, alert_id, key, "telegram")
+                    elif _mark_delivery_channel_sent(
+                        handler, alert_id, key, "telegram"
+                    ):
+                        row_delivered = True
+                    else:
+                        _release_delivery_channel(handler, alert_id, key, "telegram")
+
+        if email and not email_sent:
+            if email_subject is None or email_body is None:
+                logger.error(
+                    f"❌ alert delivery {alert_id}/{key} has incomplete email payload"
+                )
+            elif _claim_pending_delivery_channel(handler, alert_id, key, "email"):
+                sender = send_email or _default_email_content()
+                try:
+                    sent = bool(sender(email, email_subject, email_body))
+                except Exception as e:
+                    _release_delivery_channel(handler, alert_id, key, "email")
+                    logger.error(f"❌ retry failed for {email}: {e}")
+                else:
+                    if not sent:
+                        _release_delivery_channel(handler, alert_id, key, "email")
+                    elif _mark_delivery_channel_sent(handler, alert_id, key, "email"):
+                        row_delivered = True
+                    else:
+                        _release_delivery_channel(handler, alert_id, key, "email")
+        if not chat_id and not email:
+            logger.error(f"❌ alert delivery {alert_id}/{key} has no configured channel")
+        if row_delivered:
+            resent += 1
     return resent

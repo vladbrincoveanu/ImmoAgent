@@ -3,23 +3,21 @@
 Direct test script for ViennaApartmentsLive channel
 """
 
-import json
 import os
+import sys
 
-def load_config():
-    """Load config from config.json"""
-    config_path = "config.json"
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            return json.load(f)
-    return None
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
+
+from Application.helpers.utils import load_config
 
 def test_vienna_channel():
     """Test the ViennaApartmentsLive channel setup"""
     print("🏠 Testing ViennaApartmentsLive Channel")
     print("=" * 50)
     
-    # Load config directly
+    # Load config through the shared environment-aware loader
     config = load_config()
     if not config:
         print("❌ Failed to load config")
@@ -27,18 +25,18 @@ def test_vienna_channel():
     
     # Check telegram configuration
     telegram_config = config.get('telegram', {})
-    main_config = telegram_config.get('telegram_main', {})
+    vienna_config = telegram_config.get('telegram_vienna', {})
     
-    bot_token = main_config.get('bot_token')
-    chat_id = main_config.get('chat_id')
+    bot_token = vienna_config.get('bot_token')
+    chat_id = vienna_config.get('chat_id')
     
     if not bot_token or not chat_id:
-        print("❌ Telegram main bot not configured")
+        print("❌ Vienna Telegram bot not configured")
         print("   Please run setup_vienna_channel.py first")
         return False
     
-    print(f"🤖 Bot token: {bot_token[:10]}...")
-    print(f"📱 Channel ID: {chat_id}")
+    print("🤖 Using configured Vienna bot token")
+    print("📱 Vienna destination: configured")
     print()
     
     # Test bot connection

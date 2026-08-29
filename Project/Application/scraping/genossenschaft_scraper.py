@@ -14,6 +14,10 @@ from bs4 import BeautifulSoup
 from Domain.listing import Listing
 from Domain.location import Coordinates
 from Domain.sources import Source
+from Application.scraping.field_extractors import (
+    extract_doppelmakler, extract_maklerprovision_pct, extract_sonderumlage_risk,
+    extract_seller_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +133,7 @@ def _bezirk_from(text: Optional[str]) -> Optional[str]:
     return m.group(1) if m else None
 
 
+# field_extractors coverage: street + info (thumb__heading/thumb__info) available
 def parse_oevw(html: str) -> List[Listing]:
     soup = BeautifulSoup(html, "html.parser")
     out: List[Listing] = []
@@ -146,10 +151,16 @@ def parse_oevw(html: str) -> List[Listing]:
         listing.area_m2 = _num(block, ".thumb__subheading__list li:nth-of-type(1)")
         listing.price_total = _num(block, ".thumb__subheading__list li:nth-of-type(2)")
         listing.rooms = _num(block, ".thumb__text__list li:nth-of-type(1)")
+        _combined = " ".join(filter(None, [street, info]))
+        listing.doppelmakler = extract_doppelmakler(_combined)
+        listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+        listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
+        listing.seller_type = extract_seller_type(_combined, is_genossenschaft=listing.is_genossenschaft)
         out.append(listing)
     return out
 
 
+# field_extractors coverage: title + address (p.uppercase/p.text-gray-700.pt-1) available
 def parse_familienwohnbau(html: str) -> List[Listing]:
     soup = BeautifulSoup(html, "html.parser")
     out: List[Listing] = []
@@ -171,10 +182,16 @@ def parse_familienwohnbau(html: str) -> List[Listing]:
         listing.area_m2 = area
         listing.rooms = rooms
         listing.price_total = _num(block, "p.text-primary")
+        _combined = " ".join(filter(None, [title, listing.address]))
+        listing.doppelmakler = extract_doppelmakler(_combined)
+        listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+        listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
+        listing.seller_type = extract_seller_type(_combined, is_genossenschaft=listing.is_genossenschaft)
         out.append(listing)
     return out
 
 
+# field_extractors coverage: row1 + title + address (meta_row_1/title/location) available
 def parse_bwsg(html: str) -> List[Listing]:
     soup = BeautifulSoup(html, "html.parser")
     out: List[Listing] = []
@@ -195,6 +212,11 @@ def parse_bwsg(html: str) -> List[Listing]:
         listing.area_m2 = area
         listing.rooms = rooms
         listing.price_total = _num(block, ".res_immobiliensuche__immobilien__item__content__meta__preis")
+        _combined = " ".join(filter(None, [row1, title, listing.address]))
+        listing.doppelmakler = extract_doppelmakler(_combined)
+        listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+        listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
+        listing.seller_type = extract_seller_type(_combined, is_genossenschaft=listing.is_genossenschaft)
         out.append(listing)
     return out
 
@@ -402,6 +424,8 @@ def _offer_url_map(html: str) -> dict:
     return out
 
 
+# field_extractors coverage: no free-text field, skip — mygewo units are structured
+# RPC/dict data (rooms, rent, capital, street, …) with no description-bearing text.
 def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
     """Map extracted mygewo unit dicts → Wien RENTAL Listings.
 
@@ -470,6 +494,7 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
     return out
 
 
+# field_extractors coverage: no free-text field, skip (see _units_to_listings)
 def parse_mygewo(html: str) -> List[Listing]:
     """Parse ONE server-rendered mygewo search page (page 0) into Wien rentals.
 

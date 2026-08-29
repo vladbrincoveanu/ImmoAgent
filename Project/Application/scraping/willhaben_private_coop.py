@@ -11,6 +11,10 @@ many. So each poll fetches the search feed once, and only spends detail fetches
 on URLs it has never seen before, capped per run. Classification then rides on
 that single detail fetch — `scrape_single_listing` already tags `coop_kind`.
 
+The external trigger runs every minute; GitHub-hosted notification delivery still
+takes roughly 2–3 minutes end to end because runner startup and delivery are on
+the critical path.
+
 Every dependency is injected, so the tests below run without touching the network.
 """
 import logging
@@ -32,9 +36,9 @@ WILLHABEN_PRIVATE_COOP_URL = os.environ.get(
     "?sfId=&rows=90&sort=1",
 )
 
-# Detail fetches per poll. At a 2-minute cadence this is ~25 requests every 2
-# minutes in the worst case, and in the steady state far fewer, because only
-# genuinely new URLs are fetched at all.
+# Detail fetches per poll. With the minutely external trigger this is at most ~25
+# requests per minute in the worst case, and in the steady state far fewer,
+# because only genuinely new URLs are fetched at all.
 MAX_DETAIL_FETCHES_PER_POLL = 25
 
 
