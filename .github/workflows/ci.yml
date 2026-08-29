@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python regression tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: Project/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Project/requirements.txt pytest pytest-asyncio
+          python -m pip check
+
+      - name: Compile Python sources
+        run: python -m compileall -q Project scripts tests
+
+      - name: Run deterministic regression tests
+        run: >-
+          python -m pytest -q --disable-warnings
+          tests/test_pr_agent_review_gate.py
+          tests/test_observability.py
+          tests/test_workflow_dependencies.py
+          tests/tests/test_coop_poll_window.py
+          Project/Tests/test_alert_dispatcher.py
+          Project/Tests/test_alert_matcher.py
+          Project/Tests/test_coop_channel_ledger.py
+          Project/Tests/test_run_coop.py
+
+  dashboard:
+    name: Dashboard tests and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run dashboard tests
+        run: npm test -- --runInBand
+
+      - name: Build dashboard
+        run: npm run build
