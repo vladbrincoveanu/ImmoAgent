@@ -1,0 +1,23 @@
+name: Free AI Code Review (DeepInfra)
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write # Allows the AI to post code review comments on the PR
+
+jobs:
+  pr_agent_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run PR Agent
+        uses: qodo-ai/pr-agent@main
+        env:
+          # Tell PR-Agent to talk to DeepInfra instead of OpenAI
+          OPENAI.API_BASE: "https://api.deepinfra.com/v1/openai"
+          OPENAI.API_KEY: ${{ secrets.DEEPINFRA_TOKEN }}
+          
+          # Pass the exact DeepSeek V4 Flash model from your curl command
+          CONFIG.MODEL: "deepseek-ai/DeepSeek-V4-Flash-0731"
