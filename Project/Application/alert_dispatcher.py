@@ -29,6 +29,7 @@ from typing import Callable, Optional
 from urllib.parse import urlparse
 
 from Application.alert_matcher import channels_for
+from Application.helpers.listing_validator import compute_xsrc_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_MAX_CHARS = 4096
 
 UNVERIFIED_PREFIX = "⚠️ Größe/Zimmer/Preis unbekannt — vor Ort prüfen\n"
+COOP_ALERT_KINDS = frozenset(("coop_private", "mygewo"))
 
 
 def is_sendable_url(url: Optional[str]) -> bool:
@@ -50,6 +52,18 @@ def is_sendable_url(url: Optional[str]) -> bool:
 def url_hash(url: str) -> str:
     """Stable per-ad key for the ledger, matching the project's dedup scheme."""
     return hashlib.sha256((url or "").encode("utf-8")).hexdigest()
+
+
+def _coop_delivery_fingerprint(alert, listing) -> Optional[str]:
+    """Return an xsrc key only for classified co-op alert deliveries."""
+    if ((alert or {}).get("kind") not in COOP_ALERT_KINDS
+            or not getattr(listing, "is_genossenschaft", False)):
+        return None
+    try:
+        return compute_xsrc_fingerprint(listing)
+    except Exception as e:
+        logger.warning(f"co-op delivery fingerprint failed; using URL key: {e}")
+        return None
 
 
 def _num(value, suffix: str = "") -> str:
@@ -191,8 +205,10 @@ def dispatch(
             f"alert delivery skipped, unusable url: {getattr(listing, 'url', None)!r}")
         return False
 
-    alert_id, key = alert.get("_id"), url_hash(listing.url)
     try:
+        alert_id = alert.get("_id")
+        fingerprint = _coop_delivery_fingerprint(alert, listing)
+        key = fingerprint or url_hash(listing.url)
         message = build_message(listing, unverified)
         email_subject = email_body = None
         if email:
@@ -207,7 +223,9 @@ def dispatch(
     # which the schema does not support.
     try:
         claimed = handler.claim_delivery(
-            alert_id, key, chat_id, message, email, email_subject, email_body
+            alert_id, key, chat_id, message, email, email_subject, email_body,
+            delivery_fingerprint=fingerprint,
+            legacy_delivery_url_hash=url_hash(listing.url) if fingerprint else None,
         )
     except Exception as e:
         logger.error(f"❌ alert {alert_id} claim failed: {e}")

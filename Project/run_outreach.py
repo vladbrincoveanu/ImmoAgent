@@ -54,6 +54,7 @@ def ensure_config_json_on_path():
 ensure_config_json_on_path()
 
 from Application.helpers.utils import load_config, smart_sleep
+from Application.observability import init_sentry
 from Application.helpers.listing_validator import filter_valid_listings
 from Application.outreach.contact_extractor import ContactExtractor, ContactType
 from Application.outreach.email_sender import EmailSender, OutreachMessage
@@ -132,6 +133,7 @@ def parse_cli_args() -> argparse.Namespace:
 
 def main():
     """Main function to run the outreach process."""
+    init_sentry()
     setup_logging()
     args = parse_cli_args()
     
@@ -422,5 +424,4 @@ Configuration:
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
-
 

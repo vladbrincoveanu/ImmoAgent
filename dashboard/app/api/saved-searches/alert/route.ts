@@ -15,8 +15,8 @@ interface SubscribeBody {
    * default so existing callers are unaffected. 'coop_private' additionally
    * requires the poller's private-transfer rubric (co-op marker AND handover
    * marker) — the keys alone are OR-ed and cannot express that. 'keyword' is the
-   * same feed with no rubric. */
-  kind?: 'listings' | 'coop_private' | 'keyword';
+   * same feed with no rubric. 'mygewo' watches builder-direct co-op rentals only. */
+  kind?: 'listings' | 'coop_private' | 'keyword' | 'mygewo';
   /** Free-text match for coop_private alerts, tested against title, address and
    * the ad body by the poller. */
   keyword?: string;
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = body.kind ?? 'listings';
-  if (!['listings', 'coop_private', 'keyword'].includes(kind)) {
+  if (!['listings', 'coop_private', 'keyword', 'mygewo'].includes(kind)) {
     return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
   }
   const keywords = cleanKeywords(body);

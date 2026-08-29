@@ -25,6 +25,7 @@ jobs:
       - name: Run Top5 script
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
           TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}
@@ -34,4 +35,3 @@ jobs:
         run: |
           python Project/run_top5.py --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220
           python Project/run_top5.py --buyer-profile=bank_loan_ready --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220
-

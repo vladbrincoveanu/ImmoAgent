@@ -19,6 +19,7 @@ import requests
 
 from Domain.listing import Listing
 from Domain.sources import Source
+from Application.observability import init_sentry
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
 from Application.alert_dispatcher import dispatch, retry_pending, url_hash
@@ -52,8 +53,8 @@ IMAGE_PROBE_V = 2
 
 # Feeds that user-created alerts watch. 'listings' is the legacy dashboard
 # modal's broad feed; 'coop_private' is the private-transfer rubric; 'keyword'
-# is the general feed created on /alerts.
-USER_ALERT_KINDS = ["listings", "coop_private", "keyword"]
+# is the general feed created on /alerts; 'mygewo' is builder-direct only.
+USER_ALERT_KINDS = ["listings", "coop_private", "keyword", "mygewo", None]
 # Legacy broad alerts are private user subscriptions, not permission to reopen
 # the broadcast co-op channels. Those channels remain governed by the explicit
 # co-op alert kinds only.
@@ -509,6 +510,7 @@ def run(no_send: bool = False) -> int:
 
 
 def main():
+    init_sentry()
     parser = argparse.ArgumentParser(description="Fast co-op poll → Telegram alerts")
     parser.add_argument("--no-send", "--dry-run", dest="no_send", action="store_true",
                         help="poll and upsert but skip Telegram sends "

@@ -111,7 +111,8 @@ class _LN:
     """Listing stub carrying the numeric fields the gates read."""
 
     def __init__(self, title=None, description=None,
-                 area_m2=None, rooms=None, price_total=None, coop_kind=None):
+                 area_m2=None, rooms=None, price_total=None, coop_kind=None,
+                 coop_source=None):
         self.title = title
         self.address = None
         self.bezirk = None
@@ -122,6 +123,7 @@ class _LN:
         # What the scraper concluded about the ad. None is the common case: most
         # of the newest-first feed is ordinary free-market rentals.
         self.coop_kind = coop_kind
+        self.coop_source = coop_source
 
 
 def _alert(**kw):
@@ -262,3 +264,20 @@ def test_other_kinds_see_the_whole_feed():
     plain = _LN(title="Dachgeschoss mit Terrasse")
     assert alert_matches(_alert(kind="keyword", keywords=["terrasse"]), plain) is True
     assert alert_matches(_alert(keywords=["terrasse"]), plain) is True
+
+
+def test_mygewo_matches_builder_direct_listing_without_keywords():
+    alert = _alert(kind="mygewo", keywords=[])
+    listing = _LN(
+        title="1100 Wien - 3 Zimmer",
+        coop_source="bautraeger_direct",
+    )
+
+    assert alert_matches(alert, listing) is True
+
+
+def test_mygewo_rejects_non_builder_direct_listing():
+    alert = _alert(kind="mygewo", keywords=[])
+
+    assert alert_matches(alert, _LN(coop_source="willhaben")) is False
+    assert alert_matches(alert, _LN(coop_source=None)) is False

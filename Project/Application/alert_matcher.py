@@ -5,7 +5,10 @@ and price gates, plus at least one channel (Telegram chat id, confirmed email,
 or both). The poller tests every newly seen ad against every active alert and
 returns the pairs to deliver.
 
-Three rules carry the design.
+Four rules carry the design.
+
+A `mygewo` alert is source-scoped: it means builder-direct units and therefore
+must never widen to an unclassified or Willhaben listing.
 
 A `coop_private` alert is rubric-gated first. That kind means "a co-op flat being
 passed on by its tenant", which is an AND of two markers and therefore not
@@ -79,17 +82,22 @@ def keyword_hit(alert: Dict, listing) -> bool:
 
 
 def rubric_hit(alert: Dict, listing) -> bool:
-    """True unless the alert asks for private co-op transfers and this is not one.
+    """Apply the source/rubric boundary required by the alert kind.
 
-    Keys are OR-ed, so they cannot express "a co-op AND a private handover" — a
-    list containing "Ablöse" matches every kitchen buyout on the feed. The
-    scraper already answers that question per ad (`extract_is_private_coop_transfer`
-    requires both a co-op marker and a transfer marker, and run_coop stamps
-    `coop_kind`), so a `coop_private` alert reuses that verdict as an AND term in
-    front of its keys.
+    `mygewo` is source-scoped to builder-direct units, so missing source metadata
+    fails closed rather than widening the alert to the mixed feed.
+
+    For `coop_private`, keys are OR-ed and cannot express "a co-op AND a private
+    handover" — a list containing "Ablöse" matches every kitchen buyout on the
+    feed. The scraper already answers that question per ad
+    (`extract_is_private_coop_transfer` requires both a co-op marker and a
+    transfer marker, and run_coop stamps `coop_kind`), so the alert reuses that
+    verdict as an AND term in front of its keys.
 
     Any other kind passes: the general feed is what 'keyword' and 'listings' are
     for."""
+    if alert.get("kind") == "mygewo":
+        return getattr(listing, "coop_source", None) == "bautraeger_direct"
     if alert.get("kind") != "coop_private":
         return True
     return getattr(listing, "coop_kind", None) == "private_transfer"

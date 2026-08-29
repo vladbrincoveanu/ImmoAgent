@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { normalizeAlertKeywords } from '@/lib/alert-test';
 
-/** Alert dashboard: create a keyword watch on the private-Weitergabe feed and
- * choose where hits land.
+/** Alert dashboard: create a watch on builder-direct MyGEWO rentals or the
+ * private-tenant handover feed, then choose where hits land.
  *
  * Client component because the whole page is a form with live feedback, and the
  * create/delete round trips need to update the list without a reload — a co-op
@@ -30,20 +30,6 @@ type Alert = {
 
 const inputCls =
   'rounded-lg border border-[#E8E4E0] bg-white px-3 py-2 text-sm text-[#2D2D2D]';
-
-/** Prefilled keys for the case the page exists for: a co-op flat being passed on
- * by the tenant sitting in it.
- *
- * German on purpose — these are matched against the ad text, not shown as UI
- * copy. Every term is a co-op marker that stands on its own, because keys are
- * OR-ed: adding "Ablöse" or "Nachmieter" here would widen the alert to every
- * kitchen buyout on the feed rather than narrow it. The handover half of the
- * question is answered by the private-transfer rubric below, not by a key. */
-const DEFAULT_KEYWORDS = [
-  'Genossenschaftswohnung', 'Genossenschaft', 'Genossenschaftsanteil',
-  'gemeinnützig', 'gefördert', 'Finanzierungsbeitrag', 'Eigenmittelanteil',
-  'Wohnbauförderung', 'Baurechtszins', 'Mietkauf',
-].join(', ');
 
 /** "Ablöse, Nachmieter , " → ["Ablöse", "Nachmieter"]. Split on the comma only:
  * a space is legitimate inside a key ("Nachmieter gesucht"). */
@@ -93,11 +79,10 @@ function describeFilters(f: Alert['filters']): string {
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [keyword, setKeyword] = useState(DEFAULT_KEYWORDS);
-  // Defaults on: an alert over the raw newest-first Wien rental feed is a
-  // firehose, and the co-op keys alone still let a "gefördert" free-market ad
-  // through. Clearing it is one click for someone who wants the wide feed.
-  const [privateOnly, setPrivateOnly] = useState(true);
+  const [keyword, setKeyword] = useState('');
+  // The default source is already scoped to builder-direct MyGEWO rentals. The
+  // checkbox opts into the separate private-tenant handover rubric.
+  const [privateOnly, setPrivateOnly] = useState(false);
   const [minArea, setMinArea] = useState('');
   const [maxArea, setMaxArea] = useState('');
   const [minRooms, setMinRooms] = useState('');
@@ -136,8 +121,9 @@ export default function AlertsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // 'coop_private' is the rubric-gated feed; 'keyword' is everything new.
-          kind: privateOnly ? 'coop_private' : 'keyword',
+          // 'mygewo' is all builder-direct units; the checkbox opts into the
+          // rubric-gated private-tenant handover feed.
+          kind: privateOnly ? 'coop_private' : 'mygewo',
           keywords: parseKeywords(keyword),
           filters: {
             min_area: num(minArea), max_area: num(maxArea),
@@ -152,9 +138,7 @@ export default function AlertsPage() {
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         setStatus(json.message ?? 'Alert created.');
-        // Back to the default rather than blank: the next alert is almost always
-        // a variation on the same co-op watch, not a search for nothing.
-        setKeyword(DEFAULT_KEYWORDS);
+        setKeyword('');
         setMinArea('');
         setMaxArea('');
         setMinRooms('');
@@ -227,7 +211,7 @@ export default function AlertsPage() {
     <main className="mx-auto max-w-2xl px-4 py-8" data-testid="alerts-page">
       <h1 className="text-2xl font-bold text-[#3D405B]">Alerts</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
-        Keyword alerts on newly posted ads. cron-job.org triggers the poll every minute;
+        Alerts on newly posted co-op ads. cron-job.org triggers the poll every minute;
         expect 2–3&nbsp;min from the ad going live to a Telegram or email notification.
       </p>
 
@@ -246,10 +230,9 @@ export default function AlertsPage() {
           className={`${inputCls} w-full`}
         />
         <p className="text-xs text-[#6B6B6B]">
-          One hit is enough: you are notified as soon as ANY of the keywords
-          appears in the title or the ad text. Keywords match the German ad text,
-          so German terms work best — the defaults are the co-op wording. Leave
-          it empty to get every new ad.
+          Keywords are optional narrowing filters and one hit is enough: you are
+          notified as soon as ANY keyword appears in the title or ad text. Leave
+          this empty to get every unit in the selected feed.
         </p>
 
         <label className="flex items-start gap-2 text-sm text-[#2D2D2D]">
@@ -261,12 +244,13 @@ export default function AlertsPage() {
             className="mt-0.5"
           />
           <span>
-            Co-op passed on by a private tenant only
+            Private tenant handover only
             <span className="block text-xs text-[#6B6B6B]">
               Requires both a co-op marker and a handover marker (Weitergabe,
               Nachmieter, Ablöse) in the same ad. Keywords alone cannot do this —
               they are OR-ed, so &ldquo;Ablöse&rdquo; on its own would let every
-              kitchen buyout through. Uncheck to watch the whole new-rentals feed.
+              kitchen buyout through. Leave unchecked to watch all new
+              builder-direct MyGEWO rentals.
             </span>
           </span>
         </label>

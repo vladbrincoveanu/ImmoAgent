@@ -655,22 +655,38 @@ class TestDeliverUserAlerts(unittest.TestCase):
         h.stale_pending_deliveries.return_value = []
         return h
 
-    @patch("Integration.telegram_bot.TelegramBot")
-    def test_legacy_listings_alert_created_by_dashboard_is_delivered(self, TB):
-        """The legacy dashboard modal stores kind='listings'; keep polling it."""
-        TB.return_value.send_message.return_value = True
-        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
-        alert = {"_id": "a", "kind": "listings", "keyword": "1100",
-                 "telegram_chat_id": "-100", "confirmed": True}
+    @patch("Application.alert_email.send_alert_email", return_value=True)
+    def test_legacy_listings_alert_without_kind_is_delivered(self, mail):
+        """The pre-kind dashboard alert shape remains deliverable by email."""
+        alert = {"_id": "a", "params": {"district": "1100", "frequency": "daily"},
+                 "frequency": "daily", "confirmed": True,
+                 "email": "legacy@example.at"}
         handler = self._handler([])
         handler.get_active_alerts.side_effect = (
-            lambda kinds: [alert] if "listings" in kinds else [])
+            lambda kinds: [alert] if None in kinds else [])
         listing = _l(url="https://willhaben.at/x")
         listing.title = "Wohnung 1100 Wien"
 
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
         handler.get_active_alerts.assert_called_once_with(
-            ["listings", "coop_private", "keyword"])
+            ["listings", "coop_private", "keyword", "mygewo", None])
+        mail.assert_called_once()
+
+    @patch("Integration.telegram_bot.TelegramBot")
+    def test_mygewo_alert_with_empty_keywords_delivers_builder_direct_listing(self, TB):
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        alert = {"_id": "mygewo", "kind": "mygewo", "keywords": [],
+                 "telegram_chat_id": "-100", "confirmed": True}
+        handler = self._handler([])
+        handler.get_active_alerts.side_effect = (
+            lambda kinds: [alert] if "mygewo" in kinds else [])
+        listing = _l(url="https://mygewo.at/angebot/1",
+                     coop_source="bautraeger_direct")
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        handler.get_active_alerts.assert_called_once_with(
+            ["listings", "coop_private", "keyword", "mygewo", None])
         TB.assert_called_once_with("tok", "-100")
 
     @patch("Integration.telegram_bot.TelegramBot")

@@ -25,6 +25,7 @@ jobs:
       - name: Run Outreach Script
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}

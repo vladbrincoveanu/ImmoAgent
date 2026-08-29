@@ -16,7 +16,7 @@ import pymongo
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from Application.alert_dispatcher import (  # noqa: E402
-    UNVERIFIED_PREFIX, dispatch, retry_pending,
+    UNVERIFIED_PREFIX, dispatch, retry_pending, url_hash,
 )
 from Application.alert_email import build_alert_email  # noqa: E402
 from Integration.mongodb_handler import MongoDBHandler  # noqa: E402
@@ -37,6 +37,8 @@ class _L:
         self.image_url = None
         self.builder_url = None
         self.coop_kind = "private_transfer"
+        self.is_genossenschaft = False
+        self.coop_source = None
         self.bautraeger = None
         self.total_monthly_cost = None
 
@@ -51,7 +53,8 @@ class _Handler:
         self.mark_results = {}
 
     def claim_delivery(self, alert_id, url_hash, chat_id=None, message=None,
-                       email=None, email_subject=None, email_body=None):
+                       email=None, email_subject=None, email_body=None,
+                       delivery_fingerprint=None, legacy_delivery_url_hash=None):
         key = (alert_id, url_hash)
         if key in self.rows:
             return False
@@ -130,6 +133,84 @@ def test_second_dispatch_of_same_pair_sends_nothing():
     dispatch(_ALERT, listing, False, handler, token="t", send_telegram=send)
     dispatch(_ALERT, listing, False, handler, token="t", send_telegram=send)
     assert len(sent) == 1
+
+
+def test_same_coop_unit_under_multiple_urls_is_sent_once():
+    handler, sent = _Handler(), []
+    alert = {**_ALERT, "kind": "coop_private"}
+    listings = []
+    for index in range(4):
+        listing = _L(
+            url=f"https://www.willhaben.at/iad/immobilien/d/mietwohnungen/wien/wien-1100-favoriten/test-{index}/",
+            area_m2=70,
+            rooms=3,
+        )
+        listing.bautraeger = "ÖVW"
+        listing.address = "Musterstraße 1, 1100 Wien"
+        listing.is_genossenschaft = True
+        listing.coop_source = "willhaben"
+        listings.append(listing)
+
+    for listing in listings:
+        dispatch(
+            alert,
+            listing,
+            False,
+            handler,
+            token="t",
+            send_telegram=lambda chat, msg: sent.append((chat, msg)) or True,
+        )
+
+    assert len(sent) == 1
+    assert len(handler.rows) == 1
+
+
+def test_general_alert_keeps_distinct_urls_distinct():
+    handler, sent = _Handler(), []
+    alert = {**_ALERT, "kind": "keyword"}
+    listings = []
+    for index in range(4):
+        listing = _L(
+            url=f"https://www.willhaben.at/iad/immobilien/d/mietwohnungen/wien/wien-1100-favoriten/general-{index}/",
+            area_m2=70,
+            rooms=3,
+        )
+        listing.bautraeger = "ÖVW"
+        listing.address = "Musterstraße 1, 1100 Wien"
+        listings.append(listing)
+
+    for listing in listings:
+        dispatch(
+            alert,
+            listing,
+            False,
+            handler,
+            token="t",
+            send_telegram=lambda chat, msg: sent.append((chat, msg)) or True,
+        )
+
+    assert len(sent) == 4
+    assert len(handler.rows) == 4
+
+
+def test_coop_alert_with_malformed_fingerprint_fields_falls_back_to_url():
+    handler, sent = _Handler(), []
+    listing = _L(area_m2="unknown")
+    listing.bautraeger = "ÖVW"
+    listing.address = "Musterstraße 1, 1100 Wien"
+    listing.is_genossenschaft = True
+    listing.coop_source = "willhaben"
+
+    assert dispatch(
+        {**_ALERT, "kind": "coop_private"},
+        listing,
+        False,
+        handler,
+        token="t",
+        send_telegram=lambda chat, msg: sent.append((chat, msg)) or True,
+    ) is True
+    assert len(sent) == 1
+    assert len(handler.rows) == 1
 
 
 def test_different_alerts_each_get_the_same_listing():
@@ -382,6 +463,85 @@ def test_mongo_claim_duplicate_is_distinct_from_operational_failure(caplog):
     with caplog.at_level(logging.ERROR):
         assert handler.claim_delivery("a", "h") is False
     assert "delivery claim failed" in caplog.text
+
+
+def test_mongo_claim_rejects_new_xsrc_key_when_legacy_url_row_exists():
+    legacy_url = "https://www.willhaben.at/legacy-unit"
+    fingerprint = "xsrc-fingerprint"
+
+    class _Listings:
+        def __init__(self):
+            self.query = None
+
+        def find(self, query):
+            self.query = query
+            return [{"url": legacy_url}]
+
+    class _Deliveries:
+        def __init__(self):
+            self.find_query = None
+            self.inserted = []
+
+        def find_one(self, query):
+            self.find_query = query
+            return {"alert_id": "a", "url_hash": "legacy-hash"}
+
+        def insert_one(self, document):
+            self.inserted.append(document)
+
+    listings = _Listings()
+    deliveries = _Deliveries()
+    handler = object.__new__(MongoDBHandler)
+    handler.collection = listings
+    handler.db = {"alert_deliveries": deliveries}
+
+    assert handler.claim_delivery(
+        "a", fingerprint, delivery_fingerprint=fingerprint
+    ) is False
+    assert listings.query == {"content_fingerprint_xsrc": fingerprint}
+    assert deliveries.find_query == {
+        "alert_id": "a",
+        "url_hash": {
+            "$in": [url_hash(legacy_url)]
+        },
+    }
+    assert deliveries.inserted == []
+
+
+def test_mongo_claim_checks_current_url_when_legacy_listing_is_unindexed():
+    legacy_url = "https://www.willhaben.at/unindexed-legacy-unit"
+    fingerprint = "xsrc-fingerprint"
+
+    class _Listings:
+        def find(self, query):
+            return []
+
+    class _Deliveries:
+        def __init__(self):
+            self.find_query = None
+
+        def find_one(self, query):
+            self.find_query = query
+            return {"alert_id": "a", "url_hash": "legacy-hash"}
+
+        def insert_one(self, document):
+            raise AssertionError("legacy delivery should block the new claim")
+
+    deliveries = _Deliveries()
+    handler = object.__new__(MongoDBHandler)
+    handler.collection = _Listings()
+    handler.db = {"alert_deliveries": deliveries}
+
+    assert handler.claim_delivery(
+        "a",
+        fingerprint,
+        delivery_fingerprint=fingerprint,
+        legacy_delivery_url_hash=url_hash(legacy_url),
+    ) is False
+    assert deliveries.find_query == {
+        "alert_id": "a",
+        "url_hash": {"$in": [url_hash(legacy_url)]},
+    }
 
 
 def test_mongo_delivery_index_fails_closed(caplog):

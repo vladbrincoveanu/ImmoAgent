@@ -8,3 +8,4 @@ certifi>=2023.7.22
 # unconditionally builds a StructuredAnalyzer, which imports pydantic — not
 # optional despite the "no scoring" docstring above.
 pydantic>=2.13.4
+sentry-sdk>=2.0.0

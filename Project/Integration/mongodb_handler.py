@@ -1,3 +1,4 @@
+import hashlib
 import pymongo
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
@@ -685,8 +686,12 @@ class MongoDBHandler:
     def get_active_alerts(self, kind) -> List[Dict]:
         """Alert subscriptions with at least one usable delivery channel.
 
-        `kind` is a string or a list of strings — the poller watches both the
-        legacy 'coop_private' feed and the newer 'keyword' feed in one query.
+        `kind` accepts a string or a list of kinds. A list containing `None` is
+        intentional: through the existing MongoDB `$in` query, it also matches
+        legacy subscriptions whose `kind` field is missing or null.
+
+        The poller watches both the legacy 'coop_private' feed and the newer
+        'keyword' feed in one query.
 
         Unconfirmed email-only subscriptions are excluded: anyone can type
         someone else's address into the form, so an unconfirmed one must never be
@@ -749,12 +754,26 @@ class MongoDBHandler:
             logger.error(f"Unexpected delivery index setup failure: {e}")
             return False
 
+    def _legacy_delivery_url_hashes(self, fingerprint: str) -> List[str]:
+        """Find URL keys stored before co-op deliveries gained xsrc keys."""
+        if self.collection is None:
+            return []
+        hashes = []
+        for listing in self.collection.find(
+                {"content_fingerprint_xsrc": fingerprint}):
+            url = listing.get("url")
+            if isinstance(url, str) and url:
+                hashes.append(hashlib.sha256(url.encode("utf-8")).hexdigest())
+        return hashes
+
     def claim_delivery(self, alert_id, url_hash: str,
                        chat_id: Optional[str] = None,
                        message: Optional[str] = None,
                        email: Optional[str] = None,
                        email_subject: Optional[str] = None,
-                       email_body: Optional[str] = None) -> bool:
+                       email_body: Optional[str] = None,
+                       delivery_fingerprint: Optional[str] = None,
+                       legacy_delivery_url_hash: Optional[str] = None) -> bool:
         """Take ownership of one (alert, ad) delivery. True if we now own it.
 
         False means another poll already claimed it — including a poll that
@@ -767,8 +786,24 @@ class MongoDBHandler:
         url_hash -> listing reverse lookup that this schema does not support.
         Email content is stored for the same reason. An unconfigured channel is
         marked sent at claim time so a row becomes sent only after every
-        configured channel succeeds."""
+        configured channel succeeds. When ``delivery_fingerprint`` is present,
+        existing URL-keyed rows for the canonical listing are also treated as
+        claimed during the key transition. ``legacy_delivery_url_hash`` covers
+        a current URL whose listing row has not been indexed yet."""
         try:
+            legacy_hashes = ([legacy_delivery_url_hash]
+                             if legacy_delivery_url_hash else [])
+            if delivery_fingerprint:
+                for legacy_hash in self._legacy_delivery_url_hashes(
+                        delivery_fingerprint):
+                    if legacy_hash not in legacy_hashes:
+                        legacy_hashes.append(legacy_hash)
+            if legacy_hashes:
+                if self.db["alert_deliveries"].find_one({
+                    "alert_id": alert_id,
+                    "url_hash": {"$in": legacy_hashes},
+                }):
+                    return False
             self.db["alert_deliveries"].insert_one({
                 "alert_id": alert_id,
                 "url_hash": url_hash,

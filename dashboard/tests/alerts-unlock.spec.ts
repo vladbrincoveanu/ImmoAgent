@@ -57,18 +57,15 @@ test('the real create endpoint no longer answers 402', async ({ request }) => {
   expect(res.status()).not.toBe(402);
 });
 
-test('the keyword field is prefilled with the co-op vocabulary', async ({ page }) => {
+test('the keyword field defaults to every builder-direct MyGEWO unit', async ({ page }) => {
   await stubAlerts(page);
   await page.goto('/alerts');
   const keywords = page.getByTestId('alert-keywords');
-  await expect(keywords).toHaveValue(/Genossenschaftswohnung/);
-  await expect(keywords).toHaveValue(/Finanzierungsbeitrag/);
-  // Handover words must NOT be defaults: keys are OR-ed, so "Ablöse" alone
-  // would widen the alert to every kitchen buyout on the feed.
-  await expect(keywords).not.toHaveValue(/Ablöse/);
+  await expect(keywords).toHaveValue('');
+  await expect(page.getByTestId('alert-private-only')).not.toBeChecked();
 });
 
-test('the private-handover rubric is on by default and can be turned off',
+test('the all-MyGEWO feed is the default and can be submitted directly',
   async ({ page }) => {
     let posted: { kind?: string } | null = null;
     await page.route(ALERT_API, (route) => {
@@ -86,13 +83,12 @@ test('the private-handover rubric is on by default and can be turned off',
     });
 
     await page.goto('/alerts');
-    await expect(page.getByTestId('alert-private-only')).toBeChecked();
+    await expect(page.getByTestId('alert-private-only')).not.toBeChecked();
 
-    await page.getByTestId('alert-private-only').uncheck();
     await page.getByTestId('alert-chatid').fill('-100123456');
     await page.getByTestId('alert-submit').click();
 
-    // Unchecked means the wide feed, which is the only way to watch ads that
-    // are not co-op handovers.
-    await expect.poll(() => posted?.kind).toBe('keyword');
+    // Unchecked means all builder-direct MyGEWO rentals; checking the box opts
+    // into the separate private-handover rubric.
+    await expect.poll(() => posted?.kind).toBe('mygewo');
   });

@@ -84,6 +84,7 @@ jobs:
         working-directory: Project
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_COOP_CHANNEL_ID: ${{ secrets.TELEGRAM_COOP_CHANNEL_ID }}
           # Separate channel for private Ablöse hits — see Application/coop_alert_router.py
