@@ -41,6 +41,7 @@ export function privateCoopQuery(): Document {
   return {
     coop_kind: 'private_transfer',
     url_is_valid: { $ne: false },
+    listing_status: { $ne: 'taken' },
     bezirk: { $regex: '^1\\d{3}$' },
     $or: [{ area_m2: null }, { area_m2: { $gte: MIN_LIVABLE_AREA_M2 } }],
   };
@@ -50,6 +51,7 @@ export function coopBaseQuery(): Document {
   return {
     is_genossenschaft: true,
     url_is_valid: { $ne: false },
+    listing_status: { $ne: 'taken' },
     coop_source: { $ne: 'willhaben' },
     buyable: false,
     bezirk: { $regex: '^1\\d{3}$' },
