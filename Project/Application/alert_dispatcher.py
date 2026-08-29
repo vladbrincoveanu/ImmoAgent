@@ -204,13 +204,20 @@ def dispatch(
             f"alert delivery skipped, unusable url: {getattr(listing, 'url', None)!r}")
         return False
     validation_cache = url_validation_cache if url_validation_cache is not None else {}
-    if listing.url not in validation_cache:
+    if listing.url in validation_cache:
+        url_is_valid = validation_cache[listing.url]
+    else:
         try:
-            validation_cache[listing.url] = bool(validate_url(listing.url))
+            url_is_valid = bool(validate_url(listing.url))
+            # A successful check is safe to reuse within this poll. Do not cache
+            # failures: a transient validator/network error must not suppress
+            # every later alert for the same URL in the same batch.
+            if url_is_valid:
+                validation_cache[listing.url] = True
         except Exception as e:
             logger.warning(f"alert delivery URL validation failed: {e}")
-            validation_cache[listing.url] = False
-    if not validation_cache[listing.url]:
+            url_is_valid = False
+    if not url_is_valid:
         logger.warning(f"alert delivery skipped, URL failed validation: {listing.url!r}")
         return False
 

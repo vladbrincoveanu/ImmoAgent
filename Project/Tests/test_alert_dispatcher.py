@@ -256,6 +256,27 @@ def test_alert_batch_validates_a_shared_url_once(monkeypatch):
     assert calls == [_L().url]
 
 
+def test_alert_batch_retries_a_failed_url_validation(monkeypatch):
+    handler = _Handler()
+    validation_results = iter([False, True])
+    calls = []
+
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.validate_url",
+        lambda url: calls.append(url) or next(validation_results),
+    )
+    cache = {}
+    listing = _L()
+
+    assert dispatch(_ALERT, listing, False, handler, token="t",
+                    send_telegram=lambda chat, message: True,
+                    url_validation_cache=cache) is False
+    assert dispatch({**_ALERT, "_id": "a2"}, listing, False, handler, token="t",
+                    send_telegram=lambda chat, message: True,
+                    url_validation_cache=cache) is True
+    assert calls == [listing.url, listing.url]
+
+
 def test_alert_with_no_channel_claims_nothing():
     handler = _Handler()
     silent = {**_ALERT, "telegram_chat_id": None, "email": None}
