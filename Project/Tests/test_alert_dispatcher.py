@@ -344,6 +344,29 @@ def test_invalid_builder_url_is_never_sent(monkeypatch):
     assert handler.rows == {}
 
 
+def test_invalid_builder_url_does_not_blame_valid_canonical_url(monkeypatch):
+    handler = _Handler()
+    listing = _L()
+    listing.builder_url = "https://builder.example/offer/123"
+    validation_failures = {listing.url}
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.validate_url",
+        lambda url: url == listing.url,
+    )
+
+    assert dispatch(
+        _ALERT,
+        listing,
+        False,
+        handler,
+        token="t",
+        send_telegram=lambda chat, message: True,
+        validation_failures=validation_failures,
+    ) is False
+    assert listing.url not in validation_failures
+    assert handler.rows == {}
+
+
 def test_fingerprint_failure_defers_coop_delivery(monkeypatch):
     handler = _Handler()
     listing = _L()
