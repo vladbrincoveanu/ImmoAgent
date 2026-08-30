@@ -30,6 +30,8 @@ from Application.scraping.field_extractors import (
     extract_is_private_coop_transfer, extract_seller_type,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _is_blocked_page(content: str) -> Tuple[bool, str]:
     """Detect if page shows captcha, challenge, or access denied"""

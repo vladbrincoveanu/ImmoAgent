@@ -265,6 +265,38 @@ class TestSendOnce(unittest.TestCase):
 class TestChannelFilter(unittest.TestCase):
     """D6/D7: the channel carries what live alerts ask for, strictly."""
 
+    def test_legacy_listings_alert_does_not_govern_coop_channel(self):
+        """Legacy dashboard alerts deliver privately, not to broadcast feeds."""
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[{
+            "_id": "legacy", "kind": "listings", "telegram_chat_id": "-100",
+        }])
+        handler.get_alert_subscriptions.side_effect = (
+            lambda kinds: [{
+                "_id": "legacy", "kind": "listings", "telegram_chat_id": "-100",
+            }] if "listings" in kinds else [])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
+        handler.get_alert_subscriptions.assert_called_once_with(
+            ["coop_private", "keyword"])
+
+    def test_mygewo_alert_does_not_govern_coop_channel(self):
+        alert = {"_id": "mygewo", "kind": "mygewo", "telegram_chat_id": "-100"}
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[alert])
+        handler.get_alert_subscriptions.side_effect = (
+            lambda kinds: [alert] if "mygewo" in kinds else [])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
+        handler.get_alert_subscriptions.assert_called_once_with(
+            ["coop_private", "keyword"])
+
     def test_zero_active_alerts_sends_nothing_and_warns(self):
         """Behaviour change from "send everything" — it must be loud."""
         ledger = FakeLedger()

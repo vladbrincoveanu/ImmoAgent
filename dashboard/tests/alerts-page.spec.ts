@@ -52,6 +52,35 @@ test('alerts page renders the create form with every filter', async ({ page }) =
   await expect(page.getByTestId('alert-submit')).toBeVisible();
 });
 
+test('defaults to all builder-direct MyGEWO rentals', async ({ page }) => {
+  let posted: Record<string, unknown> | null = null;
+  await page.route(ALERT_API, async (route) => {
+    if (route.request().method() === 'POST') {
+      posted = route.request().postDataJSON() as Record<string, unknown>;
+      return route.fulfill({
+        status: 201, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'Alert created.' }),
+      });
+    }
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [] }),
+    });
+  });
+
+  await page.goto('/alerts');
+  await expect(page.getByTestId('alert-private-only')).not.toBeChecked();
+  await expect(page.getByTestId('alert-keywords')).toHaveValue('');
+  await page.getByTestId('alert-chatid').fill('-100123456');
+  await page.getByTestId('alert-submit').click();
+
+  await expect(page.getByTestId('alert-status')).toBeVisible();
+  expect(posted).toEqual(expect.objectContaining({
+    kind: 'mygewo',
+    keywords: [],
+  }));
+});
+
 test('the page states the real end-to-end latency, not an unverified number',
   async ({ page }) => {
     await page.goto('/alerts');
@@ -100,6 +129,7 @@ test('keywords are sent as an array and blank filters stay undefined',
     await page.getByTestId('alert-min-area').fill('60');
     await page.getByTestId('alert-max-price').fill('900');
     await page.getByTestId('alert-chatid').fill('-100123456');
+    await page.getByTestId('alert-private-only').check();
     await page.getByTestId('alert-submit').click();
 
     await expect(page.getByTestId('alert-status')).toBeVisible();
@@ -111,8 +141,8 @@ test('keywords are sent as an array and blank filters stay undefined',
     expect(body).not.toBeNull();
     // Trailing empties dropped, not sent as blank strings.
     expect(body.keywords).toEqual(['Ablöse', 'Nachmieter']);
-    // The private-handover box is on by default, so the alert lands on the
-    // rubric-gated feed rather than the whole newest-first stream.
+    // Explicitly selecting private-only sends the alert to the rubric-gated
+    // feed rather than the all-MyGEWO default.
     expect(body.kind).toBe('coop_private');
     expect(body.filters.min_area).toBe(60);
     expect(body.filters.max_price).toBe(900);

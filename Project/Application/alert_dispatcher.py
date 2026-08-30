@@ -9,26 +9,25 @@ The ledger fixes both halves. `claim_delivery` is atomic, so concurrent polls
 cannot double-send. A claimed row that is never marked sent is a visible record
 of a failed delivery, and `retry_pending` picks it up on the next poll.
 
-Every sender is injected so the tests run without network or Mongo.
+Every sender and URL validator is injected through module-level seams so the
+tests run without network or Mongo.
 
 ## Note on URL validation
 
 Project rule 2 requires `listing_validator.validate_url` before anything is
-displayed or sent. That function performs a live GET of up to 50KB. Running it
-here would put a second network round trip on the critical path of a
-first-come-first-served alert, and would re-fetch a page the poller downloaded
-successfully seconds earlier — `scrape_single_listing` only returns a Listing
-after a 200. So this module does a structural check instead, and the expensive
-liveness check stays where it already runs, in the scrape path. A dead URL
-cannot reach here without also having been alive one poll earlier.
+displayed or sent. Dispatch keeps the cheap structural check as a fast reject,
+then performs the live validation immediately before claiming a delivery. This
+also protects listings that enter the alert path from a source other than the
+full scrape pipeline.
 """
-import hashlib
 import html
 import logging
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 from urllib.parse import urlparse
 
 from Application.alert_matcher import channels_for
+from Application.helpers.listing_validator import compute_xsrc_fingerprint, validate_url
+from Application.helpers.url_hash import url_hash
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +36,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_MAX_CHARS = 4096
 
 UNVERIFIED_PREFIX = "⚠️ Größe/Zimmer/Preis unbekannt — vor Ort prüfen\n"
+COOP_ALERT_KINDS = frozenset(("coop_private", "mygewo"))
 
 
 def is_sendable_url(url: Optional[str]) -> bool:
@@ -47,9 +47,33 @@ def is_sendable_url(url: Optional[str]) -> bool:
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
-def url_hash(url: str) -> str:
-    """Stable per-ad key for the ledger, matching the project's dedup scheme."""
-    return hashlib.sha256((url or "").encode("utf-8")).hexdigest()
+def _validate_url_once(url: str, validation_cache: Dict[str, bool]) -> bool:
+    """Live-validate a URL, reusing only successful checks in this poll."""
+    if url in validation_cache:
+        return validation_cache[url]
+    try:
+        url_is_valid = bool(validate_url(url))
+    except Exception as e:
+        logger.warning(f"alert delivery URL validation failed: {e}")
+        return False
+    # A transient failure must not suppress every later alert for this URL in
+    # the same batch, but a successful check is safe to reuse.
+    if url_is_valid:
+        validation_cache[url] = True
+    return url_is_valid
+
+
+def _coop_delivery_fingerprint(alert, listing) -> Optional[str]:
+    """Return an xsrc key only for classified co-op alert deliveries."""
+    if ((alert or {}).get("kind") not in COOP_ALERT_KINDS
+            or not getattr(listing, "is_genossenschaft", False)):
+        return None
+    # Let dispatch catch computation failures and defer this delivery. Falling
+    # back to a URL key after an exception can duplicate a unit that was claimed
+    # earlier under its stable xsrc fingerprint. A deliberate None from the
+    # helper still means the record lacks a safe cross-source key and may use
+    # the legacy URL key for compatibility.
+    return compute_xsrc_fingerprint(listing)
 
 
 def _num(value, suffix: str = "") -> str:
@@ -177,6 +201,8 @@ def dispatch(
     token: Optional[str],
     send_telegram: Optional[Callable[[str, str], bool]] = None,
     send_email: Optional[Callable[[str, object], bool]] = None,
+    url_validation_cache: Optional[Dict[str, bool]] = None,
+    validation_failures: Optional[set[str]] = None,
 ) -> bool:
     """Deliver one pair. True only when something was actually sent.
 
@@ -186,13 +212,35 @@ def dispatch(
     if not chat_id and not email:
         return False
 
-    if not is_sendable_url(getattr(listing, "url", None)):
+    canonical_url = getattr(listing, "url", None)
+    if not is_sendable_url(canonical_url):
         logger.warning(
-            f"alert delivery skipped, unusable url: {getattr(listing, 'url', None)!r}")
+            f"alert delivery skipped, unusable url: {canonical_url!r}")
+        return False
+    validation_cache = url_validation_cache if url_validation_cache is not None else {}
+    if not _validate_url_once(canonical_url, validation_cache):
+        logger.warning(f"alert delivery skipped, URL failed validation: {canonical_url!r}")
+        if validation_failures is not None:
+            validation_failures.add(canonical_url)
+        return False
+    if validation_failures is not None:
+        validation_failures.discard(canonical_url)
+
+    # MyGEWO alerts may display the builder's reservation page instead of the
+    # canonical aggregator URL. Validate that URL too: Rule 2 applies to the
+    # exact link placed in the Telegram message, not only to the ledger key.
+    display_url = getattr(listing, "builder_url", None) or canonical_url
+    if not is_sendable_url(display_url):
+        logger.warning(f"alert delivery skipped, unusable display URL: {display_url!r}")
+        return False
+    if display_url != canonical_url and not _validate_url_once(display_url, validation_cache):
+        logger.warning(f"alert delivery skipped, display URL failed validation: {display_url!r}")
         return False
 
-    alert_id, key = alert.get("_id"), url_hash(listing.url)
     try:
+        alert_id = alert.get("_id")
+        fingerprint = _coop_delivery_fingerprint(alert, listing)
+        key = fingerprint or url_hash(listing.url)
         message = build_message(listing, unverified)
         email_subject = email_body = None
         if email:
@@ -200,14 +248,16 @@ def dispatch(
 
             email_subject, email_body = build_alert_email(listing, unverified)
     except Exception as e:
-        logger.error(f"❌ alert {alert_id} payload rendering failed: {e}")
+        logger.error(f"❌ alert {alert_id} payload/fingerprint preparation failed: {e}")
         return False
     # The message and destination go onto the claim row BEFORE the send. That is
     # what makes retry possible without a url_hash -> listing reverse lookup,
     # which the schema does not support.
     try:
         claimed = handler.claim_delivery(
-            alert_id, key, chat_id, message, email, email_subject, email_body
+            alert_id, key, chat_id, message, email, email_subject, email_body,
+            delivery_fingerprint=fingerprint,
+            legacy_delivery_url_hash=url_hash(listing.url) if fingerprint else None,
         )
     except Exception as e:
         logger.error(f"❌ alert {alert_id} claim failed: {e}")

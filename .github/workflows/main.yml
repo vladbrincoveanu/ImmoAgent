@@ -12,12 +12,40 @@ jobs:
   pr_agent_job:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout quality gate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
       - name: Run PR Agent
-        uses: qodo-ai/pr-agent@main
+        id: pr_agent
+        uses: qodo-ai/pr-agent@43276f98607d03459d40dc92632599faae2078c4 # main
         env:
-          # Tell PR-Agent to talk to DeepInfra instead of OpenAI
-          OPENAI.API_BASE: "https://api.deepinfra.com/v1/openai"
-          OPENAI.API_KEY: ${{ secrets.DEEPINFRA_TOKEN }}
-          
-          # Pass the exact DeepSeek V4 Flash model from your curl command
-          CONFIG.MODEL: "deepseek-ai/DeepSeek-V4-Flash-0731"
+          # GitHub supplies this short-lived token; PR-Agent uses it to access the PR API.
+          GITHUB_TOKEN: ${{ github.token }}
+
+          # PR-Agent maps this setting to LiteLLM's DEEPINFRA_API_KEY.
+          DEEPINFRA.KEY: ${{ secrets.DEEPINFRA_TOKEN }}
+
+          # LiteLLM requires the provider prefix for native DeepInfra routing.
+          CONFIG.MODEL: "deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731"
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "32000"
+          CONFIG.FALLBACK_MODELS: '["deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731"]'
+          CONFIG.PROPAGATE_TOOL_ERRORS: "true"
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: >-
+            Prefix every key_issues_to_review issue_header with exactly one
+            severity token: [critical], [high], [medium], or [low]. Use high or
+            critical only for concrete production risks such as data loss,
+            authentication bypass, secret exposure, remote code execution, or
+            duplicate external side effects. Use medium or low for bounded,
+            recoverable, migration-only, maintainability, or defensive issues.
+            For security_concerns, return exactly "No" when there is no concern;
+            otherwise describe the concern and fail the review.
+
+          # Re-review an open PR when a new commit triggers synchronize.
+          github_action_config.handle_push_trigger: "true"
+          github_action_config.push_commands: '["/review"]'
+          github_action_config.enable_output: "true"
+
+      - name: Enforce PR Agent findings
+        env:
+          PR_AGENT_REVIEW_JSON: ${{ steps.pr_agent.outputs.review }}
+        run: python scripts/check_pr_agent_review.py
