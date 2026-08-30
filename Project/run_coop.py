@@ -19,10 +19,9 @@ import requests
 
 from Domain.listing import Listing
 from Domain.sources import Source
-from Application.observability import init_sentry
 from Application.helpers.utils import load_config
 from Application.scraping import genossenschaft_scraper as coop
-from Application.alert_dispatcher import dispatch, retry_pending, url_hash
+from Application.alert_dispatcher import dispatch, retry_pending
 from Application.alert_matcher import gate_result, keyword_hit, match, rubric_hit
 from Application.coop_alert_router import missing_channels, route
 from Application.scraping.willhaben_private_coop import (
@@ -31,6 +30,7 @@ from Application.scraping.willhaben_scraper import WillhabenScraper
 from Application.coop_format import format_coop_message
 from Application.helpers.listing_validator import (
     compute_xsrc_fingerprint, validate_url)
+from Application.helpers.url_hash import url_hash
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
 
@@ -72,10 +72,23 @@ def is_coop_listing(listing) -> bool:
         return True
     if getattr(listing, "is_genossenschaft", None):
         return True
-    return "mygewo.at" in (getattr(listing, "url", None) or "")
+    source = getattr(listing, "source", None)
+    return source == Source.GENOSSENSCHAFT or getattr(
+        source, "value", None) == Source.GENOSSENSCHAFT.value
 
 
-def deliver_user_alerts(handler, listings: List[Listing]) -> int:
+def is_mygewo_listing(listing) -> bool:
+    """True when the listing came from the MYGEWO source inventory.
+
+    The source tag is important because page-0 URL recovery is best effort:
+    units on later RPC pages can use the builder URL as their canonical key.
+    URL-host inspection would silently drop those units from user alerts.
+    """
+    return getattr(listing, "coop_kind", None) == "mygewo"
+
+
+def deliver_user_alerts(handler, listings: List[Listing],
+                        validation_failures: Optional[set[str]] = None) -> int:
     """Deliver newly-seen listings to the alerts users created on /alerts.
 
     Returns the number of successful deliveries. Never raises: an alert-delivery
@@ -106,7 +119,8 @@ def deliver_user_alerts(handler, listings: List[Listing]) -> int:
 
     for alert, listing, unverified in match(listings, alerts):
         if dispatch(alert, listing, unverified, handler, token,
-                    url_validation_cache=url_validation_cache):
+                    url_validation_cache=url_validation_cache,
+                    validation_failures=validation_failures):
             delivered += 1
     logger.info(f"🔔 user alerts: {delivered} delivery(ies) "
                 f"for {len(listings)} new listing(s) across {len(alerts)} alert(s)")
@@ -129,7 +143,7 @@ def _mygewo_urls(seen: List[Listing]) -> List[str]:
     known = set()
     for listing in seen:
         url = getattr(listing, "url", None) or ""
-        if "mygewo.at" in url and url not in known:
+        if is_mygewo_listing(listing) and url not in known:
             known.add(url)
             urls.append(url)
     return urls
@@ -157,7 +171,7 @@ def new_alert_candidates(handler, seen: List[Listing],
 
     for listing in seen:
         url = getattr(listing, "url", None) or ""
-        if ("mygewo.at" not in url or url in candidate_urls
+        if (not is_mygewo_listing(listing) or url in candidate_urls
                 or url in existing_by_url):
             continue
         candidate_urls.add(url)
@@ -315,6 +329,9 @@ def poll_source(name: str, cfg: dict, handler, session=requests) -> List[Listing
 
 
 def _log_parsed(name: str, listings: List[Listing]) -> List[Listing]:
+    if name.upper() == "MYGEWO":
+        for listing in listings:
+            listing.coop_kind = "mygewo"
     logger.info(f"🔍 {name}: {len(listings)} listing(s) parsed")
     return listings
 
@@ -337,6 +354,7 @@ def run(no_send: bool = False) -> int:
     # excludes co-ops by design, so no TELEGRAM_MAIN_CHAT_ID fallback here.
     bots = {}
     chat_ids = {}                       # the ledger is keyed per channel (D2)
+    validation_failures: set[str] = set()
     if not no_send:
         token = os.environ.get("TELEGRAM_MAIN_BOT_TOKEN")
         if token:
@@ -413,7 +431,8 @@ def run(no_send: bool = False) -> int:
             handler, seen, new_from_willhaben, source_existing)
         user_alert_candidates = new_alert_candidates(
             handler, seen, new_from_willhaben, source_existing)
-        deliver_user_alerts(handler, user_alert_candidates)
+        deliver_user_alerts(
+            handler, user_alert_candidates, validation_failures=validation_failures)
     else:
         # Dry-run keeps its existing preview behavior without treating the
         # inventory as new or touching the delivery ledger.
@@ -435,12 +454,17 @@ def run(no_send: bool = False) -> int:
     # `!src` placeholder already treat "" exactly like None.
     detail_fetches = 0
     for listing in seen:
-        if source_lookup_failed and "mygewo.at" in (listing.url or ""):
+        listing_url = getattr(listing, "url", None) or ""
+        if listing_url in validation_failures:
+            logger.warning(
+                f"❌ deferring upsert until alert URL validation succeeds: {listing_url}")
+            continue
+        if source_lookup_failed and is_mygewo_listing(listing):
             continue
         # mygewo units store the aggregator URL; resolve the builder's own
         # reservation page and the unit photo once, reusing values already
         # resolved on an earlier poll.
-        if "mygewo.at" in (listing.url or "") and (
+        if is_mygewo_listing(listing) and (
                 listing.builder_url is None or listing.image_url is None):
             existing = (source_existing or {}).get(listing.url, {})
             if listing.builder_url is None:
@@ -509,7 +533,7 @@ def run(no_send: bool = False) -> int:
 
     sent = 0
     for listing in source_channel_candidates:
-        if source_lookup_failed and "mygewo.at" in (listing.url or ""):
+        if source_lookup_failed and is_mygewo_listing(listing):
             continue
         # The channel feeds are co-op only. The candidate list can also carry new
         # Willhaben rental, because keyword alerts poll the whole newest-first
@@ -519,12 +543,17 @@ def run(no_send: bool = False) -> int:
             continue
         if not channel_match_any(listing, channel_alerts):
             continue
-        if not validate_url(listing.url):            # CLAUDE.md hard rule 2
-            logger.warning(f"🚫 broken URL, skipping: {listing.url}")
-            handler.mark_url_invalid(listing.url)
+        canonical_url = listing.url
+        display_url = getattr(listing, "builder_url", None) or canonical_url
+        if not validate_url(canonical_url):          # CLAUDE.md hard rule 2
+            logger.warning(f"🚫 broken URL, skipping: {canonical_url}")
+            handler.mark_url_invalid(canonical_url)
+            continue
+        if display_url != canonical_url and not validate_url(display_url):
+            logger.warning(f"🚫 broken display URL, skipping: {display_url}")
             continue
         if no_send:
-            logger.info(f"[no-send] would alert: {listing.url}")
+            logger.info(f"[no-send] would alert: {display_url}")
             sent += 1
             continue
         # mygewo units carry no coop_kind of their own — they are the default feed.
@@ -557,7 +586,6 @@ def run(no_send: bool = False) -> int:
 
 
 def main():
-    init_sentry()
     parser = argparse.ArgumentParser(description="Fast co-op poll → Telegram alerts")
     parser.add_argument("--no-send", "--dry-run", dest="no_send", action="store_true",
                         help="poll and upsert but skip Telegram sends "

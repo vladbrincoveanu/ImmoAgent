@@ -27,7 +27,6 @@ from Domain.location import Coordinates
 from Application.feasibility import derive_profile_fields
 from Application.coop_format import format_coop_message
 from Application.cleanup import deep_cleanup_database, comprehensive_cleanup_all_listings, clean_stale_or_broken_listings, check_and_alert_rejection_rate, mark_taken_listings
-from Application.observability import init_sentry
 from Application.telegram_delivery import (
     COOP_CHANNEL,
     preserve_delivery_state,
@@ -665,7 +664,6 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb:
 
 def main():
     """Main function to run the integrated property scraper"""
-    init_sentry()
     logging.info("🚀 Starting Integrated Immo-Scouter Main Job")
     logging.info("=" * 60)
     

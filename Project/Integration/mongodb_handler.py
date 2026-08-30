@@ -1,4 +1,3 @@
-import hashlib
 import pymongo
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
@@ -10,6 +9,7 @@ import time
 from types import SimpleNamespace
 from Application.helpers.utils import load_config
 from Application.helpers.listing_validator import compute_content_fingerprint, compute_xsrc_fingerprint
+from Application.helpers.url_hash import url_hash
 from Application.helpers.mortgage import add_monthly_payment_calculation
 from Application.telegram_delivery import preserve_delivery_state
 from Application.buyer_profiles import GLOBAL_VALIDATION, BUYER_PROFILES
@@ -1004,7 +1004,7 @@ class MongoDBHandler:
                 {"content_fingerprint_xsrc": fingerprint}):
             url = listing.get("url")
             if isinstance(url, str) and url:
-                hashes.append(hashlib.sha256(url.encode("utf-8")).hexdigest())
+                hashes.append(url_hash(url))
         return hashes
 
     def claim_delivery(self, alert_id, url_hash: str,

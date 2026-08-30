@@ -9,9 +9,13 @@ import run_coop
 
 
 def _l(**kw):
-    return Listing(url=kw.pop('url', 'https://x.at/a'), source=Source.GENOSSENSCHAFT,
+    url = kw.pop('url', 'https://x.at/a')
+    coop_kind = kw.pop(
+        'coop_kind', 'mygewo' if 'mygewo.at' in url else None)
+    return Listing(url=url, source=Source.GENOSSENSCHAFT,
                    is_genossenschaft=True, bezirk=kw.pop('bezirk', '1100'),
                    rooms=kw.pop('rooms', 3), area_m2=kw.pop('area_m2', 75.0),
+                   coop_kind=coop_kind,
                    price_total=kw.pop('price_total', None), **kw)
 
 
@@ -165,6 +169,15 @@ def test_new_mygewo_listing_is_a_user_alert_candidate():
     handler.get_listing.assert_not_called()
 
 
+def test_mygewo_builder_url_fallback_is_a_user_alert_candidate():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = {}
+    listing = _l(url="https://builder.example/offer/new", coop_kind="mygewo")
+
+    assert run_coop.new_alert_candidates(handler, [listing], []) == [listing]
+    handler.get_listings_by_urls.assert_called_once_with([listing.url])
+
+
 def test_existing_mygewo_listing_is_not_a_new_user_alert_candidate():
     handler = MagicMock()
     listing = _l(url="https://mygewo.at/angebot/existing")
@@ -259,7 +272,7 @@ def test_user_alerts_run_before_mygewo_upsert(mongo, poll, validate):
 
     with patch.object(
         run_coop, "deliver_user_alerts",
-        side_effect=lambda h, candidates: events.append(("deliver", candidates)),
+        side_effect=lambda h, candidates, **kwargs: events.append(("deliver", candidates)),
     ), patch.dict(run_coop.coop.SOURCES,
                   {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
                   clear=True), patch.dict(os.environ,
@@ -288,7 +301,7 @@ def test_batch_existing_docs_are_reused_during_mygewo_detail_processing():
 
     with patch.object(
         run_coop, "deliver_user_alerts",
-        side_effect=lambda h, candidates: events.append(("deliver", candidates)),
+        side_effect=lambda h, candidates, **kwargs: events.append(("deliver", candidates)),
     ), patch.object(run_coop.coop, "resolve_offer_details") as resolve_details, \
             patch.object(run_coop.coop, "resolve_builder_image") as resolve_image, \
             patch.dict(run_coop.coop.SOURCES,
@@ -333,7 +346,7 @@ def test_mygewo_lookup_failure_defers_mygewo_but_keeps_willhaben_processing():
 
     with patch.object(
         run_coop, "deliver_user_alerts",
-        side_effect=lambda h, candidates: events.append(("deliver", candidates)),
+        side_effect=lambda h, candidates, **kwargs: events.append(("deliver", candidates)),
     ), patch.object(run_coop.coop, "resolve_offer_details",
                     side_effect=AssertionError("mygewo details must be deferred")), \
             patch("run_coop.MongoDBHandler", return_value=handler), \
@@ -436,6 +449,48 @@ class TestRun(unittest.TestCase):
         TB.return_value.send_message.assert_called_once()
         MH.return_value.mark_channel_send_sent.assert_called_once()
         MH.return_value.mark_sent.assert_called_once_with("https://mygewo.at/s")
+
+    @patch("Application.alert_dispatcher.validate_url", return_value=False)
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_transient_alert_url_failure_defers_upsert(
+        self, MH, poll, channel_validate, alert_validate
+    ):
+        listing = _l(
+            url="https://mygewo.at/angebot/retry",
+            coop_source="bautraeger_direct",
+        )
+        handler = _mongo_mock(
+            get_listing_ret=None,
+            alerts=[],
+        )
+        handler.get_active_alerts.return_value = [{
+            "_id": "a",
+            "kind": "keyword",
+            "keywords": [],
+            "telegram_chat_id": "-100",
+            "confirmed": True,
+        }]
+        handler.ensure_delivery_index.return_value = True
+        handler.stale_pending_deliveries.return_value = []
+        MH.return_value = handler
+        poll.return_value = [listing]
+
+        with patch.dict(os.environ, {
+            "WILLHABEN_PRIVATE_COOP": "0",
+            "TELEGRAM_MAIN_BOT_TOKEN": "",
+            "TELEGRAM_COOP_CHANNEL_ID": "",
+            "TELEGRAM_PRIVATE_COOP_CHANNEL_ID": "",
+        }, clear=False), patch.dict(
+            run_coop.coop.SOURCES,
+            {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+            clear=True,
+        ):
+            assert run_coop.run(no_send=False) == 0
+
+        handler.upsert_coop_listing.assert_not_called()
+        alert_validate.assert_called_once_with(listing.url)
 
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")

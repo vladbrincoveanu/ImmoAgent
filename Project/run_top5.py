@@ -41,7 +41,6 @@ def ensure_config_json_on_path():
 ensure_config_json_on_path()
 
 from Application.helpers.utils import load_config
-from Application.observability import init_sentry
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, validate_url, filter_valid_urls
 from Application.helpers.mortgage import add_monthly_payment_calculation
 from Application.buyer_profiles import BuyerPersona
@@ -479,7 +478,6 @@ def format_investment_summary(investment_result: dict | None) -> str:
 
 def main(argv: Optional[List[str]] = None):
     """Main function to fetch top 5 listings and send to Telegram"""
-    init_sentry()
     setup_logging()
 
     args = parse_cli_args(argv)

@@ -302,6 +302,48 @@ def test_live_url_validation_failure_is_never_sent(monkeypatch):
     assert handler.rows == {}
 
 
+def test_builder_url_is_validated_before_it_is_displayed(monkeypatch):
+    handler, sent = _Handler(), []
+    listing = _L()
+    listing.builder_url = "https://builder.example/offer/123"
+    calls = []
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.validate_url",
+        lambda url: calls.append(url) or True,
+    )
+
+    assert dispatch(
+        _ALERT,
+        listing,
+        False,
+        handler,
+        token="t",
+        send_telegram=lambda chat, message: sent.append(message) or True,
+    ) is True
+    assert calls == [listing.url, listing.builder_url]
+    assert listing.builder_url in sent[0]
+
+
+def test_invalid_builder_url_is_never_sent(monkeypatch):
+    handler = _Handler()
+    listing = _L()
+    listing.builder_url = "https://builder.example/offer/123"
+    monkeypatch.setattr(
+        "Application.alert_dispatcher.validate_url",
+        lambda url: url == listing.url,
+    )
+
+    assert dispatch(
+        _ALERT,
+        listing,
+        False,
+        handler,
+        token="t",
+        send_telegram=lambda chat, message: True,
+    ) is False
+    assert handler.rows == {}
+
+
 def test_fingerprint_failure_defers_coop_delivery(monkeypatch):
     handler = _Handler()
     listing = _L()

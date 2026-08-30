@@ -25,7 +25,6 @@ jobs:
       - name: Run Top5 script
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
           TELEGRAM_BOT_VIENNA_TOKEN: ${{ secrets.TELEGRAM_BOT_VIENNA_TOKEN }}

@@ -56,8 +56,6 @@ The application supports loading configuration from environment variables, perfe
 | `MINIO_ACCESS_KEY` | MinIO access key | `minioadmin` |
 | `MINIO_SECRET_KEY` | MinIO secret key | `minioadmin` |
 | `MINIO_BUCKET_NAME` | MinIO bucket name | `immo-images` |
-| `SENTRY_DSN` | Sentry Python SDK DSN | unset (telemetry disabled) |
-| `SENTRY_ENVIRONMENT` | Sentry environment label | unset |
 
 ### GitHub Actions Workflow Example
 ```yaml

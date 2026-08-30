@@ -454,6 +454,7 @@ def _units_to_listings(units: List[dict], uuid_to_offer: dict) -> List[Listing]:
 
         url = uuid_to_offer.get(u["uuid"] or "", builder_url)
         listing = _new_coop_listing(url, u["company"])
+        listing.coop_kind = "mygewo"
         listing.builder_url = builder_url      # the builder's own reservation page
         listing.buyable = False                # every emitted unit is a rental
         listing.area_m2 = _to_float(u["area"])

@@ -40,7 +40,6 @@ jobs:
           TELEGRAM_BOT_VIENNA_CHAT_ID: ${{ secrets.TELEGRAM_BOT_VIENNA_CHAT_ID }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   top5:
     runs-on: ubuntu-latest
@@ -64,7 +63,6 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Send bank loan ready report
         run: python Project/run_top5.py --buyer-profile=bank_loan_ready --exclude-district 1100 --exclude-district 1160 --exclude-district 1210 --exclude-district 1220
@@ -72,7 +70,6 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           TELEGRAM_MAIN_BOT_TOKEN: ${{ secrets.TELEGRAM_MAIN_BOT_TOKEN }}
           TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   test:
     runs-on: ubuntu-latest

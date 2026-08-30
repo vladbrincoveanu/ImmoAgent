@@ -20,7 +20,6 @@ then performs the live validation immediately before claiming a delivery. This
 also protects listings that enter the alert path from a source other than the
 full scrape pipeline.
 """
-import hashlib
 import html
 import logging
 from typing import Callable, Dict, Optional
@@ -28,6 +27,7 @@ from urllib.parse import urlparse
 
 from Application.alert_matcher import channels_for
 from Application.helpers.listing_validator import compute_xsrc_fingerprint, validate_url
+from Application.helpers.url_hash import url_hash
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,20 @@ def is_sendable_url(url: Optional[str]) -> bool:
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
-def url_hash(url: str) -> str:
-    """Stable per-ad key for the ledger, matching the project's dedup scheme."""
-    return hashlib.sha256((url or "").encode("utf-8")).hexdigest()
+def _validate_url_once(url: str, validation_cache: Dict[str, bool]) -> bool:
+    """Live-validate a URL, reusing only successful checks in this poll."""
+    if url in validation_cache:
+        return validation_cache[url]
+    try:
+        url_is_valid = bool(validate_url(url))
+    except Exception as e:
+        logger.warning(f"alert delivery URL validation failed: {e}")
+        return False
+    # A transient failure must not suppress every later alert for this URL in
+    # the same batch, but a successful check is safe to reuse.
+    if url_is_valid:
+        validation_cache[url] = True
+    return url_is_valid
 
 
 def _coop_delivery_fingerprint(alert, listing) -> Optional[str]:
@@ -191,6 +202,7 @@ def dispatch(
     send_telegram: Optional[Callable[[str, str], bool]] = None,
     send_email: Optional[Callable[[str, object], bool]] = None,
     url_validation_cache: Optional[Dict[str, bool]] = None,
+    validation_failures: Optional[set[str]] = None,
 ) -> bool:
     """Deliver one pair. True only when something was actually sent.
 
@@ -200,27 +212,34 @@ def dispatch(
     if not chat_id and not email:
         return False
 
-    if not is_sendable_url(getattr(listing, "url", None)):
+    canonical_url = getattr(listing, "url", None)
+    if not is_sendable_url(canonical_url):
         logger.warning(
-            f"alert delivery skipped, unusable url: {getattr(listing, 'url', None)!r}")
+            f"alert delivery skipped, unusable url: {canonical_url!r}")
         return False
     validation_cache = url_validation_cache if url_validation_cache is not None else {}
-    if listing.url in validation_cache:
-        url_is_valid = validation_cache[listing.url]
-    else:
-        try:
-            url_is_valid = bool(validate_url(listing.url))
-            # A successful check is safe to reuse within this poll. Do not cache
-            # failures: a transient validator/network error must not suppress
-            # every later alert for the same URL in the same batch.
-            if url_is_valid:
-                validation_cache[listing.url] = True
-        except Exception as e:
-            logger.warning(f"alert delivery URL validation failed: {e}")
-            url_is_valid = False
-    if not url_is_valid:
-        logger.warning(f"alert delivery skipped, URL failed validation: {listing.url!r}")
+    if not _validate_url_once(canonical_url, validation_cache):
+        logger.warning(f"alert delivery skipped, URL failed validation: {canonical_url!r}")
+        if validation_failures is not None:
+            validation_failures.add(canonical_url)
         return False
+
+    # MyGEWO alerts may display the builder's reservation page instead of the
+    # canonical aggregator URL. Validate that URL too: Rule 2 applies to the
+    # exact link placed in the Telegram message, not only to the ledger key.
+    display_url = getattr(listing, "builder_url", None) or canonical_url
+    if not is_sendable_url(display_url):
+        logger.warning(f"alert delivery skipped, unusable display URL: {display_url!r}")
+        if validation_failures is not None:
+            validation_failures.add(canonical_url)
+        return False
+    if display_url != canonical_url and not _validate_url_once(display_url, validation_cache):
+        logger.warning(f"alert delivery skipped, display URL failed validation: {display_url!r}")
+        if validation_failures is not None:
+            validation_failures.add(canonical_url)
+        return False
+    if validation_failures is not None:
+        validation_failures.discard(canonical_url)
 
     try:
         alert_id = alert.get("_id")

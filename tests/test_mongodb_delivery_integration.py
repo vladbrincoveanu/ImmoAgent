@@ -49,3 +49,48 @@ def test_delivery_claim_is_atomic_against_mongodb():
             if handler.client is not None:
                 handler.client.drop_database(database)
             handler.close()
+
+
+@pytest.mark.integration
+def test_delivery_claim_handles_legacy_alias_upsert_against_mongodb():
+    """The migration alias filter must both suppress and insert safely."""
+    uri = os.environ.get("MONGODB_URI")
+    if not uri:
+        pytest.skip("MONGODB_URI is required for the MongoDB integration test")
+
+    database = f"immo_ci_delivery_alias_{uuid4().hex}"
+    handler = MongoDBHandler(uri=uri, db_name=database)
+    legacy_alert_id = f"ci-legacy-alert-{uuid4().hex}"
+    new_alert_id = f"ci-new-alert-{uuid4().hex}"
+    fingerprint = f"ci-fingerprint-{uuid4().hex}"
+    legacy_hash = f"ci-legacy-hash-{uuid4().hex}"
+
+    try:
+        assert handler.ensure_delivery_index()
+        deliveries = handler.db["alert_deliveries"]
+        deliveries.insert_one({
+            "alert_id": legacy_alert_id,
+            "url_hash": legacy_hash,
+            "status": "sent",
+        })
+
+        assert handler.claim_delivery(
+            legacy_alert_id,
+            fingerprint,
+            delivery_fingerprint=fingerprint,
+            legacy_delivery_url_hash=legacy_hash,
+        ) is False
+        assert deliveries.count_documents({"alert_id": legacy_alert_id}) == 1
+
+        assert handler.claim_delivery(
+            new_alert_id,
+            fingerprint,
+            delivery_fingerprint=fingerprint,
+            legacy_delivery_url_hash=legacy_hash,
+        ) is True
+        row = deliveries.find_one({"alert_id": new_alert_id}, {"_id": 0})
+        assert row["url_hash"] == fingerprint
+    finally:
+        if handler.client is not None:
+            handler.client.drop_database(database)
+        handler.close()
