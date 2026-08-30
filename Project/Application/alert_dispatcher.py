@@ -223,6 +223,8 @@ def dispatch(
         if validation_failures is not None:
             validation_failures.add(canonical_url)
         return False
+    if validation_failures is not None:
+        validation_failures.discard(canonical_url)
 
     # MyGEWO alerts may display the builder's reservation page instead of the
     # canonical aggregator URL. Validate that URL too: Rule 2 applies to the
@@ -230,16 +232,10 @@ def dispatch(
     display_url = getattr(listing, "builder_url", None) or canonical_url
     if not is_sendable_url(display_url):
         logger.warning(f"alert delivery skipped, unusable display URL: {display_url!r}")
-        if validation_failures is not None:
-            validation_failures.add(canonical_url)
         return False
     if display_url != canonical_url and not _validate_url_once(display_url, validation_cache):
         logger.warning(f"alert delivery skipped, display URL failed validation: {display_url!r}")
-        if validation_failures is not None:
-            validation_failures.add(canonical_url)
         return False
-    if validation_failures is not None:
-        validation_failures.discard(canonical_url)
 
     try:
         alert_id = alert.get("_id")
