@@ -10,7 +10,7 @@ from Domain.sources import Source
 
 class TestSaveListingsUrlReplace(unittest.TestCase):
     @patch('Application.main.pymongo.MongoClient')
-    @patch('Application.main.MongoDBHandler')
+    @patch('Integration.mongodb_handler.MongoDBHandler')
     def test_replace_preserves_taken_status_and_pushes_price_history(self, mock_handler_cls, mock_client_cls):
         from Application.main import save_listings_to_mongodb
 

@@ -132,3 +132,8 @@ dashboard/.test-out/
 
 # Scratch/temp work area (CLAUDE.md: temp files go here, never committed)
 scratchpad/
+
+# Graphify: keep only the canonical graph and report in Git.
+graphify-out/*
+!graphify-out/graph.json
+!graphify-out/GRAPH_REPORT.md

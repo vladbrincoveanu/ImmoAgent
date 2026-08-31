@@ -10,7 +10,7 @@ from Domain.sources import Source
 
 class TestSaveListingsDedup(unittest.TestCase):
     @patch('Application.main.pymongo.MongoClient')
-    @patch('Application.main.MongoDBHandler')
+    @patch('Integration.mongodb_handler.MongoDBHandler')
     def test_fingerprint_match_reactivates_taken_listing(self, mock_handler_cls, mock_client_cls):
         from Application.main import save_listings_to_mongodb
 
