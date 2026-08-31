@@ -527,13 +527,15 @@ def _persist_profile_scores(mongodb_handler, listing_dict: dict) -> None:
         logging.warning(f"_persist_profile_scores failed for {listing_dict.get('url', '<no-url>')}: {e}")
 
 
-def save_listings_to_mongodb(listings: List[Listing], mongo_uri: str = "mongodb://localhost:27017/",
-                           db_name: str = "immo", collection_name: str = "listings") -> int:
+def save_listings_to_mongodb(listings: List[Listing], mongo_uri: Optional[str] = None,
+                            db_name: str = "immo", collection_name: str = "listings") -> int:
     """Save listings to MongoDB with deduplication"""
     if not listings:
         return 0
 
     try:
+        # Keep the save target aligned with cleanup and CI's configured database.
+        mongo_uri = mongo_uri or load_config().get('mongodb_uri') or "mongodb://localhost:27017/"
         from Integration.mongodb_handler import MongoDBHandler, is_valid_listing_data, handle_fingerprint_match
         from types import SimpleNamespace
         mongodb_handler = MongoDBHandler(uri=mongo_uri)
