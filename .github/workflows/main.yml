@@ -31,14 +31,19 @@ jobs:
           CONFIG.FALLBACK_MODELS: '["deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731"]'
           CONFIG.PROPAGATE_TOOL_ERRORS: "true"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: >-
-            Prefix every key_issues_to_review issue_header with exactly one
-            severity token: [critical], [high], [medium], or [low]. Use high or
-            critical only for concrete production risks such as data loss,
-            authentication bypass, secret exposure, remote code execution, or
-            duplicate external side effects. Use medium or low for bounded,
-            recoverable, migration-only, maintainability, or defensive issues.
-            For security_concerns, return exactly "No" when there is no concern;
-            otherwise describe the concern and fail the review.
+            CRITICAL REQUIREMENT: Every single issue_header in key_issues_to_review MUST begin with exactly one severity token: [critical], [high], [medium], or [low]. No exceptions.
+            
+            Examples of correct format:
+            - [critical] SQL injection in user input handling
+            - [high] Missing authentication check on admin endpoint
+            - [medium] Inefficient database query in list view
+            - [low] Variable naming could be more descriptive
+            
+            Severity guidelines:
+            Use [critical] or [high] ONLY for concrete production risks: data loss, authentication bypass, secret exposure, remote code execution, or duplicate external side effects.
+            Use [medium] or [low] for bounded, recoverable, migration-only, maintainability, or defensive issues.
+            
+            For security_concerns, return exactly "No" when there is no concern; otherwise describe the concern and the review will fail.
 
           # Re-review an open PR when a new commit triggers synchronize.
           github_action_config.handle_push_trigger: "true"
