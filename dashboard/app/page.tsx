@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/mongodb';
+import { COLLECTIONS, ACTIVE_LISTING_QUERY } from '@/lib/listing-queries';
 import { ConfirmBanner } from '@/components/ConfirmBanner';
 
 async function getStats() {
   try {
     const db = await getDb();
     if (!db) return { total: 200, withScore: 180 };
-    const col = db.collection('listings');
-    const total = await col.countDocuments({ url_is_valid: true, taken: { $ne: true } });
-    const withScore = await col.countDocuments({ url_is_valid: true, taken: { $ne: true }, score: { $gt: 0 } });
+    const col = db.collection(COLLECTIONS.LISTINGS);
+    const total = await col.countDocuments(ACTIVE_LISTING_QUERY);
+    const withScore = await col.countDocuments({ ...ACTIVE_LISTING_QUERY, score: { $gt: 0 } });
     return { total, withScore };
   } catch {
     return { total: 200, withScore: 180 };
