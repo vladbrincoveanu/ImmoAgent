@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: codex/pr-repair-agent
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - id: matrix
         env:
@@ -56,7 +56,7 @@ jobs:
       - name: Check out trusted controller
         uses: actions/checkout@v5
         with:
-          ref: codex/pr-repair-agent
+          ref: ${{ github.event.repository.default_branch }}
           path: controller
           persist-credentials: false
 
@@ -71,7 +71,7 @@ jobs:
       - name: Restore trusted controller
         uses: actions/checkout@v5
         with:
-          ref: codex/pr-repair-agent
+          ref: ${{ github.event.repository.default_branch }}
           path: controller
           persist-credentials: false
 
@@ -96,13 +96,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r Project/requirements.txt pytest pytest-asyncio
 
-      - name: Run DeepInfra repair cycle
+      - name: Run OpenRouter repair cycle
         env:
-          DEEPINFRA_TOKEN: ${{ secrets.DEEPINFRA_TOKEN }}
-          DEEPINFRA_ENDPOINT: https://api.deepinfra.com/v1/openai/chat/completions
-          DEEPINFRA_MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_ENDPOINT: https://openrouter.ai/api/v1/chat/completions
+          OPENROUTER_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
         working-directory: controller
-        run: python .github/pr-repair-deepinfra.py
+        run: python .github/pr-repair-openrouter.py
 
       - name: Validate PersonalWiki repair
         if: github.repository == 'vladbrincoveanu/PersonalWiki'

@@ -1,4 +1,4 @@
-name: Free AI Code Review (DeepInfra)
+name: Free AI Code Review (OpenRouter)
 
 on:
   pull_request:
@@ -22,13 +22,13 @@ jobs:
           # GitHub supplies this short-lived token; PR-Agent uses it to access the PR API.
           GITHUB_TOKEN: ${{ github.token }}
 
-          # PR-Agent maps this setting to LiteLLM's DEEPINFRA_API_KEY.
-          DEEPINFRA.KEY: ${{ secrets.DEEPINFRA_TOKEN }}
+          # PR-Agent reads provider keys from Dynaconf using double underscores.
+          OPENROUTER__KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
-          # LiteLLM requires the provider prefix for native DeepInfra routing.
-          CONFIG.MODEL: "deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731"
+          # LiteLLM requires the provider prefix for OpenRouter routing.
+          CONFIG.MODEL: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
           CONFIG.CUSTOM_MODEL_MAX_TOKENS: "32000"
-          CONFIG.FALLBACK_MODELS: '["deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731"]'
+          CONFIG.FALLBACK_MODELS: '["openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"]'
           CONFIG.PROPAGATE_TOOL_ERRORS: "true"
           PR_REVIEWER.EXTRA_INSTRUCTIONS: >-
             CRITICAL REQUIREMENT: Every single issue_header in key_issues_to_review MUST begin with exactly one severity token: [critical], [high], [medium], or [low]. No exceptions.
