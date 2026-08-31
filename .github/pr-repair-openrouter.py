@@ -53,6 +53,21 @@ def _parse_decision(content):
     return json.loads(content)
 
 
+def patch_targets_protected_path(patch_text):
+    for line in patch_text.splitlines():
+        if line.startswith("--- a/") or line.startswith("+++ b/"):
+            path = line[6:]
+            if (
+                path.startswith("/")
+                or path.startswith(".github/workflows/")
+                or path.startswith(".github/pr-repair-")
+                or path in {".env", ".env.local", ".gitconfig"}
+                or ".." in path.split("/")
+            ):
+                return True
+    return False
+
+
 def main():
     workspace = Path(os.environ.get("GITHUB_WORKSPACE", ".."))
     with open(workspace / "pr-repair-context.json", encoding="utf-8") as handle:
@@ -102,19 +117,9 @@ def main():
     if decision.get("action") != "patch" or not patch_text.strip():
         return
 
-    for line in patch_text.splitlines():
-        if not line.startswith("+++ b/"):
-            continue
-        path = line[6:]
-        if (
-            path.startswith("/")
-            or path.startswith(".github/workflows/")
-            or path.startswith(".github/pr-repair-")
-            or path in {".env", ".env.local", ".gitconfig"}
-            or ".." in path.split("/")
-        ):
-            print(f"Refusing model patch for protected path: {path}")
-            return
+    if patch_targets_protected_path(patch_text):
+        print("Refusing model patch for a protected path")
+        return
     with tempfile.NamedTemporaryFile("w", suffix=".patch", encoding="utf-8") as handle:
         handle.write(patch_text)
         handle.flush()

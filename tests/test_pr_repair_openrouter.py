@@ -18,3 +18,12 @@ def test_request_body_targets_openrouter_nemotron_without_unsupported_json_mode(
 
     assert body["model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
     assert "response_format" not in body
+
+
+def test_model_patch_cannot_delete_protected_workflow_files():
+    patch = """diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+--- a/.github/workflows/main.yml
++++ /dev/null
+"""
+
+    assert pr_repair.patch_targets_protected_path(patch) is True
