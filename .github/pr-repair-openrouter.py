@@ -53,19 +53,42 @@ def _parse_decision(content):
     return json.loads(content)
 
 
-def patch_targets_protected_path(patch_text):
+def _candidate_paths(patch_text):
+    candidates = set()
     for line in patch_text.splitlines():
-        if line.startswith("--- a/") or line.startswith("+++ b/"):
-            path = line[6:]
-            if (
-                path.startswith("/")
-                or path.startswith(".github/workflows/")
-                or path.startswith(".github/pr-repair-")
-                or path in {".env", ".env.local", ".gitconfig"}
-                or ".." in path.split("/")
-            ):
-                return True
-    return False
+        stripped = line.strip()
+        if stripped.startswith("diff --git "):
+            tokens = stripped.split()
+            if len(tokens) >= 4:
+                candidates.add(tokens[2][2:] if tokens[2].startswith(("a/", "b/")) else tokens[2])
+                candidates.add(tokens[3][2:] if tokens[3].startswith(("a/", "b/")) else tokens[3])
+        elif stripped.startswith("--- ") or stripped.startswith("+++ "):
+            path = stripped[4:]
+            if path.startswith(("a/", "b/")):
+                path = path[2:]
+            candidates.add(path)
+        elif stripped.startswith("rename from ") or stripped.startswith("rename to "):
+            candidates.add(stripped.split(maxsplit=2)[2])
+    return candidates
+
+
+def _path_is_protected(path):
+    if path.startswith("/dev/null") or path in {"/dev/null", "dev/null"}:
+        return False
+    normalized = path
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return (
+        normalized.startswith("/")
+        or normalized.startswith(".github/workflows/")
+        or normalized.startswith(".github/pr-repair-")
+        or normalized in {".env", ".env.local", ".gitconfig"}
+        or ".." in normalized.split("/")
+    )
+
+
+def patch_targets_protected_path(patch_text):
+    return any(_path_is_protected(path) for path in _candidate_paths(patch_text))
 
 
 def main():
