@@ -1,0 +1,161 @@
+name: PR Repair Agent
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pr-repair-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number || 'scheduled' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has_prs: ${{ steps.matrix.outputs.has_prs }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: codex/pr-repair-agent
+          persist-credentials: false
+      - id: matrix
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/pr-repair-matrix.py
+
+  repair:
+    needs: prepare
+    if: >-
+      (needs.prepare.outputs.has_prs == 'true' &&
+       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       github.actor == 'vladbrincoveanu' || github.actor == 'sentry[bot]' ||
+       github.actor == 'greptile-apps[bot]' || github.actor == 'github-actions[bot]' ||
+       github.actor == 'vercel[bot]' || github.actor == 'cursor[bot]'))
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out trusted controller
+        uses: actions/checkout@v5
+        with:
+          ref: codex/pr-repair-agent
+          path: controller
+          persist-credentials: false
+
+      - name: Check out PR branch
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ matrix.number }}/head
+          fetch-depth: 0
+          clean: false
+          persist-credentials: false
+
+      - name: Restore trusted controller
+        uses: actions/checkout@v5
+        with:
+          ref: codex/pr-repair-agent
+          path: controller
+          persist-credentials: false
+
+      - name: Fetch base ref
+        run: git fetch --no-tags origin "${{ matrix.base_ref }}"
+
+      - name: Collect complete PR state
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ matrix.number }}
+        run: python controller/.github/pr-repair-context.py
+
+      - name: Install PersonalWiki dependencies
+        if: github.repository == 'vladbrincoveanu/PersonalWiki'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest pytest-cov
+
+      - name: Install ImmoAgent dependencies
+        if: github.repository == 'vladbrincoveanu/ImmoAgent'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Project/requirements.txt pytest pytest-asyncio
+
+      - name: Run DeepInfra repair cycle
+        env:
+          DEEPINFRA_TOKEN: ${{ secrets.DEEPINFRA_TOKEN }}
+          DEEPINFRA_ENDPOINT: https://api.deepinfra.com/v1/openai/chat/completions
+          DEEPINFRA_MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+        working-directory: controller
+        run: python .github/pr-repair-deepinfra.py
+
+      - name: Validate PersonalWiki repair
+        if: github.repository == 'vladbrincoveanu/PersonalWiki'
+        run: |
+          python -m compileall -q app.py pipeline.py config.py core ingesters vault scripts tests
+          python -m pytest -q --disable-warnings -m "not integration and not slow" tests
+
+      - name: Validate ImmoAgent repair
+        if: github.repository == 'vladbrincoveanu/ImmoAgent'
+        run: |
+          python -m compileall -q Project scripts tests
+          python -m pytest -q --disable-warnings \
+            tests/test_pr_agent_review_gate.py \
+            tests/test_workflow_dependencies.py \
+            tests/tests/test_coop_poll_window.py \
+            Project/Tests/test_alert_dispatcher.py \
+            Project/Tests/test_alert_matcher.py \
+            Project/Tests/test_coop_channel_ledger.py \
+            Project/Tests/test_run_coop.py
+
+      - id: push
+        name: Validate and push targeted changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ matrix.head_ref }}
+        run: |
+          set -euo pipefail
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+          printf '%s\n' controller/ pr-repair-context.json pr-repair-prompt.md repair-result.json repair-result.md >> .git/info/exclude
+          git config --local --unset-all core.hooksPath || true
+          git config --local --unset-all remote.origin.pushurl || true
+          if filter_keys="$(git config --local --name-only --get-regexp '^filter\.' 2>/dev/null)"; then
+            while IFS= read -r key; do
+              [ -z "$key" ] || git config --local --unset-all "$key" || true
+            done <<< "$filter_keys"
+          fi
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes produced."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -c core.hooksPath=/dev/null add -A
+          git -c core.hooksPath=/dev/null commit --no-verify -m "fix: address automated PR review feedback"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c core.hooksPath=/dev/null -c "http.extraheader=AUTHORIZATION: bearer ${GITHUB_TOKEN}" push origin "HEAD:${HEAD_REF}"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Reply on fixed bot comments
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ matrix.number }}
+          COMMIT_SHA: ${{ steps.push.outputs.commit_sha }}
+        run: |
+          COMMIT_SHA="$(git rev-parse HEAD)" python controller/.github/pr-repair-report.py
