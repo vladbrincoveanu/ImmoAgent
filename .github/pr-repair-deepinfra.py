@@ -95,5 +95,9 @@ for line in patch_text.splitlines():
 with tempfile.NamedTemporaryFile("w", suffix=".patch", encoding="utf-8") as handle:
     handle.write(patch_text)
     handle.flush()
-    subprocess.run(["git", "-C", str(workspace), "apply", "--check", handle.name], check=True)
+    try:
+        subprocess.run(["git", "-C", str(workspace), "apply", "--check", handle.name], check=True)
+    except subprocess.CalledProcessError:
+        print("Refusing invalid model patch; leaving the workspace unchanged.")
+        raise SystemExit(0)
     subprocess.run(["git", "-C", str(workspace), "apply", handle.name], check=True)
