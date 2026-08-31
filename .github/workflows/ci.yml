@@ -52,6 +52,7 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml:artifacts/python-coverage.xml \
             --junitxml=artifacts/python-junit.xml \
+            tests/test_pr_repair_deepinfra.py \
             tests/test_pr_agent_review_gate.py \
             tests/test_workflow_dependencies.py \
             tests/tests/test_coop_poll_window.py \

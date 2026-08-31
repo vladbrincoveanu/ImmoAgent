@@ -115,6 +115,7 @@ jobs:
         run: |
           python -m compileall -q Project scripts tests
           python -m pytest -q --disable-warnings \
+            controller/tests/test_pr_repair_deepinfra.py \
             tests/test_pr_agent_review_gate.py \
             tests/test_workflow_dependencies.py \
             tests/tests/test_coop_poll_window.py \
