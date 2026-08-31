@@ -93,7 +93,9 @@ def test_gate_escapes_percent_encoded_workflow_commands():
     assert "%250A::error" in result.stdout
 
 
-def test_gate_fails_closed_when_key_issue_has_no_severity():
+def test_gate_warns_when_key_issue_has_no_severity_prefix():
+    # PR-Agent frequently ignores the severity-prefix instruction and emits its
+    # own header vocabulary. An unclassifiable finding is reported, not blocking.
     result = run_gate({
         "key_issues_to_review": [{
             "issue_header": "Possible Bug",
@@ -103,8 +105,23 @@ def test_gate_fails_closed_when_key_issue_has_no_severity():
         "security_concerns": "No",
     })
 
+    assert result.returncode == 0
+    assert "::warning" in result.stdout
+    assert "Possible Bug" in result.stdout
+
+
+def test_gate_blocks_unprefixed_finding_with_high_risk_signal():
+    result = run_gate({
+        "key_issues_to_review": [{
+            "issue_header": "Security Concern",
+            "issue_content": "The endpoint accepts unsigned requests.",
+            "relevant_file": "api.py",
+        }],
+        "security_concerns": "No",
+    })
+
     assert result.returncode == 1
-    assert "severity" in result.stdout.lower()
+    assert "Security Concern" in result.stdout
 
 
 def test_gate_fails_review_with_security_concern():

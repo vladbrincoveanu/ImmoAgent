@@ -20,6 +20,19 @@ NO_SECURITY_CONCERNS = frozenset({
 })
 
 
+# PR-Agent routinely ignores the severity-prefix instruction and falls back to
+# its own header vocabulary. Rather than blocking every such PR, classify the
+# unprefixed finding: block only when the text signals a production risk of the
+# same class the [high]/[critical] tiers exist for.
+HIGH_RISK_PATTERN = re.compile(
+    r"security|vulnerab|injection|xss|csrf|auth(?:entication|orization)?\s+bypass"
+    r"|secret|credential|token\s+leak|remote\s+code\s+execution|rce"
+    r"|data\s+loss|data\s+corruption|race\s+condition|deadlock"
+    r"|duplicate\s+(?:send|notification|charge|payment)",
+    re.I,
+)
+
+
 def _workflow_message(message: str) -> str:
     """Encode untrusted model text before emitting a workflow command."""
     return " ".join(str(message).splitlines()).strip().replace("%", "%25")
@@ -79,11 +92,14 @@ def main() -> int:
             path = str(issue.get("relevant_file") or "unknown file")
             content = str(issue.get("issue_content") or "No details supplied")
             match = re.match(r"^\[(critical|high|medium|low)\]\s+", header, re.I)
-            if not match:
-                blocking = True
-                _error(f"Finding in {path} has no valid severity prefix: {header}")
-                continue
             message = f"{header} in {path}: {content}"
+            if not match:
+                if HIGH_RISK_PATTERN.search(f"{header}\n{content}"):
+                    blocking = True
+                    _error(f"Unclassified high-risk finding: {message}")
+                else:
+                    _warning(f"Finding without severity prefix: {message}")
+                continue
             if match.group(1).lower() in {"critical", "high"}:
                 blocking = True
                 _error(message)
