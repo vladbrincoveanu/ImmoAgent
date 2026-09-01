@@ -56,9 +56,11 @@ jobs:
             tests/test_workflow_dependencies.py \
             tests/tests/test_coop_poll_window.py \
             Project/Tests/test_alert_dispatcher.py \
-            Project/Tests/test_alert_matcher.py \
-            Project/Tests/test_coop_channel_ledger.py \
-            Project/Tests/test_run_coop.py
+             Project/Tests/test_alert_matcher.py \
+             Project/Tests/test_coop_channel_ledger.py \
+             Project/Tests/test_run_coop.py \
+             Project/Tests/test_upsert_coop.py \
+             Project/Tests/test_save_listings_coop_serialization.py
 
       - name: Upload Python diagnostics
         if: always()

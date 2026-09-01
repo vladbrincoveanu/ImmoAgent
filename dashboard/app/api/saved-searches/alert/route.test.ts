@@ -46,6 +46,8 @@ beforeEach(() => {
   mockGetDb.mockReturnValue(mockDb);
   mockGetOrCreateUserId.mockReturnValue('user-1');
   mockSendMail.mockResolvedValue({ ok: false, error: 'SMTP unavailable' });
+  delete process.env.NEXT_PUBLIC_APP_URL;
+  delete process.env.VERCEL_URL;
 });
 
 describe('POST /api/saved-searches/alert kinds', () => {
@@ -72,5 +74,22 @@ describe('POST /api/saved-searches/alert kinds', () => {
     expect(response.status).toBe(400);
     expect(body.error).toBe('Invalid kind');
     expect(mockInsertOne).not.toHaveBeenCalled();
+  });
+
+  it('uses NEXT_PUBLIC_APP_URL for email confirmation links', async () => {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://immo-agent-vienna.vercel.app';
+    process.env.VERCEL_URL = 'another-deployment.vercel.app';
+    mockSendMail.mockResolvedValue({ ok: true });
+
+    const response = await POST(request({ email: 'user@example.at' }));
+
+    expect(response.status).toBe(201);
+    expect(mockConfirmationEmail).toHaveBeenCalledWith(
+      'user@example.at',
+      {},
+      expect.stringContaining(
+        'https://immo-agent-vienna.vercel.app/api/saved-searches/confirm?token=',
+      ),
+    );
   });
 });
