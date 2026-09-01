@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       : [
           { url_is_valid: { $ne: false } },
           { listing_status: { $ne: "taken" } },
+          { is_genossenschaft: { $ne: true } },
           { price_total: { $gt: 0 } },
           { area_m2: { $gt: 0 } },
           ...purchasePricePerSqmConditions(),
@@ -103,6 +104,7 @@ export async function GET(request: NextRequest) {
             bezirk: { $in: districts },
             url_is_valid: { $ne: false },
             listing_status: { $ne: 'taken' },
+            is_genossenschaft: { $ne: true },
             price_total: { $gt: 0 },
             area_m2: { $gt: 0 },
           },

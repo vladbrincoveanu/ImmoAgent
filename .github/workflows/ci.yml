@@ -61,9 +61,11 @@ jobs:
             Project/Tests/test_derstandard_search_loading.py \
             Project/Tests/test_immo_kurier_scraper.py \
             Project/Tests/test_alert_dispatcher.py \
-            Project/Tests/test_alert_matcher.py \
-            Project/Tests/test_coop_channel_ledger.py \
-            Project/Tests/test_run_coop.py
+             Project/Tests/test_alert_matcher.py \
+             Project/Tests/test_coop_channel_ledger.py \
+             Project/Tests/test_run_coop.py \
+             Project/Tests/test_upsert_coop.py \
+             Project/Tests/test_save_listings_coop_serialization.py
 
       - name: Upload Python diagnostics
         if: always()

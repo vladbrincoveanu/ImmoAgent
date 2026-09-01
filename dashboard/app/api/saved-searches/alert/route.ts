@@ -145,9 +145,10 @@ export async function POST(req: NextRequest) {
   };
   await db.collection('alert_subscriptions').insertOne(doc);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000');
   const confirmUrl = `${appUrl}/api/saved-searches/confirm?token=${confirmToken}`;
   // Telegram-only alerts have no address to confirm — sending here would mail ''.
   const mailResult = hasEmail

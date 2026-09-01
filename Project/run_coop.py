@@ -59,7 +59,23 @@ USER_ALERT_KINDS = ["listings", "coop_private", "keyword", "mygewo", None]
 # the broadcast co-op channels. Those channels remain governed by the explicit
 # co-op alert kinds only.
 CHANNEL_ALERT_KINDS = ["coop_private", "keyword"]
+CHANNEL_OWNERS_ENV = "COOP_CHANNEL_ALERT_OWNERS"
 _LOOKUP_NOT_PROVIDED = object()
+
+
+def channel_alert_owners() -> set:
+    """Return the normalized identities whose alerts define the channel feed."""
+    raw = os.environ.get(CHANNEL_OWNERS_ENV) or ""
+    return {part.strip().lower() for part in raw.split(",") if part.strip()}
+
+
+def alert_is_owned(alert: Dict, owners: set) -> bool:
+    """Return whether an alert belongs to one of the configured feed owners."""
+    identities = {
+        str(alert.get("email") or "").strip().lower(),
+        str(alert.get("telegram_chat_id") or "").strip().lower(),
+    }
+    return bool(owners & (identities - {""}))
 
 
 def is_coop_listing(listing) -> bool:
@@ -301,8 +317,9 @@ def _to_doc(listing: Listing) -> dict:
     """Listing → BSON-safe dict. Source is a plain Enum (verified not
     BSON-encodable), so stringify it. price_per_m2 filled when derivable."""
     d = asdict(listing)
-    d["source"] = listing.source.value if hasattr(listing.source, "value") else listing.source
-    d["source_enum"] = Source.GENOSSENSCHAFT.value
+    source = listing.source.value if hasattr(listing.source, "value") else listing.source
+    d["source"] = source
+    d["source_enum"] = source
     if listing.price_total and listing.area_m2 and not d.get("price_per_m2"):
         d["price_per_m2"] = listing.price_total / listing.area_m2
     return d
@@ -517,6 +534,22 @@ def run(no_send: bool = False) -> int:
     except Exception as e:
         logger.error(f"❌ could not load the channel alert filter: {e}")
         channel_alerts = []
+    owners = channel_alert_owners()
+    if not owners:
+        logger.warning(
+            f"⚠️ {CHANNEL_OWNERS_ENV} is unset — the co-op channels stay silent. "
+            "Set it to the email(s) or Telegram chat id(s) whose alerts should "
+            "define the feed, comma-separated. User alerts are unaffected.")
+        channel_alerts = []
+    else:
+        foreign = [alert for alert in channel_alerts
+                   if not alert_is_owned(alert, owners)]
+        if foreign:
+            logger.info(
+                f"ℹ️ {len(foreign)} alert(s) belong to other subscribers and do "
+                "not govern the channel; they are still delivered to them.")
+            channel_alerts = [alert for alert in channel_alerts
+                              if alert_is_owned(alert, owners)]
     if not channel_alerts:
         logger.warning("⚠️ no active alerts — the co-op channels stay silent this "
                        "poll. Polling, upserts and user alerts are unaffected.")

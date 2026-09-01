@@ -70,11 +70,20 @@ the co-op channels/groups. Add the bot as an administrator in each destination
 before setting those secrets. The same ID may be used for both feeds if they
 intentionally share one destination.
 
+The shared channel feed is governed only by alerts belonging to the identities in
+the `COOP_CHANNEL_ALERT_OWNERS` repository secret. Set it to one or more
+comma-separated email addresses and/or Telegram chat IDs. This allowlist is
+required for channel broadcasts; if it is unset, the channels stay silent rather
+than widening to every user's saved-search criteria. Per-user alerts are
+unaffected.
+
 For the GitHub Actions poll job, configure repository secrets without putting
 their values in this repository:
 
 - `MONGODB_URI` — database connection used by the poll.
 - `SMTP_USER` and `SMTP_PASSWORD` — required for email-only alert delivery.
+- `COOP_CHANNEL_ALERT_OWNERS` — email address(es) and/or Telegram chat ID(s)
+  whose alerts define the shared co-op channel feed.
 - Telegram secrets remain optional for Telegram delivery and the co-op channel
   feeds: `TELEGRAM_MAIN_BOT_TOKEN`, `TELEGRAM_COOP_CHANNEL_ID`, and
   `TELEGRAM_PRIVATE_COOP_CHANNEL_ID`. The bot token alone cannot send to a
