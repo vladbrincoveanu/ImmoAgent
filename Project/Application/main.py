@@ -552,6 +552,15 @@ def save_listings_to_mongodb(listings: List[Listing], mongo_uri: Optional[str] =
         for listing in listings:
             listing = normalize_listing_schema(listing)
             listing_dict = asdict(listing)
+            # `asdict` keeps Enum instances intact. MongoDB cannot encode the
+            # source Enum, and a missing source_enum makes downstream dedup and
+            # dashboard filters disagree about the document's source.
+            for field in ('source', 'source_enum'):
+                value = listing_dict.get(field)
+                if hasattr(value, 'value'):
+                    listing_dict[field] = value.value
+            if not listing_dict.get('source_enum'):
+                listing_dict['source_enum'] = listing_dict.get('source')
             listing_dict = derive_profile_fields(listing_dict)
 
             # Co-op listings get their own validation gate + cross-source dedup
