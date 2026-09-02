@@ -32,7 +32,8 @@ function DashboardContent() {
   } = useFilters();
 
   const [listings, setListings] = useState<ListingBase[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
@@ -40,6 +41,7 @@ function DashboardContent() {
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const params = new URLSearchParams();
       if (minScore !== '0') params.set('min_score', minScore);
@@ -51,7 +53,9 @@ function DashboardContent() {
       if (belowAvgPct) params.set('below_avg_pct', belowAvgPct);
 
       const res = await fetch(`/api/listings/top?${params.toString()}`);
+      if (!res.ok) throw new Error(`Listings request failed: ${res.status}`);
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       const items = (data.listings ?? []) as Array<ListingBase & { scores?: Record<string, number | null> | null }>;
       setListings(items);
       const map: Record<string, Record<string, number | null>> = {};
@@ -61,6 +65,9 @@ function DashboardContent() {
       setScoresById(map);
     } catch (err) {
       console.error(err);
+      setListings([]);
+      setScoresById({});
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -211,8 +218,33 @@ function DashboardContent() {
 
         {loading ? (
           <p className="text-gray-500">Loading...</p>
+        ) : fetchError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-6" data-testid="dashboard-error">
+            <h2 className="text-base font-semibold text-red-900">Unable to load purchase listings</h2>
+            <p className="mt-1 text-sm text-red-800">The listing service is temporarily unavailable. Try again in a moment.</p>
+            <button
+              type="button"
+              onClick={fetchListings}
+              className="mt-4 rounded-md bg-red-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800"
+            >
+              Retry loading listings
+            </button>
+          </div>
         ) : filteredListings.length === 0 ? (
-          <p className="text-gray-400">{listings.length === 0 ? 'No listings found.' : 'All listings filtered out.'}</p>
+          listings.length === 0 ? (
+            <div className="rounded-lg border border-border bg-white p-6" data-testid="dashboard-empty">
+              <h2 className="text-base font-semibold text-heading">No active purchase listings</h2>
+              <p className="mt-1 text-sm text-muted">No active purchase listings match these filters right now.</p>
+              <a
+                href="/coop"
+                className="mt-4 inline-flex rounded-md border border-border px-3 py-1.5 text-sm font-medium text-heading hover:bg-gray-50"
+              >
+                Browse co-op flats
+              </a>
+            </div>
+          ) : (
+            <p className="text-gray-400">All listings filtered out.</p>
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredListings.map((l) => (

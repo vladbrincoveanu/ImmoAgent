@@ -20,7 +20,14 @@ from Application.scraping.genossenschaft_scraper import scrape_all as scrape_all
 from Application.analyzer import StructuredAnalyzer
 from Integration.mongodb_handler import MongoDBHandler
 from Integration.telegram_bot import TelegramBot
-from Application.helpers.utils import format_currency, format_walking_time, ViennaDistrictHelper, load_config, get_walking_times
+from Application.helpers.utils import (
+    DEFAULT_IMMO_KURIER_SEARCH_URL,
+    format_currency,
+    format_walking_time,
+    ViennaDistrictHelper,
+    load_config,
+    get_walking_times,
+)
 from Application.helpers.listing_validator import filter_valid_listings, get_validation_stats, compute_content_fingerprint, compute_content_fingerprint_v2, compute_xsrc_fingerprint, validate_url
 from Application.helpers.geocoding import geocode_listing, ViennaGeocoder
 from Domain.location import Coordinates
@@ -425,6 +432,21 @@ def print_listing_summary(listing):
     print(f"   🔗 {listing['url']}")
 
 
+def should_run_cleanup(cleanup_enabled: bool, explicitly_requested: bool, now: Optional[datetime] = None) -> bool:
+    """Keep the expensive cleanup sweep out of every scheduled scrape."""
+    if explicitly_requested:
+        return True
+    if not cleanup_enabled:
+        return False
+    current_time = now or datetime.utcnow()
+    return current_time.hour < 7
+
+
+def cleanup_url_verification_enabled(cleanup_config: Dict, explicitly_requested: bool) -> bool:
+    """Only opt into thousands of URL probes when configured or requested."""
+    return bool(explicitly_requested or cleanup_config.get('verify_urls', False))
+
+
 def scrape_willhaben(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
     """Scrape Willhaben listings"""
     try:
@@ -459,7 +481,7 @@ def scrape_immo_kurier(config: Dict, max_pages: int) -> Tuple[List[Listing], str
         
         # Get max_pages from config or use default
         max_pages = immo_kurier_config.get('max_pages', max_pages)
-        search_url = immo_kurier_config.get('search_url', "https://immo.kurier.at/suche?l=Wien&r=0km&_multiselect_r=0km&a=at.wien&t=all%3Asale%3Aliving&pf=&pt=&rf=&rt=&sf=&st=")
+        search_url = immo_kurier_config.get('search_url', DEFAULT_IMMO_KURIER_SEARCH_URL)
         
         listings = scraper.scrape_search_results(search_url, max_pages=max_pages)
         logging.info(f"✅ Immo Kurier scraping complete: {len(listings)} matching listings found")
@@ -727,16 +749,18 @@ def main():
     from Application.scoring import set_buyer_profile
     set_buyer_profile(buyer_profile)
 
-    # Clean up stale/broken listings before scraping to avoid dead links.
-    # Run cleanup on every execution (DB maintenance, validity checks, m2 recalculation)
+    # Clean up stale/broken listings before scraping to avoid dead links. The
+    # comprehensive URL sweep is deliberately limited to the morning run (or
+    # an explicit --cleanup) so it cannot rate-limit a source before scraping.
     cleanup_config = config.get('cleanup', {})
     cleanup_enabled = cleanup_config.get('enabled', True)
-    if cleanup_enabled or run_cleanup:
+    should_cleanup = should_run_cleanup(cleanup_enabled, run_cleanup)
+    max_age_days = cleanup_config.get('max_age_days', 180)
+    if should_cleanup:
         # Run comprehensive cleanup first (checks ALL listings for broken URLs)
         comprehensive_cleanup = cleanup_config.get('comprehensive_cleanup', True)
         if comprehensive_cleanup:
-            max_age_days = cleanup_config.get('max_age_days', 180)
-            verify_urls = cleanup_config.get('verify_urls', True)
+            verify_urls = cleanup_url_verification_enabled(cleanup_config, run_cleanup)
             batch_size = cleanup_config.get('cleanup_batch_size', 100)
             comprehensive_cleanup_all_listings(mongo, max_age_days=max_age_days, verify_urls=verify_urls, batch_size=batch_size)
 
@@ -750,7 +774,7 @@ def main():
         aggressive = cleanup_config.get('aggressive', True)
         clean_stale_or_broken_listings(mongo, max_age_days=max_age_days, batch_limit=batch_limit, verify_urls=False, aggressive=aggressive)
     elif cleanup_enabled:
-        logging.info("⏭️ Skipping comprehensive cleanup (not the morning run; pass --cleanup to force)")
+        logging.info("⏭️ Skipping cleanup (not the morning run; pass --cleanup to force)")
 
     # CLI override for crawl depth
     cli_max_pages = None

@@ -10,6 +10,10 @@ from Domain.location import Coordinates, UBahnStation
 _config: Optional[Dict] = None
 _project_root: Optional[str] = None
 
+DEFAULT_IMMO_KURIER_SEARCH_URL = (
+    "https://www.dibeo.at/obj/wie/b?category=WOHNUNG&legalForm=KAUF"
+)
+
 def supplement_config_with_env_vars(config: Dict) -> Dict:
     """Supplement config with environment variables if they exist"""
     # MongoDB
@@ -301,7 +305,7 @@ def load_config() -> Dict:
         },
         "immo_kurier": {
             "base_url": "https://immo.kurier.at",
-            "search_url": "https://immo.kurier.at/suche?l=Wien&r=0km&_multiselect_r=0km&a=at.wien&t=all%3Asale%3Aliving&pf=&pt=&rf=&rt=&sf=&st=",
+            "search_url": DEFAULT_IMMO_KURIER_SEARCH_URL,
             "max_pages": 12,
             "timeout": 30
         },

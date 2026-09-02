@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import { validateDistrict, validateMinScore } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
+import { purchasePricePerSqmConditions } from '@/lib/purchase-listing-query';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,10 +19,13 @@ export async function GET(request: NextRequest) {
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
 
   const match: Record<string, unknown> = {
-    url_is_valid: { $ne: false },
-    listing_status: { $ne: 'taken' },
-    price_total: { $gt: 0 },
-    area_m2: { $gt: 0 },
+    $and: [
+      { url_is_valid: { $ne: false } },
+      { listing_status: { $ne: 'taken' } },
+      { price_total: { $gt: 0 } },
+      { area_m2: { $gt: 0 } },
+      ...purchasePricePerSqmConditions(),
+    ],
   };
   if (minScore > 0) {
     match.$or = [{ [`scores.${profile}`]: { $gte: minScore } }, { [`scores.${profile}`]: { $exists: false } }];
@@ -88,7 +92,17 @@ export async function GET(request: NextRequest) {
     let goodTransitCount = 0;
     if (districts.length > 0) {
       const zoneAvgs = await db.collection('listings').aggregate<{ _id: string; avg_price: number }>([
-        { $match: { bezirk: { $in: districts }, price_total: { $gt: 0 }, area_m2: { $gt: 0 }, listing_status: { $ne: 'taken' } } },
+        {
+          $match: {
+            $and: [
+              { bezirk: { $in: districts } },
+              { price_total: { $gt: 0 } },
+              { area_m2: { $gt: 0 } },
+              { listing_status: { $ne: 'taken' } },
+              ...purchasePricePerSqmConditions(),
+            ],
+          },
+        },
         { $group: { _id: '$bezirk', avg_price: { $avg: '$price_total' } } },
       ]).toArray();
       const zoneAvgMap: Record<string, number> = {};
