@@ -427,10 +427,11 @@ def test_main_reports_unavailable_derstandard_without_success_log(monkeypatch, c
     monkeypatch.setattr(main, "DerStandardScraper", UnavailableScraper)
 
     with caplog.at_level(logging.INFO):
-        listings, source = main.scrape_derstandard({}, max_pages=1)
+        listings, source, source_available = main.scrape_derstandard({}, max_pages=1)
 
     assert listings == []
     assert source == "derstandard"
+    assert source_available is False
     assert "derStandard source unavailable" in caplog.text
     assert "✅ derStandard: 0 listings found" not in caplog.text
 
@@ -453,12 +454,30 @@ def test_main_reports_partial_derstandard_results_when_source_degrades(monkeypat
     monkeypatch.setattr(main, "DerStandardScraper", DegradedScraper)
 
     with caplog.at_level(logging.INFO):
-        listings, source = main.scrape_derstandard({}, max_pages=1)
+        listings, source, source_available = main.scrape_derstandard({}, max_pages=1)
 
     assert len(listings) == 1
     assert source == "derstandard"
+    assert source_available is False
     assert "derStandard source unavailable" in caplog.text
     assert "✅ derStandard: 1 listings found" in caplog.text
+
+
+def test_main_skips_revalidation_for_unavailable_source(monkeypatch, caplog):
+    from Application import main
+
+    calls = []
+    monkeypatch.setattr(
+        main,
+        "mark_taken_listings",
+        lambda *_args, **_kwargs: calls.append(True),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        main.revalidate_scraped_source(object(), "derstandard", source_available=False)
+
+    assert calls == []
+    assert "Skipping revalidation" in caplog.text
 
 
 @pytest.mark.parametrize(
