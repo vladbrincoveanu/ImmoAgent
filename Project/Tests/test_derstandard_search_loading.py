@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 
+import pytest
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 
@@ -55,7 +56,12 @@ def test_search_scrape_waits_for_rendered_listing_links(monkeypatch):
     assert scraper.driver.listing_link_checks >= 2
 
 
-def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
+@pytest.mark.parametrize(
+    "selenium_error",
+    [TimeoutException, RuntimeError],
+    ids=["render-timeout", "invalid-session"],
+)
+def test_search_scrape_retries_http_after_selenium_failure(monkeypatch, selenium_error):
     class FakeAnalyzer:
         def __init__(self, **_kwargs):
             pass
@@ -100,15 +106,15 @@ def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
     scraper.driver = object()
     calls = []
 
-    def timed_out(_url, **_kwargs):
-        raise TimeoutException()
+    def selenium_failed(_url, **_kwargs):
+        raise selenium_error("Selenium failure")
 
     def fetch_with_http(url, **_kwargs):
         calls.append(url)
         assert scraper.session.headers["Accept"].startswith("text/html")
         return FakeResponse()
 
-    monkeypatch.setattr(scraper, "get_page_with_selenium", timed_out)
+    monkeypatch.setattr(scraper, "get_page_with_selenium", selenium_failed)
     monkeypatch.setattr(scraper.session, "get", fetch_with_http)
 
     urls = scraper.extract_listing_urls(
@@ -118,6 +124,71 @@ def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
 
     assert urls == ["https://immobilien.derstandard.at/detail/987654"]
     assert calls == [scraper.base_url + "/suche/wien/kaufen-wohnung"]
+
+
+def test_collection_navigation_uses_waf_safe_http_helper(monkeypatch):
+    class UnusedSession:
+        def get(self, _url, **_kwargs):
+            raise AssertionError("collection navigation bypassed the HTTP helper")
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = False
+    scraper.session = UnusedSession()
+    scraper.base_url = "https://immobilien.derstandard.at"
+    calls = []
+
+    def fetch_with_http(url):
+        calls.append(url)
+        return '<html><body><a href="/detail/654321">Listing</a></body></html>'
+
+    monkeypatch.setattr(scraper, "_get_page_with_requests", fetch_with_http)
+
+    collection_url = scraper.base_url + "/immobiliensuche/neubau/detail/1"
+    urls = scraper.navigate_collection_listing(collection_url)
+
+    assert urls == [scraper.base_url + "/detail/654321"]
+    assert calls == [collection_url]
+
+
+def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
+    class FakeResponse:
+        text = "<html><body></body></html>"
+
+        def raise_for_status(self):
+            pass
+
+    class TrackingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, url, **_kwargs):
+            self.calls.append(url)
+            return FakeResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = True
+    scraper.driver = object()
+    scraper.session = TrackingSession()
+    helper_calls = []
+
+    def selenium_failed(_url, **_kwargs):
+        raise RuntimeError("Selenium session invalid")
+
+    def fetch_with_http(url):
+        helper_calls.append(url)
+        return "<html><body></body></html>"
+
+    monkeypatch.setattr(scraper, "get_page_with_selenium", selenium_failed)
+    monkeypatch.setattr(scraper, "_get_page_with_requests", fetch_with_http)
+    monkeypatch.setattr(scraper, "is_collection_listing", lambda _soup: False)
+    monkeypatch.setattr(scraper, "extract_property_data_from_json", lambda _soup: None)
+    monkeypatch.setattr(scraper, "extract_from_html_selectors", lambda _soup, listing: listing)
+
+    listing_url = "https://immobilien.derstandard.at/detail/654321"
+    scraper.scrape_single_listing(listing_url)
+
+    assert helper_calls == [listing_url]
+    assert scraper.session.calls == []
 
 
 def test_search_scrape_reports_waf_challenge_instead_of_empty_results(monkeypatch, caplog):

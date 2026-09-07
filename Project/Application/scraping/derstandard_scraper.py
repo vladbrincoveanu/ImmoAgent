@@ -333,9 +333,7 @@ class DerStandardScraper:
             if self.use_selenium:
                 html_content = self.get_page_with_selenium(collection_url)
             else:
-                response = self.session.get(collection_url)
-                response.raise_for_status()
-                html_content = response.text
+                html_content = self._get_page_with_requests(collection_url)
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
@@ -508,9 +506,9 @@ class DerStandardScraper:
                             page_url,
                             wait_for_listing_links=True,
                         )
-                    except TimeoutException:
+                    except (TimeoutException, RuntimeError):
                         logging.warning(
-                            "⚠️ Selenium search rendering timed out; retrying with HTTP"
+                            "⚠️ Selenium search extraction failed; retrying with HTTP"
                         )
                         html_content = self._get_page_with_requests(page_url)
                 else:
@@ -585,9 +583,7 @@ class DerStandardScraper:
                     self.use_selenium = False
                     html_content = None
             if html_content is None:
-                response = self.session.get(listing_url)
-                response.raise_for_status()
-                html_content = response.text
+                html_content = self._get_page_with_requests(listing_url)
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
