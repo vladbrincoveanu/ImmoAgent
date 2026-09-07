@@ -16,7 +16,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 import logging
 from urllib.parse import urljoin
 
@@ -36,6 +36,22 @@ from Application.bank_scoring import compute_bank_score
 from Application.helpers.geocoding import ViennaGeocoder
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, smart_sleep
 from Application.buyer_profiles import GLOBAL_VALIDATION
+
+
+LISTING_LINK_SELECTOR = (
+    'a[href*="/detail/"], '
+    'a[href*="/immobiliendetail/"], '
+    'a[href*="/projektdetail/"]'
+)
+WAF_CHALLENGE_MARKERS = (
+    'awswafintegration',
+    'aws-waf-token',
+    'challenge-container',
+    'checking your browser',
+    'enable javascript and cookies',
+    'verify you are human',
+)
+
 
 class DerStandardScraper:
     # URLs will be loaded from config.json
@@ -61,7 +77,10 @@ class DerStandardScraper:
         self.selenium_wait_time = derstandard_config.get('selenium_wait_time', 10)
         
         self.session.headers.update({
-            'User-Agent': scraping_config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+            'User-Agent': scraping_config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Upgrade-Insecure-Requests': '1',
         })
         
         self.driver = None
@@ -328,11 +347,15 @@ class DerStandardScraper:
             
             # Get the collection page
             if self.use_selenium:
-                html_content = self.get_page_with_selenium(collection_url)
+                try:
+                    html_content = self.get_page_with_selenium(collection_url)
+                except (WebDriverException, RuntimeError):
+                    logging.warning(
+                        "⚠️ Selenium collection rendering failed; retrying with HTTP"
+                    )
+                    html_content = self._get_page_with_requests(collection_url)
             else:
-                response = self.session.get(collection_url)
-                response.raise_for_status()
-                html_content = response.text
+                html_content = self._get_page_with_requests(collection_url)
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
@@ -456,7 +479,6 @@ class DerStandardScraper:
         try:
             self.driver.get(url)
             # Wait for content to load
-            from selenium.common.exceptions import WebDriverException
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.webdriver.common.by import By
@@ -466,13 +488,19 @@ class DerStandardScraper:
             if wait_for_listing_links:
                 WebDriverWait(self.driver, wait_time).until(
                     EC.presence_of_element_located(
-                        (By.CSS_SELECTOR, 'a[href*="/detail/"]')
+                        (By.CSS_SELECTOR, LISTING_LINK_SELECTOR)
                     )
                 )
             # Additional wait for dynamic content
             import time
             smart_sleep(3)
-            return self.driver.page_source
+            html_content = self.driver.page_source
+            if self._is_waf_challenge_page(html_content):
+                raise RuntimeError("DerStandard returned an AWS WAF challenge page")
+            rendered_page = BeautifulSoup(html_content, 'html.parser')
+            if not rendered_page.get_text(strip=True) and not rendered_page.find('a', href=True):
+                raise RuntimeError("Selenium returned an empty rendered page")
+            return html_content
         except Exception as e:
             # If Selenium session is invalid, disable and fallback
             if 'invalid session id' in str(e).lower() or 'session not created' in str(e).lower():
@@ -500,34 +528,66 @@ class DerStandardScraper:
             
             try:
                 if self.use_selenium:
-                    html_content = self.get_page_with_selenium(
-                        page_url,
-                        wait_for_listing_links=True,
-                    )
+                    try:
+                        html_content = self.get_page_with_selenium(
+                            page_url,
+                            wait_for_listing_links=True,
+                        )
+                    except (WebDriverException, RuntimeError):
+                        logging.warning(
+                            "⚠️ Selenium search extraction failed; retrying with HTTP"
+                        )
+                        html_content = self._get_page_with_requests(page_url)
                 else:
-                    response = self.session.get(page_url)
-                    response.raise_for_status()
-                    html_content = response.text
-                
+                    html_content = self._get_page_with_requests(page_url)
+
                 page_urls = self.extract_listing_urls_from_page(html_content)
                 logging.info(f"✅ Found {len(page_urls)} URLs on page {page}")
-                
+
                 all_urls.extend(page_urls)
-                
+
                 # If no URLs found, might be the last page
                 if not page_urls:
                     logging.info(f"📭 No URLs found on page {page}, stopping")
                     break
-                    
+
             except Exception as e:
                 logging.error(f"❌ Error extracting URLs from page {page}: {e}")
                 break
-        
+
         # Remove duplicates while preserving order
         unique_urls = list(dict.fromkeys(all_urls))
         logging.info(f"🎯 Total unique URLs found: {len(unique_urls)}")
-        
+
         return unique_urls
+
+    def _get_page_with_requests(self, url: str) -> str:
+        """Get page content over HTTP without accepting WAF challenge pages."""
+        response = self.session.get(url, timeout=self.timeout)
+        if response.status_code == 202:
+            action = response.headers.get("x-amzn-waf-action")
+            reason = "AWS WAF challenge" if action == "challenge" else "HTTP 202 response"
+            raise RuntimeError(f"DerStandard returned {reason}")
+        response.raise_for_status()
+        if not response.text.strip():
+            raise RuntimeError("DerStandard returned an empty HTTP response")
+        if self._is_waf_challenge_page(response.text):
+            raise RuntimeError("DerStandard returned an AWS WAF challenge page")
+        return response.text
+
+    def _is_waf_challenge_page(self, html_content: str) -> bool:
+        """Detect rendered AWS WAF interstitials even when they return HTTP 200."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        title = soup.title.get_text(' ', strip=True).lower() if soup.title else ''
+        if title in {'challenge', 'security challenge'}:
+            return True
+
+        page_text = soup.get_text(' ', strip=True).lower()
+        page_html = html_content.lower()
+        return any(
+            marker in page_text or marker in page_html
+            for marker in WAF_CHALLENGE_MARKERS
+        )
     
     def scrape_single_listing(self, listing_url: str, visited_urls: set = None, recursion_depth: int = 0) -> Optional[Listing]:
         """Scrape individual listing data and return a Listing object."""
@@ -558,16 +618,12 @@ class DerStandardScraper:
                     html_content = self.get_page_with_selenium(listing_url)
                 except RuntimeError:
                     # Selenium failed, fallback to requests
-                    self.use_selenium = False
                     html_content = None
                 except Exception as e:
                     logging.error(f"❌ Error getting page with Selenium: {e}")
-                    self.use_selenium = False
                     html_content = None
             if html_content is None:
-                response = self.session.get(listing_url)
-                response.raise_for_status()
-                html_content = response.text
+                html_content = self._get_page_with_requests(listing_url)
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
