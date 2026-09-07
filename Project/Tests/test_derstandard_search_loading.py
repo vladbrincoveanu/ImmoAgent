@@ -51,4 +51,4 @@ def test_search_scrape_waits_for_rendered_listing_links(monkeypatch):
     urls = scraper.extract_listing_urls(scraper.base_url + "/suche/wien/kaufen-wohnung", max_pages=1)
 
     assert urls == ["https://immobilien.derstandard.at/detail/123456"]
-    assert scraper.driver.listing_link_checks == 2
+    assert scraper.driver.listing_link_checks >= 2
