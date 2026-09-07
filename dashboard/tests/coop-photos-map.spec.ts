@@ -55,6 +55,7 @@ test.beforeAll(async () => {
     coopDoc('with-photo', { image_url: IMAGE_URL }),
     coopDoc('no-photo', { image_url: null }),
     coopDoc('broken-photo', { image_url: BROKEN_IMAGE_URL }),
+    coopDoc('high-price', { price_total: 350000 }),
   ]);
 });
 
@@ -116,6 +117,14 @@ test('purchase map excludes co-op rentals', async ({ request }) => {
   const body = await res.json();
   const urls = (body.listings as Array<{ url: string }>).map((l) => l.url);
   expect(urls).not.toContain(FIXTURE_PREFIX + 'with-photo');
+});
+
+test('purchase top endpoint excludes co-op rows even when their price looks like a purchase', async ({ request }) => {
+  const res = await request.get('/api/listings/top?limit=100');
+  expect(res.ok()).toBeTruthy();
+  const body = await res.json();
+  const urls = (body.listings as Array<{ url: string }>).map((l) => l.url);
+  expect(urls).not.toContain(FIXTURE_PREFIX + 'high-price');
 });
 
 test('co-op pins label the rent as monthly', async ({ page }) => {

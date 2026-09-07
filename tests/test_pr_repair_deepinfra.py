@@ -7,7 +7,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REPAIR_SCRIPT = ROOT / ".github" / "pr-repair-deepinfra.py"
+REPAIR_SCRIPT = ROOT / ".github" / "pr-repair-openrouter.py"
 
 
 class _Response:
@@ -30,7 +30,7 @@ def _git(*args, cwd):
     )
 
 
-def test_invalid_model_patch_is_reported_as_noop(monkeypatch, tmp_path, capsys):
+def test_invalid_model_patch_is_rejected_without_changes(monkeypatch, tmp_path):
     _git("init", cwd=tmp_path)
     _git("branch", "-M", "main", cwd=tmp_path)
     _git("config", "user.name", "Test User", cwd=tmp_path)
@@ -68,12 +68,12 @@ def test_invalid_model_patch_is_reported_as_noop(monkeypatch, tmp_path, capsys):
         return _Response(response_payload)
 
     monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
-    monkeypatch.setenv("DEEPINFRA_TOKEN", "test-token")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-token")
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    with pytest.raises(SystemExit) as raised:
+    with pytest.raises(subprocess.CalledProcessError) as raised:
         runpy.run_path(str(REPAIR_SCRIPT), run_name="__main__")
 
-    assert raised.value.code == 0
+    assert raised.value.cmd[:5] == ["git", "-C", str(tmp_path), "apply", "--check"]
+    assert raised.value.returncode != 0
     assert tracked_file.read_text(encoding="utf-8") == "unchanged"
-    assert "invalid model patch" in capsys.readouterr().out.lower()

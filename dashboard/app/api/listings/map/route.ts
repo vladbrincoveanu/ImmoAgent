@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
     // Co-op rentals store the MONTHLY RENT in price_total, so the purchase €/m²
-    // band below (2500–20000) rejects every one of them (€700 / 60 m² ≈ €12).
+     // band below (1000–20000) rejects every one of them (€700 / 60 m² ≈ €12).
     // They therefore get their own gates — the shared /coop definition, which
     // already carries the Wien + livable-area guards — and the purchase map
     // excludes them explicitly rather than relying on that band to do it.

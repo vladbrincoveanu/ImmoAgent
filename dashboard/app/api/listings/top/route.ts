@@ -4,6 +4,7 @@ import { Document, WithId } from 'mongodb';
 import { validateDistrict, validateSort, validateMinScore, validateLimit, validateStatus } from '@/lib/validators';
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import { resolveCoordinates } from '@/lib/district-centroids';
+import { coopBaseQuery } from '@/lib/coop-query';
 import { purchasePricePerSqmConditions } from '@/lib/purchase-listing-query';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
@@ -34,7 +35,9 @@ export async function GET(request: NextRequest) {
     date_desc: { processed_at: -1 },
     area_desc: { area_m2: -1 },
   };
-  const sortBy = sortOptions[sort] ?? sortOptions.score_desc;
+  const sortBy = genossenschaft && (sortOptions[sort] ?? sortOptions.score_desc) === sortOptions.score_desc
+    ? sortOptions.date_desc
+    : (sortOptions[sort] ?? sortOptions.score_desc);
 
   try {
     const db = getDb();
@@ -44,14 +47,20 @@ export async function GET(request: NextRequest) {
     if (district === null && searchParams.get('district') !== null) {
       console.warn('[/api/listings/top] Invalid district rejected:', searchParams.get('district'));
     }
-    const andConditions: Record<string, unknown>[] = [
-      { url_is_valid: { $ne: false } },
-      { listing_status: { $ne: "taken" } },
-      { price_total: { $gt: 0 } },
-      { area_m2: { $gt: 0 } },
-      ...purchasePricePerSqmConditions(),
-      { title: { $nin: [null, ""] } },
-    ];
+    const andConditions: Record<string, unknown>[] = genossenschaft
+      ? [
+          coopBaseQuery(),
+          { price_total: { $gt: 0 } },
+          { title: { $nin: [null, ""] } },
+        ]
+      : [
+          { url_is_valid: { $ne: false } },
+          { listing_status: { $ne: "taken" } },
+          { price_total: { $gt: 0 } },
+          { area_m2: { $gt: 0 } },
+          ...purchasePricePerSqmConditions(),
+          { title: { $nin: [null, ""] } },
+        ];
 
     // min_score is applied AFTER mapping (below), on the profile-resolved
     // score the client actually displays — the raw `score` field can differ
@@ -59,10 +68,6 @@ export async function GET(request: NextRequest) {
 
     if (district) {
       andConditions.push({ bezirk: district });
-    }
-
-    if (genossenschaft) {
-      andConditions.push({ is_genossenschaft: true });
     }
 
     const status = validateStatus(searchParams.get('status'));
@@ -121,7 +126,8 @@ export async function GET(request: NextRequest) {
       const scores = (l as { scores?: Record<string, number | null> }).scores;
       const bezirkStr = typeof l.bezirk === 'string' ? l.bezirk : null;
       const zoneAvg = bezirkStr ? zoneAvgMap[bezirkStr] : undefined;
-      const priceVsAvgPct = price_total != null && zoneAvg && zoneAvg > 0
+      const isCoop = l.is_genossenschaft === true;
+      const priceVsAvgPct = !isCoop && price_total != null && zoneAvg && zoneAvg > 0
         ? Math.round(((price_total - zoneAvg) / zoneAvg) * 100)
         : null;
       return {
@@ -150,7 +156,7 @@ export async function GET(request: NextRequest) {
         coordinates: resolveCoordinates(l.coordinates as { lat: number; lon: number } | null | undefined, l.bezirk as string | null | undefined),
         price_history: (l as { price_history?: Array<{ price_total: number; date: number }> }).price_history ?? null,
         address: (l as { address?: string | null }).address ?? null,
-        is_genossenschaft: l.is_genossenschaft === true,
+        is_genossenschaft: isCoop,
       };
     });
 

@@ -56,6 +56,9 @@ jobs:
             tests/test_pr_agent_review_gate.py \
             tests/test_workflow_dependencies.py \
             tests/tests/test_coop_poll_window.py \
+            Project/Tests/test_config_discovery.py \
+            Project/Tests/test_cleanup_schedule.py \
+            Project/Tests/test_immo_kurier_scraper.py \
             Project/Tests/test_alert_dispatcher.py \
             Project/Tests/test_alert_matcher.py \
             Project/Tests/test_coop_channel_ledger.py \
