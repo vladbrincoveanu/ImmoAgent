@@ -5,7 +5,11 @@ import os
 import sys
 
 import pytest
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.common.by import By
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -91,10 +95,38 @@ def test_selenium_rejects_empty_rendered_page(monkeypatch):
         scraper.get_page_with_selenium("https://immobilien.derstandard.at/detail/123456")
 
 
+def test_selenium_rejects_nonempty_waf_challenge_page(monkeypatch):
+    class ChallengePageDriver:
+        def get(self, _url):
+            pass
+
+        def find_element(self, by, value):
+            assert (by, value) == (By.TAG_NAME, "body")
+            return object()
+
+        @property
+        def page_source(self):
+            return (
+                "<html><head><title>Challenge</title></head>"
+                '<body><div id="challenge-container">Please wait</div></body></html>'
+            )
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.driver = ChallengePageDriver()
+
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.smart_sleep",
+        lambda _seconds: None,
+    )
+
+    with pytest.raises(RuntimeError, match="AWS WAF challenge page"):
+        scraper.get_page_with_selenium("https://immobilien.derstandard.at/detail/123456")
+
+
 @pytest.mark.parametrize(
     "selenium_error",
-    [TimeoutException, RuntimeError],
-    ids=["render-timeout", "invalid-session"],
+    [TimeoutException, WebDriverException, RuntimeError],
+    ids=["render-timeout", "webdriver-error", "invalid-session"],
 )
 def test_search_scrape_retries_http_after_selenium_failure(monkeypatch, selenium_error):
     class FakeAnalyzer:
@@ -265,6 +297,30 @@ def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
     scraper.scrape_single_listing(listing_url)
 
     assert scraper.session.calls == [(listing_url, {"timeout": 30})]
+
+
+def test_http_fallback_rejects_nonempty_waf_challenge_page():
+    class WafResponse:
+        status_code = 200
+        text = (
+            "<html><head><title>Challenge</title></head>"
+            '<body><div id="challenge-container">Please wait</div></body></html>'
+        )
+        headers = {}
+
+        def raise_for_status(self):
+            pass
+
+    class WafSession:
+        def get(self, _url, **_kwargs):
+            return WafResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.session = WafSession()
+    scraper.timeout = 30
+
+    with pytest.raises(RuntimeError, match="AWS WAF challenge page"):
+        scraper._get_page_with_requests("https://immobilien.derstandard.at/detail/123456")
 
 
 @pytest.mark.parametrize(

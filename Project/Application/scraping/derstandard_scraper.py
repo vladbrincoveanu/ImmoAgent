@@ -16,7 +16,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 import logging
 from urllib.parse import urljoin
 
@@ -42,6 +42,14 @@ LISTING_LINK_SELECTOR = (
     'a[href*="/detail/"], '
     'a[href*="/immobiliendetail/"], '
     'a[href*="/projektdetail/"]'
+)
+WAF_CHALLENGE_MARKERS = (
+    'awswafintegration',
+    'aws-waf-token',
+    'challenge-container',
+    'checking your browser',
+    'enable javascript and cookies',
+    'verify you are human',
 )
 
 
@@ -341,7 +349,7 @@ class DerStandardScraper:
             if self.use_selenium:
                 try:
                     html_content = self.get_page_with_selenium(collection_url)
-                except (TimeoutException, RuntimeError):
+                except (WebDriverException, RuntimeError):
                     logging.warning(
                         "⚠️ Selenium collection rendering failed; retrying with HTTP"
                     )
@@ -471,7 +479,6 @@ class DerStandardScraper:
         try:
             self.driver.get(url)
             # Wait for content to load
-            from selenium.common.exceptions import WebDriverException
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.webdriver.common.by import By
@@ -488,6 +495,8 @@ class DerStandardScraper:
             import time
             smart_sleep(3)
             html_content = self.driver.page_source
+            if self._is_waf_challenge_page(html_content):
+                raise RuntimeError("DerStandard returned an AWS WAF challenge page")
             rendered_page = BeautifulSoup(html_content, 'html.parser')
             if not rendered_page.get_text(strip=True) and not rendered_page.find('a', href=True):
                 raise RuntimeError("Selenium returned an empty rendered page")
@@ -524,7 +533,7 @@ class DerStandardScraper:
                             page_url,
                             wait_for_listing_links=True,
                         )
-                    except (TimeoutException, RuntimeError):
+                    except (WebDriverException, RuntimeError):
                         logging.warning(
                             "⚠️ Selenium search extraction failed; retrying with HTTP"
                         )
@@ -562,7 +571,23 @@ class DerStandardScraper:
         response.raise_for_status()
         if not response.text.strip():
             raise RuntimeError("DerStandard returned an empty HTTP response")
+        if self._is_waf_challenge_page(response.text):
+            raise RuntimeError("DerStandard returned an AWS WAF challenge page")
         return response.text
+
+    def _is_waf_challenge_page(self, html_content: str) -> bool:
+        """Detect rendered AWS WAF interstitials even when they return HTTP 200."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        title = soup.title.get_text(' ', strip=True).lower() if soup.title else ''
+        if title in {'challenge', 'security challenge'}:
+            return True
+
+        page_text = soup.get_text(' ', strip=True).lower()
+        page_html = html_content.lower()
+        return any(
+            marker in page_text or marker in page_html
+            for marker in WAF_CHALLENGE_MARKERS
+        )
     
     def scrape_single_listing(self, listing_url: str, visited_urls: set = None, recursion_depth: int = 0) -> Optional[Listing]:
         """Scrape individual listing data and return a Listing object."""
