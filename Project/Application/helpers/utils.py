@@ -92,81 +92,14 @@ def supplement_config_with_env_vars(config: Dict) -> Dict:
     return config
 
 def get_project_root() -> str:
-    """Finds the project root by looking for a sentinel file (e.g., README.md)."""
+    """Return the checkout containing Project/Application/helpers/utils.py."""
     global _project_root
     if _project_root:
         return _project_root
 
-    # Start from the current working directory
-    current_dir = os.getcwd()
-    print(f"🔍 Current working directory: {current_dir}")
-    
-    # First, try to find config.json in the current working directory
-    if os.path.exists(os.path.join(current_dir, 'config.json')):
-        _project_root = current_dir
-        return current_dir
-    
-    # Then try the parent of current directory (for cases where we're in a subdirectory)
-    parent_dir = os.path.dirname(current_dir)
-    if os.path.exists(os.path.join(parent_dir, 'config.json')):
-        _project_root = parent_dir
-        return parent_dir
-    
-    # GitHub Actions specific handling
-    if '/home/runner/work/' in current_dir:
-        # We're in GitHub Actions, try common paths
-        possible_paths = [
-            '/home/runner/work/ImmoAgent/ImmoAgent',
-            '/home/runner/work/ImmoAgent/ImmoAgent/Project',
-            '/home/runner/work/ImmoAgent/ImmoAgent/Project/..',
-            current_dir,
-            os.path.dirname(current_dir),
-            # Additional GitHub Actions paths
-            '/home/runner/work/ImmoAgent/ImmoAgent/..',
-            '/home/runner/work/ImmoAgent',
-            '/home/runner/work'
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'config.json')):
-                _project_root = path
-                print(f"🔍 Found config.json in GitHub Actions path: {path}")
-                return path
-        
-        # If still not found, try to search more broadly
-        print("🔍 Searching more broadly for config.json in GitHub Actions...")
-        for root, dirs, files in os.walk('/home/runner/work', topdown=True):
-            if 'config.json' in files:
-                config_path = os.path.join(root, 'config.json')
-                _project_root = root
-                print(f"🔍 Found config.json in GitHub Actions search: {config_path}")
-                return root
-            # Limit search depth
-            if root.count(os.sep) - '/home/runner/work'.count(os.sep) > 3:
-                dirs.clear()
-    
-    # Fallback: start from the current file's directory and work up
-    path = os.path.dirname(os.path.abspath(__file__))
-    while True:
-        if os.path.exists(os.path.join(path, 'README.md')):
-            # Check if config.json exists in this directory
-            if os.path.exists(os.path.join(path, 'config.json')):
-                _project_root = path
-                return path
-            # If no config.json here, check parent directory
-            parent_path = os.path.dirname(path)
-            if os.path.exists(os.path.join(parent_path, 'config.json')):
-                _project_root = parent_path
-                return parent_path
-            # If still no config.json, use current directory as fallback
-            _project_root = path
-            return path
-        parent_path = os.path.dirname(path)
-        if parent_path == path:
-            # We've reached the root of the filesystem
-            # As a fallback, assume the parent of the current file's directory is the root
-            return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        path = parent_path
+    # Do not discover config through cwd or ancestors outside this checkout.
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    return _project_root
 
 def load_config() -> Dict:
     """Loads configuration from config.json at the project root."""
@@ -207,41 +140,6 @@ def load_config() -> Dict:
 
     except Exception as e:
         print(f"❌ Error loading config.json: {e}")
-
-    # Fallback for old structure or errors
-    print("⚠️  config.json not found in project root, trying legacy paths...")
-    legacy_paths = [
-        'config.json', 
-        'immo-scouter/config.json',
-        '../config.json',
-        '../../config.json',
-        'Project/config.json',
-        '../Project/config.json',
-        # GitHub Actions specific paths
-        '/home/runner/work/ImmoAgent/ImmoAgent/config.json',
-        '/home/runner/work/ImmoAgent/ImmoAgent/Project/config.json',
-        '/home/runner/work/ImmoAgent/ImmoAgent/Project/../config.json',
-        # Additional common CI paths
-        'ImmoAgent/config.json',
-        'ImmoAgent/Project/config.json',
-        'immo-scouter/Project/config.json',
-        'immo-scouter/Project/../config.json'
-    ]
-    for path in legacy_paths:
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    loaded_json = json.load(f)
-                    if isinstance(loaded_json, dict):
-                        _config = loaded_json
-                        print(f"✅ Loaded config from legacy path: {path}")
-                        
-                        # Supplement with environment variables if they exist
-                        _config = supplement_config_with_env_vars(_config)
-                        
-                        return _config
-            except Exception:
-                continue
 
     # Last resort: create a config using environment variables and defaults
     print("⚠️  No config file found, creating config from environment variables and defaults...")

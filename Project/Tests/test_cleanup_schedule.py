@@ -30,7 +30,12 @@ def test_url_sweep_is_opt_in_for_scheduled_cleanup():
     assert cleanup_url_verification_enabled({"verify_urls": False}, True) is True
 
 
-def test_default_immo_kurier_feed_uses_dibeo_purchase_search(monkeypatch):
+def test_default_immo_kurier_feed_uses_dibeo_purchase_search(monkeypatch, tmp_path):
+    source = tmp_path / "Project" / "Application" / "helpers" / "utils.py"
+    source.parent.mkdir(parents=True)
+    (tmp_path / "README.md").touch()
+    monkeypatch.setattr(utils, "__file__", str(source))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(utils, "_config", None)
     monkeypatch.setattr(utils, "_project_root", None)
 
