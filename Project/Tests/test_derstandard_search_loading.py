@@ -5,6 +5,7 @@ import os
 import sys
 
 import pytest
+import requests
 from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException,
@@ -322,6 +323,142 @@ def test_http_fallback_rejects_nonempty_waf_challenge_page():
 
     with pytest.raises(RuntimeError, match="AWS WAF challenge page"):
         scraper._get_page_with_requests("https://immobilien.derstandard.at/detail/123456")
+
+
+def test_http_fallback_retries_transient_forbidden_response(monkeypatch, caplog):
+    class FakeResponse:
+        def __init__(self, status_code, text):
+            self.status_code = status_code
+            self.text = text
+            self.headers = {}
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"HTTP {self.status_code}")
+
+    class TrackingSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, _url, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return FakeResponse(403, "")
+            return FakeResponse(200, '<html><body><a href="/detail/123456">Listing</a></body></html>')
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.session = TrackingSession()
+    scraper.timeout = 30
+    delays = []
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.smart_sleep",
+        delays.append,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        html = scraper._get_page_with_requests(
+            "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung"
+        )
+
+    assert "/detail/123456" in html
+    assert scraper.session.calls == 2
+    assert delays == [2]
+    assert "HTTP 403" in caplog.text
+
+
+def test_http_fallback_marks_source_unavailable_after_forbidden_retries(
+    monkeypatch, caplog
+):
+    class ForbiddenResponse:
+        status_code = 403
+        text = ""
+        headers = {}
+
+        def raise_for_status(self):
+            raise requests.HTTPError("HTTP 403")
+
+    class TrackingSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, _url, **_kwargs):
+            self.calls += 1
+            return ForbiddenResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = False
+    scraper.session = TrackingSession()
+    scraper.timeout = 30
+    scraper.source_available = True
+    delays = []
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.smart_sleep",
+        delays.append,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        urls = scraper.extract_listing_urls(
+            "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung",
+            max_pages=1,
+        )
+
+    assert urls == []
+    assert scraper.session.calls == 3
+    assert delays == [2, 4]
+    assert scraper.source_available is False
+    assert "DerStandard source unavailable" in caplog.text
+
+
+def test_main_reports_unavailable_derstandard_without_success_log(monkeypatch, caplog):
+    from Application import main
+
+    class UnavailableScraper:
+        source_available = False
+        source_unavailable_reason = "HTTP 403 (possible WAF block)"
+        search_url = "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung"
+
+        def __init__(self, **_kwargs):
+            pass
+
+        def scrape_search_results(self, _search_url, max_pages):
+            assert max_pages == 1
+            return []
+
+    monkeypatch.setattr(main, "DerStandardScraper", UnavailableScraper)
+
+    with caplog.at_level(logging.INFO):
+        listings, source = main.scrape_derstandard({}, max_pages=1)
+
+    assert listings == []
+    assert source == "derstandard"
+    assert "derStandard source unavailable" in caplog.text
+    assert "✅ derStandard: 0 listings found" not in caplog.text
+
+
+def test_main_reports_partial_derstandard_results_when_source_degrades(monkeypatch, caplog):
+    from Application import main
+
+    class DegradedScraper:
+        source_available = False
+        source_unavailable_reason = "HTTP 403 (possible WAF block)"
+        search_url = "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung"
+
+        def __init__(self, **_kwargs):
+            pass
+
+        def scrape_search_results(self, _search_url, max_pages):
+            assert max_pages == 1
+            return [object()]
+
+    monkeypatch.setattr(main, "DerStandardScraper", DegradedScraper)
+
+    with caplog.at_level(logging.INFO):
+        listings, source = main.scrape_derstandard({}, max_pages=1)
+
+    assert len(listings) == 1
+    assert source == "derstandard"
+    assert "derStandard source unavailable" in caplog.text
+    assert "✅ derStandard: 1 listings found" in caplog.text
 
 
 @pytest.mark.parametrize(

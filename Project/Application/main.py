@@ -502,7 +502,13 @@ def scrape_derstandard(config: Dict, max_pages: int) -> Tuple[List[Listing], str
         search_url = derstandard_config.get('search_url', scraper.search_url)
         
         listings = scraper.scrape_search_results(search_url, max_pages=max_pages)
-        logging.info(f"✅ derStandard: {len(listings)} listings found")
+        source_available = getattr(scraper, 'source_available', True)
+        if not source_available:
+            reason = getattr(scraper, 'source_unavailable_reason', 'unknown error')
+            logging.warning(f"⚠️ derStandard source unavailable ({reason})")
+
+        if source_available or listings:
+            logging.info(f"✅ derStandard: {len(listings)} listings found")
         return listings, "derstandard"
     except Exception as e:
         logging.error(f"❌ derStandard scraping failed: {e}")
