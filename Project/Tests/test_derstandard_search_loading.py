@@ -2,6 +2,7 @@
 
 import os
 import sys
+import logging
 
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
@@ -63,6 +64,7 @@ def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
             return False
 
     class FakeResponse:
+        status_code = 200
         text = '<html><body><a href="/detail/987654">Listing</a></body></html>'
         headers = {}
 
@@ -101,7 +103,7 @@ def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
     def timed_out(_url, **_kwargs):
         raise TimeoutException()
 
-    def fetch_with_http(url):
+    def fetch_with_http(url, **_kwargs):
         calls.append(url)
         assert scraper.session.headers["Accept"].startswith("text/html")
         return FakeResponse()
@@ -116,3 +118,63 @@ def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
 
     assert urls == ["https://immobilien.derstandard.at/detail/987654"]
     assert calls == [scraper.base_url + "/suche/wien/kaufen-wohnung"]
+
+
+def test_search_scrape_reports_waf_challenge_instead_of_empty_results(monkeypatch, caplog):
+    class WafResponse:
+        status_code = 202
+        text = ""
+        headers = {"x-amzn-waf-action": "challenge"}
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        headers = {"Accept": "text/html"}
+
+        def get(self, _url, **_kwargs):
+            return WafResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = True
+    scraper.driver = object()
+    scraper.base_url = "https://immobilien.derstandard.at"
+    scraper.session = FakeSession()
+    scraper.timeout = 30
+
+    def timed_out(_url, **_kwargs):
+        raise TimeoutException()
+
+    monkeypatch.setattr(scraper, "get_page_with_selenium", timed_out)
+
+    with caplog.at_level(logging.ERROR):
+        urls = scraper.extract_listing_urls(scraper.base_url + "/suche/wien/kaufen-wohnung", max_pages=1)
+
+    assert urls == []
+    assert "AWS WAF challenge" in caplog.text
+
+
+def test_search_scrape_contains_http_fallback_errors(monkeypatch, caplog):
+    class FailingSession:
+        headers = {"Accept": "text/html"}
+
+        def get(self, _url, **_kwargs):
+            raise RuntimeError("network unavailable")
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = True
+    scraper.driver = object()
+    scraper.base_url = "https://immobilien.derstandard.at"
+    scraper.session = FailingSession()
+    scraper.timeout = 30
+
+    def timed_out(_url, **_kwargs):
+        raise TimeoutException()
+
+    monkeypatch.setattr(scraper, "get_page_with_selenium", timed_out)
+
+    with caplog.at_level(logging.ERROR):
+        urls = scraper.extract_listing_urls(scraper.base_url + "/suche/wien/kaufen-wohnung", max_pages=1)
+
+    assert urls == []
+    assert "Error extracting URLs" in caplog.text

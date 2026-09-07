@@ -503,41 +503,51 @@ class DerStandardScraper:
             
             try:
                 if self.use_selenium:
-                    html_content = self.get_page_with_selenium(
-                        page_url,
-                        wait_for_listing_links=True,
-                    )
+                    try:
+                        html_content = self.get_page_with_selenium(
+                            page_url,
+                            wait_for_listing_links=True,
+                        )
+                    except TimeoutException:
+                        logging.warning(
+                            "⚠️ Selenium search rendering timed out; retrying with HTTP"
+                        )
+                        html_content = self._get_page_with_requests(page_url)
                 else:
-                    response = self.session.get(page_url)
-                    response.raise_for_status()
-                    html_content = response.text
-                
-            except TimeoutException:
-                logging.warning(
-                    "⚠️ Selenium search rendering timed out; retrying with HTTP"
-                )
-                response = self.session.get(page_url)
-                response.raise_for_status()
-                html_content = response.text
+                    html_content = self._get_page_with_requests(page_url)
+
+                page_urls = self.extract_listing_urls_from_page(html_content)
+                logging.info(f"✅ Found {len(page_urls)} URLs on page {page}")
+
+                all_urls.extend(page_urls)
+
+                # If no URLs found, might be the last page
+                if not page_urls:
+                    logging.info(f"📭 No URLs found on page {page}, stopping")
+                    break
+
             except Exception as e:
                 logging.error(f"❌ Error extracting URLs from page {page}: {e}")
                 break
 
-            page_urls = self.extract_listing_urls_from_page(html_content)
-            logging.info(f"✅ Found {len(page_urls)} URLs on page {page}")
-
-            all_urls.extend(page_urls)
-
-            # If no URLs found, might be the last page
-            if not page_urls:
-                logging.info(f"📭 No URLs found on page {page}, stopping")
-                break
-        
         # Remove duplicates while preserving order
         unique_urls = list(dict.fromkeys(all_urls))
         logging.info(f"🎯 Total unique URLs found: {len(unique_urls)}")
-        
+
         return unique_urls
+
+    def _get_page_with_requests(self, url: str) -> str:
+        """Get page content over HTTP without accepting WAF challenge pages."""
+        response = self.session.get(url, timeout=self.timeout)
+        if (
+            response.status_code == 202
+            and response.headers.get("x-amzn-waf-action") == "challenge"
+        ):
+            raise RuntimeError("DerStandard returned an AWS WAF challenge")
+        response.raise_for_status()
+        if not response.text.strip():
+            raise RuntimeError("DerStandard returned an empty HTTP response")
+        return response.text
     
     def scrape_single_listing(self, listing_url: str, visited_urls: set = None, recursion_depth: int = 0) -> Optional[Listing]:
         """Scrape individual listing data and return a Listing object."""
