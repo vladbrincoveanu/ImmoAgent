@@ -261,7 +261,7 @@ def test_collection_navigation_retries_http_after_selenium_failure(monkeypatch):
     assert scraper.session.calls == [(collection_url, {"timeout": 30})]
 
 
-def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
+def test_detail_scrape_uses_http_fallback_without_disabling_selenium(monkeypatch):
     class FakeResponse:
         status_code = 200
         text = "<html><body></body></html>"
@@ -286,7 +286,7 @@ def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
     scraper.timeout = 30
 
     def selenium_failed(_url, **_kwargs):
-        raise RuntimeError("Selenium session invalid")
+        raise RuntimeError("empty rendered page")
 
     monkeypatch.setattr(scraper, "get_page_with_selenium", selenium_failed)
     monkeypatch.setattr(scraper, "is_collection_listing", lambda _soup: False)
@@ -297,6 +297,7 @@ def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
     scraper.scrape_single_listing(listing_url)
 
     assert scraper.session.calls == [(listing_url, {"timeout": 30})]
+    assert scraper.use_selenium is True
 
 
 def test_http_fallback_rejects_nonempty_waf_challenge_page():

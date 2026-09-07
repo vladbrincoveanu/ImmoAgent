@@ -618,11 +618,9 @@ class DerStandardScraper:
                     html_content = self.get_page_with_selenium(listing_url)
                 except RuntimeError:
                     # Selenium failed, fallback to requests
-                    self.use_selenium = False
                     html_content = None
                 except Exception as e:
                     logging.error(f"❌ Error getting page with Selenium: {e}")
-                    self.use_selenium = False
                     html_content = None
             if html_content is None:
                 html_content = self._get_page_with_requests(listing_url)
