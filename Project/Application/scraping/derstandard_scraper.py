@@ -61,7 +61,10 @@ class DerStandardScraper:
         self.selenium_wait_time = derstandard_config.get('selenium_wait_time', 10)
         
         self.session.headers.update({
-            'User-Agent': scraping_config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+            'User-Agent': scraping_config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Upgrade-Insecure-Requests': '1',
         })
         
         self.driver = None
@@ -509,18 +512,25 @@ class DerStandardScraper:
                     response.raise_for_status()
                     html_content = response.text
                 
-                page_urls = self.extract_listing_urls_from_page(html_content)
-                logging.info(f"✅ Found {len(page_urls)} URLs on page {page}")
-                
-                all_urls.extend(page_urls)
-                
-                # If no URLs found, might be the last page
-                if not page_urls:
-                    logging.info(f"📭 No URLs found on page {page}, stopping")
-                    break
-                    
+            except TimeoutException:
+                logging.warning(
+                    "⚠️ Selenium search rendering timed out; retrying with HTTP"
+                )
+                response = self.session.get(page_url)
+                response.raise_for_status()
+                html_content = response.text
             except Exception as e:
                 logging.error(f"❌ Error extracting URLs from page {page}: {e}")
+                break
+
+            page_urls = self.extract_listing_urls_from_page(html_content)
+            logging.info(f"✅ Found {len(page_urls)} URLs on page {page}")
+
+            all_urls.extend(page_urls)
+
+            # If no URLs found, might be the last page
+            if not page_urls:
+                logging.info(f"📭 No URLs found on page {page}, stopping")
                 break
         
         # Remove duplicates while preserving order

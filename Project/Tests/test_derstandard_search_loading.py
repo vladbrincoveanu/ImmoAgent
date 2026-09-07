@@ -3,7 +3,7 @@
 import os
 import sys
 
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -52,3 +52,67 @@ def test_search_scrape_waits_for_rendered_listing_links(monkeypatch):
 
     assert urls == ["https://immobilien.derstandard.at/detail/123456"]
     assert scraper.driver.listing_link_checks >= 2
+
+
+def test_search_scrape_retries_http_after_waf_render_timeout(monkeypatch):
+    class FakeAnalyzer:
+        def __init__(self, **_kwargs):
+            pass
+
+        def is_available(self):
+            return False
+
+    class FakeResponse:
+        text = '<html><body><a href="/detail/987654">Listing</a></body></html>'
+        headers = {}
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.StructuredAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.ViennaGeocoder",
+        lambda: object(),
+    )
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.MongoDBHandler",
+        lambda **_kwargs: object(),
+    )
+
+    scraper = DerStandardScraper(
+        config={
+            "mongodb_uri": "mongodb://test",
+            "scraping": {
+                "user_agent": "Mozilla/5.0",
+            },
+            "derstandard": {
+                "base_url": "https://immobilien.derstandard.at",
+            },
+        },
+        use_selenium=False,
+    )
+    scraper.use_selenium = True
+    scraper.driver = object()
+    calls = []
+
+    def timed_out(_url, **_kwargs):
+        raise TimeoutException()
+
+    def fetch_with_http(url):
+        calls.append(url)
+        assert scraper.session.headers["Accept"].startswith("text/html")
+        return FakeResponse()
+
+    monkeypatch.setattr(scraper, "get_page_with_selenium", timed_out)
+    monkeypatch.setattr(scraper.session, "get", fetch_with_http)
+
+    urls = scraper.extract_listing_urls(
+        scraper.base_url + "/suche/wien/kaufen-wohnung",
+        max_pages=1,
+    )
+
+    assert urls == ["https://immobilien.derstandard.at/detail/987654"]
+    assert calls == [scraper.base_url + "/suche/wien/kaufen-wohnung"]
