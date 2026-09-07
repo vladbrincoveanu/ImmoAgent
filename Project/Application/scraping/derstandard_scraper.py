@@ -444,7 +444,12 @@ class DerStandardScraper:
             logging.warning(f"Error extracting image URL: {e}")
             return None
     
-    def get_page_with_selenium(self, url: str, wait_time: int = 10) -> str:
+    def get_page_with_selenium(
+        self,
+        url: str,
+        wait_time: int = 10,
+        wait_for_listing_links: bool = False,
+    ) -> str:
         """Get page content using Selenium for dynamic content"""
         if not self.driver:
             raise Exception("Selenium driver not initialized")
@@ -458,6 +463,12 @@ class DerStandardScraper:
             WebDriverWait(self.driver, wait_time).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
+            if wait_for_listing_links:
+                WebDriverWait(self.driver, wait_time).until(
+                    EC.presence_of_element_located(
+                        (By.CSS_SELECTOR, 'a[href*="/detail/"]')
+                    )
+                )
             # Additional wait for dynamic content
             import time
             smart_sleep(3)
@@ -489,7 +500,10 @@ class DerStandardScraper:
             
             try:
                 if self.use_selenium:
-                    html_content = self.get_page_with_selenium(page_url)
+                    html_content = self.get_page_with_selenium(
+                        page_url,
+                        wait_for_listing_links=True,
+                    )
                 else:
                     response = self.session.get(page_url)
                     response.raise_for_status()
@@ -1913,4 +1927,4 @@ def test_derstandard_scraper():
             scraper.driver.quit()
 
 if __name__ == "__main__":
-    test_derstandard_scraper() 
+    test_derstandard_scraper()

@@ -58,6 +58,7 @@ jobs:
             tests/tests/test_coop_poll_window.py \
             Project/Tests/test_config_discovery.py \
             Project/Tests/test_cleanup_schedule.py \
+            Project/Tests/test_derstandard_search_loading.py \
             Project/Tests/test_immo_kurier_scraper.py \
             Project/Tests/test_alert_dispatcher.py \
             Project/Tests/test_alert_matcher.py \
