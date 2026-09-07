@@ -37,6 +37,14 @@ from Application.helpers.geocoding import ViennaGeocoder
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, smart_sleep
 from Application.buyer_profiles import GLOBAL_VALIDATION
 
+
+LISTING_LINK_SELECTOR = (
+    'a[href*="/detail/"], '
+    'a[href*="/immobiliendetail/"], '
+    'a[href*="/projektdetail/"]'
+)
+
+
 class DerStandardScraper:
     # URLs will be loaded from config.json
     
@@ -331,7 +339,13 @@ class DerStandardScraper:
             
             # Get the collection page
             if self.use_selenium:
-                html_content = self.get_page_with_selenium(collection_url)
+                try:
+                    html_content = self.get_page_with_selenium(collection_url)
+                except (TimeoutException, RuntimeError):
+                    logging.warning(
+                        "⚠️ Selenium collection rendering failed; retrying with HTTP"
+                    )
+                    html_content = self._get_page_with_requests(collection_url)
             else:
                 html_content = self._get_page_with_requests(collection_url)
             
@@ -467,13 +481,17 @@ class DerStandardScraper:
             if wait_for_listing_links:
                 WebDriverWait(self.driver, wait_time).until(
                     EC.presence_of_element_located(
-                        (By.CSS_SELECTOR, 'a[href*="/detail/"]')
+                        (By.CSS_SELECTOR, LISTING_LINK_SELECTOR)
                     )
                 )
             # Additional wait for dynamic content
             import time
             smart_sleep(3)
-            return self.driver.page_source
+            html_content = self.driver.page_source
+            rendered_page = BeautifulSoup(html_content, 'html.parser')
+            if not rendered_page.get_text(strip=True) and not rendered_page.find('a', href=True):
+                raise RuntimeError("Selenium returned an empty rendered page")
+            return html_content
         except Exception as e:
             # If Selenium session is invalid, disable and fallback
             if 'invalid session id' in str(e).lower() or 'session not created' in str(e).lower():
@@ -537,11 +555,10 @@ class DerStandardScraper:
     def _get_page_with_requests(self, url: str) -> str:
         """Get page content over HTTP without accepting WAF challenge pages."""
         response = self.session.get(url, timeout=self.timeout)
-        if (
-            response.status_code == 202
-            and response.headers.get("x-amzn-waf-action") == "challenge"
-        ):
-            raise RuntimeError("DerStandard returned an AWS WAF challenge")
+        if response.status_code == 202:
+            action = response.headers.get("x-amzn-waf-action")
+            reason = "AWS WAF challenge" if action == "challenge" else "HTTP 202 response"
+            raise RuntimeError(f"DerStandard returned {reason}")
         response.raise_for_status()
         if not response.text.strip():
             raise RuntimeError("DerStandard returned an empty HTTP response")

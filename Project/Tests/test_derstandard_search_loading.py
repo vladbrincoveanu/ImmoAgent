@@ -1,8 +1,8 @@
 """Regression tests for rendered derStandard search-page loading."""
 
+import logging
 import os
 import sys
-import logging
 
 import pytest
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -13,11 +13,19 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from Application.scraping.derstandard_scraper import DerStandardScraper  # noqa: E402
 
 
+EXPECTED_LISTING_LINK_SELECTOR = (
+    'a[href*="/detail/"], '
+    'a[href*="/immobiliendetail/"], '
+    'a[href*="/projektdetail/"]'
+)
+
+
 class DelayedListingDriver:
     """Minimal browser double where the result link appears after the body."""
 
     def __init__(self):
         self.listing_link_checks = 0
+        self.listing_link_selector = None
 
     def get(self, _url):
         pass
@@ -25,8 +33,9 @@ class DelayedListingDriver:
     def find_element(self, by, value):
         if (by, value) == (By.TAG_NAME, "body"):
             return object()
-        if (by, value) == (By.CSS_SELECTOR, 'a[href*="/detail/"]'):
+        if by == By.CSS_SELECTOR:
             self.listing_link_checks += 1
+            self.listing_link_selector = value
             if self.listing_link_checks < 2:
                 raise NoSuchElementException()
             return object()
@@ -54,6 +63,32 @@ def test_search_scrape_waits_for_rendered_listing_links(monkeypatch):
 
     assert urls == ["https://immobilien.derstandard.at/detail/123456"]
     assert scraper.driver.listing_link_checks >= 2
+    assert scraper.driver.listing_link_selector == EXPECTED_LISTING_LINK_SELECTOR
+
+
+def test_selenium_rejects_empty_rendered_page(monkeypatch):
+    class EmptyPageDriver:
+        def get(self, _url):
+            pass
+
+        def find_element(self, by, value):
+            assert (by, value) == (By.TAG_NAME, "body")
+            return object()
+
+        @property
+        def page_source(self):
+            return "<html><body></body></html>"
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.driver = EmptyPageDriver()
+
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.smart_sleep",
+        lambda _seconds: None,
+    )
+
+    with pytest.raises(RuntimeError, match="empty rendered page"):
+        scraper.get_page_with_selenium("https://immobilien.derstandard.at/detail/123456")
 
 
 @pytest.mark.parametrize(
@@ -127,32 +162,10 @@ def test_search_scrape_retries_http_after_selenium_failure(monkeypatch, selenium
 
 
 def test_collection_navigation_uses_waf_safe_http_helper(monkeypatch):
-    class UnusedSession:
-        def get(self, _url, **_kwargs):
-            raise AssertionError("collection navigation bypassed the HTTP helper")
-
-    scraper = object.__new__(DerStandardScraper)
-    scraper.use_selenium = False
-    scraper.session = UnusedSession()
-    scraper.base_url = "https://immobilien.derstandard.at"
-    calls = []
-
-    def fetch_with_http(url):
-        calls.append(url)
-        return '<html><body><a href="/detail/654321">Listing</a></body></html>'
-
-    monkeypatch.setattr(scraper, "_get_page_with_requests", fetch_with_http)
-
-    collection_url = scraper.base_url + "/immobiliensuche/neubau/detail/1"
-    urls = scraper.navigate_collection_listing(collection_url)
-
-    assert urls == [scraper.base_url + "/detail/654321"]
-    assert calls == [collection_url]
-
-
-def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
     class FakeResponse:
-        text = "<html><body></body></html>"
+        status_code = 200
+        text = '<html><body><a href="/detail/654321">Listing</a></body></html>'
+        headers = {}
 
         def raise_for_status(self):
             pass
@@ -161,25 +174,89 @@ def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
         def __init__(self):
             self.calls = []
 
-        def get(self, url, **_kwargs):
-            self.calls.append(url)
+        def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            assert kwargs["timeout"] == 30
+            return FakeResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = False
+    scraper.session = TrackingSession()
+    scraper.base_url = "https://immobilien.derstandard.at"
+    scraper.timeout = 30
+
+    collection_url = scraper.base_url + "/immobiliensuche/neubau/detail/1"
+    urls = scraper.navigate_collection_listing(collection_url)
+
+    assert urls == [scraper.base_url + "/detail/654321"]
+    assert scraper.session.calls == [(collection_url, {"timeout": 30})]
+
+
+def test_collection_navigation_retries_http_after_selenium_failure(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+        text = '<html><body><a href="/detail/654321">Listing</a></body></html>'
+        headers = {}
+
+        def raise_for_status(self):
+            pass
+
+    class TrackingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            assert kwargs["timeout"] == 30
             return FakeResponse()
 
     scraper = object.__new__(DerStandardScraper)
     scraper.use_selenium = True
     scraper.driver = object()
     scraper.session = TrackingSession()
-    helper_calls = []
+    scraper.base_url = "https://immobilien.derstandard.at"
+    scraper.timeout = 30
+
+    def selenium_failed(_url, **_kwargs):
+        raise RuntimeError("empty rendered page")
+
+    monkeypatch.setattr(scraper, "get_page_with_selenium", selenium_failed)
+
+    collection_url = scraper.base_url + "/immobiliensuche/neubau/detail/1"
+    urls = scraper.navigate_collection_listing(collection_url)
+
+    assert urls == [scraper.base_url + "/detail/654321"]
+    assert scraper.session.calls == [(collection_url, {"timeout": 30})]
+
+
+def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+        text = "<html><body></body></html>"
+        headers = {}
+
+        def raise_for_status(self):
+            pass
+
+    class TrackingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            assert kwargs["timeout"] == 30
+            return FakeResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = True
+    scraper.driver = object()
+    scraper.session = TrackingSession()
+    scraper.timeout = 30
 
     def selenium_failed(_url, **_kwargs):
         raise RuntimeError("Selenium session invalid")
 
-    def fetch_with_http(url):
-        helper_calls.append(url)
-        return "<html><body></body></html>"
-
     monkeypatch.setattr(scraper, "get_page_with_selenium", selenium_failed)
-    monkeypatch.setattr(scraper, "_get_page_with_requests", fetch_with_http)
     monkeypatch.setattr(scraper, "is_collection_listing", lambda _soup: False)
     monkeypatch.setattr(scraper, "extract_property_data_from_json", lambda _soup: None)
     monkeypatch.setattr(scraper, "extract_from_html_selectors", lambda _soup, listing: listing)
@@ -187,15 +264,26 @@ def test_detail_scrape_uses_waf_safe_http_fallback(monkeypatch):
     listing_url = "https://immobilien.derstandard.at/detail/654321"
     scraper.scrape_single_listing(listing_url)
 
-    assert helper_calls == [listing_url]
-    assert scraper.session.calls == []
+    assert scraper.session.calls == [(listing_url, {"timeout": 30})]
 
 
-def test_search_scrape_reports_waf_challenge_instead_of_empty_results(monkeypatch, caplog):
+@pytest.mark.parametrize(
+    ("headers", "expected_message"),
+    [
+        ({"x-amzn-waf-action": "challenge"}, "AWS WAF challenge"),
+        ({}, "HTTP 202 response"),
+    ],
+    ids=["waf-header", "unexpected-202"],
+)
+def test_search_scrape_reports_waf_challenge_instead_of_empty_results(
+    monkeypatch, caplog, headers, expected_message
+):
     class WafResponse:
         status_code = 202
         text = ""
-        headers = {"x-amzn-waf-action": "challenge"}
+
+        def __init__(self):
+            self.headers = headers
 
         def raise_for_status(self):
             pass
@@ -222,7 +310,7 @@ def test_search_scrape_reports_waf_challenge_instead_of_empty_results(monkeypatc
         urls = scraper.extract_listing_urls(scraper.base_url + "/suche/wien/kaufen-wohnung", max_pages=1)
 
     assert urls == []
-    assert "AWS WAF challenge" in caplog.text
+    assert expected_message in caplog.text
 
 
 def test_search_scrape_contains_http_fallback_errors(monkeypatch, caplog):
