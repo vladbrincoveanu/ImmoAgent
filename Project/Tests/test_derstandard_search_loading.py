@@ -301,7 +301,7 @@ def test_detail_scrape_uses_http_fallback_without_disabling_selenium(monkeypatch
     assert scraper.use_selenium is True
 
 
-def test_http_fallback_rejects_nonempty_waf_challenge_page():
+def test_http_fallback_rejects_nonempty_waf_challenge_page(monkeypatch):
     class WafResponse:
         status_code = 200
         text = (
@@ -314,15 +314,28 @@ def test_http_fallback_rejects_nonempty_waf_challenge_page():
             pass
 
     class WafSession:
+        def __init__(self):
+            self.calls = 0
+
         def get(self, _url, **_kwargs):
+            self.calls += 1
             return WafResponse()
 
     scraper = object.__new__(DerStandardScraper)
-    scraper.session = WafSession()
+    session = WafSession()
+    scraper.session = session
     scraper.timeout = 30
+    delays = []
+    monkeypatch.setattr(
+        "Application.scraping.derstandard_scraper.smart_sleep",
+        delays.append,
+    )
 
     with pytest.raises(RuntimeError, match="AWS WAF challenge page"):
         scraper._get_page_with_requests("https://immobilien.derstandard.at/detail/123456")
+
+    assert session.calls == 3
+    assert delays == [2, 4]
 
 
 def test_http_fallback_retries_transient_forbidden_response(monkeypatch, caplog):
@@ -513,6 +526,7 @@ def test_search_scrape_reports_waf_challenge_instead_of_empty_results(
     scraper.base_url = "https://immobilien.derstandard.at"
     scraper.session = FakeSession()
     scraper.timeout = 30
+    scraper.source_available = True
 
     def timed_out(_url, **_kwargs):
         raise TimeoutException()
@@ -524,6 +538,7 @@ def test_search_scrape_reports_waf_challenge_instead_of_empty_results(
 
     assert urls == []
     assert expected_message in caplog.text
+    assert scraper.source_available is False
 
 
 def test_search_scrape_contains_http_fallback_errors(monkeypatch, caplog):
@@ -539,6 +554,7 @@ def test_search_scrape_contains_http_fallback_errors(monkeypatch, caplog):
     scraper.base_url = "https://immobilien.derstandard.at"
     scraper.session = FailingSession()
     scraper.timeout = 30
+    scraper.source_available = True
 
     def timed_out(_url, **_kwargs):
         raise TimeoutException()
@@ -550,3 +566,46 @@ def test_search_scrape_contains_http_fallback_errors(monkeypatch, caplog):
 
     assert urls == []
     assert "Error extracting URLs" in caplog.text
+    assert scraper.source_available is False
+    assert scraper.source_unavailable_reason == "network unavailable"
+
+
+@pytest.mark.parametrize(
+    ("status_code", "text"),
+    [(500, "server error"), (200, "")],
+    ids=["http-error", "empty-response"],
+)
+def test_http_fallback_marks_terminal_response_unavailable(
+    status_code, text, caplog
+):
+    class TerminalResponse:
+        def __init__(self):
+            self.status_code = status_code
+            self.text = text
+            self.headers = {}
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"HTTP {self.status_code}")
+
+    class TerminalSession:
+        def get(self, _url, **_kwargs):
+            return TerminalResponse()
+
+    scraper = object.__new__(DerStandardScraper)
+    scraper.use_selenium = False
+    scraper.session = TerminalSession()
+    scraper.timeout = 30
+    scraper.source_available = True
+
+    with caplog.at_level(logging.ERROR):
+        urls = scraper.extract_listing_urls(
+            "https://immobilien.derstandard.at/suche/wien/kaufen-wohnung",
+            max_pages=1,
+        )
+
+    assert urls == []
+    assert scraper.source_available is False
+    assert "DerStandard source unavailable" in caplog.text
+    expected_reason = "HTTP 500" if status_code == 500 else "empty HTTP response"
+    assert expected_reason in scraper.source_unavailable_reason
