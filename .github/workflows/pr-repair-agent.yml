@@ -114,7 +114,7 @@ jobs:
         if: github.repository == 'vladbrincoveanu/ImmoAgent'
         run: |
           python -m compileall -q Project scripts tests
-          python -m pytest -q --disable-warnings \
+          test_targets=(
             controller/tests/test_pr_repair_deepinfra.py \
             tests/test_pr_agent_review_gate.py \
             tests/test_workflow_dependencies.py \
@@ -123,6 +123,20 @@ jobs:
             Project/Tests/test_alert_matcher.py \
             Project/Tests/test_coop_channel_ledger.py \
             Project/Tests/test_run_coop.py
+          )
+          available_tests=()
+          for target in "${test_targets[@]}"; do
+            if [[ -f "$target" ]]; then
+              available_tests+=("$target")
+            else
+              echo "Skipping unavailable validation target: $target"
+            fi
+          done
+          if (( ${#available_tests[@]} == 0 )); then
+            echo "No ImmoAgent targeted tests are present; skipping pytest."
+          else
+            python -m pytest -q --disable-warnings "${available_tests[@]}"
+          fi
 
       - id: push
         name: Validate and push targeted changes

@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = Path(__file__).parents[1] / ".github" / "pr-repair-openrouter.py"
 SPEC = importlib.util.spec_from_file_location("pr_repair_openrouter", MODULE_PATH)
@@ -18,6 +20,24 @@ def test_request_body_targets_openrouter_nemotron_without_unsupported_json_mode(
 
     assert body["model"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
     assert "response_format" not in body
+
+
+def test_openrouter_error_payload_is_reported_without_key_error():
+    with pytest.raises(RuntimeError, match="OpenRouter response missing choices"):
+        pr_repair.response_content({"error": {"message": "rate limit exceeded"}})
+
+
+def test_unusable_openrouter_response_blocks_without_proposing_a_patch():
+    decision = pr_repair.decision_from_result(
+        {"error": {"message": "rate limit exceeded"}}
+    )
+
+    assert decision == {
+        "action": "blocked",
+        "patch": "",
+        "summary": "OpenRouter response missing choices: {\"message\": \"rate limit exceeded\"}",
+        "tests": [],
+    }
 
 
 def test_model_patch_cannot_delete_protected_workflow_files():
