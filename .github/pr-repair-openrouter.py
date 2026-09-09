@@ -108,6 +108,7 @@ def _path_is_protected(path):
         normalized.startswith("/")
         or normalized.startswith(".github/workflows/")
         or normalized.startswith(".github/pr-repair-")
+        or normalized.startswith(".claude/skills/")
         or normalized in {".env", ".env.local", ".gitconfig"}
         or ".." in normalized.split("/")
     )

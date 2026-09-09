@@ -49,6 +49,24 @@ def test_model_patch_cannot_delete_protected_workflow_files():
     assert pr_repair.patch_targets_protected_path(patch) is True
 
 
+def test_model_patch_cannot_replace_managed_skill_links():
+    patch = """diff --git a/.claude/skills/concise-responses b/.claude/skills/concise-responses
+deleted file mode 120000
+--- a/.claude/skills/concise-responses
++++ /dev/null
+@@ -1 +0,0 @@
+-/Users/vladbrincoveanu/Desktop/Startup/agent-skills/skills/concise-responses
+diff --git a/.claude/skills/concise-responses/SKILL.md b/.claude/skills/concise-responses/SKILL.md
+new file mode 100644
+--- /dev/null
++++ b/.claude/skills/concise-responses/SKILL.md
+@@ -0,0 +1 @@
++# Concise Responses
+"""
+
+    assert pr_repair.patch_targets_protected_path(patch) is True
+
+
 def test_model_patch_cannot_delete_protected_paths_in_no_prefix_form():
     patch = """diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
 deleted file mode 100644
