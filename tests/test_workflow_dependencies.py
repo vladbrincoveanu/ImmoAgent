@@ -4,6 +4,15 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+PR_REPAIR_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "pr-repair-agent.yml"
+
+
+def test_pr_repair_validation_skips_tests_missing_from_target_branch():
+    workflow = PR_REPAIR_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "test_targets=(" in workflow
+    assert 'if [[ -f "$target" ]]; then' in workflow
+    assert '"${available_tests[@]}"' in workflow
 
 
 def test_top5_help_starts_without_numpy():

@@ -53,6 +53,32 @@ def _parse_decision(content):
     return json.loads(content)
 
 
+def response_content(result):
+    choices = result.get("choices")
+    if not isinstance(choices, list) or not choices:
+        detail = result.get("error")
+        suffix = f": {json.dumps(detail, sort_keys=True)}" if detail else ""
+        raise RuntimeError(f"OpenRouter response missing choices{suffix}")
+
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("OpenRouter response missing message content")
+    return content
+
+
+def decision_from_result(result):
+    try:
+        return _parse_decision(response_content(result))
+    except (RuntimeError, ValueError) as error:
+        return {
+            "action": "blocked",
+            "patch": "",
+            "summary": str(error),
+            "tests": [],
+        }
+
+
 def _candidate_paths(patch_text):
     candidates = set()
     for line in patch_text.splitlines():
@@ -127,8 +153,7 @@ def main():
         detail = error.read().decode("utf-8", errors="replace")[:500]
         raise RuntimeError(f"OpenRouter request failed ({error.code}): {detail}") from error
 
-    content = result["choices"][0]["message"]["content"]
-    decision = _parse_decision(content)
+    decision = decision_from_result(result)
 
     with open(workspace / "repair-result.json", "w", encoding="utf-8") as handle:
         json.dump(decision, handle, indent=2)
