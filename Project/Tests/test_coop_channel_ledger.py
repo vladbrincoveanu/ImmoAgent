@@ -29,7 +29,7 @@ PRIVATE_CHAT = "-1001private"
 # alerts, so without at least one the feed is silent by design (D6).
 OWNER = "owner@x.at"
 OPEN_ALERT = {"_id": "open", "kind": "keyword", "email": OWNER,
-              "telegram_chat_id": "-100"}
+              "telegram_chat_id": "-100", "confirmed": True}
 
 
 def _l(**kw):
@@ -339,24 +339,6 @@ class TestChannelFilter(unittest.TestCase):
         self.assertEqual(len(delivered), 1)
         self.assertTrue(delivered[0][2])            # unverified, still delivered
 
-    def test_an_alert_with_no_deliverable_channel_still_governs_the_feed(self):
-        """Filtering is not delivery: an alert with an unconfirmed email has no
-        usable channel of its own but must still open the broadcast feed.
-
-        `get_active_alerts` drops exactly this alert — which is why the channel
-        reads the unfiltered subscription list instead."""
-        alert = {"_id": "a", "kind": "keyword", "email": OWNER,
-                 "confirmed": False}
-        ledger = FakeLedger()
-        handler = _handler(ledger, alerts=[alert])
-        bots = _bot_factory()
-
-        self.assertTrue(run_coop.channel_match(alert, _l()))
-        self.assertEqual(_poll(handler, [_l()], bots), 0)
-
-        self.assertEqual(_sends(bots[0]), 1)
-        handler.get_active_alerts.assert_not_called()
-
     def test_rubric_gate_is_applied(self):
         """A coop_private alert must not open the feed for a mygewo unit."""
         alert = {"_id": "a", "kind": "coop_private", "telegram_chat_id": "-100"}
@@ -368,6 +350,29 @@ class TestChannelFilter(unittest.TestCase):
 
 class TestChannelOwnerScope(unittest.TestCase):
     """The broadcast channel carries the OWNER's alerts, not every subscriber's."""
+
+    def test_unconfirmed_matching_email_cannot_govern_the_channel(self):
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "pending-email", "kind": "keyword", "keywords": ["wien"],
+             "email": OWNER, "confirmed": False}])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots, owners=OWNER), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
+        handler.get_active_alerts.assert_not_called()
+
+    def test_unverified_matching_telegram_id_cannot_govern_the_channel(self):
+        ledger = FakeLedger()
+        handler = _handler(ledger, alerts=[
+            {"_id": "pending-telegram", "kind": "keyword", "keywords": ["wien"],
+             "telegram_chat_id": "-100777", "confirmed": False}])
+        bots = _bot_factory()
+
+        self.assertEqual(_poll(handler, [_l()], bots, owners="-100777"), 0)
+
+        self.assertEqual(_sends(bots[0]), 0)
 
     def test_an_alert_owned_by_someone_else_does_not_govern(self):
         ledger = FakeLedger()
@@ -384,18 +389,19 @@ class TestChannelOwnerScope(unittest.TestCase):
         ledger = FakeLedger()
         handler = _handler(ledger, alerts=[
             {"_id": "mine", "kind": "keyword", "keywords": ["wien"],
-             "email": "Owner@X.at"}])
+             "email": "Owner@X.at", "confirmed": True}])
         bots = _bot_factory()
 
         self.assertEqual(_poll(handler, [_l()], bots, owners=OWNER), 0)
 
         self.assertEqual(_sends(bots[0]), 1)
 
-    def test_a_telegram_chat_id_can_be_the_owner(self):
+    def test_a_telegram_chat_id_on_a_verified_alert_can_be_the_owner(self):
         ledger = FakeLedger()
         handler = _handler(ledger, alerts=[
             {"_id": "mine", "kind": "keyword", "keywords": ["wien"],
-             "telegram_chat_id": "-100777"}])
+             "email": OWNER, "telegram_chat_id": "-100777",
+             "confirmed": True}])
         bots = _bot_factory()
 
         self.assertEqual(_poll(handler, [_l()], bots, owners="-100777"), 0)
@@ -406,7 +412,7 @@ class TestChannelOwnerScope(unittest.TestCase):
         ledger = FakeLedger()
         handler = _handler(ledger, alerts=[
             {"_id": "mine", "kind": "keyword", "keywords": ["wien"],
-             "email": "second@x.at"}])
+             "email": "second@x.at", "confirmed": True}])
         bots = _bot_factory()
 
         self.assertEqual(

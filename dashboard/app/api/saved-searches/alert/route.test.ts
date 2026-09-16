@@ -51,6 +51,20 @@ beforeEach(() => {
 });
 
 describe('POST /api/saved-searches/alert kinds', () => {
+  it('does not self-confirm a Telegram-only subscription', async () => {
+    const response = await POST(request({
+      kind: 'mygewo',
+      telegram_chat_id: '-100123456',
+    }));
+    const body = await response.json() as { confirmed: boolean; message: string };
+
+    expect(response.status).toBe(201);
+    expect(body.confirmed).toBe(false);
+    expect(body.message).toBe('Subscription active — alerts will arrive on Telegram.');
+    expect(mockInsertOne).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmed: false }));
+  });
+
   it('accepts an all-MyGEWO alert kind', async () => {
     const response = await POST(request({
       kind: 'mygewo',

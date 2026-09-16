@@ -326,18 +326,23 @@ requests/bs4/pymongo — no Selenium/torch).
 
 Run locally: `cd Project && python run_coop.py [--no-send]`.
 
-### Channel filter — the union of active alerts
+### Channel filter — the union of verified owner alerts
 
-The channel carries what a live alert asks for: `run_coop.channel_match_any`
-ORs every subscription from
-`get_alert_subscriptions(["coop_private", "keyword"])` — the unfiltered view,
-not `get_active_alerts`, which drops alerts with no deliverable channel.
+The channel carries what a verified owner alert asks for:
+`run_coop.channel_match_any` ORs the owner-filtered subscriptions from
+`get_alert_subscriptions(["coop_private", "keyword"])`. The poller requires
+`confirmed == true` and a non-empty email before it accepts a row as an owner.
+This email confirmation is the only ownership proof currently implemented.
+Telegram-only rows remain valid private delivery subscriptions, but a public
+client-supplied Telegram ID cannot authorize a shared channel without a
+Telegram possession check, which the system does not have. An allowlisted
+Telegram ID is supported only on a row that also has a confirmed email.
+An unverified or non-allowlisted row is never broadcast.
 Stricter than the per-user path — a match whose gate could not be checked
 (`unverified`) is delivered to the subscriber, flagged, but kept off the public
-feed. Deliverability is not consulted: an alert with an unconfirmed email still
-governs the feed, because filtering is not delivery.
+feed. That strictness is separate from owner verification.
 
-**Zero active alerts = a silent channel** (logged at WARNING), where the old
+**Zero verified owner alerts = a silent channel** (logged at WARNING), where the old
 static filter meant "send everything".
 
 `Project/coop_alerts.json` and the `COOP_ALERTS` env var are no longer read.

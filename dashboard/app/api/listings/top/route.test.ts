@@ -64,7 +64,7 @@ function conditionsFor(url: string, handler: (request: NextRequest) => Promise<R
   return handler(request(url)).then(async (response) => {
     expect(response.status).toBe(200);
     await response.json();
-    const query = mockFind.mock.calls.at(-1)?.[0];
+    const query = mockFind.mock.calls.at(-1)?.[0] as Record<string, unknown> | undefined;
     return query?.$and as Array<Record<string, unknown>>;
   });
 }

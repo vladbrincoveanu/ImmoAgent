@@ -142,11 +142,12 @@ def _mongo_mock(get_listing_ret=None, alerts=None):
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
     h.get_listings_by_urls.return_value = {}
-    # One key-less alert = "everything on this feed", which is what these tests
-    # assumed before the channel filter existed. Zero alerts now means silence.
+    # One owner-verified alert = "everything on this feed", which is what these
+    # tests assumed before the channel filter existed. Zero alerts now means
+    # silence.
     h.get_alert_subscriptions.return_value = (
         [{"_id": "t", "kind": "keyword", "email": CHANNEL_OWNER,
-          "telegram_chat_id": "-100"}]
+          "telegram_chat_id": "-100", "confirmed": True}]
         if alerts is None else alerts)
     return h
 
@@ -799,7 +800,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         alert = {"_id": "mygewo", "kind": "mygewo", "keywords": [],
-                 "telegram_chat_id": "-100", "confirmed": True}
+                 "telegram_chat_id": "-100", "confirmed": False}
         handler = self._handler([])
         handler.get_active_alerts.side_effect = (
             lambda kinds: [alert] if "mygewo" in kinds else [])
@@ -816,7 +817,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "1100",
-                                  "telegram_chat_id": "-100", "confirmed": True}])
+                                  "telegram_chat_id": "-100", "confirmed": False}])
         listing = _l(url="https://willhaben.at/x")
         listing.title = "Weitergabe 1100 Wien"
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)

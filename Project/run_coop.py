@@ -70,9 +70,19 @@ def channel_alert_owners() -> set:
 
 
 def alert_is_owned(alert: Dict, owners: set) -> bool:
-    """Return whether an alert belongs to one of the configured feed owners."""
+    """Return whether a verified alert belongs to a configured feed owner.
+
+    A confirmed email is the only ownership proof this system has. Telegram chat
+    ids are public routing values and the subscription form has no possession
+    check, so a Telegram-only row cannot authorize a shared channel. A Telegram
+    id may still be used in the allowlist when the same row also has a confirmed
+    email, which preserves mixed-alert channel configuration.
+    """
+    email = str(alert.get("email") or "").strip().lower()
+    if alert.get("confirmed") is not True or not email:
+        return False
     identities = {
-        str(alert.get("email") or "").strip().lower(),
+        email,
         str(alert.get("telegram_chat_id") or "").strip().lower(),
     }
     return bool(owners & (identities - {""}))
@@ -248,9 +258,10 @@ def channel_match(alert: Dict, listing) -> bool:
     noise, so the channel takes `passes and not unverified`. The strictness lives
     here rather than in the shared matcher, which keeps email behaviour untouched.
 
-    Deliverability is NOT consulted: an alert whose email is still unconfirmed
-    has no usable channel of its own, yet it is still a statement of what this
-    feed is for. Filtering is not delivery."""
+    Owner verification is applied to the subscription list before this matcher
+    runs. Deliverability is otherwise NOT consulted here: a verified alert with
+    an unavailable Telegram destination can still describe the intended feed,
+    while the shared matcher remains separate from private delivery."""
     if not rubric_hit(alert, listing):
         return False
     if not keyword_hit(alert, listing):
@@ -526,9 +537,9 @@ def run(no_send: bool = False) -> int:
     # What the channel carries is whatever a live alert asks for. Zero alerts is
     # therefore zero messages, where the old static filter meant "send
     # everything" — a behaviour change that must never be silent.
-    # Every subscription, not `get_active_alerts`: that view drops an alert whose
-    # only address is unconfirmed, and such an alert still says what this feed is
-    # for even though nothing can be delivered to it.
+    # Every subscription, not `get_active_alerts`: this view is the source for the
+    # owner filter below. Private delivery may use Telegram without confirmation,
+    # but an unverified row must never define a shared channel feed.
     try:
         channel_alerts = handler.get_alert_subscriptions(CHANNEL_ALERT_KINDS)
     except Exception as e:
@@ -542,12 +553,13 @@ def run(no_send: bool = False) -> int:
             "define the feed, comma-separated. User alerts are unaffected.")
         channel_alerts = []
     else:
-        foreign = [alert for alert in channel_alerts
-                   if not alert_is_owned(alert, owners)]
-        if foreign:
+        not_owned = [alert for alert in channel_alerts
+                     if not alert_is_owned(alert, owners)]
+        if not_owned:
             logger.info(
-                f"ℹ️ {len(foreign)} alert(s) belong to other subscribers and do "
-                "not govern the channel; they are still delivered to them.")
+                f"ℹ️ {len(not_owned)} alert(s) are unverified or outside the "
+                "configured owner allowlist and do not govern the channel; "
+                "private user delivery is unaffected.")
             channel_alerts = [alert for alert in channel_alerts
                               if alert_is_owned(alert, owners)]
     if not channel_alerts:

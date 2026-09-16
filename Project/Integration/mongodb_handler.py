@@ -964,8 +964,8 @@ class MongoDBHandler:
 
         `get_active_alerts` answers "who can we deliver to" and therefore drops
         an alert whose only address is unconfirmed. The co-op CHANNEL needs the
-        other question — "what is this feed for" — and that alert is still a
-        statement of it. Filtering is not delivery."""
+        complete set so `run_coop` can apply its explicit owner allowlist and
+        verification policy without changing private delivery."""
         kinds = [kind] if isinstance(kind, str) else list(kind)
         try:
             return list(self.db["alert_subscriptions"].find(
