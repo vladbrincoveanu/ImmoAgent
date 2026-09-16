@@ -490,7 +490,7 @@ def scrape_immo_kurier(config: Dict, max_pages: int) -> Tuple[List[Listing], str
         logging.error(f"❌ Immo Kurier scraping failed: {e}")
         return [], "immo_kurier"
 
-def scrape_derstandard(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
+def scrape_derstandard(config: Dict, max_pages: int) -> Tuple[List[Listing], str, bool]:
     """Scrape derStandard listings"""
     logging.info("🔍 Starting derStandard scraping...")
     try:
@@ -502,11 +502,40 @@ def scrape_derstandard(config: Dict, max_pages: int) -> Tuple[List[Listing], str
         search_url = derstandard_config.get('search_url', scraper.search_url)
         
         listings = scraper.scrape_search_results(search_url, max_pages=max_pages)
-        logging.info(f"✅ derStandard: {len(listings)} listings found")
-        return listings, "derstandard"
+        source_available = getattr(scraper, 'source_available', True)
+        if not source_available:
+            reason = getattr(scraper, 'source_unavailable_reason', 'unknown error')
+            logging.warning(f"⚠️ derStandard source unavailable ({reason})")
+
+        if source_available or listings:
+            logging.info(f"✅ derStandard: {len(listings)} listings found")
+        return listings, "derstandard", source_available
     except Exception as e:
         logging.error(f"❌ derStandard scraping failed: {e}")
-        return [], "derstandard"
+        return [], "derstandard", False
+
+
+def revalidate_scraped_source(
+    mongo,
+    source: str,
+    source_available: bool = True,
+) -> None:
+    """Revalidate listings only when the source responded successfully."""
+    if not source_available:
+        logging.warning(f"⏭️ Skipping revalidation for unavailable {source} source")
+        return
+
+    source_enum_map = {
+        'willhaben': 'willhaben',
+        'immo_kurier': 'immo_kurier',
+        'derstandard': 'derstandard',
+    }
+    source_enum = source_enum_map.get(source, source)
+    rev_stats = mark_taken_listings(mongo, source_filter=[source_enum])
+    logging.info(
+        f"   🔍 Revalidation: {rev_stats['newly_taken']} newly taken, "
+        f"{rev_stats['already_taken']} already marked"
+    )
 
 def scrape_genossenschaft(config: Dict, max_pages: int) -> Tuple[List[Listing], str]:
     """Scrape Genossenschaft (co-op Bauträger) listings"""
@@ -853,25 +882,35 @@ def main():
         for future in as_completed(future_to_scraper):
             scraper_name = future_to_scraper[future]
             try:
-                listings, source = future.result()
-                scraping_results[source] = {'listings': listings, 'count': len(listings)}
+                result = future.result()
+                listings, source = result[:2]
+                source_available = result[2] if len(result) > 2 else True
+                scraping_results[source] = {
+                    'listings': listings,
+                    'count': len(listings),
+                    'source_available': source_available,
+                }
                 all_listings.extend(listings)
-                logging.info(f"✅ {scraper_name} completed: {len(listings)} listings")
+                if source_available:
+                    logging.info(f"✅ {scraper_name} completed: {len(listings)} listings")
+                else:
+                    logging.warning(
+                        f"⚠️ {scraper_name} source unavailable; "
+                        f"{len(listings)} listings returned"
+                    )
                 # Lightweight revalidation of source's active listings
                 try:
-                    source_enum_map = {
-                        'willhaben': 'willhaben',
-                        'immo_kurier': 'immo_kurier',
-                        'derstandard': 'derstandard'
-                    }
-                    source_enum = source_enum_map.get(source, source)
-                    rev_stats = mark_taken_listings(mongo, source_filter=[source_enum])
-                    logging.info(f"   🔍 Revalidation: {rev_stats['newly_taken']} newly taken, {rev_stats['already_taken']} already marked")
+                    revalidate_scraped_source(mongo, source, source_available)
                 except Exception as rev_e:
                     logging.warning(f"   ⚠️ Revalidation failed for {source}: {rev_e}")
             except Exception as e:
                 logging.error(f"❌ {scraper_name} failed: {e}")
-                scraping_results[scraper_name] = {'listings': [], 'count': 0, 'error': str(e)}
+                scraping_results[scraper_name] = {
+                    'listings': [],
+                    'count': 0,
+                    'source_available': False,
+                    'error': str(e),
+                }
     
     # Initialize Telegram bot for notifications (main channel)
     telegram_bot = None

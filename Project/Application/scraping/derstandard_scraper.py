@@ -51,6 +51,13 @@ WAF_CHALLENGE_MARKERS = (
     'enable javascript and cookies',
     'verify you are human',
 )
+HTTP_RETRY_ATTEMPTS = 3
+HTTP_RETRYABLE_EXCEPTIONS = (
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ContentDecodingError,
+)
 
 
 class DerStandardScraper:
@@ -64,6 +71,8 @@ class DerStandardScraper:
         else:
             self.config = config
         self.use_selenium = use_selenium
+        self.source_available = True
+        self.source_unavailable_reason = None
         self.session = requests.Session()
         
         # Get configuration values
@@ -514,6 +523,8 @@ class DerStandardScraper:
 
     def extract_listing_urls(self, search_url: str, max_pages: int = 5) -> List[str]:
         """Extract listing URLs from search results"""
+        self.source_available = True
+        self.source_unavailable_reason = None
         all_urls = []
         
         for page in range(1, max_pages + 1):
@@ -537,9 +548,13 @@ class DerStandardScraper:
                         logging.warning(
                             "⚠️ Selenium search extraction failed; retrying with HTTP"
                         )
-                        html_content = self._get_page_with_requests(page_url)
+                        html_content = self._get_page_with_requests(
+                            page_url, mark_source_unavailable=True
+                        )
                 else:
-                    html_content = self._get_page_with_requests(page_url)
+                    html_content = self._get_page_with_requests(
+                        page_url, mark_source_unavailable=True
+                    )
 
                 page_urls = self.extract_listing_urls_from_page(html_content)
                 logging.info(f"✅ Found {len(page_urls)} URLs on page {page}")
@@ -561,19 +576,92 @@ class DerStandardScraper:
 
         return unique_urls
 
-    def _get_page_with_requests(self, url: str) -> str:
+    def _mark_source_unavailable(self, reason: str) -> None:
+        self.source_available = False
+        self.source_unavailable_reason = reason
+        logging.error("❌ DerStandard source unavailable: %s", reason)
+
+    def _get_page_with_requests(
+        self, url: str, *, mark_source_unavailable: bool = False
+    ) -> str:
         """Get page content over HTTP without accepting WAF challenge pages."""
-        response = self.session.get(url, timeout=self.timeout)
-        if response.status_code == 202:
-            action = response.headers.get("x-amzn-waf-action")
-            reason = "AWS WAF challenge" if action == "challenge" else "HTTP 202 response"
-            raise RuntimeError(f"DerStandard returned {reason}")
-        response.raise_for_status()
-        if not response.text.strip():
-            raise RuntimeError("DerStandard returned an empty HTTP response")
-        if self._is_waf_challenge_page(response.text):
-            raise RuntimeError("DerStandard returned an AWS WAF challenge page")
-        return response.text
+        for attempt in range(HTTP_RETRY_ATTEMPTS):
+            try:
+                response = self.session.get(url, timeout=self.timeout)
+            except HTTP_RETRYABLE_EXCEPTIONS as exc:
+                reason = str(exc) or exc.__class__.__name__
+                if attempt == HTTP_RETRY_ATTEMPTS - 1:
+                    if mark_source_unavailable:
+                        self._mark_source_unavailable(reason)
+                    raise RuntimeError(
+                        f"DerStandard request failed after {HTTP_RETRY_ATTEMPTS} attempts: {reason}"
+                    ) from exc
+
+                delay = 2 ** (attempt + 1)
+                logging.warning(
+                    "⚠️ HTTP transport failure for %s (%s); retrying in %.1fs "
+                    "(attempt %d/%d)",
+                    url,
+                    reason,
+                    delay,
+                    attempt + 1,
+                    HTTP_RETRY_ATTEMPTS,
+                )
+                smart_sleep(delay)
+                continue
+
+            reason = None
+            if response.status_code == 403:
+                reason = "HTTP 403 (possible WAF block)"
+            elif response.status_code == 202:
+                action = response.headers.get("x-amzn-waf-action")
+                if action == "challenge":
+                    reason = "AWS WAF challenge"
+                else:
+                    reason = "HTTP 202 response"
+                    if mark_source_unavailable:
+                        self._mark_source_unavailable(reason)
+                    raise RuntimeError(f"DerStandard source unavailable: {reason}")
+            elif self._is_waf_challenge_page(response.text):
+                reason = "AWS WAF challenge page"
+
+            if reason is None:
+                try:
+                    response.raise_for_status()
+                except requests.exceptions.HTTPError as exc:
+                    if mark_source_unavailable:
+                        self._mark_source_unavailable(
+                            str(exc) or exc.__class__.__name__
+                        )
+                    raise
+
+                if not response.text.strip():
+                    reason = "DerStandard returned an empty HTTP response"
+                    if mark_source_unavailable:
+                        self._mark_source_unavailable(reason)
+                    raise RuntimeError(reason)
+                return response.text
+
+            if attempt == HTTP_RETRY_ATTEMPTS - 1:
+                if mark_source_unavailable:
+                    self._mark_source_unavailable(reason)
+                logging.error(
+                    "❌ DerStandard source unavailable after %d attempts: %s",
+                    HTTP_RETRY_ATTEMPTS,
+                    reason,
+                )
+                raise RuntimeError(f"DerStandard source unavailable: {reason}")
+
+            delay = 2 ** (attempt + 1)
+            logging.warning(
+                "⚠️ %s for %s; retrying in %.1fs (attempt %d/%d)",
+                reason,
+                url,
+                delay,
+                attempt + 1,
+                HTTP_RETRY_ATTEMPTS,
+            )
+            smart_sleep(delay)
 
     def _is_waf_challenge_page(self, html_content: str) -> bool:
         """Detect rendered AWS WAF interstitials even when they return HTTP 200."""
