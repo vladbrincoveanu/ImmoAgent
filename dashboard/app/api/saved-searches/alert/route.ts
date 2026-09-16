@@ -136,18 +136,19 @@ export async function POST(req: NextRequest) {
     saved_search_id: body.saved_search_id ?? null,
     params,
     frequency,
-    // Telegram needs no double opt-in: supplying a chat id the bot can post to is
-    // itself the consent, and there is no third party to protect from spam. Email
-    // still does — anyone can type someone else's address.
-    confirmed: !hasEmail && hasTelegram,
+    // `confirmed` is proof of email ownership, not delivery consent. A Telegram
+    // chat id is a public routing value and this endpoint has no possession check,
+    // so it must never self-confirm or authorize a shared channel owner.
+    confirmed: false,
     confirm_token: confirmToken,
     created_at: new Date(),
   };
   await db.collection('alert_subscriptions').insertOne(doc);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000');
   const confirmUrl = `${appUrl}/api/saved-searches/confirm?token=${confirmToken}`;
   // Telegram-only alerts have no address to confirm — sending here would mail ''.
   const mailResult = hasEmail
@@ -171,9 +172,11 @@ export async function POST(req: NextRequest) {
     email_sent: mailResult.ok,
     message: mailResult.ok
       ? 'Subscription created. Check your inbox to confirm.'
-      : doc.confirmed
-        ? 'Subscription active — alerts will arrive on Telegram.'
-        : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
+       : !hasEmail && hasTelegram
+         ? 'Subscription active — alerts will arrive on Telegram.'
+         : doc.confirmed
+         ? 'Subscription active — alerts will arrive on Telegram.'
+         : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
   }, { status: 201 });
   setUserCookie(res, userId);
   return res;

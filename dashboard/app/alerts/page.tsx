@@ -304,10 +304,11 @@ export default function AlertsPage() {
             leaks the token and the id never validates. */}
         <p className="text-xs text-[#6B6B6B]">
           At least one channel is required. Email can be used alone, but it must
-          be confirmed before delivery. Telegram does not need confirmation —
-          supplying a chat ID is itself the consent. The chat ID is a plain
-          number (message @userinfobot to get yours), <strong>not</strong>{' '}
-          a bot token — this app uses its own bot.
+          be confirmed before delivery. Telegram alerts do not need email
+          confirmation, but a chat ID alone cannot prove ownership of a shared
+          channel feed. The chat ID is a plain number (message @userinfobot to
+          get yours), <strong>not</strong>{' '}a bot token — this app uses its own
+          bot.
         </p>
         <button
           type="submit"

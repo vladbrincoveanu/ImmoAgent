@@ -24,7 +24,7 @@ class _L:
 
 
 _TG = {"_id": "a1", "keyword": "", "telegram_chat_id": "-100123456", "email": None,
-       "confirmed": True}
+       "confirmed": False}
 
 
 # --- matching -----------------------------------------------------------------

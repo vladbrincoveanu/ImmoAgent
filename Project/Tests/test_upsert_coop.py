@@ -108,6 +108,20 @@ class TestUpsertCoopListing(unittest.TestCase):
         self.assertEqual(status, "invalid")
         h.collection.insert_one.assert_not_called()
 
+    def test_persists_private_transfer_monthly_rent(self):
+        h = _handler()
+        h.collection.find_one.return_value = None
+
+        status = h.upsert_coop_listing(_doc(
+            coop_source="willhaben",
+            coop_kind="private_transfer",
+            price_total=720.0,
+            area_m2=60.0,
+        ))
+
+        self.assertEqual(status, "inserted")
+        h.collection.insert_one.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

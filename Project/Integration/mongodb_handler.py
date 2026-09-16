@@ -97,10 +97,13 @@ def is_valid_listing_data(listing: Dict) -> Tuple[bool, str]:
     # is_genossenschaft + absent buyable — Willhaben mistags ordinary purchase
     # listings as is_genossenschaft via keyword match and never sets buyable, so
     # that combination would silently bypass the purchase €/m² floor for them.
+    # Private Willhaben transfers are also rentals, but are identified by the
+    # stronger two-marker `coop_kind` classification rather than `coop_source`.
     # `buyable` stays as a second, defensive condition in case a buy-option unit
-    # ever slips through the mygewo buy-unit filter upstream.
+    # ever slips through either upstream filter.
     is_coop_rental = (
-        listing.get('coop_source') == 'bautraeger_direct'
+        (listing.get('coop_source') == 'bautraeger_direct'
+         or listing.get('coop_kind') == 'private_transfer')
         and not listing.get('buyable', False)
     )
 
@@ -961,8 +964,8 @@ class MongoDBHandler:
 
         `get_active_alerts` answers "who can we deliver to" and therefore drops
         an alert whose only address is unconfirmed. The co-op CHANNEL needs the
-        other question — "what is this feed for" — and that alert is still a
-        statement of it. Filtering is not delivery."""
+        complete set so `run_coop` can apply its explicit owner allowlist and
+        verification policy without changing private delivery."""
         kinds = [kind] if isinstance(kind, str) else list(kind)
         try:
             return list(self.db["alert_subscriptions"].find(

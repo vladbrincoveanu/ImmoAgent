@@ -21,7 +21,9 @@ def _l(**kw):
 
 # The static `coop_alerts.json` filter is gone: every field in it was null in
 # CI, so it matched everything and the channel was a firehose. The channel filter
-# is now the union of active alerts — see Tests/test_coop_channel_ledger.py.
+# is now the union of the OWNER's alerts — see Tests/test_coop_channel_ledger.py.
+# The channel fails closed when no owner is configured.
+CHANNEL_OWNER = "owner@x.at"
 
 from unittest.mock import MagicMock, call
 
@@ -88,6 +90,18 @@ class TestPollSource(unittest.TestCase):
         self.assertEqual(d["source_enum"], "genossenschaft")
         self.assertAlmostEqual(d["price_per_m2"], 5.0)        # 350/70
 
+    def test_to_doc_preserves_willhaben_source_enum(self):
+        listing = _l(
+            url="https://www.willhaben.at/iad/immobilien/d/transfer-1/",
+            coop_kind="private_transfer",
+        )
+        listing.source = Source.WILLHABEN
+
+        d = run_coop._to_doc(listing)
+
+        self.assertEqual(d["source"], "willhaben")
+        self.assertEqual(d["source_enum"], "willhaben")
+
 
 from unittest.mock import patch
 
@@ -128,10 +142,12 @@ def _mongo_mock(get_listing_ret=None, alerts=None):
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
     h.get_listings_by_urls.return_value = {}
-    # One key-less alert = "everything on this feed", which is what these tests
-    # assumed before the channel filter existed. Zero alerts now means silence.
+    # One owner-verified alert = "everything on this feed", which is what these
+    # tests assumed before the channel filter existed. Zero alerts now means
+    # silence.
     h.get_alert_subscriptions.return_value = (
-        [{"_id": "t", "kind": "keyword", "telegram_chat_id": "-100"}]
+        [{"_id": "t", "kind": "keyword", "email": CHANNEL_OWNER,
+          "telegram_chat_id": "-100", "confirmed": True}]
         if alerts is None else alerts)
     return h
 
@@ -631,10 +647,12 @@ def test_reprobe_skipped_without_builder_url():
 
 def setUpModule():
     os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
+    os.environ["COOP_CHANNEL_ALERT_OWNERS"] = CHANNEL_OWNER
 
 
 def tearDownModule():
     os.environ.pop("WILLHABEN_PRIVATE_COOP", None)
+    os.environ.pop("COOP_CHANNEL_ALERT_OWNERS", None)
 
 
 class TestWillhabenPrivateCoopWiring(unittest.TestCase):
@@ -782,7 +800,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         alert = {"_id": "mygewo", "kind": "mygewo", "keywords": [],
-                 "telegram_chat_id": "-100", "confirmed": True}
+                 "telegram_chat_id": "-100", "confirmed": False}
         handler = self._handler([])
         handler.get_active_alerts.side_effect = (
             lambda kinds: [alert] if "mygewo" in kinds else [])
@@ -799,7 +817,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "1100",
-                                  "telegram_chat_id": "-100", "confirmed": True}])
+                                  "telegram_chat_id": "-100", "confirmed": False}])
         listing = _l(url="https://willhaben.at/x")
         listing.title = "Weitergabe 1100 Wien"
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)

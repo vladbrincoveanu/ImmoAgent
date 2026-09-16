@@ -59,7 +59,33 @@ USER_ALERT_KINDS = ["listings", "coop_private", "keyword", "mygewo", None]
 # the broadcast co-op channels. Those channels remain governed by the explicit
 # co-op alert kinds only.
 CHANNEL_ALERT_KINDS = ["coop_private", "keyword"]
+CHANNEL_OWNERS_ENV = "COOP_CHANNEL_ALERT_OWNERS"
 _LOOKUP_NOT_PROVIDED = object()
+
+
+def channel_alert_owners() -> set:
+    """Return the normalized identities whose alerts define the channel feed."""
+    raw = os.environ.get(CHANNEL_OWNERS_ENV) or ""
+    return {part.strip().lower() for part in raw.split(",") if part.strip()}
+
+
+def alert_is_owned(alert: Dict, owners: set) -> bool:
+    """Return whether a verified alert belongs to a configured feed owner.
+
+    A confirmed email is the only ownership proof this system has. Telegram chat
+    ids are public routing values and the subscription form has no possession
+    check, so a Telegram-only row cannot authorize a shared channel. A Telegram
+    id may still be used in the allowlist when the same row also has a confirmed
+    email, which preserves mixed-alert channel configuration.
+    """
+    email = str(alert.get("email") or "").strip().lower()
+    if alert.get("confirmed") is not True or not email:
+        return False
+    identities = {
+        email,
+        str(alert.get("telegram_chat_id") or "").strip().lower(),
+    }
+    return bool(owners & (identities - {""}))
 
 
 def is_coop_listing(listing) -> bool:
@@ -232,9 +258,10 @@ def channel_match(alert: Dict, listing) -> bool:
     noise, so the channel takes `passes and not unverified`. The strictness lives
     here rather than in the shared matcher, which keeps email behaviour untouched.
 
-    Deliverability is NOT consulted: an alert whose email is still unconfirmed
-    has no usable channel of its own, yet it is still a statement of what this
-    feed is for. Filtering is not delivery."""
+    Owner verification is applied to the subscription list before this matcher
+    runs. Deliverability is otherwise NOT consulted here: a verified alert with
+    an unavailable Telegram destination can still describe the intended feed,
+    while the shared matcher remains separate from private delivery."""
     if not rubric_hit(alert, listing):
         return False
     if not keyword_hit(alert, listing):
@@ -301,8 +328,9 @@ def _to_doc(listing: Listing) -> dict:
     """Listing → BSON-safe dict. Source is a plain Enum (verified not
     BSON-encodable), so stringify it. price_per_m2 filled when derivable."""
     d = asdict(listing)
-    d["source"] = listing.source.value if hasattr(listing.source, "value") else listing.source
-    d["source_enum"] = Source.GENOSSENSCHAFT.value
+    source = listing.source.value if hasattr(listing.source, "value") else listing.source
+    d["source"] = source
+    d["source_enum"] = source
     if listing.price_total and listing.area_m2 and not d.get("price_per_m2"):
         d["price_per_m2"] = listing.price_total / listing.area_m2
     return d
@@ -509,14 +537,31 @@ def run(no_send: bool = False) -> int:
     # What the channel carries is whatever a live alert asks for. Zero alerts is
     # therefore zero messages, where the old static filter meant "send
     # everything" — a behaviour change that must never be silent.
-    # Every subscription, not `get_active_alerts`: that view drops an alert whose
-    # only address is unconfirmed, and such an alert still says what this feed is
-    # for even though nothing can be delivered to it.
+    # Every subscription, not `get_active_alerts`: this view is the source for the
+    # owner filter below. Private delivery may use Telegram without confirmation,
+    # but an unverified row must never define a shared channel feed.
     try:
         channel_alerts = handler.get_alert_subscriptions(CHANNEL_ALERT_KINDS)
     except Exception as e:
         logger.error(f"❌ could not load the channel alert filter: {e}")
         channel_alerts = []
+    owners = channel_alert_owners()
+    if not owners:
+        logger.warning(
+            f"⚠️ {CHANNEL_OWNERS_ENV} is unset — the co-op channels stay silent. "
+            "Set it to the email(s) or Telegram chat id(s) whose alerts should "
+            "define the feed, comma-separated. User alerts are unaffected.")
+        channel_alerts = []
+    else:
+        not_owned = [alert for alert in channel_alerts
+                     if not alert_is_owned(alert, owners)]
+        if not_owned:
+            logger.info(
+                f"ℹ️ {len(not_owned)} alert(s) are unverified or outside the "
+                "configured owner allowlist and do not govern the channel; "
+                "private user delivery is unaffected.")
+            channel_alerts = [alert for alert in channel_alerts
+                              if alert_is_owned(alert, owners)]
     if not channel_alerts:
         logger.warning("⚠️ no active alerts — the co-op channels stay silent this "
                        "poll. Polling, upserts and user alerts are unaffected.")

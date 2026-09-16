@@ -9,13 +9,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 def test_seller_classification_does_not_require_optional_outreach_dependencies(monkeypatch):
     module_name = "Application.outreach.contact_extractor"
+    def is_isolated_module(name):
+        return (
+            name == "Application.outreach"
+            or name.startswith("Application.outreach.")
+            or name == "bleach"
+            or name.startswith("selenium")
+        )
+
+    original_modules = {
+        name: module for name, module in sys.modules.items()
+        if is_isolated_module(name)
+    }
     for loaded_name in list(sys.modules):
-        if (
-            loaded_name == "Application.outreach"
-            or loaded_name.startswith("Application.outreach.")
-            or loaded_name == "bleach"
-            or loaded_name.startswith("selenium")
-        ):
+        if is_isolated_module(loaded_name):
             sys.modules.pop(loaded_name, None)
 
     real_import = builtins.__import__
@@ -27,8 +34,14 @@ def test_seller_classification_does_not_require_optional_outreach_dependencies(m
             raise ModuleNotFoundError("No module named 'bleach'")
         return real_import(name, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "__import__", import_without_selenium)
-    module = importlib.import_module(module_name)
+    try:
+        monkeypatch.setattr(builtins, "__import__", import_without_selenium)
+        module = importlib.import_module(module_name)
 
-    assert module.classify_seller("Makler GmbH") == "agency"
-    assert "Application.outreach.email_sender" not in sys.modules
+        assert module.classify_seller("Makler GmbH") == "agency"
+        assert "Application.outreach.email_sender" not in sys.modules
+    finally:
+        for loaded_name in list(sys.modules):
+            if is_isolated_module(loaded_name):
+                sys.modules.pop(loaded_name, None)
+        sys.modules.update(original_modules)
