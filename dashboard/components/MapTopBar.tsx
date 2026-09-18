@@ -87,7 +87,7 @@ export function MapTopBar({
             : 'text-ink bg-card border-line hover:border-[#cdd6e1]'
         }`}
       >
-        Genossenschaft
+        Co-op
       </button>
       {filterPopover}
     </header>

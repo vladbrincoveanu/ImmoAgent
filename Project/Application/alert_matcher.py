@@ -1,20 +1,40 @@
-"""Match new private co-op transfers against user-created alerts.
+"""Match newly seen listings against user-created alerts.
 
-Users create these on /alerts: a free-text keyword plus at least one channel
-(Telegram chat id, confirmed email, or both). The poller tests every newly seen
-transfer against every active alert and returns the pairs to deliver.
+Users create these on /alerts: a handful of free-text keys, optional size, room
+and price gates, plus at least one channel (Telegram chat id, confirmed email,
+or both). The poller tests every newly seen ad against every active alert and
+returns the pairs to deliver.
 
-Matching is substring, case-insensitive, across title + address + the ad body.
-The body is the important part: "Nachmieter gesucht" and the district are usually
-buried in the description, so a title-only match would miss most of the feed.
+Four rules carry the design.
+
+A `mygewo` alert is source-scoped: it means builder-direct units and therefore
+must never widen to an unclassified or Willhaben listing.
+
+A `coop_private` alert is rubric-gated first. That kind means "a co-op flat being
+passed on by its tenant", which is an AND of two markers and therefore not
+expressible in OR-ed keys; the scraper's per-ad `coop_kind` verdict supplies it.
+
+Keys are OR, not AND. They are how a user lists synonyms for one thing —
+"Ablöse, Weitergabe, Nachmieter" — so requiring all of them would let a single
+absent word silently disable the alert.
+
+A listing field the source did not publish never FAILS a gate. Newest-first list
+pages routinely omit size and rooms, and treating unknown as too-small would
+drop exactly the fresh ads this poller exists to catch. Those matches are
+delivered flagged `unverified` instead.
+
+Matching is substring, case-insensitive, across title + address + district + the
+ad body. The body is the important part: "Nachmieter gesucht" and the district
+are usually buried in the description, so a title-only match would miss most of
+the feed.
 """
 import logging
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Numeric gates are data so the missing-value rule stays consistent across all
-# supported fields.
+# The numeric gates, kept as data so adding one is a single line and cannot
+# forget the null rule. Each entry is (alert filter key, Listing attribute).
 _MIN_GATES = (
     ("min_area", "area_m2"),
     ("min_rooms", "rooms"),
@@ -38,7 +58,10 @@ def searchable_text(listing) -> str:
 
 
 def alert_keywords(alert: Dict) -> List[str]:
-    """Return normalized multi-key values, with legacy scalar fallback."""
+    """The alert's keys, lowercased and stripped, empties dropped.
+
+    Falls back to the legacy scalar `keyword` when `keywords` is absent, so
+    alerts created before multi-key support keep working with no migration."""
     raw = alert.get("keywords")
     if not raw:
         legacy = alert.get("keyword")
@@ -47,22 +70,48 @@ def alert_keywords(alert: Dict) -> List[str]:
 
 
 def keyword_hit(alert: Dict, listing) -> bool:
-    """True when any keyword appears in the listing text."""
+    """True when ANY of the alert's keys appears in the ad.
+
+    No keys at all means "everything on this feed" — deliberate, so a user can
+    watch the whole stream without inventing a term."""
     keys = alert_keywords(alert)
     if not keys:
         return True
     haystack = searchable_text(listing)
-    return any(key in haystack for key in keys)
+    return any(k in haystack for k in keys)
+
+
+def rubric_hit(alert: Dict, listing) -> bool:
+    """Apply the source/rubric boundary required by the alert kind.
+
+    `mygewo` is source-scoped to builder-direct units, so missing source metadata
+    fails closed rather than widening the alert to the mixed feed.
+
+    For `coop_private`, keys are OR-ed and cannot express "a co-op AND a private
+    handover" — a list containing "Ablöse" matches every kitchen buyout on the
+    feed. The scraper already answers that question per ad
+    (`extract_is_private_coop_transfer` requires both a co-op marker and a
+    transfer marker, and run_coop stamps `coop_kind`), so the alert reuses that
+    verdict as an AND term in front of its keys.
+
+    Any other kind passes: the general feed is what 'keyword' and 'listings' are
+    for."""
+    if alert.get("kind") == "mygewo":
+        return getattr(listing, "coop_source", None) == "bautraeger_direct"
+    if alert.get("kind") != "coop_private":
+        return True
+    return getattr(listing, "coop_kind", None) == "private_transfer"
 
 
 def gate_result(alert: Dict, listing) -> Tuple[bool, bool]:
-    """Return (passes, unverified) for the alert's numeric filters.
+    """(passes, unverified) for one alert's numeric filters.
 
-    A missing source value never fails a gate. It is flagged instead so a fresh
-    ad is not silently dropped merely because its first feed page is sparse.
-    """
+    `unverified` is True only when a gate IS set and the field it reads is None.
+    An alert with no gates has nothing it failed to check, so flagging it would
+    put a warning on every single message."""
     filters = alert.get("filters") or {}
     unverified = False
+
     for key, attr in _MIN_GATES:
         limit = filters.get(key)
         if limit is None:
@@ -72,6 +121,7 @@ def gate_result(alert: Dict, listing) -> Tuple[bool, bool]:
             unverified = True
         elif value < limit:
             return False, False
+
     for key, attr in _MAX_GATES:
         limit = filters.get(key)
         if limit is None:
@@ -81,12 +131,17 @@ def gate_result(alert: Dict, listing) -> Tuple[bool, bool]:
             unverified = True
         elif value > limit:
             return False, False
+
     return True, unverified
 
 
 def alert_matches(alert: Dict, listing) -> bool:
-    """True when this alert wants this listing, ignoring warning metadata."""
-    return keyword_hit(alert, listing) and gate_result(alert, listing)[0]
+    """True when this alert wants this listing, ignoring the unverified flag.
+
+    Retained for callers that only need a boolean."""
+    return (rubric_hit(alert, listing)
+            and keyword_hit(alert, listing)
+            and gate_result(alert, listing)[0])
 
 
 def channels_for(alert: Dict) -> Tuple[Optional[str], Optional[str]]:
@@ -105,7 +160,7 @@ def match(listings: List, alerts: List[Dict]) -> List[Tuple[Dict, object, bool]]
 
     Order is alert-major so one noisy listing cannot starve later alerts if the
     caller truncates."""
-    pairs: List[Tuple[Dict, object, bool]] = []
+    out: List[Tuple[Dict, object, bool]] = []
     for alert in alerts:
         chat_id, email = channels_for(alert)
         if not chat_id and not email:
@@ -115,9 +170,11 @@ def match(listings: List, alerts: List[Dict]) -> List[Tuple[Dict, object, bool]]
                 f"alert {alert.get('_id')} has no usable channel — skipping")
             continue
         for listing in listings:
+            if not rubric_hit(alert, listing):
+                continue
             if not keyword_hit(alert, listing):
                 continue
             passes, unverified = gate_result(alert, listing)
             if passes:
-                pairs.append((alert, listing, unverified))
-    return pairs
+                out.append((alert, listing, unverified))
+    return out

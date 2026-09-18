@@ -82,7 +82,7 @@ def create_test_config_template():
         "mongodb_uri": "mongodb://localhost:27017/test_immo",
         "ollama_base_url": "http://localhost:11434",
         "ollama_model": "llama3.1:8b",
-        "openai_api_key": null,
+        "openai_api_key": None,
         "openai_model": "gpt-4o-mini",
         "source": "willhaben",
         "max_pages": 2,
@@ -141,7 +141,7 @@ def create_test_config_template():
             "access_key": "test_access_key",
             "secret_key": "test_secret_key",
             "bucket_name": "test-immo-images",
-            "secure": false
+            "secure": False
         }
     }
     
@@ -154,4 +154,4 @@ def create_test_config_template():
 
 if __name__ == "__main__":
     # Create test config template if run directly
-    create_test_config_template() 
+    create_test_config_template()

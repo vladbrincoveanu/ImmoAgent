@@ -211,6 +211,33 @@ def extract_is_genossenschaft(text: str) -> Optional[bool]:
     return None
 
 
+_PRIVATE_MARKERS = [
+    r'provisionsfrei', r'privatverkauf', r'von\s+privat', r'direkt\s+vom\s+eigent',
+]
+_AGENCY_MARKERS = [
+    r'makler(?!provision)', r'immobilienb(ü|ue)ro', r'maklerprovision',
+]
+
+
+def extract_seller_type(text: str, is_genossenschaft: Optional[bool] = None) -> str:
+    """Classify seller as 'private' | 'agency' | 'bautraeger' | 'unknown' from
+    already-scraped listing text (title + description). Does NOT fetch the
+    contact page - that regex lives in Application/outreach/contact_extractor.py
+    and is intentionally not reused here (it requires a separate network
+    request per listing, made only during outreach, too expensive at scrape
+    time for every listing).
+
+    Agency markers take priority over the bautraeger co-op signal: a builder's
+    unit can still be listed for them by an agency."""
+    if _any_match(text, _AGENCY_MARKERS):
+        return "agency"
+    if _any_match(text, _PRIVATE_MARKERS):
+        return "private"
+    if is_genossenschaft:
+        return "bautraeger"
+    return "unknown"
+
+
 _KNOWN_BAUTRAEGER = [
     # Must match the bautraeger names genossenschaft_scraper.py's direct-scrape
     # adapters use, so the same unit collapses across sources by name.

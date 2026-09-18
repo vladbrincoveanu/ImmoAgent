@@ -107,6 +107,48 @@ def compute_xsrc_fingerprint(listing) -> "str | None":
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
+def compute_unit_fingerprint(listing) -> "str | None":
+    """Cross-source fingerprint for 'same physical unit', extending the co-op
+    xsrc pattern to all verticals. Key = md5(coord_key|area|rooms|bezirk).
+
+    Coord key uses round(lat,4)/round(lon,4) (~11m) - NOT round(...,3) (~111m,
+    too coarse to distinguish adjacent units in the same building).
+
+    Merge guard: only usable across sources when coordinate_source == 'exact'
+    for at least one side. Two 'landmark'-precision docs must not collapse on
+    coordinates alone (false-positive risk), so this returns None for
+    landmark-only listings with no address fallback - callers should not treat
+    None as "no unit", just "no safe cross-source key available".
+
+    Falls back to bezirk+normalized-street when no exact-precision coords
+    exist at all but an address string is present. Returns None when neither
+    a safe coordinate key nor an address is available (weak key -> don't
+    collapse, matches compute_xsrc_fingerprint's convention).
+    """
+    area = listing.area_m2
+    rooms = listing.rooms
+    bezirk = listing.bezirk
+    if area is None or rooms is None or not bezirk:
+        return None
+
+    area_key = str(int(round(area)))
+    rooms_key = str(rooms)
+
+    coord_source = getattr(listing, "coordinate_source", None)
+    coords = getattr(listing, "coordinates", None)
+    if coord_source == "exact" and coords is not None:
+        coord_key = f"{round(coords.lat, 4)}:{round(coords.lon, 4)}"
+        raw = f"{coord_key}|{area_key}|{rooms_key}|{bezirk}"
+        return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+    address = getattr(listing, "address", None)
+    if address:
+        raw = f"{_norm(address)}|{area_key}|{rooms_key}|{bezirk}"
+        return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+    return None
+
+
 def compute_content_fingerprint(listing: Dict[str, Any]) -> str:
     """
     Compute a content fingerprint hash for dedup based on key property fields.
@@ -120,6 +162,28 @@ def compute_content_fingerprint(listing: Dict[str, Any]) -> str:
         f"{listing.get('source_enum', listing.get('source', ''))}"
     )
     return hashlib.md5(key_fields.encode('utf-8')).hexdigest()
+
+
+def compute_content_fingerprint_v2(listing: Dict[str, Any]) -> str:
+    """
+    Cross-source-stable content fingerprint. Prefers address (survives ad-text
+    edits, matches the same unit across sources); falls back to the title-based
+    key only when address is missing (degraded case — different sources' title
+    text for the same unit rarely matches, so this fallback stays per-source-ish).
+    """
+    address = listing.get('address')
+    bezirk = listing.get('bezirk', '')
+    area = listing.get('area_m2')
+    area_key = str(int(round(area))) if area else ''
+    rooms_key = str(listing.get('rooms', '')) if listing.get('rooms') is not None else ''
+    source_key = str(listing.get('source_enum', listing.get('source', '')))
+
+    if address:
+        raw = f"{_norm(address)}|{bezirk}|{area_key}|{rooms_key}"
+    else:
+        raw = f"{listing.get('title', '')}{area_key}{rooms_key}{bezirk}{source_key}"
+
+    return hashlib.md5(raw.encode('utf-8')).hexdigest()
 
 def is_valid_listing(listing: Dict[str, Any], skip_rental_filter: bool = False) -> bool:
     """

@@ -55,6 +55,7 @@ test.beforeAll(async () => {
     coopDoc('with-photo', { image_url: IMAGE_URL }),
     coopDoc('no-photo', { image_url: null }),
     coopDoc('broken-photo', { image_url: BROKEN_IMAGE_URL }),
+    coopDoc('high-price', { price_total: 350000 }),
   ]);
 });
 
@@ -118,6 +119,14 @@ test('purchase map excludes co-op rentals', async ({ request }) => {
   expect(urls).not.toContain(FIXTURE_PREFIX + 'with-photo');
 });
 
+test('purchase top endpoint excludes co-op rows even when their price looks like a purchase', async ({ request }) => {
+  const res = await request.get('/api/listings/top?limit=100');
+  expect(res.ok()).toBeTruthy();
+  const body = await res.json();
+  const urls = (body.listings as Array<{ url: string }>).map((l) => l.url);
+  expect(urls).not.toContain(FIXTURE_PREFIX + 'high-price');
+});
+
 test('co-op pins label the rent as monthly', async ({ page }) => {
   // The map sidebar also renders the broken-photo fixture, whose host is
   // deliberately unresolvable. That one failed request is expected; it is
@@ -139,7 +148,7 @@ test('co-op pins label the rent as monthly', async ({ page }) => {
 
   // €945 on a co-op pin is a monthly rent; without the suffix it reads as a
   // €945 apartment sitting next to €450k ones.
-  await expect(page.locator('.leaflet-marker-icon', { hasText: '€945/Mt' }).first())
+  await expect(page.locator('.leaflet-marker-icon', { hasText: '€945/mo' }).first())
     .toBeVisible({ timeout: 15000 });
   expect(errors).toHaveLength(0);
 });

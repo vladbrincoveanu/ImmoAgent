@@ -1,6 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import logging
 import unittest
 from Domain.listing import Listing
 from Domain.sources import Source
@@ -8,51 +9,23 @@ import run_coop
 
 
 def _l(**kw):
-    return Listing(url=kw.pop('url', 'https://x.at/a'), source=Source.GENOSSENSCHAFT,
+    url = kw.pop('url', 'https://x.at/a')
+    coop_kind = kw.pop(
+        'coop_kind', 'mygewo' if 'mygewo.at' in url else None)
+    return Listing(url=url, source=Source.GENOSSENSCHAFT,
                    is_genossenschaft=True, bezirk=kw.pop('bezirk', '1100'),
-                   rooms=kw.pop('rooms', 3), area_m2=kw.pop('area_m2', 70.0),
+                   rooms=kw.pop('rooms', 3), area_m2=kw.pop('area_m2', 75.0),
+                   coop_kind=coop_kind,
                    price_total=kw.pop('price_total', None), **kw)
 
 
-class TestMatchesCoopAlerts(unittest.TestCase):
-    def test_empty_filter_sends_all(self):
-        self.assertTrue(run_coop.matches_coop_alerts(_l(), {}))
+# The static `coop_alerts.json` filter is gone: every field in it was null in
+# CI, so it matched everything and the channel was a firehose. The channel filter
+# is now the union of the OWNER's alerts — see Tests/test_coop_channel_ledger.py.
+# The channel fails closed when no owner is configured.
+CHANNEL_OWNER = "owner@x.at"
 
-    def test_bezirk_include_and_exclude(self):
-        self.assertTrue(run_coop.matches_coop_alerts(_l(bezirk='1100'), {"bezirke": ["1100", "1200"]}))
-        self.assertFalse(run_coop.matches_coop_alerts(_l(bezirk='1010'), {"bezirke": ["1100"]}))
-
-    def test_missing_listing_field_is_permissive(self):
-        # filter wants min_rooms=3 but listing has unknown rooms -> included
-        self.assertTrue(run_coop.matches_coop_alerts(_l(rooms=None), {"min_rooms": 3}))
-        # filter wants a bezirk but listing has none -> included
-        self.assertTrue(run_coop.matches_coop_alerts(_l(bezirk=None), {"bezirke": ["1100"]}))
-
-    def test_min_rooms_min_area_max_cost(self):
-        self.assertFalse(run_coop.matches_coop_alerts(_l(rooms=2), {"min_rooms": 3}))
-        self.assertFalse(run_coop.matches_coop_alerts(_l(area_m2=40), {"min_area": 50}))
-        self.assertFalse(run_coop.matches_coop_alerts(_l(price_total=500), {"max_cost": 400}))
-        self.assertTrue(run_coop.matches_coop_alerts(_l(rooms=3, area_m2=70, price_total=300),
-                                                     {"min_rooms": 3, "min_area": 50, "max_cost": 400}))
-
-
-class TestLoadCoopAlerts(unittest.TestCase):
-    def test_env_override_wins(self):
-        os.environ["COOP_ALERTS"] = '{"min_rooms": 2}'
-        try:
-            self.assertEqual(run_coop.load_coop_alerts().get("min_rooms"), 2)
-        finally:
-            del os.environ["COOP_ALERTS"]
-
-    def test_bad_env_falls_through_to_dict(self):
-        os.environ["COOP_ALERTS"] = 'not-json'
-        try:
-            self.assertIsInstance(run_coop.load_coop_alerts(), dict)  # no crash
-        finally:
-            del os.environ["COOP_ALERTS"]
-
-
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 
 def _resp(status=200, text="<html>body</html>", etag=None, last_modified=None):
@@ -117,6 +90,18 @@ class TestPollSource(unittest.TestCase):
         self.assertEqual(d["source_enum"], "genossenschaft")
         self.assertAlmostEqual(d["price_per_m2"], 5.0)        # 350/70
 
+    def test_to_doc_preserves_willhaben_source_enum(self):
+        listing = _l(
+            url="https://www.willhaben.at/iad/immobilien/d/transfer-1/",
+            coop_kind="private_transfer",
+        )
+        listing.source = Source.WILLHABEN
+
+        d = run_coop._to_doc(listing)
+
+        self.assertEqual(d["source"], "willhaben")
+        self.assertEqual(d["source_enum"], "willhaben")
+
 
 from unittest.mock import patch
 
@@ -152,24 +137,310 @@ class TestPollSourceParse(unittest.TestCase):
         sess.get.assert_not_called()
 
 
-def _mongo_mock(get_listing_ret=None):
+def _mongo_mock(get_listing_ret=None, alerts=None):
     h = MagicMock()
     h.collection = object()          # not None → run() proceeds
     h.get_listing.return_value = get_listing_ret
+    h.get_listings_by_urls.return_value = {}
+    # One owner-verified alert = "everything on this feed", which is what these
+    # tests assumed before the channel filter existed. Zero alerts now means
+    # silence.
+    h.get_alert_subscriptions.return_value = (
+        [{"_id": "t", "kind": "keyword", "email": CHANNEL_OWNER,
+          "telegram_chat_id": "-100", "confirmed": True}]
+        if alerts is None else alerts)
     return h
 
 
+def test_get_listings_by_urls_returns_url_map():
+    handler = run_coop.MongoDBHandler.__new__(run_coop.MongoDBHandler)
+    handler.collection = MagicMock()
+    first = {"url": "https://mygewo.at/angebot/1", "_id": "one"}
+    second = {"url": "https://mygewo.at/angebot/2", "_id": "two"}
+    handler.collection.find.return_value = [first, second]
+
+    assert handler.get_listings_by_urls(
+        [first["url"], first["url"], "", second["url"]]
+    ) == {first["url"]: first, second["url"]: second}
+    handler.collection.find.assert_called_once_with(
+        {"url": {"$in": [first["url"], second["url"]]}}
+    )
+
+
+def test_get_listings_by_urls_returns_none_on_query_failure():
+    handler = run_coop.MongoDBHandler.__new__(run_coop.MongoDBHandler)
+    handler.collection = MagicMock()
+    handler.collection.find.side_effect = RuntimeError("mongo down")
+
+    assert handler.get_listings_by_urls(["https://mygewo.at/angebot/1"]) is None
+
+
+def test_new_mygewo_listing_is_a_user_alert_candidate():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = {}
+    listing = _l(url="https://mygewo.at/angebot/new")
+
+    assert run_coop.new_alert_candidates(handler, [listing], []) == [listing]
+    handler.get_listings_by_urls.assert_called_once_with([listing.url])
+    handler.get_listing.assert_not_called()
+
+
+def test_mygewo_builder_url_fallback_is_a_user_alert_candidate():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = {}
+    listing = _l(url="https://builder.example/offer/new", coop_kind="mygewo")
+
+    assert run_coop.new_alert_candidates(handler, [listing], []) == [listing]
+    handler.get_listings_by_urls.assert_called_once_with([listing.url])
+
+
+def test_existing_mygewo_listing_is_not_a_new_user_alert_candidate():
+    handler = MagicMock()
+    listing = _l(url="https://mygewo.at/angebot/existing")
+    handler.get_listings_by_urls.return_value = {
+        listing.url: {"_id": "existing"}
+    }
+
+    assert run_coop.new_alert_candidates(handler, [listing], []) == []
+
+
+def test_willhaben_candidates_are_included_and_duplicate_urls_are_removed():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = {}
+    mygewo = _l(url="https://mygewo.at/angebot/new")
+    willhaben = _l(url="https://www.willhaben.at/iad/immobilien/d/new/")
+    duplicate_mygewo = _l(url=mygewo.url)
+    duplicate_willhaben = _l(url=willhaben.url)
+
+    candidates = run_coop.new_alert_candidates(
+        handler, [mygewo, duplicate_mygewo], [willhaben, duplicate_willhaben])
+
+    assert candidates == [willhaben, mygewo]
+    assert handler.get_listings_by_urls.call_args_list == [call([mygewo.url])]
+
+
+def test_batch_lookup_failure_excludes_mygewo_but_keeps_willhaben_candidates():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = None
+    mygewo = _l(url="https://mygewo.at/angebot/unknown")
+    willhaben = _l(url="https://www.willhaben.at/iad/immobilien/d/new/")
+
+    assert run_coop.new_alert_candidates(handler, [mygewo], [willhaben]) == [willhaben]
+    handler.get_listings_by_urls.assert_called_once_with([mygewo.url])
+    handler.get_listing.assert_not_called()
+
+
+def test_new_direct_coop_listing_is_source_candidate_not_generic_alert_candidate():
+    handler = MagicMock()
+    handler.get_listings_by_urls.return_value = {}
+    listing = _l(url="https://siedlungsunion.at/angebot/new")
+    existing = {}
+
+    assert run_coop.new_alert_candidates(handler, [listing], [], existing) == []
+    assert run_coop.new_source_candidates(handler, [listing], [], existing) == [listing]
+    handler.get_listings_by_urls.assert_not_called()
+
+
+def test_source_feed_uses_new_candidates_not_full_seen_inventory():
+    handler = _mongo_mock()
+    new_listing = _l(url="https://mygewo.at/new", area_m2=75.0, rooms=3)
+    old_listing = _l(url="https://mygewo.at/old", area_m2=90.0, rooms=4)
+    new_listing.builder_url = ""
+    new_listing.image_url = ""
+    old_listing.builder_url = ""
+    old_listing.image_url = ""
+    handler.get_listings_by_urls.return_value = {
+        old_listing.url: {"url": old_listing.url}
+    }
+    bot = MagicMock()
+    bot.send_message.return_value = True
+
+    with patch.object(run_coop, "deliver_user_alerts"), \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
+            patch("run_coop.poll_source", return_value=[new_listing, old_listing]), \
+            patch("run_coop.TelegramBot", return_value=bot), \
+            patch("run_coop.validate_url", return_value=True), \
+            patch.dict(os.environ, {
+                "TELEGRAM_MAIN_BOT_TOKEN": "t",
+                "TELEGRAM_COOP_CHANNEL_ID": "c",
+            }), \
+            patch.dict(run_coop.coop.SOURCES, {
+                "T": {"url": "u", "parser": "p"}
+            }, clear=True):
+        assert run_coop.run(no_send=False) == 0
+
+    bot.send_message.assert_called_once()
+    assert new_listing.url in bot.send_message.call_args.args[0]
+
+
+@patch("run_coop.validate_url", return_value=True)
+@patch("run_coop.poll_source")
+@patch("run_coop.MongoDBHandler")
+def test_user_alerts_run_before_mygewo_upsert(mongo, poll, validate):
+    handler = _mongo_mock(get_listing_ret=None)
+    events = []
+    listing = _l(url="https://mygewo.at/angebot/new")
+    listing.builder_url = ""
+    listing.image_url = ""
+    handler.upsert_coop_listing.side_effect = lambda doc: events.append("upsert")
+    mongo.return_value = handler
+    poll.return_value = [listing]
+
+    with patch.object(
+        run_coop, "deliver_user_alerts",
+        side_effect=lambda h, candidates, **kwargs: events.append(("deliver", candidates)),
+    ), patch.dict(run_coop.coop.SOURCES,
+                  {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                  clear=True), patch.dict(os.environ,
+                                          {"WILLHABEN_PRIVATE_COOP": "0"}):
+        assert run_coop.run(no_send=False) == 0
+
+    assert events[0] == ("deliver", [listing])
+    assert events[1] == "upsert"
+
+
+def test_batch_existing_docs_are_reused_during_mygewo_detail_processing():
+    handler = _mongo_mock(get_listing_ret=None)
+    new_listing = _l(url="https://mygewo.at/angebot/new")
+    new_listing.builder_url = ""
+    new_listing.image_url = ""
+    existing_listing = _l(url="https://mygewo.at/angebot/existing")
+    existing_doc = {
+        "builder_url": "https://builder.at/offer/existing",
+        "image_url": "https://cdn.builder.at/existing.jpg",
+        "image_probe_v": run_coop.IMAGE_PROBE_V,
+    }
+    handler.get_listings_by_urls.return_value = {
+        existing_listing.url: existing_doc
+    }
+    events = []
+
+    with patch.object(
+        run_coop, "deliver_user_alerts",
+        side_effect=lambda h, candidates, **kwargs: events.append(("deliver", candidates)),
+    ), patch.object(run_coop.coop, "resolve_offer_details") as resolve_details, \
+            patch.object(run_coop.coop, "resolve_builder_image") as resolve_image, \
+            patch.dict(run_coop.coop.SOURCES,
+                       {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                       clear=True), patch.dict(os.environ,
+                                               {"WILLHABEN_PRIVATE_COOP": "0"}):
+        handler.upsert_coop_listing.side_effect = (
+            lambda doc: events.append(("upsert", doc["url"]))
+        )
+        with patch("run_coop.MongoDBHandler", return_value=handler), \
+                patch("run_coop.poll_source", return_value=[new_listing,
+                                                            existing_listing]):
+            assert run_coop.run(no_send=False) == 0
+
+    assert events[0] == ("deliver", [new_listing])
+    assert events[1:] == [
+        ("upsert", new_listing.url), ("upsert", existing_listing.url)
+    ]
+    handler.get_listings_by_urls.assert_called_once_with(
+        [new_listing.url, existing_listing.url]
+    )
+    resolve_details.assert_not_called()
+    resolve_image.assert_not_called()
+
+
+def test_mygewo_lookup_failure_defers_mygewo_but_keeps_willhaben_processing():
+    handler = _mongo_mock(get_listing_ret=None)
+    handler.get_listings_by_urls.return_value = None
+    mygewo = _l(url="https://mygewo.at/angebot/deferred")
+    willhaben = Listing(
+        url="https://www.willhaben.at/iad/immobilien/d/transfer-1/",
+        source=Source.WILLHABEN,
+        bezirk="1100",
+        rooms=3,
+        area_m2=70.0,
+        is_genossenschaft=False,
+    )
+    willhaben.coop_kind = "private_transfer"
+    bot = MagicMock()
+    bot.send_message.return_value = True
+    events = []
+
+    with patch.object(
+        run_coop, "deliver_user_alerts",
+        side_effect=lambda h, candidates, **kwargs: events.append(("deliver", candidates)),
+    ), patch.object(run_coop.coop, "resolve_offer_details",
+                    side_effect=AssertionError("mygewo details must be deferred")), \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
+            patch("run_coop.poll_source", return_value=[mygewo]), \
+            patch("run_coop.crawl_newest", return_value=[willhaben]), \
+            patch("run_coop.WillhabenScraper"), \
+            patch("run_coop.validate_url", return_value=True) as validate, \
+            patch("run_coop.route", return_value="-100"), \
+            patch("run_coop.TelegramBot", return_value=bot), \
+            patch.dict(run_coop.coop.SOURCES,
+                       {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                       clear=True), patch.dict(os.environ, {
+                           "WILLHABEN_PRIVATE_COOP": "1",
+                           "TELEGRAM_MAIN_BOT_TOKEN": "tok",
+                       }):
+        handler.upsert_coop_listing.side_effect = (
+            lambda doc: events.append(("upsert", doc["url"]))
+        )
+        assert run_coop.run(no_send=False) == 0
+
+    assert events[0] == ("deliver", [willhaben])
+    assert events[1:] == [("upsert", willhaben.url)]
+    bot.send_message.assert_called_once()
+    validate.assert_called_once_with(willhaben.url)
+    handler.upsert_coop_listing.assert_called_once()
+
+
+def test_no_send_skips_candidate_lookup_and_user_delivery():
+    handler = _mongo_mock(get_listing_ret=None)
+    listing = _l(url="https://mygewo.at/angebot/dry-run")
+    listing.builder_url = ""
+    listing.image_url = ""
+
+    with patch.object(run_coop, "new_alert_candidates") as candidates, \
+            patch.object(run_coop, "deliver_user_alerts") as deliver, \
+            patch("run_coop.MongoDBHandler", return_value=handler), \
+            patch("run_coop.poll_source", return_value=[listing]), \
+            patch.dict(run_coop.coop.SOURCES,
+                       {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+                       clear=True), patch.dict(os.environ,
+                                               {"WILLHABEN_PRIVATE_COOP": "0"}):
+        assert run_coop.run(no_send=True) == 0
+
+    candidates.assert_not_called()
+    deliver.assert_not_called()
+    handler.get_listings_by_urls.assert_not_called()
+
+
 class TestRun(unittest.TestCase):
+    @patch("run_coop.poll_source", return_value=[])
+    @patch("run_coop.MongoDBHandler")
+    def test_missing_optional_telegram_channels_are_warnings(self, MH, poll):
+        MH.return_value = _mongo_mock()
+        with patch.dict(os.environ, {
+            "TELEGRAM_COOP_CHANNEL_ID": "",
+            "TELEGRAM_PRIVATE_COOP_CHANNEL_ID": "",
+            "WILLHABEN_PRIVATE_COOP": "0",
+        }, clear=False), self.assertLogs("run_coop", level=logging.WARNING) as captured:
+            with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                            clear=True):
+                self.assertEqual(run_coop.run(no_send=True), 0)
+
+        channel_records = [
+            record for record in captured.records
+            if "TELEGRAM_" in record.getMessage()
+        ]
+        self.assertEqual(len(channel_records), 2)
+        self.assertTrue(all(record.levelno == logging.WARNING for record in channel_records))
+
     @patch("run_coop.MongoDBHandler")
     def test_aborts_when_no_mongo(self, MH):
         MH.return_value.collection = None
         self.assertEqual(run_coop.run(), 1)
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_no_send_upserts_and_counts_without_sending(self, MH, poll, vurl, alerts):
+    def test_no_send_upserts_and_counts_without_sending(self, MH, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/new")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
@@ -178,29 +449,70 @@ class TestRun(unittest.TestCase):
         MH.return_value.upsert_coop_listing.assert_called_once()
         MH.return_value.mark_sent.assert_not_called()   # no-send never sends
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.TelegramBot")
     @patch("run_coop.MongoDBHandler")
-    def test_sends_via_bot_and_marks_sent(self, MH, TB, poll, vurl, alerts):
+    def test_sends_via_bot_and_marks_sent(self, MH, TB, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         TB.return_value.send_message.return_value = True
-        poll.return_value = [_l(url="https://x.at/s")]
+        poll.return_value = [_l(url="https://mygewo.at/s")]
         with patch.dict(os.environ,
                         {"TELEGRAM_MAIN_BOT_TOKEN": "t", "TELEGRAM_COOP_CHANNEL_ID": "c"}):
             with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
                 rc = run_coop.run(no_send=False)
         self.assertEqual(rc, 0)
         TB.return_value.send_message.assert_called_once()
-        MH.return_value.mark_sent.assert_called_once_with("https://x.at/s")
+        MH.return_value.mark_channel_send_sent.assert_called_once()
+        MH.return_value.mark_sent.assert_called_once_with("https://mygewo.at/s")
 
-    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("Application.alert_dispatcher.validate_url", return_value=False)
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_transient_alert_url_failure_defers_upsert(
+        self, MH, poll, channel_validate, alert_validate
+    ):
+        listing = _l(
+            url="https://mygewo.at/angebot/retry",
+            coop_source="bautraeger_direct",
+        )
+        handler = _mongo_mock(
+            get_listing_ret=None,
+            alerts=[],
+        )
+        handler.get_active_alerts.return_value = [{
+            "_id": "a",
+            "kind": "keyword",
+            "keywords": [],
+            "telegram_chat_id": "-100",
+            "confirmed": True,
+        }]
+        handler.ensure_delivery_index.return_value = True
+        handler.stale_pending_deliveries.return_value = []
+        MH.return_value = handler
+        poll.return_value = [listing]
+
+        with patch.dict(os.environ, {
+            "WILLHABEN_PRIVATE_COOP": "0",
+            "TELEGRAM_MAIN_BOT_TOKEN": "",
+            "TELEGRAM_COOP_CHANNEL_ID": "",
+            "TELEGRAM_PRIVATE_COOP_CHANNEL_ID": "",
+        }, clear=False), patch.dict(
+            run_coop.coop.SOURCES,
+            {"MYGEWO": {"url": "u", "fetcher": "fetch_all_mygewo"}},
+            clear=True,
+        ):
+            assert run_coop.run(no_send=False) == 0
+
+        handler.upsert_coop_listing.assert_not_called()
+        alert_validate.assert_called_once_with(listing.url)
+
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.TelegramBot")
     @patch("run_coop.MongoDBHandler")
-    def test_send_failure_does_not_mark_sent(self, MH, TB, poll, vurl, alerts):
+    def test_send_failure_does_not_mark_sent(self, MH, TB, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         TB.return_value.send_message.return_value = False    # send failed
         poll.return_value = [_l(url="https://x.at/f")]
@@ -211,22 +523,14 @@ class TestRun(unittest.TestCase):
         self.assertEqual(rc, 0)
         MH.return_value.mark_sent.assert_not_called()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
-    @patch("run_coop.poll_source")
-    @patch("run_coop.MongoDBHandler")
-    def test_skips_already_sent(self, MH, poll, alerts):
-        MH.return_value = _mongo_mock(get_listing_ret={"sent_to_telegram": True})
-        poll.return_value = [_l(url="https://x.at/dup")]
-        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
-            rc = run_coop.run(no_send=True)
-        self.assertEqual(rc, 0)
-        MH.return_value.mark_sent.assert_not_called()
+    # Send-once is no longer the `sent_to_telegram` flag's job — that gate read a
+    # document the duplicate/invalid upsert paths never create. The ledger owns
+    # it now: Tests/test_coop_channel_ledger.py.
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=False)   # broken URL
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_broken_url_marked_invalid(self, MH, poll, vurl, alerts):
+    def test_broken_url_marked_invalid(self, MH, poll, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://x.at/broken")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
@@ -234,21 +538,25 @@ class TestRun(unittest.TestCase):
         self.assertEqual(rc, 0)
         MH.return_value.mark_url_invalid.assert_called_once_with("https://x.at/broken")
 
-    @patch("run_coop.load_coop_alerts", return_value={"bezirke": ["9999"]})
+    @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_filtered_out_listing_not_alerted(self, MH, poll, alerts):
-        MH.return_value = _mongo_mock(get_listing_ret=None)
-        poll.return_value = [_l(url="https://x.at/other", bezirk="1100")]  # not in 9999
+    def test_filtered_out_listing_not_alerted(self, MH, poll, vurl):
+        """No alert asks for this unit → it never reaches the send checks."""
+        MH.return_value = _mongo_mock(
+            get_listing_ret=None,
+            alerts=[{"_id": "a", "kind": "keyword", "keywords": ["Dachterrasse"],
+                     "telegram_chat_id": "-100"}])
+        poll.return_value = [_l(url="https://x.at/other",
+                                title="Wohnung ohne Freifläche")]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
             rc = run_coop.run(no_send=True)
         self.assertEqual(rc, 0)
-        MH.return_value.get_listing.assert_not_called()   # filtered before send checks
+        vurl.assert_not_called()          # filtered before the send checks
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.poll_source", side_effect=RuntimeError("boom"))
     @patch("run_coop.MongoDBHandler")
-    def test_all_adapters_fail_returns_1(self, MH, poll, alerts):
+    def test_all_adapters_fail_returns_1(self, MH, poll):
         MH.return_value = _mongo_mock()
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}}, clear=True):
             rc = run_coop.run(no_send=True)
@@ -339,10 +647,12 @@ def test_reprobe_skipped_without_builder_url():
 
 def setUpModule():
     os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
+    os.environ["COOP_CHANNEL_ALERT_OWNERS"] = CHANNEL_OWNER
 
 
 def tearDownModule():
     os.environ.pop("WILLHABEN_PRIVATE_COOP", None)
+    os.environ.pop("COOP_CHANNEL_ALERT_OWNERS", None)
 
 
 class TestWillhabenPrivateCoopWiring(unittest.TestCase):
@@ -352,15 +662,15 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
     def tearDown(self):
         os.environ["WILLHABEN_PRIVATE_COOP"] = "0"
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
-    def test_transfers_are_tagged_and_upserted(self, MH, poll, WS, crawl, vurl, alerts):
+    def test_transfers_are_tagged_and_upserted(self, MH, poll, WS, crawl, vurl):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = []
+        # The scraper is what classifies an ad; the poll only re-affirms the tag.
         transfer = _l(url="https://www.willhaben.at/iad/immobilien/d/x-1/")
         transfer.coop_kind = "private_transfer"
         crawl.return_value = [transfer]
@@ -371,14 +681,61 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         self.assertEqual(transfer.coop_kind, "private_transfer")
         MH.return_value.upsert_coop_listing.assert_called_once()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.crawl_newest")
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_an_ordinary_rental_is_never_tagged_as_a_transfer(self, MH, poll, WS,
+                                                              crawl, vurl):
+        """The feed is now the whole newest-first rental list. Blanket-tagging it
+        would route ordinary rentals into the private-Ablöse channel and corrupt
+        /coop/private."""
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        poll.return_value = []
+        rental = _l(url="https://www.willhaben.at/iad/immobilien/d/y-2/")
+        crawl.return_value = [rental]
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True):
+            rc = run_coop.run(no_send=True)
+        self.assertEqual(rc, 0)
+        self.assertIsNone(rental.coop_kind)
+
+    @patch("run_coop.validate_url", return_value=True)
+    @patch("run_coop.crawl_newest")
+    @patch("run_coop.WillhabenScraper")
+    @patch("run_coop.poll_source")
+    @patch("run_coop.MongoDBHandler")
+    def test_ordinary_rentals_never_reach_the_coop_channel(self, MH, poll, WS,
+                                                           crawl, vurl):
+        """Without the co-op guard the mygewo channel would receive the entire
+        Wien rental market, since `seen` now carries every new ad."""
+        MH.return_value = _mongo_mock(get_listing_ret=None)
+        poll.return_value = []
+        # A plain rental: the `_l` helper defaults is_genossenschaft=True, which
+        # is exactly what this guard must NOT rely on being false by accident.
+        rental = Listing(url="https://www.willhaben.at/iad/immobilien/d/y-2/",
+                         source=Source.WILLHABEN, bezirk="1100", rooms=3,
+                         area_m2=70.0, is_genossenschaft=False)
+        crawl.return_value = [rental]
+        bot = MagicMock()
+        bot.send_message.return_value = True
+        with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
+                        clear=True), \
+                patch("run_coop.route", return_value="-100"), \
+                patch("run_coop.TelegramBot", return_value=bot), \
+                patch.dict(os.environ, {"TELEGRAM_MAIN_BOT_TOKEN": "tok"}):
+            rc = run_coop.run(no_send=False)
+        self.assertEqual(rc, 0)
+        bot.send_message.assert_not_called()
+
     @patch("run_coop.validate_url", return_value=True)
     @patch("run_coop.crawl_newest", side_effect=RuntimeError("blocked"))
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
     def test_willhaben_failure_does_not_fail_the_poll(self, MH, poll, WS, crawl,
-                                                      vurl, alerts):
+                                                      vurl):
         """A Willhaben block must leave the mygewo half of the poll running."""
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = [_l(url="https://mygewo.at/angebot/1")]
@@ -388,13 +745,11 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         self.assertEqual(rc, 0)
         MH.return_value.upsert_coop_listing.assert_called_once()
 
-    @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source", side_effect=RuntimeError("mygewo down"))
     @patch("run_coop.MongoDBHandler")
-    def test_willhaben_cannot_mask_a_total_mygewo_outage(self, MH, poll, WS, crawl,
-                                                         alerts):
+    def test_willhaben_cannot_mask_a_total_mygewo_outage(self, MH, poll, WS, crawl):
         """Every mygewo adapter failing is still exit 1, even if Willhaben works —
         otherwise a dead poll looks half-alive."""
         MH.return_value = _mongo_mock(get_listing_ret=None)
@@ -408,23 +763,83 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
 class TestDeliverUserAlerts(unittest.TestCase):
     """Alerts users create on /alerts, delivered from the poll."""
 
+    def setUp(self):
+        self._url_validation = patch(
+            "Application.alert_dispatcher.validate_url", return_value=True)
+        self._url_validation.start()
+        self.addCleanup(self._url_validation.stop)
+
     def _handler(self, alerts):
+        """A handler whose ledger is empty and whose claims always succeed —
+        i.e. every pair is being delivered for the first time."""
         h = MagicMock()
         h.get_active_alerts.return_value = alerts
+        h.claim_delivery.return_value = True
+        h.stale_pending_deliveries.return_value = []
         return h
 
-    @patch("run_coop.TelegramBot")
+    @patch("Application.alert_email.send_alert_email", return_value=True)
+    def test_legacy_listings_alert_without_kind_is_delivered(self, mail):
+        """The pre-kind dashboard alert shape remains deliverable by email."""
+        alert = {"_id": "a", "params": {"district": "1100", "frequency": "daily"},
+                 "frequency": "daily", "confirmed": True,
+                 "email": "legacy@example.at"}
+        handler = self._handler([])
+        handler.get_active_alerts.side_effect = (
+            lambda kinds: [alert] if None in kinds else [])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Wohnung 1100 Wien"
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        handler.get_active_alerts.assert_called_once_with(
+            ["listings", "coop_private", "keyword", "mygewo", None])
+        mail.assert_called_once()
+
+    @patch("Integration.telegram_bot.TelegramBot")
+    def test_mygewo_alert_with_empty_keywords_delivers_builder_direct_listing(self, TB):
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        alert = {"_id": "mygewo", "kind": "mygewo", "keywords": [],
+                 "telegram_chat_id": "-100", "confirmed": False}
+        handler = self._handler([])
+        handler.get_active_alerts.side_effect = (
+            lambda kinds: [alert] if "mygewo" in kinds else [])
+        listing = _l(url="https://mygewo.at/angebot/1",
+                     coop_source="bautraeger_direct")
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        handler.get_active_alerts.assert_called_once_with(
+            ["listings", "coop_private", "keyword", "mygewo", None])
+        TB.assert_called_once_with("tok", "-100")
+
+    @patch("Integration.telegram_bot.TelegramBot")
     def test_telegram_alert_is_delivered(self, TB):
         TB.return_value.send_message.return_value = True
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "1100",
-                                  "telegram_chat_id": "-100", "confirmed": True}])
+                                  "telegram_chat_id": "-100", "confirmed": False}])
         listing = _l(url="https://willhaben.at/x")
         listing.title = "Weitergabe 1100 Wien"
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
         TB.assert_called_once_with("tok", "-100")
 
-    @patch("run_coop.TelegramBot")
+    @patch("Integration.telegram_bot.TelegramBot")
+    @patch("Application.alert_email.send_alert_email")
+    def test_unconfirmed_email_does_not_block_telegram(self, mail, TB):
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{
+            "_id": "a", "keyword": "1100", "telegram_chat_id": "-100",
+            "email": "pending@x.at", "confirmed": False,
+        }])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Weitergabe 1100 Wien"
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
+        TB.assert_called_once_with("tok", "-100")
+        mail.assert_not_called()
+
+    @patch("Integration.telegram_bot.TelegramBot")
     def test_non_matching_keyword_delivers_nothing(self, TB):
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "garten",
@@ -434,7 +849,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 0)
         TB.return_value.send_message.assert_not_called()
 
-    @patch("run_coop.send_alert_email", return_value=True)
+    @patch("Application.alert_email.send_alert_email", return_value=True)
     def test_confirmed_email_alert_is_delivered(self, mail):
         handler = self._handler([{"_id": "a", "keyword": "", "email": "u@x.at",
                                   "telegram_chat_id": None, "confirmed": True}])
@@ -442,7 +857,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 1)
         mail.assert_called_once()
 
-    @patch("run_coop.send_alert_email")
+    @patch("Application.alert_email.send_alert_email")
     def test_unconfirmed_email_is_never_mailed(self, mail):
         """Anyone can type someone else's address into the form."""
         handler = self._handler([{"_id": "a", "keyword": "", "email": "victim@x.at",
@@ -458,7 +873,7 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(
             run_coop.deliver_user_alerts(h, [_l(url="https://willhaben.at/x")]), 0)
 
-    @patch("run_coop.TelegramBot", side_effect=RuntimeError("telegram down"))
+    @patch("Integration.telegram_bot.TelegramBot", side_effect=RuntimeError("telegram down"))
     def test_send_failure_is_swallowed(self, TB):
         os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
         handler = self._handler([{"_id": "a", "keyword": "",
@@ -466,23 +881,30 @@ class TestDeliverUserAlerts(unittest.TestCase):
         self.assertEqual(
             run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)
 
-    @patch("run_coop.dispatch", return_value=True)
-    @patch("run_coop.retry_pending", return_value=2)
-    def test_retries_pending_and_claims_new_alerts(self, retry, dispatch):
-        handler = self._handler([{"_id": "a", "keyword": "1100",
+    @patch("Integration.telegram_bot.TelegramBot")
+    def test_an_already_claimed_pair_is_not_sent_again(self, TB):
+        """The ledger, from the poll's point of view: a pair another poll already
+        owns must produce no second message."""
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "",
                                   "telegram_chat_id": "-100", "confirmed": True}])
-        listing = _l(url="https://willhaben.at/x")
-        listing.title = "Weitergabe 1100 Wien"
+        handler.claim_delivery.return_value = False
+        self.assertEqual(
+            run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)
+        TB.return_value.send_message.assert_not_called()
 
-        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 3)
-        handler.get_active_alerts.assert_called_once_with(["coop_private", "keyword"])
-        handler.ensure_delivery_index.assert_called_once_with()
-        retry.assert_called_once()
-        dispatch.assert_called_once()
-
-    @patch("run_coop.retry_pending", return_value=1)
-    def test_retries_pending_even_when_no_alert_is_currently_active(self, retry):
-        handler = self._handler([])
-
+    @patch("Integration.telegram_bot.TelegramBot")
+    def test_a_pending_row_from_a_dead_poll_is_retried(self, TB):
+        """The at-least-once guarantee, exercised through the poll entry point."""
+        TB.return_value.send_message.return_value = True
+        os.environ["TELEGRAM_MAIN_BOT_TOKEN"] = "tok"
+        handler = self._handler([{"_id": "a", "keyword": "",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        handler.stale_pending_deliveries.return_value = [
+            {"alert_id": "a", "url_hash": "h1", "chat_id": "-100",
+             "message": "verlorene Anzeige"},
+        ]
+        # No new listings at all — the only delivery possible is the recovered one.
         self.assertEqual(run_coop.deliver_user_alerts(handler, []), 1)
-        retry.assert_called_once()
+        handler.mark_delivery_sent.assert_called_once_with("a", "h1")

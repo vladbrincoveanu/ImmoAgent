@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { MongoClient } from 'mongodb';
 
-// Freemium gate: free tier = 3 saved searches, alerts Pro-only.
+// Freemium gate: free tier = 3 saved searches. Alerts are NOT gated — the
+// password/Pro gate on alert creation was removed, so anyone can subscribe.
 // Each test uses a fresh browser context → fresh immo_user cookie → clean quota.
 
 test.describe('freemium gate', () => {
@@ -38,21 +39,23 @@ test.describe('freemium gate', () => {
     await expect(page.getByTestId('paywall-success')).toBeVisible();
   });
 
-  test('alerts are Pro-only: API returns 402, modal shows upgrade flow', async ({ page }) => {
+  test('alerts are ungated: API returns 201, modal subscribes a free user', async ({ page }) => {
     await page.goto('/dashboard');
     const res = await page.request.post('/api/saved-searches/alert', {
       data: { email: 'gate-test@example.com', params: {}, frequency: 'daily' },
     });
-    expect(res.status()).toBe(402);
-    expect((await res.json()).reason).toBe('alerts_pro_only');
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    // A free user still gets a real subscription, not an upgrade record.
+    expect(body.email).toBe('gate-test@example.com');
 
     await page.getByTestId('open-alerts').click();
     await expect(page.getByTestId('email-alerts-modal')).toBeVisible();
     await page.getByTestId('alerts-email').fill('gate-test@example.com');
     await page.getByTestId('alerts-submit').click();
-    await expect(page.getByTestId('alerts-paywall')).toBeVisible();
-    await page.getByTestId('alerts-paywall-submit').click();
-    await expect(page.getByTestId('alerts-paywall-success')).toBeVisible();
+    await expect(page.getByTestId('alerts-success')).toBeVisible();
+    await expect(page.getByTestId('alerts-paywall')).toHaveCount(0);
   });
 
   test('/api/me reports free tier and quota', async ({ page }) => {

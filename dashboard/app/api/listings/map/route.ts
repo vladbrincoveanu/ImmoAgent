@@ -6,6 +6,7 @@ import { validateDistrict, validateSort, validateMinScore, validateLimit } from 
 import { DEFAULT_PROFILE, isValidProfile } from '@/lib/profile';
 import { resolveCoordinates } from '@/lib/district-centroids';
 import { coopBaseQuery } from '@/lib/coop-query';
+import { purchasePricePerSqmConditions } from '@/lib/purchase-listing-query';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const config = require('../../../../config.json');
 
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       console.warn('[/api/listings/map] Invalid district rejected:', searchParams.get('district'));
     }
     // Co-op rentals store the MONTHLY RENT in price_total, so the purchase €/m²
-    // band below (2500–20000) rejects every one of them (€700 / 60 m² ≈ €12).
+     // band below (1000–20000) rejects every one of them (€700 / 60 m² ≈ €12).
     // They therefore get their own gates — the shared /coop definition, which
     // already carries the Wien + livable-area guards — and the purchase map
     // excludes them explicitly rather than relying on that band to do it.
@@ -69,8 +70,7 @@ export async function GET(request: NextRequest) {
             { is_genossenschaft: { $ne: true } },
             { price_total: { $gt: 0 } },
             { area_m2: { $gt: 0 } },
-            { $expr: { $gte: [{ $divide: ["$price_total", "$area_m2"] }, 2500] } },
-            { $expr: { $lte: [{ $divide: ["$price_total", "$area_m2"] }, 20000] } },
+            ...purchasePricePerSqmConditions(),
             { title: { $nin: [null, ""] } },
           ],
         };

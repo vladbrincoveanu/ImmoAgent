@@ -6,6 +6,7 @@ import math
 from typing import Dict, List, Optional, Any, Tuple
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 from Domain.listing import Listing
 from Domain.sources import Source
@@ -24,6 +25,8 @@ from Application.helpers.geocoding import ViennaGeocoder
 import logging
 from Application.helpers.utils import calculate_ubahn_proximity, format_currency, get_walking_times, estimate_betriebskosten, load_config, smart_sleep
 
+DIBEO_BASE_URL = "https://www.dibeo.at"
+
 @dataclass
 class Amenity:
     name: str
@@ -34,6 +37,7 @@ class Amenity:
 class ImmoKurierScraper:
     def __init__(self, config: Optional[Dict] = None, criteria_path: str = "criteria.json", telegram_config: Optional[Dict] = None, mongo_uri: Optional[str] = None):
         self.config = config if config is not None else load_config()
+        self.base_url = self.config.get('immo_kurier', {}).get('base_url', DIBEO_BASE_URL)
         self.session = requests.Session()
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -101,6 +105,8 @@ class ImmoKurierScraper:
         
         # Multiple selectors for different page layouts
         selectors = [
+            'a[href*="/expose/"]',
+            'a[data-href*="/expose/"]',
             'a[href*="/immobilien/"]',
             '.ci-search-result__link[href*="/immobilien/"]',
             '.stretched-link[href*="/immobilien/"]',
@@ -111,12 +117,12 @@ class ImmoKurierScraper:
             links = soup.select(selector)
             for link in links:
                 href = link.get('href') or link.get('data-href')
-                if href and isinstance(href, str) and '/immobilien/' in href:
-                    if href.startswith('/'):
-                        # Get base URL from config or use default
-                        base_url = 'https://immo.kurier.at'
-                        href = f"{base_url}{href}"
-                    urls.append(href)
+                if not href or not isinstance(href, str):
+                    continue
+                if '/expose/' not in href and '/immobilien/' not in href:
+                    continue
+                base_url = DIBEO_BASE_URL if '/expose/' in href else self.base_url
+                urls.append(urljoin(base_url, href))
         
         # Remove duplicates while preserving order
         seen = set()
@@ -127,6 +133,91 @@ class ImmoKurierScraper:
                 unique_urls.append(url)
         
         return unique_urls
+
+    @staticmethod
+    def _json_ld_objects(soup: BeautifulSoup):
+        """Yield structured-data objects, including objects nested in @graph."""
+        for script in soup.find_all('script', type='application/ld+json'):
+            raw = script.string or script.get_text()
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except (TypeError, json.JSONDecodeError):
+                continue
+
+            values = parsed if isinstance(parsed, list) else [parsed]
+            for value in values:
+                if not isinstance(value, dict):
+                    continue
+                yield value
+                graph = value.get('@graph')
+                if isinstance(graph, list):
+                    yield from (item for item in graph if isinstance(item, dict))
+
+    @staticmethod
+    def _parse_amount(value: Any) -> Optional[float]:
+        """Parse numeric prices from JSON-LD or German-formatted text."""
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+        if not isinstance(value, str):
+            return None
+
+        match = re.search(r"-?[\d\s.,]+", value)
+        if not match:
+            return None
+        number = match.group(0).replace('\xa0', '').replace(' ', '')
+        if ',' in number and '.' in number:
+            if number.rfind(',') > number.rfind('.'):
+                number = number.replace('.', '').replace(',', '.')
+            else:
+                number = number.replace(',', '')
+        elif ',' in number:
+            number = number.replace(',', '.')
+        elif number.count('.') > 1:
+            number = number.replace('.', '')
+        elif '.' in number and len(number.rsplit('.', 1)[1]) == 3:
+            number = number.replace('.', '')
+
+        try:
+            return float(number)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_measurement(value: str) -> Optional[float]:
+        """Parse a decimal measurement without treating dots as thousands separators."""
+        number = value.replace('\xa0', '').replace(' ', '')
+        if ',' in number and '.' in number:
+            if number.rfind(',') > number.rfind('.'):
+                number = number.replace('.', '').replace(',', '.')
+            else:
+                number = number.replace(',', '')
+        else:
+            number = number.replace(',', '.')
+        try:
+            return float(number)
+        except ValueError:
+            return None
+
+    def _structured_address(self, soup: BeautifulSoup) -> Optional[Dict[str, str]]:
+        for data in self._json_ld_objects(soup):
+            address = data if data.get('@type') == 'PostalAddress' else data.get('address')
+            if not isinstance(address, dict):
+                continue
+            postal_code = address.get('postalCode')
+            locality = address.get('addressLocality')
+            if not postal_code or not locality:
+                continue
+            city = str(locality).split(',', 1)[0].strip()
+            street = str(address.get('streetAddress') or '').strip()
+            value = f"{street}, {postal_code} {city}" if street else f"{postal_code} {city}"
+            return {
+                'postal_code': str(postal_code),
+                'city': city,
+                'value': value,
+            }
+        return None
 
     def extract_from_json_data(self, soup: BeautifulSoup) -> Dict[str, Any]:
         """Extract data from any JSON structure in the HTML (if available)"""
@@ -281,6 +372,18 @@ class ImmoKurierScraper:
 
     def extract_price(self, soup: BeautifulSoup) -> Optional[float]:
         """Extract price from listing page"""
+        for data in self._json_ld_objects(soup):
+            offers = data.get('offers')
+            if isinstance(offers, list):
+                offers = next((item for item in offers if isinstance(item, dict)), None)
+            if isinstance(offers, dict):
+                price = self._parse_amount(offers.get('price'))
+                if price is not None and price > 0:
+                    return price
+            price = self._parse_amount(data.get('price'))
+            if price is not None and price > 0:
+                return price
+
         selectors = [
             '.eps-item-price',
             '.property-price',
@@ -301,20 +404,9 @@ class ImmoKurierScraper:
                 # Filter out "Preis auf Anfrage" (Price on request)
                 if 'anfrage' in text.lower() or 'auf anfrage' in text.lower():
                     continue
-                # Remove € symbol and parse
-                text = text.replace('€', '').replace('Kaufpreis', '').replace('EUR', '').strip()
-                try:
-                    # Handle German number format: "599.000,00" -> 599000.0
-                    if ',' in text and '.' in text:
-                        parts = text.split(',')
-                        if len(parts) == 2:
-                            integer_part = parts[0].replace('.', '')
-                            decimal_part = parts[1]
-                            return float(f"{integer_part}.{decimal_part}")
-                    else:
-                        return float(text.replace('.', '').replace(',', '.'))
-                except (ValueError, AttributeError):
-                    continue
+                price = self._parse_amount(text)
+                if price is not None and price > 0:
+                    return price
         
         # Fallback: search in all text for price patterns
         all_text = soup.get_text()
@@ -330,18 +422,10 @@ class ImmoKurierScraper:
             if price_match:
                 try:
                     price_text = price_match.group(1)
-                    # Filter out "Preis auf Anfrage" (Price on request)
-                    if 'anfrage' in price_text.lower() or 'auf anfrage' in price_text.lower():
-                        continue
-                    if ',' in price_text and '.' in price_text:
-                        parts = price_text.split(',')
-                        if len(parts) == 2:
-                            integer_part = parts[0].replace('.', '')
-                            decimal_part = parts[1]
-                            return float(f"{integer_part}.{decimal_part}")
-                    else:
-                        return float(price_text.replace('.', '').replace(',', '.'))
-                except (ValueError, AttributeError):
+                    price = self._parse_amount(price_text)
+                    if price is not None and price > 0:
+                        return price
+                except AttributeError:
                     continue
         
         return None
@@ -364,19 +448,17 @@ class ImmoKurierScraper:
             elem = soup.select_one(selector)
             if elem:
                 text = elem.get_text(strip=True)
-                # Look for patterns like "82,2 m²"
-                match = re.search(r'(\d+(?:[.,]\d+)?)\s*m²', text, re.IGNORECASE)
+                # Dibeo renders the unit as either m² or m<sup>2</sup>.
+                match = re.search(r'(\d+(?:[.,]\d+)?)\s*m\s*(?:²|2)\b', text, re.IGNORECASE)
                 if match:
-                    area_str = match.group(1).replace(',', '.')
-                    try:
-                        return float(area_str)
-                    except ValueError:
-                        continue
+                    area = self._parse_measurement(match.group(1))
+                    if area is not None:
+                        return area
         
         # Fallback: search in all text for area patterns
         all_text = soup.get_text()
         area_patterns = [
-            r'(\d+(?:[.,]\d+)?)\s*m²',
+            r'(\d+(?:[.,]\d+)?)\s*m\s*(?:²|2)\b',
             r'Wohnfläche[:\s]*(\d+(?:[.,]\d+)?)',
             r'Fläche[:\s]*(\d+(?:[.,]\d+)?)',
             r'Größe[:\s]*(\d+(?:[.,]\d+)?)'
@@ -385,11 +467,9 @@ class ImmoKurierScraper:
         for pattern in area_patterns:
             area_match = re.search(pattern, all_text, re.IGNORECASE)
             if area_match:
-                try:
-                    area_str = area_match.group(1).replace(',', '.')
-                    return float(area_str)
-                except ValueError:
-                    continue
+                area = self._parse_measurement(area_match.group(1))
+                if area is not None:
+                    return area
         
         return None
 
@@ -460,6 +540,10 @@ class ImmoKurierScraper:
                 match = re.search(r'(\d{4})\s*Wien', text)
                 if match:
                     return match.group(1)
+
+        structured_address = self._structured_address(soup)
+        if structured_address and structured_address['city'].lower() == 'wien':
+            return structured_address['postal_code']
         
         # Fallback: search in all text for district patterns
         all_text = soup.get_text()
@@ -506,6 +590,10 @@ class ImmoKurierScraper:
                 text = elem.get_text(strip=True)
                 if text and ('Wien' in text or re.search(r'\d{4}', text)):
                     return text
+
+        structured_address = self._structured_address(soup)
+        if structured_address:
+            return structured_address['value']
         
         # Fallback: search in all text for address patterns
         all_text = soup.get_text()

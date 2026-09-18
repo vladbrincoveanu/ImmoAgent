@@ -1,0 +1,56 @@
+name: Free AI Code Review (OpenRouter)
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write # Allows the AI to post code review comments on the PR
+
+jobs:
+  pr_agent_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout quality gate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Run PR Agent
+        id: pr_agent
+        uses: qodo-ai/pr-agent@43276f98607d03459d40dc92632599faae2078c4 # main
+        env:
+          # GitHub supplies this short-lived token; PR-Agent uses it to access the PR API.
+          GITHUB_TOKEN: ${{ github.token }}
+
+          # PR-Agent reads provider keys from Dynaconf using double underscores.
+          OPENROUTER__KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+          # LiteLLM requires the provider prefix for OpenRouter routing.
+          CONFIG.MODEL: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "32000"
+          CONFIG.FALLBACK_MODELS: '["openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"]'
+          CONFIG.PROPAGATE_TOOL_ERRORS: "true"
+          PR_REVIEWER.EXTRA_INSTRUCTIONS: >-
+            CRITICAL REQUIREMENT: Every single issue_header in key_issues_to_review MUST begin with exactly one severity token: [critical], [high], [medium], or [low]. No exceptions.
+            
+            Examples of correct format:
+            - [critical] SQL injection in user input handling
+            - [high] Missing authentication check on admin endpoint
+            - [medium] Inefficient database query in list view
+            - [low] Variable naming could be more descriptive
+            
+            Severity guidelines:
+            Use [critical] or [high] ONLY for concrete production risks: data loss, authentication bypass, secret exposure, remote code execution, or duplicate external side effects.
+            Use [medium] or [low] for bounded, recoverable, migration-only, maintainability, or defensive issues.
+            
+            For security_concerns, return exactly "No" when there is no concern; otherwise describe the concern and the review will fail.
+
+          # Re-review an open PR when a new commit triggers synchronize.
+          github_action_config.handle_push_trigger: "true"
+          github_action_config.push_commands: '["/review"]'
+          github_action_config.enable_output: "true"
+
+      - name: Enforce PR Agent findings
+        env:
+          PR_AGENT_REVIEW_JSON: ${{ steps.pr_agent.outputs.review }}
+        run: python scripts/check_pr_agent_review.py

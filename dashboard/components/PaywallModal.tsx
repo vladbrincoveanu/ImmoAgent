@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 
-export type PaywallReason = 'saved_search_limit' | 'alerts_pro_only';
+// Alerts used to have their own reason ('alerts_pro_only'); alert creation is
+// ungated now, so the saved-search quota is the only thing left that paywalls.
+export type PaywallReason = 'saved_search_limit';
 
 interface PaywallModalProps {
   open: boolean;
@@ -13,11 +15,7 @@ interface PaywallModalProps {
 const COPY: Record<PaywallReason, { title: string; body: string }> = {
   saved_search_limit: {
     title: 'Saved search limit reached',
-    body: 'The free plan includes 3 saved searches. Pro (€19/mo) unlocks unlimited saved searches and email alerts.',
-  },
-  alerts_pro_only: {
-    title: 'Email alerts are a Pro feature',
-    body: 'Pro (€19/mo) sends you new matching listings by email and unlocks unlimited saved searches.',
+    body: 'The free plan includes 3 saved searches. Pro (€19/mo) unlocks unlimited saved searches.',
   },
 };
 

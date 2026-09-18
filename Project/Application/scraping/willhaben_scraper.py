@@ -27,8 +27,10 @@ from Application.scraping.field_extractors import (
     extract_ruecklage_eur_month, extract_sonderumlage_risk,
     extract_doppelmakler, extract_maklerprovision_pct,
     extract_document_urls, extract_is_genossenschaft, extract_bautraeger,
-    extract_is_private_coop_transfer,
+    extract_is_private_coop_transfer, extract_seller_type,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _is_blocked_page(content: str) -> Tuple[bool, str]:
@@ -497,10 +499,12 @@ class WillhabenScraper:
             listing.roof_renovated = extract_roof_renovated(_full_text)
 
             # Stored so /coop/private can search the ad body, not just the title:
-            # "Nachmieter gesucht" is usually buried three paragraphs down. Bounded
-            # because some ads run to tens of kB and this is a search field, not an
-            # archive.
-            listing.description = self.extract_listing_description(soup) or None
+            # "Nachmieter gesucht" is usually buried three paragraphs down.
+            _advert = self._get_advert_details(soup)
+            _desc = (_advert.get('description')
+                     or (self.extract_attributes_dict(soup).get('DESCRIPTION') or [''])[0])
+            if _desc:
+                listing.description = self.extract_listing_description(soup)
 
             # A sitting tenant passing on their co-op flat is a different animal
             # from a Bauträger listing one: no waiting list, first-come-first-served,
@@ -547,6 +551,13 @@ class WillhabenScraper:
             listing.sonderumlage_risk = extract_sonderumlage_risk(_combined)
             listing.doppelmakler = extract_doppelmakler(_combined)
             listing.maklerprovision_pct = extract_maklerprovision_pct(_combined)
+            from Application.outreach.contact_extractor import classify_seller
+            listing.seller_type = classify_seller(_combined, doppelmakler=listing.doppelmakler)
+            if listing.seller_type == 'unknown':
+                listing.seller_type = extract_seller_type(
+                    _combined,
+                    is_genossenschaft=listing.is_genossenschaft,
+                )
 
             _doc_urls = extract_document_urls(soup)
             listing.document_urls = _doc_urls if _doc_urls else None

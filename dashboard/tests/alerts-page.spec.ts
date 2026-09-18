@@ -1,7 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+/** The /alerts dashboard: create a keyword watch on the fast-poll feed.
+ *
+ * This form is the only way the owner configures the poller, so the whole cycle
+ * is asserted on real rendered DOM, not screenshots: create with several keys
+ * and numeric gates, see it listed, test it, delete it, get the empty state.
+ *
+ * Creating one needs no entitlement: the password gate was removed, so an
+ * anonymous visitor must be able to go straight from the form to a stored
+ * alert. */
+
 const ALERT_API = '**/api/saved-searches/alert';
 
+/** One stored alert, in the shape GET returns. */
 const STORED = {
   _id: '507f1f77bcf86cd799439011',
   kind: 'keyword',
@@ -14,11 +25,18 @@ const STORED = {
   created_at: null,
 };
 
-/** The /alerts dashboard: create a keyword watch on the private-transfer feed.
- *
- * Alerts are Pro-only, so an anonymous visitor gets a 402 and the page must say
- * so rather than appearing to succeed. These assertions run against the real
- * rendered DOM, not screenshots. */
+const EMAIL_ONLY_STORED = {
+  ...STORED,
+  email: 'u@example.at',
+  telegram_chat_id: null,
+  confirmed: true,
+};
+
+const TELEGRAM_WITH_UNCONFIRMED_EMAIL_STORED = {
+  ...STORED,
+  email: 'u@example.at',
+  confirmed: false,
+};
 
 test('alerts page renders the create form with every filter', async ({ page }) => {
   await page.goto('/alerts');
@@ -34,12 +52,49 @@ test('alerts page renders the create form with every filter', async ({ page }) =
   await expect(page.getByTestId('alert-submit')).toBeVisible();
 });
 
+test('defaults to all builder-direct MyGEWO rentals', async ({ page }) => {
+  let posted: Record<string, unknown> | null = null;
+  await page.route(ALERT_API, async (route) => {
+    if (route.request().method() === 'POST') {
+      posted = route.request().postDataJSON() as Record<string, unknown>;
+      return route.fulfill({
+        status: 201, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'Alert created.' }),
+      });
+    }
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [] }),
+    });
+  });
+
+  await page.goto('/alerts');
+  await expect(page.getByTestId('alert-private-only')).not.toBeChecked();
+  await expect(page.getByTestId('alert-keywords')).toHaveValue('');
+  await page.getByTestId('alert-chatid').fill('-100123456');
+  await page.getByTestId('alert-submit').click();
+
+  await expect(page.getByTestId('alert-status')).toBeVisible();
+  expect(posted).toEqual(expect.objectContaining({
+    kind: 'mygewo',
+    keywords: [],
+  }));
+});
+
+test('the page states the real end-to-end latency, not an unverified number',
+  async ({ page }) => {
+    await page.goto('/alerts');
+    await expect(page.getByTestId('alerts-page')).toContainText(
+      'cron-job.org triggers the poll every minute; expect 2–3 min from the ad going live to a Telegram or email notification.',
+    );
+  });
+
 test('submitting with no channel surfaces an error instead of failing silently',
   async ({ page }) => {
     await page.goto('/alerts');
     await page.getByTestId('alert-keywords').fill('1100');
     await page.getByTestId('alert-submit').click();
-    // Either the Pro gate or the missing-channel validation — both must be shown.
+    // The missing-channel validation — an alert with nowhere to send is refused.
     await expect(page.getByTestId('alert-status')).toBeVisible();
     const text = await page.getByTestId('alert-status').textContent();
     expect(text?.trim().length ?? 0).toBeGreaterThan(0);
@@ -52,42 +107,53 @@ test('an invalid telegram chat id is rejected, not stored', async ({ page }) => 
   await expect(page.getByTestId('alert-status')).toBeVisible();
 });
 
-test('keywords are posted as an array and blank filters stay unset', async ({ page }) => {
-  let posted: any = null;
-  await page.route(ALERT_API, async (route) => {
-    if (route.request().method() === 'POST') {
-      posted = route.request().postDataJSON();
+test('keywords are sent as an array and blank filters stay undefined',
+  async ({ page }) => {
+    let posted: unknown = null;
+    await page.route(ALERT_API, async (route) => {
+      if (route.request().method() === 'POST') {
+        posted = route.request().postDataJSON();
+        return route.fulfill({
+          status: 201, contentType: 'application/json',
+          body: JSON.stringify({ ok: true, message: 'Alert created.' }),
+        });
+      }
       return route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true, message: 'Alert angelegt.' }),
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ items: [] }),
       });
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ items: [] }),
     });
-  });
-  await page.goto('/alerts');
-  await page.getByTestId('alert-keywords').fill('Ablöse, Nachmieter , ');
-  await page.getByTestId('alert-min-area').fill('60');
-  await page.getByTestId('alert-max-price').fill('900');
-  await page.getByTestId('alert-chatid').fill('-100123456');
-  await page.getByTestId('alert-submit').click();
-  await expect(page.getByTestId('alert-status')).toBeVisible();
-  expect(posted.keywords).toEqual(['Ablöse', 'Nachmieter']);
-  expect(posted.kind).toBe('keyword');
-  expect(posted.filters.min_area).toBe(60);
-  expect(posted.filters.max_price).toBe(900);
-  expect(posted.filters.max_area).toBeUndefined();
-});
 
-test('stored alert renders all keys, filters, test, and delete controls', async ({ page }) => {
+    await page.goto('/alerts');
+    await page.getByTestId('alert-keywords').fill('Ablöse, Nachmieter , ');
+    await page.getByTestId('alert-min-area').fill('60');
+    await page.getByTestId('alert-max-price').fill('900');
+    await page.getByTestId('alert-chatid').fill('-100123456');
+    await page.getByTestId('alert-private-only').check();
+    await page.getByTestId('alert-submit').click();
+
+    await expect(page.getByTestId('alert-status')).toBeVisible();
+    const body = posted as {
+      kind: string;
+      keywords: string[];
+      filters: Record<string, number | undefined>;
+    };
+    expect(body).not.toBeNull();
+    // Trailing empties dropped, not sent as blank strings.
+    expect(body.keywords).toEqual(['Ablöse', 'Nachmieter']);
+    // Explicitly selecting private-only sends the alert to the rubric-gated
+    // feed rather than the all-MyGEWO default.
+    expect(body.kind).toBe('coop_private');
+    expect(body.filters.min_area).toBe(60);
+    expect(body.filters.max_price).toBe(900);
+    // An untouched field must stay undefined — 0 would match nothing.
+    expect(body.filters.max_area).toBeUndefined();
+  });
+
+test('a stored alert lists all of its keys and its filters', async ({ page }) => {
   await page.route(ALERT_API, (route) =>
     route.fulfill({
-      status: 200,
-      contentType: 'application/json',
+      status: 200, contentType: 'application/json',
       body: JSON.stringify({ items: [STORED] }),
     }));
   await page.goto('/alerts');
@@ -100,20 +166,81 @@ test('stored alert renders all keys, filters, test, and delete controls', async 
   await expect(page.getByTestId('alert-delete').first()).toBeVisible();
 });
 
+test('an email-only stored alert can test its email notification', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, channels: ['email'] }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [EMAIL_ONLY_STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status')).toContainText('email');
+});
+
+test('a Telegram alert warns when email confirmation is pending', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        channels: ['telegram'],
+        warning: 'Confirm your email before testing email delivery.',
+      }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [TELEGRAM_WITH_UNCONFIRMED_EMAIL_STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status'))
+    .toContainText('Confirm your email before testing email delivery.');
+});
+
+test('the test status renders sent and failed channels from a partial response', async ({ page }) => {
+  await page.route('**/api/saved-searches/alert/test', (route) =>
+    route.fulfill({
+      status: 502, contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'Telegram rejected the message: chat not found',
+        sentChannels: ['email'],
+        failedChannels: ['telegram'],
+        errors: [{ channel: 'telegram', message: 'Telegram rejected the message: chat not found' }],
+      }),
+    }));
+  await page.route(ALERT_API, (route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [STORED] }),
+    }));
+
+  await page.goto('/alerts');
+  await page.getByTestId('alert-test').first().click();
+  await expect(page.getByTestId('alert-status')).toContainText('email');
+  await expect(page.getByTestId('alert-status')).toContainText('telegram');
+  await expect(page.getByTestId('alert-status')).toContainText('chat not found');
+});
+
 test('delete calls the API with the alert id', async ({ page }) => {
   let deletedUrl: string | null = null;
   await page.route(ALERT_API + '*', (route) => {
     if (route.request().method() === 'DELETE') {
       deletedUrl = route.request().url();
       return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
+        status: 200, contentType: 'application/json',
         body: JSON.stringify({ ok: true }),
       });
     }
     return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
+      status: 200, contentType: 'application/json',
       body: JSON.stringify({ items: [STORED] }),
     });
   });
@@ -122,22 +249,41 @@ test('delete calls the API with the alert id', async ({ page }) => {
   await expect.poll(() => deletedUrl).toContain(STORED._id);
 });
 
-test('test delivery surfaces the provider error', async ({ page }) => {
-  await page.route('**/api/saved-searches/alert/test', (route) =>
-    route.fulfill({
-      status: 502,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: 'Telegram lehnte die Nachricht ab: chat not found' }),
-    }));
+test('the test button surfaces Telegram\'s own reason rather than a generic failure',
+  async ({ page }) => {
+    await page.route('**/api/saved-searches/alert/test', (route) =>
+      route.fulfill({
+        status: 502, contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'Telegram lehnte die Nachricht ab: chat not found',
+        }),
+      }));
+    await page.route(ALERT_API, (route) =>
+      route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ items: [STORED] }),
+      }));
+    await page.goto('/alerts');
+    await page.getByTestId('alert-test').first().click();
+    await expect(page.getByTestId('alert-status')).toContainText('chat not found');
+  });
+
+test('the empty state shows when there are no alerts', async ({ page }) => {
   await page.route(ALERT_API, (route) =>
     route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ items: [STORED] }),
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ items: [] }),
     }));
   await page.goto('/alerts');
-  await page.getByTestId('alert-test').first().click();
-  await expect(page.getByTestId('alert-status')).toContainText('chat not found');
+  await expect(page.getByTestId('alerts-empty')).toBeVisible();
+});
+
+test('the alerts page logs no console errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  await page.goto('/alerts');
+  await expect(page.getByTestId('alerts-page')).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('the private rubric is reachable from /coop', async ({ page }) => {
@@ -148,9 +294,27 @@ test('the private rubric is reachable from /coop', async ({ page }) => {
   await expect(page.getByTestId('coop-private-page')).toBeVisible();
 });
 
-test('global navigation links to alerts and private transfers', async ({ page }) => {
+/** /alerts and /coop/private shipped without a link in the global nav, so the
+ * only way to reach them was typing the URL. The private feed no longer has its
+ * own header entry — it lives one click deeper, under the single Co-op tab — so
+ * assert that path end to end rather than just the header link. */
+test('global nav reaches the alerts page and the private rubric', async ({ page }) => {
   await page.goto('/dashboard');
   const nav = page.locator('body > header');
+
   await expect(nav.getByRole('link', { name: 'Alerts' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Ablöse' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Co-op' })).toBeVisible();
+  // The old second co-op entry must be gone, or the tabs were not consolidated.
+  await expect(nav.getByRole('link', { name: 'Ablöse' })).toHaveCount(0);
+
+  await nav.getByRole('link', { name: 'Alerts' }).click();
+  await expect(page).toHaveURL(/\/alerts$/);
+  await expect(page.getByTestId('alerts-page')).toBeVisible();
+
+  await page.goto('/dashboard');
+  await nav.getByRole('link', { name: 'Co-op' }).click();
+  await expect(page).toHaveURL(/\/coop$/);
+  await page.getByTestId('coop-tab-private').click();
+  await expect(page).toHaveURL(/\/coop\/private$/);
+  await expect(page.getByTestId('coop-private-page')).toBeVisible();
 });

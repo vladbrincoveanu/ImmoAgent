@@ -389,20 +389,23 @@ def mark_taken_listings(
     if source_filter:
         query["source_enum"] = {"$in": source_filter}
 
-    cursor = mongo_handler.collection.find(query, {"url": 1, "source_enum": 1, "_id": 1})
+    cursor = mongo_handler.collection.find(
+        query, {"url": 1, "builder_url": 1, "source_enum": 1, "_id": 1}
+    )
     listings = list(cursor)
 
     for idx, doc in enumerate(listings):
         url = doc.get('url')
+        probe_url = doc.get('builder_url') or url
         source = doc.get('source_enum')
-        if not url:
+        if not url or not probe_url:
             continue
 
         stats["checked"] += 1
         url_invalid = False
 
         try:
-            resp = requests.head(url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=timeout)
+            resp = requests.head(probe_url, headers=DEFAULT_HEADERS, allow_redirects=True, timeout=timeout)
             if resp.status_code in (404, 410):
                 url_invalid = True
             elif resp.status_code == 200 and source == 'derstandard':

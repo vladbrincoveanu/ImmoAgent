@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const port = Number(process.env.PLAYWRIGHT_PORT || 3010);
+const mongodbUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/immo';
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
@@ -9,7 +12,7 @@ export default defineConfig({
   reporter: 'list',
 
   use: {
-    baseURL: 'http://localhost:3010',
+    baseURL: `http://localhost:${port}`,
     trace: 'on-first-retry',
   },
 
@@ -27,9 +30,12 @@ export default defineConfig({
   // down with it. Production builds do not double-invoke, so the map renders
   // correctly there — testing the prod build exercises what users actually get.
   webServer: {
-    command:
-      'npm run build && PORT=3010 MONGODB_URI=mongodb://localhost:27017/immo npm run start',
-    port: 3010,
+    command: 'npm run build && npm run start',
+    env: {
+      PORT: String(port),
+      MONGODB_URI: mongodbUri,
+    },
+    port,
     reuseExistingServer: true,
     timeout: 300000,
   },

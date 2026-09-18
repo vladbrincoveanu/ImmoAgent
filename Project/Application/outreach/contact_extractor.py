@@ -13,14 +13,6 @@ from dataclasses import dataclass
 from enum import Enum
 from Application.helpers.utils import smart_sleep
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
-
 class ContactType(Enum):
     EMAIL = "email"
     CONTACT_FORM = "contact_form"
@@ -51,6 +43,27 @@ class ContactInfo:
             "source": self.source,
             "listing_url": self.listing_url
         }
+
+
+def classify_seller(text: str, doppelmakler: "bool | None" = None) -> str:
+    """Classify a listing's seller as 'private' / 'agency' / 'unknown' from ad text
+    plus the doppelmakler flag. doppelmakler=True always implies agency (dual-agent
+    representation requires one). Reuses the same makler/agentur/anbieter/ansprechpartner
+    marker vocabulary used elsewhere in this module for HTML-class-based agency
+    detection (see extract_willhaben_contact / extract_derstandard_contact /
+    extract_immo_kurier_contact above), applied here to plain text instead of a
+    BeautifulSoup element's class attribute.
+    """
+    if doppelmakler:
+        return 'agency'
+    if not text:
+        return 'unknown'
+    lowered = text.lower()
+    if re.search(r'makler|agentur|agency|anbieter|provider|ansprechpartner|immobilien\s*gmbh', lowered):
+        return 'agency'
+    if re.search(r'privat|provisionsfrei|vom\s+eigent(ü|u)mer|direkt\s+vom\s+besitzer', lowered):
+        return 'private'
+    return 'unknown'
 
 
 class ContactExtractor:
@@ -89,6 +102,11 @@ class ContactExtractor:
             return
         
         try:
+            # Contact extraction can use Selenium, but lightweight pollers only
+            # import the seller classifier from this module.
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+
             chrome_options = Options()
             chrome_options.add_argument('--headless')
             chrome_options.add_argument('--no-sandbox')
@@ -339,5 +357,4 @@ class ContactExtractor:
     def cleanup(self):
         """Clean up resources."""
         self._close_selenium()
-
 

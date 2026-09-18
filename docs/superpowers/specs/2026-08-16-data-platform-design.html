@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Data Platform Design — Dedup, Geo, Capture, Analytics</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 980px; margin: 40px auto; padding: 0 20px; line-height: 1.55; color: #1a1a1a; }
+  h1 { border-bottom: 3px solid #2b6cb0; padding-bottom: 8px; }
+  h2 { color: #2b6cb0; margin-top: 48px; border-left: 4px solid #2b6cb0; padding-left: 10px; }
+  h3 { color: #444; margin-top: 28px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f0f4f8; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 14px; border-radius: 8px; overflow-x: auto; }
+  .module { background: #fffbea; border: 1px solid #f0d878; border-radius: 8px; padding: 10px 16px; margin: 10px 0; }
+  .assumption { background: #eef6ff; border-left: 4px solid #2b6cb0; padding: 8px 14px; margin: 10px 0; }
+  .flag { background: #fff0f0; border-left: 4px solid #e53e3e; padding: 8px 14px; margin: 10px 0; }
+  .flow { display: flex; flex-direction: column; gap: 6px; background: #f8f9fb; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 16px 0; }
+  .flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .box { background: #fff; border: 2px solid #2b6cb0; border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 600; text-align: center; }
+  .box.new { border-color: #d97706; background: #fff8ec; }
+  .box.store { border-color: #276749; background: #f0fff4; border-radius: 50px; }
+  .arrow { color: #718096; font-size: 18px; }
+  .label { font-size: 11px; color: #718096; font-style: italic; margin: 0 4px; }
+  .branch { margin-left: 40px; border-left: 2px dashed #cbd5e0; padding-left: 16px; }
+</style>
+</head>
+<body>
+
+<h1>Data Platform Design: Dedup, Precise Geo, Richer Capture, Historical Analytics</h1>
+<p><em>4 sub-projects, one coherent data model. Current state confirmed by reading <code>mongodb_handler.py</code>, <code>listing.py</code>, <code>geocoding.py</code>, <code>listing_validator.py</code>, <code>contact_extractor.py</code>.</em></p>
+
+<h2>0. Current state (baseline)</h2>
+<table>
+<tr><th>Capability</th><th>Exists today</th><th>Gap</th></tr>
+<tr><td>Price history</td><td>✅ <code>price_history[]</code> pushed on price change</td><td>—</td></tr>
+<tr><td>Listing lifecycle</td><td>✅ <code>listing_status</code> (active/taken), <code>taken_at</code></td><td>No relist-cycle counter; reappearance after "taken" not distinguished from a plain update</td></tr>
+<tr><td>Dedup</td><td>✅ <code>content_fingerprint</code> = md5(title+area+rooms+bezirk+source)</td><td>Title-based → fragile (agent edits title = "new" listing); scoped to one source → same physical unit on Willhaben + ImmoKurier stored twice</td></tr>
+<tr><td>Coordinates</td><td>✅ <code>coordinate_source</code>: exact / landmark / none. Willhaben ships exact coords; others geocode coarse address text via Nominatim</td><td>No precision estimate stored; distance calcs (school/U-Bahn) not recomputed when coords later upgrade landmark→exact</td></tr>
+<tr><td>Seller type</td><td>Partial — <code>agent_name</code>/agency parsed in <code>contact_extractor.py</code>, used only for outreach</td><td>Not written back to the listing document → can't filter/query "private sellers only" in dashboard or Mongo</td></tr>
+<tr><td>District/time rollups</td><td>❌ none</td><td>No collection aggregates price/m² or listing counts by district over time</td></tr>
+</table>
+
+<h2>Data flow — where each subsystem plugs in</h2>
+<div class="flow">
+
+  <div class="flow-row">
+    <div class="box">Scrapers<br>Willhaben / ImmoKurier / DerStandard / Genossenschaft</div>
+    <span class="arrow">&#8594;</span>
+    <div class="box">is_valid_listing_data</div>
+    <span class="arrow">&#8594;</span>
+    <div class="box new">compute_content_fingerprint_xsrc<br><span class="label">NEW: coord+area+rooms, cross-source</span></div>
+    <span class="arrow">&#8594;</span>
+    <div class="box">upsert_listing_with_history</div>
+  </div>
+
+  <div class="branch">
+    <div class="flow-row">
+      <span class="label">existing doc, status=taken, fingerprint match</span>
+      <span class="arrow">&#8594;</span>
+      <div class="box new">record_relist_event<br><span class="label">NEW</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="box store">listings collection</div>
+    </div>
+    <div class="flow-row">
+      <span class="label">existing doc, status=active</span>
+      <span class="arrow">&#8594;</span>
+      <div class="box">push price_history</div>
+      <span class="arrow">&#8594;</span>
+      <div class="box store">listings collection</div>
+    </div>
+    <div class="flow-row">
+      <span class="label">new doc</span>
+      <span class="arrow">&#8594;</span>
+      <div class="box">insert w/ seller_type + coordinate_precision_m</div>
+      <span class="arrow">&#8594;</span>
+      <div class="box">geocode_listing (exact / landmark)</div>
+      <span class="arrow">&#8594;</span>
+      <div class="box new">recompute distances<br><span class="label">NEW: on coord upgrade</span></div>
+      <span class="arrow">&#8594;</span>
+      <div class="box store">listings collection</div>
+    </div>
+  </div>
+
+  <div class="flow-row" style="margin-top:10px;">
+    <div class="box store">listings collection</div>
+    <span class="arrow">&#8594;</span>
+    <div class="box new">monthly aggregation job<br><span class="label">NEW</span></div>
+    <span class="arrow">&#8594;</span>
+    <div class="box store new">district_snapshots collection<br><span class="label">NEW</span></div>
+    <span class="arrow">&#8594;</span>
+    <div class="box">Dashboard: district drift charts</div>
+  </div>
+
+</div>
+<p style="font-size:12px;color:#718096;"><span style="color:#d97706;font-weight:600;">&#9632;</span> orange = new module/collection &nbsp; <span style="color:#276749;font-weight:600;">&#9679;</span> green pill = Mongo collection</p>
+
+<h2>1. Dedup + relist-cycle tracking</h2>
+<p><strong>Approach chosen (of 3 considered):</strong> replace the title-based fingerprint with a <em>content fingerprint</em> built from stable physical attributes, reusing the pattern already proven in the co-op vertical (<code>content_fingerprint_xsrc</code>).</p>
+<table>
+<tr><th>Option</th><th>Trade-off</th></tr>
+<tr><td>A. Keep title-based, per-source (status quo)</td><td>Simple, but breaks on title edits; can't merge cross-source dupes. Rejected.</td></tr>
+<tr><td><strong>B. Coordinate+area+rooms+bezirk fingerprint, cross-source (recommended)</strong></td><td>Stable across title edits and across Willhaben/ImmoKurier/DerStandard for the same unit. Needs coordinate rounding (~30m) to avoid two ads for the same flat differing by geocoding jitter.</td></tr>
+<tr><td>C. ML/fuzzy text similarity dedup</td><td>Higher recall on partial data, but nondeterministic, needs tuning + review queue. Overkill for current scale. Rejected — revisit if B's false-negative rate is high in practice.</td></tr>
+</table>
+
+<div class="module">
+<h3>Module: content_fingerprint_xsrc (extended)</h3>
+<b>Responsibility:</b> stable id for "same physical unit" across sources and across title edits.<br>
+<b>Interface:</b> input listing dict → output md5 string. Inputs: <code>round(lat,3), round(lon,3)</code> if coords available, else <code>bezirk+street</code>; <code>area_m2</code> rounded to nearest 1m²; <code>rooms</code>; district.<br>
+<b>Dependencies:</b> <code>Application/helpers/listing_validator.py</code> (extends existing coop fingerprint fn to all verticals).<br>
+<b>Size target:</b> ~30 lines, pure function, unit-testable.
+</div>
+
+<div class="module">
+<h3>Module: record_relist_event</h3>
+<b>Responsibility:</b> when an incoming listing's fingerprint matches an existing doc with <code>listing_status="taken"</code>, log the delist→republish cycle instead of silently flipping status back to active.<br>
+<b>Interface:</b> called from <code>upsert_listing_with_history</code> before the existing-doc branch. Appends to <code>relist_events: [{delisted_at, republished_at, days_off_market, price_at_relist}]</code>, increments <code>times_relisted</code>, resets <code>listing_status="active"</code>.<br>
+<b>Dependencies:</b> <code>mongodb_handler.py</code> only.<br>
+<b>Size target:</b> ~20 lines, added inline to existing upsert method.
+</div>
+
+<p><strong>Cross-source merge display:</strong> documents stay separate (one per source, needed for per-source price/outreach tracking) but share <code>unit_fingerprint</code>. Dashboard/top-5 queries dedupe by picking one canonical doc per <code>unit_fingerprint</code> (earliest <code>first_scraped_at</code>, or most complete data — tie-break rule to confirm during grill).</p>
+
+<h2>2. Private-seller + precise geo</h2>
+<div class="module">
+<h3>Module: seller_type classification (moved earlier in pipeline)</h3>
+<b>Responsibility:</b> classify each listing private / agency / bautraeger at scrape time, not just at outreach time.<br>
+<b>Interface:</b> reuse existing <code>contact_extractor.py</code> regex logic (agency/makler class detection), called from each scraper's parse step, written to new <code>Listing.seller_type</code> field.<br>
+<b>Dependencies:</b> <code>Application/outreach/contact_extractor.py</code> (logic extracted/shared, not duplicated).<br>
+<b>Size target:</b> extend contact_extractor with a lightweight classify_seller() helper (~15 lines), call from each scraper.
+</div>
+
+<div class="module">
+<h3>Module: coordinate_precision_m + distance recompute trigger</h3>
+<b>Responsibility:</b> attach a numeric confidence radius to every coordinate, and re-trigger school/U-Bahn distance calc when precision improves.<br>
+<b>Interface:</b> <code>coordinate_source="exact"</code> → ~10m; <code>"landmark"</code> → ~200m (street/district centroid); <code>"none"</code> → null. <code>main.py</code>'s geocode step (line ~508) already checks <code>coordinate_source != 'none'</code> before updating coords — extend that branch to also re-run <code>get_walking_distance_to_nearest_school</code> / U-Bahn calc when precision tightens.<br>
+<b>Dependencies:</b> <code>Application/helpers/geocoding.py</code>, <code>Application/main.py</code>.<br>
+<b>Size target:</b> ~15 lines added to existing geocode branch.
+</div>
+
+<p><strong>Geo strategy (per your answer):</strong> best-effort only — no new detail-page scraping. Use Willhaben's own exact coords when present; Nominatim-geocode the coarse address text otherwise. This means private-seller listings on sources that only expose a district-level address will stay at "landmark" precision (~200m) — good enough for U-Bahn/school walk-time bucket, not exact-address precision. Flagging this as a hard ceiling, not a bug to chase.</p>
+
+<h2>3. Richer data capture (standardize across sources)</h2>
+<p>Audit: several fields (<code>doppelmakler</code>, <code>maklerprovision_pct</code>, <code>sonderumlage_risk</code>) are extracted via source-agnostic regex in <code>field_extractors.py</code> but only <em>called</em> from Willhaben/DerStandard/ImmoKurier scrapers inconsistently. Fix: audit call sites, wire missing extractor calls into whichever scraper omits them. No new fields needed — this is a coverage-consistency fix, not new schema.</p>
+<div class="assumption">Assumption: "gather more data" = closing this coverage gap + the seller_type/precision fields above, not inventing speculative new fields. Confirm during grill — if you want genuinely new data points (e.g. floor plan images, virtual tour links), that's a 5th sub-project.</div>
+
+<h2>4. Historical / district drift analytics</h2>
+<div class="module">
+<h3>Module: district_snapshots aggregation job</h3>
+<b>Responsibility:</b> monthly rollup of price/m², listing volume, days-on-market by <code>bezirk</code>, written to a new collection so district comparisons don't require scanning the full listings collection.<br>
+<b>Interface:</b> cron/script reads <code>listings</code> filtered by <code>processed_at</code> in month window + <code>price_history</code>, writes one doc per (bezirk, month): <code>{bezirk, period, avg_price_m2, median_price_m2, listing_count, active_count, avg_days_on_market, relisted_pct}</code>.<br>
+<b>Dependencies:</b> <code>mongodb_handler.py</code> (new <code>district_snapshots</code> collection), run via existing pipeline scheduler pattern (cron / GitHub Actions, matching <code>coop-fast-poll</code> precedent).<br>
+<b>Size target:</b> ~120 lines, new file <code>Application/analytics/district_snapshot.py</code>.
+</div>
+<div class="flag">
+<strong>Flag — retroactive 10-year history is not possible from this DB alone.</strong> The scraper has only been running since this project started; there's no 2016 data sitting in Mongo. Two options: (a) snapshots start now and drift becomes visible after months/years of running — honest but slow; (b) backfill historical Vienna district price trends from an external source (Statistik Austria / Immobilienpreisspiegel open data) as a separate one-time import into <code>district_snapshots</code> with a <code>source="external_backfill"</code> tag. (b) is a new external-data-integration sub-project, not scoped here — confirm whether you want it queued as sub-project #5.
+</div>
+
+<h2>Schema diff summary</h2>
+<pre>
+Listing (new/changed fields):
+  unit_fingerprint: str            # replaces per-source content_fingerprint for cross-source dedup
+  relist_events: List[Dict]        # [{delisted_at, republished_at, days_off_market, price_at_relist}]
+  times_relisted: int
+  seller_type: str                 # 'private' | 'agency' | 'bautraeger' | 'unknown'
+  coordinate_precision_m: int      # 10 | 200 | null
+
+New collection: district_snapshots
+  {bezirk, period, avg_price_m2, median_price_m2, listing_count,
+   active_count, avg_days_on_market, relisted_pct, source}
+</pre>
+
+<h2>5. External historical backfill (Statistik Austria / Immobilienpreisspiegel)</h2>
+<div class="module">
+<h3>Module: district_snapshot_backfill (one-time import)</h3>
+<b>Responsibility:</b> populate <code>district_snapshots</code> with pre-scraper years (aim: back to ~2016) from an external open-data source so district drift charts have a real 10-year baseline instead of starting flat from today.<br>
+<b>Interface:</b> one-off script, not part of the daily pipeline. Writes docs tagged <code>source="external_backfill"</code> (vs. <code>source="scraped"</code> for the ongoing monthly job) into the same collection/shape — dashboard queries merge both by <code>(bezirk, period)</code>, scraped data takes precedence where both exist for the same month.<br>
+<b>Dependencies:</b> external API/CSV from Statistik Austria (Immobilienpreisspiegel, published by WKO/Statistik Austria — free, publicly licensed aggregate data, no scraping ToS concern since it's an official open-data publication, not a listings site).<br>
+<b>Size target:</b> ~150 lines, new file <code>Application/analytics/district_snapshot_backfill.py</code>. Run once manually, not on a schedule.
+</div>
+<div class="assumption">Granularity ceiling: external source publishes at Bezirk (23-district) level, typically yearly or semi-annual — not monthly like the scraped snapshots. Expect a granularity seam where backfilled rows are sparser (1-2 points/year) than scraped rows (12 points/year) once live. Chart should show this honestly (e.g. dashed line pre-2026, solid after) rather than interpolating fake monthly points.</div>
+
+<h2>Resolved decisions</h2>
+<table>
+<tr><th>Question</th><th>Decision</th></tr>
+<tr><td>Canonical doc for cross-source duplicates</td><td>Most-complete-data wins (most non-null fields). Tie-break on equal completeness: earliest <code>first_scraped_at</code>.</td></tr>
+<tr><td>Relist-cycle window</td><td>No time limit — any fingerprint match after <code>taken_at</code> counts as a relist. Gap length is preserved in <code>relist_events[].days_off_market</code> for later filtering, not discarded at write time.</td></tr>
+<tr><td>10-year backfill</td><td>In scope — sub-project 5 above.</td></tr>
+<tr><td>Richer data capture</td><td>Coverage-consistency fix only, no new fields.</td></tr>
+</table>
+
+</body>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral'});</script>
+</html>

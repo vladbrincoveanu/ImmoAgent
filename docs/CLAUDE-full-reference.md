@@ -311,28 +311,57 @@ See README.md for example GitHub Actions workflow.
 
 ## Co-op fast-poll (Phase A)
 
-`Project/run_coop.py` — lightweight coop poller for GitHub Actions cron `*/5`
-(`.github/workflows/coop-fast-poll.yml`, ~08:00–22:00 Vienna Mon–Sat). Replaces
+`Project/run_coop.py` — lightweight coop poller driven by minutely
+`repository_dispatch` events, with `.github/workflows/coop-fast-poll.yml` as a
+fallback (~08:00–22:00 Vienna Mon–Sat). Replaces
 the old `coop-scrape.yml` (*/15). Polls the Genossenschaft adapters with
 conditional GET (ETag/Last-Modified/page-hash stored in the `source_meta`
 Mongo collection), upserts via `MongoDBHandler.upsert_coop_listing()` (price-less;
-preserves `sent_to_telegram` on re-poll), and DMs matches to
-`TELEGRAM_COOP_CHANNEL_ID` only (no main-chat fallback — the main channel
-excludes co-ops by design; if unset, alerts are disabled loudly and the CI
-workflow fails fast). CI installs `Project/requirements-coop.txt` (slim:
+preserves `sent_to_telegram` on re-poll), and sends matches to the configured
+co-op channel feeds. User-created alerts are delivered through their configured
+Telegram and/or confirmed email channels; missing Telegram channel secrets do
+not disable scraping or email-only alerts. CI installs
+`Project/requirements-coop.txt` (slim:
 requests/bs4/pymongo — no Selenium/torch).
 
 Run locally: `cd Project && python run_coop.py [--no-send]`.
 
-### Alert filter — `Project/coop_alerts.json` (tracked; not a secret)
+### Channel filter — the union of verified owner alerts
 
-    { "bezirke": [], "max_cost": null, "min_rooms": null, "min_area": null }
+The channel carries what a verified owner alert asks for:
+`run_coop.channel_match_any` ORs the owner-filtered subscriptions from
+`get_alert_subscriptions(["coop_private", "keyword"])`. The poller requires
+`confirmed == true` and a non-empty email before it accepts a row as an owner.
+This email confirmation is the only ownership proof currently implemented.
+Telegram-only rows remain valid private delivery subscriptions, but a public
+client-supplied Telegram ID cannot authorize a shared channel without a
+Telegram possession check, which the system does not have. An allowlisted
+Telegram ID is supported only on a row that also has a confirmed email.
+An unverified or non-allowlisted row is never broadcast.
+Stricter than the per-user path — a match whose gate could not be checked
+(`unverified`) is delivered to the subscriber, flagged, but kept off the public
+feed. That strictness is separate from owner verification.
 
-Empty/`null` field = no constraint (send all). A missing **listing** field is
-permissive (never excludes). Precedence: `COOP_ALERTS` env (JSON) >
-`config.json` `coop_alerts` key > `Project/coop_alerts.json` > send-all.
-(`config.json` is gitignored/absent in CI, so the tracked file is the
-CI-visible source. Tune by editing + committing `coop_alerts.json`.)
+**Zero verified owner alerts = a silent channel** (logged at WARNING), where the old
+static filter meant "send everything".
+
+`Project/coop_alerts.json` and the `COOP_ALERTS` env var are no longer read.
+Every field in the tracked file was `null`, so it matched everything, and
+`COOP_ALERTS` was never in the workflow env — the channel was an unfiltered
+firehose by construction.
+
+### Send-once — `coop_channel_sends` ledger
+
+Unique on `(chat_id, dedup_key)`, claimed before the send, released if the send
+fails. `dedup_key = compute_xsrc_fingerprint(listing) or url_hash(url)`,
+computed at send time (`Listing.content_fingerprint_xsrc` is declared but never
+populated on the object — reading it degrades every key to `url_hash`).
+
+Fail closed: a missing index or any ledger write error skips the send.
+
+Before the first poll after deploying this, seed the ledger once:
+`python Project/scripts/seed_coop_channel_ledger.py` — otherwise the existing
+inventory reads as never-sent and both channels flood.
 
 ## Codebase Exploration
 

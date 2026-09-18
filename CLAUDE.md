@@ -29,7 +29,7 @@ Follow `~/.claude/rules/12-rule-template.md`.
 2. URL validation (listing_validator.py) is mandatory before display/send.
 3. Use `is_valid_listing_data()` from mongodb_handler.py — never inline `> 0` checks.
 4. MongoDB access via mongodb_handler.py methods only — no raw queries.
-5. Dedup via `url`/`url_hash`; `sent_to_telegram` flag prevents re-sends.
+5. Dedup via `url`/`url_hash`; `sent_to_telegram` prevents re-sends — EXCEPT on the co-op channel path, where the `coop_channel_sends` ledger is authoritative (`sent_to_telegram` is written best-effort for the dashboard but is not the gate: the duplicate/invalid upsert paths leave no doc for it to latch onto).
 6. Telegram formatting: follow telegram_bot.py patterns (4096-char limit). Outreach templates are German (outreach/email_sender.py).
 
 ## Workflow notes

@@ -22,7 +22,16 @@
     // Only consumed by the parked dark-mode components ignored below. Kept so
     // the feature can be wired up without a reinstall; drop it together with
     // ThemeProvider/ThemeToggle if dark mode is abandoned.
-    "next-themes"
+    "next-themes",
+
+    // FALSE POSITIVE (verified 2026-08-21). knip reports both as unused, but
+    // lib/mailer.ts does `import nodemailer from 'nodemailer'` and is imported
+    // by two live route handlers:
+    //   app/api/saved-searches/alert/route.ts
+    //   app/api/saved-searches/alert/test/route.ts
+    // Re-check with grep before ever acting on this hit.
+    "nodemailer",
+    "@types/nodemailer"
   ],
 
   "ignore": [

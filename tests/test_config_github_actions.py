@@ -64,7 +64,7 @@ def test_github_actions_config_loading():
             # Test configuration loading
             config = load_config()
             print(f"✅ Successfully loaded config with {len(config)} keys")
-            print(f"   MongoDB URI: {config.get('mongodb_uri', 'N/A')}")
+            print(f"   MongoDB: {'configured' if config.get('mongodb_uri') else 'not configured'}")
             print(f"   Telegram configured: {'Yes' if config.get('telegram') else 'No'}")
             print(f"   Top5 configured: {'Yes' if config.get('top5') else 'No'}")
             
@@ -93,7 +93,7 @@ def test_current_environment():
         # Test configuration loading
         config = load_config()
         print(f"✅ Successfully loaded config with {len(config)} keys")
-        print(f"   MongoDB URI: {config.get('mongodb_uri', 'N/A')}")
+        print(f"   MongoDB: {'configured' if config.get('mongodb_uri') else 'not configured'}")
         print(f"   Telegram configured: {'Yes' if config.get('telegram') else 'No'}")
         print(f"   Top5 configured: {'Yes' if config.get('top5') else 'No'}")
         

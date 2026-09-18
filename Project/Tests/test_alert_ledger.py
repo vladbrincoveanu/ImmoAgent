@@ -17,18 +17,23 @@ def _handler():
 
 def test_claim_delivery_inserts_pending_row():
     handler = _handler()
+    handler.db["alert_deliveries"].find_one_and_update.return_value = None
 
     assert handler.claim_delivery("alert-1", "url-1", "-1001", "message") is True
 
-    handler.db["alert_deliveries"].insert_one.assert_called_once()
-    row = handler.db["alert_deliveries"].insert_one.call_args.args[0]
+    handler.db["alert_deliveries"].find_one_and_update.assert_called_once()
+    row = handler.db["alert_deliveries"].find_one_and_update.call_args.args[1][
+        "$setOnInsert"
+    ]
     assert row["status"] == "pending"
     assert row["message"] == "message"
 
 
 def test_duplicate_delivery_claim_is_not_owned_twice():
     handler = _handler()
-    handler.db["alert_deliveries"].insert_one.side_effect = DuplicateKeyError("duplicate")
+    handler.db["alert_deliveries"].find_one_and_update.side_effect = DuplicateKeyError(
+        "duplicate"
+    )
 
     assert handler.claim_delivery("alert-1", "url-1", "-1001", "message") is False
 
@@ -51,8 +56,11 @@ def test_active_alerts_accepts_legacy_and_general_feed_kinds():
     assert query == {
         "kind": {"$in": ["coop_private", "keyword"]},
         "$or": [
-            {"confirmed": True},
-            {"telegram_chat_id": {"$exists": True, "$ne": None}},
+            {"telegram_chat_id": {"$exists": True, "$nin": [None, ""]}},
+            {
+                "email": {"$exists": True, "$nin": [None, ""]},
+                "confirmed": True,
+            },
         ],
     }
 
@@ -67,7 +75,10 @@ def test_active_alerts_keeps_telegram_channel_when_email_is_unconfirmed():
     assert query == {
         "kind": {"$in": ["keyword"]},
         "$or": [
-            {"confirmed": True},
-            {"telegram_chat_id": {"$exists": True, "$ne": None}},
+            {"telegram_chat_id": {"$exists": True, "$nin": [None, ""]}},
+            {
+                "email": {"$exists": True, "$nin": [None, ""]},
+                "confirmed": True,
+            },
         ],
     }

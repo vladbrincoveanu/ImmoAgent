@@ -33,7 +33,7 @@ def test_connection_silent():
     # Create bot
     bot = TelegramBot(telegram_main['bot_token'], telegram_main['chat_id'])
     
-    print(f"🤖 Testing connection for bot with token: {telegram_main['bot_token'][:10]}...")
+    print("🤖 Testing connection for configured Telegram Main bot")
     
     # Test connection (should not send any message to channel)
     try:

@@ -42,13 +42,14 @@ def test_config_loading():
         
         # Set some test environment variables
         os.environ['MONGODB_URI'] = 'mongodb://test:test@localhost:27017/test'
-        os.environ['TELEGRAM_BOT_MAIN_TOKEN'] = 'test_bot_token_123'
-        os.environ['TELEGRAM_BOT_MAIN_CHAT_ID'] = 'test_chat_id_456'
-        
+        os.environ['TELEGRAM_MAIN_BOT_TOKEN'] = 'test_bot_token_123'
+        os.environ['TELEGRAM_MAIN_CHAT_ID'] = 'test_chat_id_456'
+
         config = load_config()
         print(f"✅ Config loaded with {len(config)} top-level keys")
-        print(f"✅ MongoDB URI: {config.get('mongodb_uri', 'NOT_FOUND')}")
-        print(f"✅ Telegram token: {config.get('telegram', {}).get('telegram_main', {}).get('bot_token', 'NOT_FOUND')}")
+        telegram_main = config.get('telegram', {}).get('telegram_main', {})
+        print(f"✅ MongoDB: {'configured' if config.get('mongodb_uri') else 'not configured'}")
+        print(f"✅ Telegram Main: {'configured' if telegram_main.get('bot_token') and telegram_main.get('chat_id') else 'not configured'}")
         
         return True
     except Exception as e:

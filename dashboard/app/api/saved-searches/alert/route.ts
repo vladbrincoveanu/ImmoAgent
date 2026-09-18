@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, ObjectId } from '@/lib/mongodb';
 import crypto from 'crypto';
 import { sendMail, confirmationEmail } from '@/lib/mailer';
-import { COOKIE_NAME, getOrCreateUserId, setUserCookie, isPro } from '@/lib/user';
+import { COOKIE_NAME, getOrCreateUserId, setUserCookie } from '@/lib/user';
 import { isValidAlertEmail } from './email-validation';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +13,11 @@ interface SubscribeBody {
   params?: Record<string, string>;
   frequency?: 'instant' | 'daily' | 'weekly';
   /** Which feed to watch. 'listings' is the original behaviour and stays the
-   * default so existing callers are unaffected. */
-  kind?: 'listings' | 'coop_private' | 'keyword';
+   * default so existing callers are unaffected. 'coop_private' additionally
+   * requires the poller's private-transfer rubric (co-op marker AND handover
+   * marker) — the keys alone are OR-ed and cannot express that. 'keyword' is the
+   * same feed with no rubric. 'mygewo' watches builder-direct co-op rentals only. */
+  kind?: 'listings' | 'coop_private' | 'keyword' | 'mygewo';
   /** Free-text match for coop_private alerts, tested against title, address and
    * the ad body by the poller. */
   keyword?: string;
@@ -22,9 +25,12 @@ interface SubscribeBody {
    * Weitergabe is gone in hours, and email is often too slow to be the only
    * channel. */
   telegram_chat_id?: string;
-  /** Multiple keys use OR semantics so synonyms do not disable an alert. */
+  /** Free-text keys, OR semantics: any one hitting the title or the ad body
+   * fires the alert. This is how a user lists synonyms for one thing, so
+   * requiring all of them would let a single absent word disable the alert. */
   keywords?: string[];
-  /** Optional numeric gates. Missing listing values pass and are flagged later. */
+  /** Numeric gates. Every field optional; an unset gate always passes, and a
+   * listing value the source omitted never fails one. */
   filters?: {
     min_area?: number; max_area?: number;
     min_rooms?: number; max_rooms?: number;
@@ -34,25 +40,32 @@ interface SubscribeBody {
 
 const KEYWORD_MAX_LEN = 80;
 const MAX_KEYWORDS = 10;
-const FILTER_KEYS = ['min_area', 'max_area', 'min_rooms', 'max_rooms', 'max_price'] as const;
+const FILTER_KEYS = [
+  'min_area', 'max_area', 'min_rooms', 'max_rooms', 'max_price',
+] as const;
 
-function cleanKeywords(body: SubscribeBody): string[] {
-  const values = Array.isArray(body.keywords)
-    ? body.keywords
-    : (body.keyword ? [body.keyword] : []);
-  return values
-    .map((key) => String(key).trim().slice(0, KEYWORD_MAX_LEN))
-    .filter(Boolean)
-    .slice(0, MAX_KEYWORDS);
+/** Keep only finite, non-negative numbers. A NaN from a blank form field would
+ * otherwise be stored and then compare false against everything, silently
+ * disabling the alert it was supposed to narrow. */
+function cleanFilters(raw: Record<string, unknown> | undefined) {
+  const out: Record<string, number> = {};
+  for (const key of FILTER_KEYS) {
+    const v = Number(raw?.[key]);
+    if (Number.isFinite(v) && v >= 0) out[key] = v;
+  }
+  return out;
 }
 
-function cleanFilters(raw: SubscribeBody['filters']): Record<string, number> {
-  const filters: Record<string, number> = {};
-  for (const key of FILTER_KEYS) {
-    const value = Number(raw?.[key]);
-    if (Number.isFinite(value) && value >= 0) filters[key] = value;
-  }
-  return filters;
+/** The alert's keys, capped in both count and length. Falls back to the legacy
+ * scalar so an older client keeps working. */
+function cleanKeywords(body: SubscribeBody): string[] {
+  const list = Array.isArray(body.keywords)
+    ? body.keywords
+    : (body.keyword ? [body.keyword] : []);
+  return list
+    .map((k) => String(k).trim().slice(0, KEYWORD_MAX_LEN))
+    .filter(Boolean)
+    .slice(0, MAX_KEYWORDS);
 }
 
 /** A Telegram chat id is a signed integer (channels are negative, often -100…).
@@ -70,15 +83,11 @@ function isValidChatId(s: string): boolean {
 export async function POST(req: NextRequest) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+  // Alert creation is deliberately ungated: it was behind the shared-password
+  // Pro flag, which only ever cost the owner a round trip through /api/unlock in
+  // every new browser. Volume is still bounded — the caller must supply a
+  // reachable channel, keys are capped, and the poller only sends new ads.
   const userId = getOrCreateUserId(req);
-  if (!(await isPro(db, userId))) {
-    const res = NextResponse.json({
-      error: 'upgrade_required',
-      reason: 'alerts_pro_only',
-    }, { status: 402 });
-    setUserCookie(res, userId);
-    return res;
-  }
   let body: SubscribeBody = {};
   try { body = await req.json(); } catch { body = {}; }
   const email = (body.email ?? '').trim().toLowerCase();
@@ -99,11 +108,14 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = body.kind ?? 'listings';
-  if (!['listings', 'coop_private', 'keyword'].includes(kind)) {
+  if (!['listings', 'coop_private', 'keyword', 'mygewo'].includes(kind)) {
     return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
   }
   const keywords = cleanKeywords(body);
-  const filters = cleanFilters(body.filters);
+  // Bounds are accepted independently. An inverted pair (min 90, max 40) is
+  // stored as given and simply matches nothing — which is visible on the page,
+  // whereas silently swapping the values would not be.
+  const filters = cleanFilters(body.filters as Record<string, unknown> | undefined);
   const frequency = body.frequency ?? 'daily';
   if (!['instant', 'daily', 'weekly'].includes(frequency)) {
     return NextResponse.json({ error: 'Invalid frequency' }, { status: 400 });
@@ -118,23 +130,26 @@ export async function POST(req: NextRequest) {
     telegram_chat_id: hasTelegram ? telegramChatId : null,
     kind,
     keywords,
-    // Keep the scalar for older pollers and records.
+    // The legacy scalar is kept in sync so a rollback to the previous poller
+    // still matches on the primary key rather than silently matching everything.
     keyword: keywords[0] ?? '',
     filters,
     saved_search_id: body.saved_search_id ?? null,
     params,
     frequency,
-    // Telegram needs no double opt-in: supplying a chat id the bot can post to is
-    // itself the consent, and there is no third party to protect from spam. Email
-    // still does — anyone can type someone else's address.
-    confirmed: !hasEmail && hasTelegram,
+    // `confirmed` is proof of email ownership, not delivery consent. A Telegram
+    // chat id is a public routing value and this endpoint has no possession check,
+    // so it must never self-confirm or authorize a shared channel owner.
+    confirmed: false,
     confirm_token: confirmToken,
     created_at: new Date(),
   };
   await db.collection('alert_subscriptions').insertOne(doc);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    ?? (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000');
   const confirmUrl = `${appUrl}/api/saved-searches/confirm?token=${confirmToken}`;
   // Telegram-only alerts have no address to confirm — sending here would mail ''.
   const mailResult = hasEmail
@@ -158,9 +173,11 @@ export async function POST(req: NextRequest) {
     email_sent: mailResult.ok,
     message: mailResult.ok
       ? 'Subscription created. Check your inbox to confirm.'
-      : doc.confirmed
-        ? 'Subscription active — alerts will arrive on Telegram.'
-        : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
+       : !hasEmail && hasTelegram
+         ? 'Subscription active — alerts will arrive on Telegram.'
+         : doc.confirmed
+         ? 'Subscription active — alerts will arrive on Telegram.'
+         : `Subscription created. ${mailResult.error ?? 'Email sending unavailable.'}`,
   }, { status: 201 });
   setUserCookie(res, userId);
   return res;
@@ -181,6 +198,8 @@ export async function GET(req: NextRequest) {
     email: s.email ?? null,
     telegram_chat_id: s.telegram_chat_id ?? null,
     kind: s.kind ?? 'listings',
+    // Older records only have the scalar; surface it as a one-element list so
+    // the page has a single shape to render.
     keywords: Array.isArray(s.keywords) && s.keywords.length
       ? s.keywords
       : (s.keyword ? [s.keyword] : []),
@@ -193,6 +212,9 @@ export async function GET(req: NextRequest) {
   })) });
 }
 
+// DELETE /api/saved-searches/alert?id=<id>
+// Scoped to the caller's user_id: an ObjectId is guessable from a response body,
+// and one user must never be able to delete another's alert.
 export async function DELETE(req: NextRequest) {
   const db = getDb();
   if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
