@@ -49,6 +49,20 @@ class TestUpsertCoopListing(unittest.TestCase):
         self.assertEqual(replaced["sent_to_telegram_at"], 111.0)
         self.assertEqual(replaced["_id"], 42)
 
+    def test_update_preserves_image_probe_version(self):
+        h = _handler()
+        h.collection.find_one.side_effect = [
+            None,
+            {"_id": 42, "url": "https://www.oevw.at/a",
+             "image_probe_v": 2, "image_url": "https://cdn.example/a.jpg"},
+        ]
+
+        status = h.upsert_coop_listing(_doc(image_url="https://cdn.example/a.jpg"))
+
+        self.assertEqual(status, "updated")
+        replaced = h.collection.replace_one.call_args[0][1]
+        self.assertEqual(replaced["image_probe_v"], 2)
+
     def test_buyable_flag_persists_on_insert(self):
         # The dashboard's rentals-only view requires buyable:false to be stored.
         h = _handler()

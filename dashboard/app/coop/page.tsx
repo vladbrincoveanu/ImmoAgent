@@ -395,13 +395,24 @@ export default async function CoopPage({
         <p className="mt-2 text-sm">
           <a
             href="/coop/private"
-            data-testid="coop-private-link"
             className="font-medium text-[#3D405B] underline"
           >
             → Private transfers straight from tenants
           </a>{' '}
           <span className="text-[#6B6B6B]">
             (no waiting list, first come first served)
+          </span>
+        </p>
+        <p className="mt-2 text-sm">
+          <a
+            href="/coop/private"
+            data-testid="coop-private-link"
+            className="font-medium text-[#3D405B] underline"
+          >
+            → Private Weitergaben von Mieter:innen
+          </a>{' '}
+          <span className="text-[#6B6B6B]">
+            (ohne Warteliste, wer zuerst kommt)
           </span>
         </p>
 

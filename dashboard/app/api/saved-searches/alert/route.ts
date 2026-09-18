@@ -3,6 +3,7 @@ import { getDb, ObjectId } from '@/lib/mongodb';
 import crypto from 'crypto';
 import { sendMail, confirmationEmail } from '@/lib/mailer';
 import { COOKIE_NAME, getOrCreateUserId, setUserCookie } from '@/lib/user';
+import { isValidAlertEmail } from './email-validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { body = {}; }
   const email = (body.email ?? '').trim().toLowerCase();
   const telegramChatId = (body.telegram_chat_id ?? '').trim();
-  const hasEmail = !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const hasEmail = isValidAlertEmail(email);
   const hasTelegram = !!telegramChatId && isValidChatId(telegramChatId);
 
   if (telegramChatId && !hasTelegram) {
