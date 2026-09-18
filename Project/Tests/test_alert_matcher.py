@@ -102,3 +102,64 @@ def test_each_alert_sees_every_matching_listing():
     pairs = match(listings, [{"_id": "k", "keyword": "1100",
                               "telegram_chat_id": "-1", "confirmed": True}])
     assert len(pairs) == 2
+
+
+class _LN:
+    def __init__(self, title=None, description=None,
+                 area_m2=None, rooms=None, price_total=None):
+        self.title = title
+        self.address = None
+        self.bezirk = None
+        self.description = description
+        self.area_m2 = area_m2
+        self.rooms = rooms
+        self.price_total = price_total
+
+
+def _alert(**kw):
+    base = {"_id": "k1", "telegram_chat_id": "-100123456",
+            "email": None, "confirmed": True, "keywords": [], "filters": {}}
+    base.update(kw)
+    return base
+
+
+def test_any_keyword_hits_with_or_semantics():
+    from Application.alert_matcher import keyword_hit
+
+    assert keyword_hit(_alert(keywords=["ablöse", "nachmieter"]),
+                       _LN(title="Nachmieter gesucht"))
+
+
+def test_legacy_scalar_keyword_still_matches():
+    from Application.alert_matcher import keyword_hit
+
+    assert keyword_hit(_alert(keywords=None, keyword="ablöse"),
+                       _LN(title="ABLÖSE für Küche"))
+
+
+def test_numeric_gate_rejects_out_of_range_values():
+    from Application.alert_matcher import gate_result
+
+    assert gate_result(_alert(filters={"min_area": 50}),
+                       _LN(area_m2=40)) == (False, False)
+    assert gate_result(_alert(filters={"max_price": 900}),
+                       _LN(price_total=1200)) == (False, False)
+
+
+def test_unknown_gated_value_passes_but_is_unverified():
+    from Application.alert_matcher import gate_result
+
+    assert gate_result(_alert(filters={"min_area": 60}),
+                       _LN(area_m2=None)) == (True, True)
+
+
+def test_match_returns_unverified_flag_for_unknown_gated_value():
+    a = _alert(keywords=["nachmieter"], filters={"min_area": 60})
+    pairs = match([_LN(title="Nachmieter", area_m2=None)], [a])
+    assert len(pairs) == 1
+    assert pairs[0][0] is a and pairs[0][2] is True
+
+
+def test_match_drops_listings_failing_a_gate():
+    a = _alert(filters={"max_price": 800})
+    assert match([_LN(title="x", price_total=1500)], [a]) == []

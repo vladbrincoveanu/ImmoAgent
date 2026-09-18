@@ -213,6 +213,13 @@ class WillhabenScraper:
         attrs = advert_details.get('attributes', {}).get('attribute', [])
         return {a['name']: a.get('values', []) for a in attrs if 'name' in a}
 
+    def extract_listing_description(self, soup: BeautifulSoup) -> str:
+        """Return the complete normalized advert body used by alert search."""
+        advert = self._get_advert_details(soup)
+        attrs = self.extract_attributes_dict(soup)
+        raw = advert.get('description') or (attrs.get('DESCRIPTION') or [''])[0]
+        return _strip_html_to_text(raw)
+
     # Street name (one- or two-word, e.g. "Aichholzgasse" / "Mariahilfer Straße")
     # immediately followed by a house number. Used to recover the address from the
     # listing title/description when LOCATION/ADDRESS_2 has no house number.
@@ -493,11 +500,7 @@ class WillhabenScraper:
             # "Nachmieter gesucht" is usually buried three paragraphs down. Bounded
             # because some ads run to tens of kB and this is a search field, not an
             # archive.
-            _advert = self._get_advert_details(soup)
-            _desc = (_advert.get('description')
-                     or (self.extract_attributes_dict(soup).get('DESCRIPTION') or [''])[0])
-            if _desc:
-                listing.description = _strip_html_to_text(_desc)[:4000]
+            listing.description = self.extract_listing_description(soup) or None
 
             # A sitting tenant passing on their co-op flat is a different animal
             # from a Bauträger listing one: no waiting list, first-come-first-served,

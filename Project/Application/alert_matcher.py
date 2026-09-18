@@ -13,6 +13,18 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Numeric gates are data so the missing-value rule stays consistent across all
+# supported fields.
+_MIN_GATES = (
+    ("min_area", "area_m2"),
+    ("min_rooms", "rooms"),
+)
+_MAX_GATES = (
+    ("max_area", "area_m2"),
+    ("max_rooms", "rooms"),
+    ("max_price", "price_total"),
+)
+
 
 def searchable_text(listing) -> str:
     """The text an alert keyword is tested against, lowercased."""
@@ -25,15 +37,56 @@ def searchable_text(listing) -> str:
     return " ".join(p for p in parts if p).lower()
 
 
-def alert_matches(alert: Dict, listing) -> bool:
-    """True when this alert wants this listing.
+def alert_keywords(alert: Dict) -> List[str]:
+    """Return normalized multi-key values, with legacy scalar fallback."""
+    raw = alert.get("keywords")
+    if not raw:
+        legacy = alert.get("keyword")
+        raw = [legacy] if legacy else []
+    return [k.strip().lower() for k in raw if k and k.strip()]
 
-    An empty keyword means "every hit on this feed" — deliberate, so a user can
-    watch the whole private-transfer stream without inventing a term."""
-    keyword = (alert.get("keyword") or "").strip().lower()
-    if not keyword:
+
+def keyword_hit(alert: Dict, listing) -> bool:
+    """True when any keyword appears in the listing text."""
+    keys = alert_keywords(alert)
+    if not keys:
         return True
-    return keyword in searchable_text(listing)
+    haystack = searchable_text(listing)
+    return any(key in haystack for key in keys)
+
+
+def gate_result(alert: Dict, listing) -> Tuple[bool, bool]:
+    """Return (passes, unverified) for the alert's numeric filters.
+
+    A missing source value never fails a gate. It is flagged instead so a fresh
+    ad is not silently dropped merely because its first feed page is sparse.
+    """
+    filters = alert.get("filters") or {}
+    unverified = False
+    for key, attr in _MIN_GATES:
+        limit = filters.get(key)
+        if limit is None:
+            continue
+        value = getattr(listing, attr, None)
+        if value is None:
+            unverified = True
+        elif value < limit:
+            return False, False
+    for key, attr in _MAX_GATES:
+        limit = filters.get(key)
+        if limit is None:
+            continue
+        value = getattr(listing, attr, None)
+        if value is None:
+            unverified = True
+        elif value > limit:
+            return False, False
+    return True, unverified
+
+
+def alert_matches(alert: Dict, listing) -> bool:
+    """True when this alert wants this listing, ignoring warning metadata."""
+    return keyword_hit(alert, listing) and gate_result(alert, listing)[0]
 
 
 def channels_for(alert: Dict) -> Tuple[Optional[str], Optional[str]]:
@@ -47,12 +100,12 @@ def channels_for(alert: Dict) -> Tuple[Optional[str], Optional[str]]:
     return chat_id, email or None
 
 
-def match(listings: List, alerts: List[Dict]) -> List[Tuple[Dict, object]]:
-    """Every (alert, listing) pair that should be delivered.
+def match(listings: List, alerts: List[Dict]) -> List[Tuple[Dict, object, bool]]:
+    """Every (alert, listing, unverified) triple that should be delivered.
 
     Order is alert-major so one noisy listing cannot starve later alerts if the
     caller truncates."""
-    pairs: List[Tuple[Dict, object]] = []
+    pairs: List[Tuple[Dict, object, bool]] = []
     for alert in alerts:
         chat_id, email = channels_for(alert)
         if not chat_id and not email:
@@ -62,6 +115,9 @@ def match(listings: List, alerts: List[Dict]) -> List[Tuple[Dict, object]]:
                 f"alert {alert.get('_id')} has no usable channel — skipping")
             continue
         for listing in listings:
-            if alert_matches(alert, listing):
-                pairs.append((alert, listing))
+            if not keyword_hit(alert, listing):
+                continue
+            passes, unverified = gate_result(alert, listing)
+            if passes:
+                pairs.append((alert, listing, unverified))
     return pairs

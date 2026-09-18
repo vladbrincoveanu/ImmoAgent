@@ -38,18 +38,24 @@ WILLHABEN_PRIVATE_COOP_URL = os.environ.get(
 MAX_DETAIL_FETCHES_PER_POLL = 25
 
 
-def crawl_private_coop(
+def is_private_transfer(listing) -> bool:
+    """Return whether a parsed listing passed the private-transfer rubric."""
+    return getattr(listing, "coop_kind", None) == "private_transfer"
+
+
+def crawl_newest(
     scraper,
     is_new: Callable[[str], bool],
+    keep: Callable[[Listing], bool],
     search_url: Optional[str] = None,
     max_details: int = MAX_DETAIL_FETCHES_PER_POLL,
 ) -> List[Listing]:
-    """One poll of the Willhaben feed → private co-op transfers only.
+    """Poll the newest-first feed and retain listings selected by ``keep``.
 
-    `scraper` is a WillhabenScraper (needs `_fetch_with_retry`,
-    `extract_listing_urls`, `scrape_single_listing`). `is_new` decides whether a
-    URL is worth a detail fetch — in production that is a Mongo dedup check, so
-    an ad costs one detail fetch ever, not one per poll.
+    ``keep`` is applied after the one detail fetch. This lets keyword alerts see
+    the whole feed while the private-transfer page keeps its stricter rubric.
+    ``is_new`` decides whether a URL is worth a detail fetch — in production
+    that is a Mongo dedup check, so an ad costs one detail fetch ever.
 
     Never raises: a blocked or reshaped search page must leave the mygewo half of
     the poll running."""
@@ -57,15 +63,15 @@ def crawl_private_coop(
     try:
         response = scraper._fetch_with_retry(url)
     except Exception as e:
-        logger.error(f"willhaben private-coop search fetch failed: {e}")
+        logger.error(f"willhaben newest search fetch failed: {e}")
         return []
     if response is None:
-        logger.error("willhaben private-coop search returned nothing (blocked?)")
+        logger.error("willhaben newest search returned nothing (blocked?)")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
     urls = scraper.extract_listing_urls(soup)
-    logger.info(f"🔍 willhaben private-coop: {len(urls)} url(s) on the feed")
+    logger.info(f"🔍 willhaben newest: {len(urls)} url(s) on the feed")
 
     out: List[Listing] = []
     fetched = 0
@@ -85,16 +91,29 @@ def crawl_private_coop(
             continue
         if listing is None:
             continue
-        if getattr(listing, "coop_kind", None) == "private_transfer":
+        if keep(listing):
             out.append(listing)
 
     if skipped_for_cap:
         # Never silent: a cap that hides new ads during a first-come-first-served
         # race is exactly the thing that must be visible.
         logger.warning(
-            f"willhaben private-coop: {skipped_for_cap} new url(s) skipped, "
+            f"willhaben newest: {skipped_for_cap} new url(s) skipped, "
             f"detail cap {max_details} reached; they resolve on the next poll")
 
-    logger.info(f"🏠 willhaben private-coop: {len(out)} transfer(s) "
+    logger.info(f"🏠 willhaben newest: {len(out)} kept "
                 f"from {fetched} detail fetch(es)")
     return out
+
+
+def crawl_private_coop(
+    scraper,
+    is_new: Callable[[str], bool],
+    search_url: Optional[str] = None,
+    max_details: int = MAX_DETAIL_FETCHES_PER_POLL,
+) -> List[Listing]:
+    """Compatibility wrapper for the private-transfer-only feed."""
+    return crawl_newest(
+        scraper, is_new, is_private_transfer,
+        search_url=search_url, max_details=max_details,
+    )

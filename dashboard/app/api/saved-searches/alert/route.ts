@@ -13,7 +13,7 @@ interface SubscribeBody {
   frequency?: 'instant' | 'daily' | 'weekly';
   /** Which feed to watch. 'listings' is the original behaviour and stays the
    * default so existing callers are unaffected. */
-  kind?: 'listings' | 'coop_private';
+  kind?: 'listings' | 'coop_private' | 'keyword';
   /** Free-text match for coop_private alerts, tested against title, address and
    * the ad body by the poller. */
   keyword?: string;
@@ -21,9 +21,38 @@ interface SubscribeBody {
    * Weitergabe is gone in hours, and email is often too slow to be the only
    * channel. */
   telegram_chat_id?: string;
+  /** Multiple keys use OR semantics so synonyms do not disable an alert. */
+  keywords?: string[];
+  /** Optional numeric gates. Missing listing values pass and are flagged later. */
+  filters?: {
+    min_area?: number; max_area?: number;
+    min_rooms?: number; max_rooms?: number;
+    max_price?: number;
+  };
 }
 
 const KEYWORD_MAX_LEN = 80;
+const MAX_KEYWORDS = 10;
+const FILTER_KEYS = ['min_area', 'max_area', 'min_rooms', 'max_rooms', 'max_price'] as const;
+
+function cleanKeywords(body: SubscribeBody): string[] {
+  const values = Array.isArray(body.keywords)
+    ? body.keywords
+    : (body.keyword ? [body.keyword] : []);
+  return values
+    .map((key) => String(key).trim().slice(0, KEYWORD_MAX_LEN))
+    .filter(Boolean)
+    .slice(0, MAX_KEYWORDS);
+}
+
+function cleanFilters(raw: SubscribeBody['filters']): Record<string, number> {
+  const filters: Record<string, number> = {};
+  for (const key of FILTER_KEYS) {
+    const value = Number(raw?.[key]);
+    if (Number.isFinite(value) && value >= 0) filters[key] = value;
+  }
+  return filters;
+}
 
 /** A Telegram chat id is a signed integer (channels are negative, often -100…).
  * Rejecting @usernames on purpose: resolving one needs a bot API round trip, and
@@ -69,10 +98,11 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = body.kind ?? 'listings';
-  if (!['listings', 'coop_private'].includes(kind)) {
+  if (!['listings', 'coop_private', 'keyword'].includes(kind)) {
     return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
   }
-  const keyword = (body.keyword ?? '').toString().trim().slice(0, KEYWORD_MAX_LEN);
+  const keywords = cleanKeywords(body);
+  const filters = cleanFilters(body.filters);
   const frequency = body.frequency ?? 'daily';
   if (!['instant', 'daily', 'weekly'].includes(frequency)) {
     return NextResponse.json({ error: 'Invalid frequency' }, { status: 400 });
@@ -86,7 +116,10 @@ export async function POST(req: NextRequest) {
     email: hasEmail ? email : null,
     telegram_chat_id: hasTelegram ? telegramChatId : null,
     kind,
-    keyword,
+    keywords,
+    // Keep the scalar for older pollers and records.
+    keyword: keywords[0] ?? '',
+    filters,
     saved_search_id: body.saved_search_id ?? null,
     params,
     frequency,
@@ -99,9 +132,8 @@ export async function POST(req: NextRequest) {
   };
   await db.collection('alert_subscriptions').insertOne(doc);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   const confirmUrl = `${appUrl}/api/saved-searches/confirm?token=${confirmToken}`;
   // Telegram-only alerts have no address to confirm — sending here would mail ''.
   const mailResult = hasEmail
@@ -118,7 +150,8 @@ export async function POST(req: NextRequest) {
     email: doc.email,
     telegram_chat_id: doc.telegram_chat_id,
     kind,
-    keyword,
+    keywords,
+    filters,
     frequency,
     confirmed: doc.confirmed,
     email_sent: mailResult.ok,
@@ -147,10 +180,34 @@ export async function GET(req: NextRequest) {
     email: s.email ?? null,
     telegram_chat_id: s.telegram_chat_id ?? null,
     kind: s.kind ?? 'listings',
+    keywords: Array.isArray(s.keywords) && s.keywords.length
+      ? s.keywords
+      : (s.keyword ? [s.keyword] : []),
     keyword: s.keyword ?? null,
+    filters: s.filters ?? null,
     confirmed: !!s.confirmed,
     frequency: s.frequency,
     params: s.params,
     created_at: s.created_at,
   })) });
+}
+
+export async function DELETE(req: NextRequest) {
+  const db = getDb();
+  if (!db) return NextResponse.json({ error: 'Database unavailable' }, { status: 503 });
+  const userId = getOrCreateUserId(req);
+  const id = req.nextUrl.searchParams.get('id') ?? '';
+  if (!ObjectId.isValid(id)) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
+  const result = await db.collection('alert_subscriptions').deleteOne({
+    _id: new ObjectId(id),
+    user_id: userId,
+  });
+  if (result.deletedCount === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const res = NextResponse.json({ ok: true });
+  setUserCookie(res, userId);
+  return res;
 }

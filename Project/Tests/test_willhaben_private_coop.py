@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from Domain.listing import Listing  # noqa: E402
 from Domain.sources import Source  # noqa: E402
 from Application.scraping.willhaben_private_coop import (  # noqa: E402
-    crawl_private_coop,
+    crawl_newest, crawl_private_coop, is_private_transfer,
 )
 
 _SEARCH_HTML = """
@@ -120,3 +120,22 @@ def test_search_fetch_exception_returns_empty():
             raise RuntimeError("connection reset")
 
     assert crawl_private_coop(Exploding(), is_new=lambda u: True) == []
+
+
+def test_crawl_newest_can_keep_the_whole_feed_for_keyword_alerts():
+    scraper = FakeScraper(kinds={_A: "private_transfer", _B: None, _C: None})
+    got = crawl_newest(scraper, is_new=lambda u: True, keep=lambda listing: True)
+    assert [listing.url for listing in got] == [_A, _B, _C]
+
+
+def test_crawl_newest_accepts_a_custom_filter():
+    scraper = FakeScraper(kinds={_A: None, _B: None, _C: None})
+    got = crawl_newest(scraper, is_new=lambda u: True,
+                       keep=lambda listing: listing.url == _B)
+    assert [listing.url for listing in got] == [_B]
+
+
+def test_crawl_private_coop_remains_the_transfer_only_wrapper():
+    scraper = FakeScraper(kinds={_A: "private_transfer", _B: None})
+    got = crawl_newest(scraper, is_new=lambda u: True, keep=is_private_transfer)
+    assert [listing.url for listing in got] == [_A]

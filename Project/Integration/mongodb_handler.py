@@ -1,8 +1,8 @@
 import pymongo
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, OperationFailure
+from pymongo.errors import ConnectionFailure, DuplicateKeyError, OperationFailure
 from typing import Dict, Any, Optional, List, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 import json
 import time
@@ -237,7 +237,7 @@ class MongoDBHandler:
         # builder link / no photo" sentinel run_coop writes so it stops
         # re-fetching that page every poll. A falsy check would drop the "" and
         # silently restart the re-fetch loop it exists to prevent.
-        for k in ("builder_url", "image_url"):
+        for k in ("builder_url", "image_url", "image_probe_v"):
             if listing.get(k) is None and existing.get(k) is not None:
                 listing[k] = existing[k]
         self.collection.replace_one({"_id": existing['_id']}, listing)
@@ -610,20 +610,76 @@ class MongoDBHandler:
             print(f"MongoDB query error: {e}")
             return None
     
-    def get_active_alerts(self, kind: str) -> List[Dict]:
-        """Confirmed alert subscriptions for one feed.
+    def get_active_alerts(self, kind) -> List[Dict]:
+        """Confirmed alert subscriptions for one or more feeds.
 
         Unconfirmed email subscriptions are excluded: anyone can type someone
         else's address into the form, so an unconfirmed one must never be
         delivered to. Telegram subscriptions are stored already-confirmed —
         supplying a chat id the bot can post to is itself the consent."""
+        kinds = [kind] if isinstance(kind, str) else list(kind)
         try:
             return list(self.db["alert_subscriptions"].find(
-                {"kind": kind, "confirmed": True}))
+                {"kind": {"$in": kinds}, "$or": [
+                    {"confirmed": True},
+                    {"telegram_chat_id": {"$exists": True, "$ne": None}},
+                ]}))
         except Exception as e:
             # An alert lookup failure must not abort a poll — the scrape and the
             # upserts that feed the website still have to run.
             print(f"MongoDB alert query error: {e}")
+            return []
+
+    def ensure_delivery_index(self) -> None:
+        """Make alert claims atomic across concurrent poll runs."""
+        try:
+            self.db["alert_deliveries"].create_index(
+                [("alert_id", 1), ("url_hash", 1)], unique=True)
+        except Exception as e:
+            logging.warning(f"MongoDB delivery index error: {e}")
+
+    def claim_delivery(self, alert_id, url_hash: str,
+                       chat_id: Optional[str] = None,
+                       message: Optional[str] = None) -> bool:
+        """Claim one alert/listing pair before making its network call."""
+        try:
+            self.db["alert_deliveries"].insert_one({
+                "alert_id": alert_id,
+                "url_hash": url_hash,
+                "chat_id": chat_id,
+                "message": message,
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc),
+            })
+            return True
+        except DuplicateKeyError:
+            return False
+        except Exception as e:
+            logging.error(f"MongoDB delivery claim error: {e}")
+            return False
+
+    def mark_delivery_sent(self, alert_id, url_hash: str) -> None:
+        try:
+            self.db["alert_deliveries"].update_one(
+                {"alert_id": alert_id, "url_hash": url_hash},
+                {"$set": {
+                    "status": "sent",
+                    "sent_at": datetime.now(timezone.utc),
+                }},
+            )
+        except Exception as e:
+            logging.error(f"MongoDB delivery update error: {e}")
+
+    def stale_pending_deliveries(self, older_than_minutes: int = 5) -> List[Dict]:
+        """Return claims old enough that their poll may have died mid-send."""
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+        try:
+            return list(self.db["alert_deliveries"].find({
+                "status": "pending",
+                "created_at": {"$lt": cutoff},
+            }))
+        except Exception as e:
+            logging.error(f"MongoDB pending delivery query error: {e}")
             return []
 
     def get_top_listings(self, limit: int = 5, min_score: float = 0.0, days_old: int = 30,

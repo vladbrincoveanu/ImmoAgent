@@ -1,6 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  type Alert,
+  describeFilters,
+  keysOf,
+  numericValue,
+  parseKeywords,
+} from './alert-utils';
 
 /** Alert dashboard: create a keyword watch on the private-Weitergabe feed and
  * choose where hits land.
@@ -9,22 +16,17 @@ import { useCallback, useEffect, useState } from 'react';
  * create/delete round trips need to update the list without a reload — a co-op
  * alert is usually set up in a hurry. */
 
-type Alert = {
-  _id: string;
-  kind: string;
-  keyword: string | null;
-  email: string | null;
-  telegram_chat_id: string | null;
-  confirmed: boolean;
-  created_at: string | null;
-};
-
 const inputCls =
   'rounded-lg border border-[#E8E4E0] bg-white px-3 py-2 text-sm text-[#2D2D2D]';
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [keyword, setKeyword] = useState('');
+  const [minArea, setMinArea] = useState('');
+  const [maxArea, setMaxArea] = useState('');
+  const [minRooms, setMinRooms] = useState('');
+  const [maxRooms, setMaxRooms] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [email, setEmail] = useState('');
   const [chatId, setChatId] = useState('');
   const [status, setStatus] = useState<string | null>(null);
@@ -58,8 +60,15 @@ export default function AlertsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kind: 'coop_private',
-          keyword,
+          kind: 'keyword',
+          keywords: parseKeywords(keyword),
+          filters: {
+            min_area: numericValue(minArea),
+            max_area: numericValue(maxArea),
+            min_rooms: numericValue(minRooms),
+            max_rooms: numericValue(maxRooms),
+            max_price: numericValue(maxPrice),
+          },
           email: email || undefined,
           telegram_chat_id: chatId || undefined,
           frequency: 'instant',
@@ -69,6 +78,11 @@ export default function AlertsPage() {
       if (res.ok) {
         setStatus(json.message ?? 'Alert angelegt.');
         setKeyword('');
+        setMinArea('');
+        setMaxArea('');
+        setMinRooms('');
+        setMaxRooms('');
+        setMaxPrice('');
         setEmail('');
         setChatId('');
         void load();
@@ -84,12 +98,47 @@ export default function AlertsPage() {
     }
   }
 
+  async function remove(id: string) {
+    setStatus(null);
+    try {
+      const res = await fetch(
+        `/api/saved-searches/alert?id=${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok) {
+        void load();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setStatus(json.error ?? 'Löschen fehlgeschlagen.');
+      }
+    } catch {
+      setStatus('Netzwerkfehler beim Löschen.');
+    }
+  }
+
+  async function sendTest(id: string) {
+    setStatus(null);
+    try {
+      const res = await fetch('/api/saved-searches/alert/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setStatus(res.ok
+        ? 'Testnachricht gesendet.'
+        : (json.error ?? 'Test fehlgeschlagen.'));
+    } catch {
+      setStatus('Netzwerkfehler beim Test.');
+    }
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8" data-testid="alerts-page">
       <h1 className="text-2xl font-bold text-[#3D405B]">Alerts</h1>
       <p className="mt-1 text-sm text-[#6B6B6B]">
-        Stichwort-Alarm auf private Genossenschafts-Weitergaben. Treffer kommen
-        sofort — der Poller läuft alle 2&nbsp;Min. zwischen 06:00 und 17:00 Uhr.
+        Stichwort-Alarm auf neu erschienene Inserate. Der Poller läuft alle
+        2&nbsp;Min.; von der Anzeige bis Telegram vergehen typisch 2–3&nbsp;Min.
       </p>
 
       <form
@@ -101,12 +150,42 @@ export default function AlertsPage() {
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          maxLength={80}
-          placeholder="Stichwort, z. B. 1100 oder Balkon"
-          aria-label="Stichwort"
-          data-testid="alert-keyword"
+          placeholder="Stichwörter, kommagetrennt — z. B. Ablöse, Nachmieter, 1100"
+          aria-label="Stichwörter"
+          data-testid="alert-keywords"
           className={`${inputCls} w-full`}
         />
+        <p className="text-xs text-[#6B6B6B]">
+          Ein Treffer genügt: sobald EINES der Stichwörter im Titel oder im
+          Anzeigentext vorkommt, wird gemeldet. Ohne Stichwort kommt jede neue
+          Anzeige.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <input type="number" min="0" value={minArea}
+            onChange={(e) => setMinArea(e.target.value)}
+            placeholder="Größe ab (m²)" aria-label="Größe ab"
+            data-testid="alert-min-area" className={inputCls} />
+          <input type="number" min="0" value={maxArea}
+            onChange={(e) => setMaxArea(e.target.value)}
+            placeholder="Größe bis (m²)" aria-label="Größe bis"
+            data-testid="alert-max-area" className={inputCls} />
+          <input type="number" min="0" step="0.5" value={minRooms}
+            onChange={(e) => setMinRooms(e.target.value)}
+            placeholder="Zimmer ab" aria-label="Zimmer ab"
+            data-testid="alert-min-rooms" className={inputCls} />
+          <input type="number" min="0" step="0.5" value={maxRooms}
+            onChange={(e) => setMaxRooms(e.target.value)}
+            placeholder="Zimmer bis" aria-label="Zimmer bis"
+            data-testid="alert-max-rooms" className={inputCls} />
+          <input type="number" min="0" value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+            placeholder="Preis max (€)" aria-label="Preis max"
+            data-testid="alert-max-price" className={`${inputCls} col-span-2`} />
+        </div>
+        <p className="text-xs text-[#6B6B6B]">
+          Leer lassen heißt „egal“. Fehlt eine Angabe im Inserat, wird trotzdem
+          gemeldet und als ungeprüft markiert.
+        </p>
         <input
           type="email"
           value={email}
@@ -160,13 +239,36 @@ export default function AlertsPage() {
               className="rounded-lg border border-[#E8E4E0] bg-white px-4 py-3 text-sm"
             >
               <span className="font-medium text-[#3D405B]">
-                {a.keyword || '(alle Treffer)'}
+                {keysOf(a).join(', ') || '(alle Treffer)'}
               </span>
+              {describeFilters(a.filters) && (
+                <span className="text-[#6B6B6B]">
+                  {' · '}{describeFilters(a.filters)}
+                </span>
+              )}
               <span className="text-[#6B6B6B]">
                 {' · '}
                 {a.telegram_chat_id ? 'Telegram' : null}
                 {a.telegram_chat_id && a.email ? ' + ' : null}
                 {a.email ? `E-Mail${a.confirmed ? '' : ' (unbestätigt)'}` : null}
+              </span>
+              <span className="ml-2 inline-flex gap-2">
+                <button
+                  type="button"
+                  data-testid="alert-test"
+                  onClick={() => void sendTest(a._id)}
+                  className="rounded border border-[#E8E4E0] px-2 py-1 text-xs text-[#3D405B]"
+                >
+                  Test
+                </button>
+                <button
+                  type="button"
+                  data-testid="alert-delete"
+                  onClick={() => void remove(a._id)}
+                  className="rounded border border-[#E8E4E0] px-2 py-1 text-xs text-[#B23A3A]"
+                >
+                  Löschen
+                </button>
               </span>
             </li>
           ))}

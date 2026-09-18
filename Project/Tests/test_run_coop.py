@@ -354,7 +354,7 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
 
     @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
-    @patch("run_coop.crawl_private_coop")
+    @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
@@ -362,6 +362,7 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         MH.return_value = _mongo_mock(get_listing_ret=None)
         poll.return_value = []
         transfer = _l(url="https://www.willhaben.at/iad/immobilien/d/x-1/")
+        transfer.coop_kind = "private_transfer"
         crawl.return_value = [transfer]
         with patch.dict(run_coop.coop.SOURCES, {"T": {"url": "u", "parser": "p"}},
                         clear=True):
@@ -372,7 +373,7 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
 
     @patch("run_coop.load_coop_alerts", return_value={})
     @patch("run_coop.validate_url", return_value=True)
-    @patch("run_coop.crawl_private_coop", side_effect=RuntimeError("blocked"))
+    @patch("run_coop.crawl_newest", side_effect=RuntimeError("blocked"))
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source")
     @patch("run_coop.MongoDBHandler")
@@ -388,7 +389,7 @@ class TestWillhabenPrivateCoopWiring(unittest.TestCase):
         MH.return_value.upsert_coop_listing.assert_called_once()
 
     @patch("run_coop.load_coop_alerts", return_value={})
-    @patch("run_coop.crawl_private_coop")
+    @patch("run_coop.crawl_newest")
     @patch("run_coop.WillhabenScraper")
     @patch("run_coop.poll_source", side_effect=RuntimeError("mygewo down"))
     @patch("run_coop.MongoDBHandler")
@@ -464,3 +465,24 @@ class TestDeliverUserAlerts(unittest.TestCase):
                                   "telegram_chat_id": "-100", "confirmed": True}])
         self.assertEqual(
             run_coop.deliver_user_alerts(handler, [_l(url="https://willhaben.at/x")]), 0)
+
+    @patch("run_coop.dispatch", return_value=True)
+    @patch("run_coop.retry_pending", return_value=2)
+    def test_retries_pending_and_claims_new_alerts(self, retry, dispatch):
+        handler = self._handler([{"_id": "a", "keyword": "1100",
+                                  "telegram_chat_id": "-100", "confirmed": True}])
+        listing = _l(url="https://willhaben.at/x")
+        listing.title = "Weitergabe 1100 Wien"
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, [listing]), 3)
+        handler.get_active_alerts.assert_called_once_with(["coop_private", "keyword"])
+        handler.ensure_delivery_index.assert_called_once_with()
+        retry.assert_called_once()
+        dispatch.assert_called_once()
+
+    @patch("run_coop.retry_pending", return_value=1)
+    def test_retries_pending_even_when_no_alert_is_currently_active(self, retry):
+        handler = self._handler([])
+
+        self.assertEqual(run_coop.deliver_user_alerts(handler, []), 1)
+        retry.assert_called_once()

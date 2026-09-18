@@ -22,6 +22,8 @@ export default function RootLayout({
           <a href="/dashboard" className="text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Dashboard</a>
           <a href="/dashboard/map" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Map</a>
           <a href="/coop" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Genossenschaft</a>
+          <a href="/coop/private" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Ablöse</a>
+          <a href="/alerts" className="ml-4 text-sm font-medium text-[#3D405B] hover:text-[#2D2D2D]">Alerts</a>
         </header>
         {children}
       </body>
